@@ -2,7 +2,7 @@ import { ERROR_CODE, type FieldIssue } from '@mawid/shared';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { ZodType, z } from 'zod';
 import { AppError } from '../errors/AppError.ts';
-import type { RequestSchema } from '../util/schema.helper.ts';
+import { inBody, inParams, inQuery, type RequestSchema } from '../util/schema.helper.ts';
 
 export interface ValidationSpec {
     body?: ZodType;
@@ -51,6 +51,19 @@ export function validate(...parts: RequestSchema[]): RequestHandler {
         req.valid = valid;
         next();
     };
+}
+
+/**
+ * Validates from the same spec object the handler is typed against, so a route
+ * cannot end up validating the query while its handler reads a param. Params
+ * first: a bad `:id` should 400 before the body is looked at.
+ */
+export function validateSpec(spec: ValidationSpec): RequestHandler {
+    const parts: RequestSchema[] = [];
+    if (spec.params) parts.push(inParams(spec.params));
+    if (spec.query) parts.push(inQuery(spec.query));
+    if (spec.body) parts.push(inBody(spec.body));
+    return validate(...parts);
 }
 
 /**

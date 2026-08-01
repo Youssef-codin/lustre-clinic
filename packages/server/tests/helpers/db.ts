@@ -12,6 +12,9 @@ import { closeDb, type Db, getSqlite, openDb } from '../../src/db/index.ts';
 let dir: string | null = null;
 
 export function openTestDb(): Db {
+    // Test files share a process, so a file that failed to clean up must not
+    // hand its database to the next one — `openDb` is a no-op if one is open.
+    closeDb();
     dir = mkdtempSync(join(tmpdir(), 'mawid-test-'));
     return openDb(join(dir, 'test.sqlite'));
 }

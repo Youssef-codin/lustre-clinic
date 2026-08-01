@@ -12,7 +12,7 @@
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
         "format": "biome format --write .",
-        "test": "bun test"
+        "test": "LOG_LEVEL=silent bun test"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.3.14",

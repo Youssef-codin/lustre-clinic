@@ -2,8 +2,11 @@ import express, { type Express } from 'express';
 import helmet from 'helmet';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.ts';
 import { requestLogger } from './middleware/logger.ts';
+import appointmentRouter from './modules/appointment/appointment.router.ts';
 import configRouter from './modules/config/config.router.ts';
 import healthRouter from './modules/health/health.router.ts';
+import patientRouter from './modules/patient/patient.router.ts';
+import slotsRouter from './modules/slots/slots.router.ts';
 import { serveFrontend } from './static.ts';
 
 export function createApp(): Express {
@@ -34,6 +37,9 @@ export function createApp(): Express {
 
     app.use('/api/health', healthRouter);
     app.use('/api/config', configRouter);
+    app.use('/api/appointments', appointmentRouter);
+    app.use('/api/slots', slotsRouter);
+    app.use('/api/patients', patientRouter);
 
     // Anything else under /api is a 404 in JSON, never the SPA's index.html.
     app.use('/api', notFoundHandler);

@@ -2,6 +2,7 @@ import { Database } from 'bun:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { type BunSQLiteDatabase, drizzle } from 'drizzle-orm/bun-sqlite';
+import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { logger } from '../middleware/logger.ts';
 import { setStatus } from '../services/status.ts';
 import { resolveConfigured } from '../util/paths.ts';
@@ -11,6 +12,14 @@ import * as schema from './schema.ts';
 export * as schema from './schema.ts';
 
 export type Db = BunSQLiteDatabase<typeof schema> & { $client: Database };
+
+/**
+ * What a query can run against: the connection, or a transaction handle. A
+ * service that takes a `Querier` can be called standalone or pulled into a
+ * caller's transaction — which is how a booking creates its walk-in patient and
+ * its appointment atomically.
+ */
+export type Querier = BaseSQLiteDatabase<'sync', void, typeof schema>;
 
 interface Handle {
     db: Db;

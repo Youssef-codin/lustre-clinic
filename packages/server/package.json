@@ -8,7 +8,7 @@
         "start": "bun src/server.ts",
         "build": "bun build --compile --outfile dist/mawid src/server.ts",
         "typecheck": "tsc --noEmit",
-        "test": "bun test",
+        "test": "LOG_LEVEL=silent bun test",
         "db:generate": "drizzle-kit generate && bun run scripts/embed-migrations.ts",
         "db:migrate": "bun run scripts/migrate.ts"
     },

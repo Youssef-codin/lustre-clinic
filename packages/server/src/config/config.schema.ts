@@ -74,6 +74,13 @@ export const configSchema = z
         defaultLocale: localeSchema.default('ar'),
         /** Used to build QR URLs — see spec §9. */
         hostname: z.string().min(1),
+        /**
+         * Country calling code the secretary's local input is expanded to when
+         * normalizing to E.164 — `01012345678` → `+201012345678`. Required
+         * rather than defaulted: both clinics are in Egypt today, and a default
+         * in source is exactly the clinic-specific value spec §15 rules out.
+         */
+        phoneCountryCode: z.string().regex(/^\+\d{1,3}$/, 'expected a calling code like +20'),
         database: z.string().min(1).default('./mawid.sqlite'),
         backups: backupsSchema,
     })

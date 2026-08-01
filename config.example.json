@@ -49,6 +49,7 @@
     },
     "defaultLocale": "ar",
     "hostname": "mawid",
+    "phoneCountryCode": "+20",
     "database": "./mawid.sqlite",
     "backups": {
         "local": "./backups",
