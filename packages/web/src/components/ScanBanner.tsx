@@ -42,7 +42,7 @@ export function ScanBanner() {
                 onClick={dismiss}
                 className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
             >
-                {t('scan.dismiss')}
+                {t('common.dismiss')}
             </button>
         </div>
     );

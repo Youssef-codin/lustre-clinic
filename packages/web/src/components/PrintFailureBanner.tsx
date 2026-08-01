@@ -104,7 +104,7 @@ export function PrintFailureBanner({ fetched }: { fetched: PrintFailure[] }) {
                             onClick={() => setDismissed((current) => [...current, failure.id])}
                             className="h-10 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                         >
-                            {t('print.dismiss')}
+                            {t('common.dismiss')}
                         </button>
                     </li>
                 ))}
