@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1785555642242,
+      "tag": "0000_sudden_nextwave",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785572543174,
+      "tag": "0001_jittery_the_initiative",
+      "breakpoints": true
+    }
+  ]
+}
