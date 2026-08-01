@@ -14,6 +14,7 @@ config.json
 # runtime state
 session/
 backups/
+print-out/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

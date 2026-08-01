@@ -27,6 +27,21 @@ export function createApp(): Express {
                     connectSrc: ["'self'", 'ws:', 'wss:'],
                     imgSrc: ["'self'", 'data:'],
                     styleSrc: ["'self'", "'unsafe-inline'"],
+                    /*
+                     * Removed, not merely unset — helmet adds it by default.
+                     *
+                     * The install is plain http on the LAN. With this directive
+                     * the browser rewrites every subresource to https, which
+                     * nothing here answers, so the page loads and then renders
+                     * blank with no console error to explain it.
+                     *
+                     * It hides during development: `localhost` is a
+                     * "potentially trustworthy" origin, so browsers skip the
+                     * upgrade there. It only bites over a LAN IP — which is
+                     * exactly the phone scanning a printed slip, and nothing
+                     * else. Same reasoning as `hsts: false` below.
+                     */
+                    upgradeInsecureRequests: null,
                 },
             },
             // LAN-only over plain http; HSTS would strand the clinic on https.

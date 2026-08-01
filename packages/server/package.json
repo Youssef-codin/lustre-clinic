@@ -10,7 +10,9 @@
         "typecheck": "tsc --noEmit",
         "test": "LOG_LEVEL=silent bun test",
         "db:generate": "drizzle-kit generate && bun run scripts/embed-migrations.ts",
-        "db:migrate": "bun run scripts/migrate.ts"
+        "db:migrate": "bun run scripts/migrate.ts",
+        "seed": "LOG_LEVEL=warn bun run scripts/seed.ts",
+        "sample-print": "LOG_LEVEL=warn bun run scripts/sample-print.ts"
     },
     "dependencies": {
         "@mawid/shared": "workspace:*",

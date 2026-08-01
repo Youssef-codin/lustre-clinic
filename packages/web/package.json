@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "bun run build.ts --watch",
-        "build": "bun run build.ts",
+        "build": "bun run build.ts --production",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

@@ -26,14 +26,24 @@ async function build(): Promise<boolean> {
         // and a relative asset URL there would resolve to /p/chunk-….js.
         publicPath: '/',
         plugins: [tailwind],
-        // Lets the mock API (src/mocks) be dropped from a production bundle
-        // rather than shipped and merely left unused.
+        // React reads this to drop its development warnings and dev-only
+        // bookkeeping; without it the bundle ships the development build.
         define: {
             'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development'),
         },
         minify: production,
         sourcemap: production ? 'none' : 'linked',
-        naming: production ? '[dir]/[name]-[hash].[ext]' : '[dir]/[name].[ext]',
+        // Hash the chunks and assets for cache-busting, but never the HTML
+        // entrypoint: static.ts serves `public/index.html` by that exact name,
+        // and an `index-<hash>.html` makes every page a 503. Bun rewrites the
+        // script/link hrefs inside the HTML to the hashed names either way.
+        naming: production
+            ? {
+                  entry: '[dir]/[name].[ext]',
+                  chunk: '[dir]/[name]-[hash].[ext]',
+                  asset: '[dir]/[name]-[hash].[ext]',
+              }
+            : '[dir]/[name].[ext]',
     });
 
     if (!result.success) {

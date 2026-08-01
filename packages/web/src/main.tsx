@@ -13,13 +13,6 @@ import './styles.css';
 // 'unsafe-inline' for scripts.
 applyLocaleToDocument(initialLocale);
 
-// Before anything fetches. Dropped entirely from a production build — see the
-// `define` in build.ts — and deleted outright once the server has these routes.
-if (process.env.NODE_ENV !== 'production') {
-    const { installMockApi } = await import('./mocks/index.ts');
-    await installMockApi();
-}
-
 const container = document.getElementById('root');
 if (!container) throw new Error('#root missing from index.html');
 

@@ -34,6 +34,11 @@ export const ar = {
     'patient.history': 'سجل المواعيد',
     'patient.noHistory': 'لا توجد مواعيد لهذا المريض.',
 
+    'lookup.label': 'ابحث عن مريض بالاسم أو رقم الهاتف',
+    'lookup.placeholder': 'ابحث عن مريض…',
+    'lookup.searching': 'جاري البحث…',
+    'lookup.noResults': 'لا يوجد مريض بهذا الاسم أو الرقم.',
+
     'day.prev': 'اليوم السابق',
     'day.next': 'اليوم التالي',
     'day.today': 'اليوم',

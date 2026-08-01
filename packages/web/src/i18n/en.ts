@@ -29,6 +29,11 @@ export const en: Dictionary = {
     'patient.history': 'Appointment history',
     'patient.noHistory': 'No appointments for this patient.',
 
+    'lookup.label': 'Find a patient by name or phone',
+    'lookup.placeholder': 'Find a patient…',
+    'lookup.searching': 'Searching…',
+    'lookup.noResults': 'No patient matches that.',
+
     'day.prev': 'Previous day',
     'day.next': 'Next day',
     'day.today': 'Today',

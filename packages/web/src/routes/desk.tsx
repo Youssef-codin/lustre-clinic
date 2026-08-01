@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { BookingSheet } from '../components/BookingSheet.tsx';
 import { DateNav } from '../components/DateNav.tsx';
 import { DayList } from '../components/DayList.tsx';
+import { PatientLookup } from '../components/PatientLookup.tsx';
 import { PrintFailureBanner } from '../components/PrintFailureBanner.tsx';
 import { ReminderAlerts } from '../components/ReminderAlerts.tsx';
 import { SlotPanel } from '../components/SlotPanel.tsx';
@@ -93,6 +94,10 @@ function DeskScreen() {
             <WhatsAppPanel fetched={whatsapp} />
             <PrintFailureBanner fetched={printFailures} />
             <ReminderAlerts fetched={reminders} />
+            {/* Above the date nav on purpose: looking a patient up is not a
+                question about the day being viewed, and it should not move when
+                the secretary pages through days. */}
+            <PatientLookup />
             <DateNav date={date} onChange={(next) => setSearch({ date: next })} />
 
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">

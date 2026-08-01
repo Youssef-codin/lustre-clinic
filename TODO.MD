@@ -43,14 +43,18 @@ Nothing built. Note §14 defers the backups *UI*, not backups themselves, and
 
 ## Smaller
 
-- `seed` script (§3 lists one; it does not exist).
+- ~~`seed` script (§3 lists one; it does not exist).~~ Built —
+  `bun run seed` / `bun run seed --reset`, plus `bun run sample-print` which
+  renders the slip and the day schedule to `docs/`.
 - `escpos` print driver — deferred in §14. `driverFor()` currently falls back to
   the file driver with a warning rather than silently printing nothing.
 - Monitoring and alerting (§10) — explicitly post-demo.
 
 ## Needs hardware, not code
 
-- Scan a printed slip with a real phone. QR geometry is verified against the
-  matrix in tests, but nothing here can decode one.
+- ~~Scan a printed slip with a real phone.~~ **Done.** A slip printed on the
+  HP LaserJet was scanned with a real phone and opened the patient's page; the
+  desk followed the scan on its own. Two bugs had to be fixed to get there — see
+  INTEGRATION.MD §9.
 - Pair a real WhatsApp number and send a live reminder (§13 item 14). Must be a
   dedicated number, never the clinic's main line.
