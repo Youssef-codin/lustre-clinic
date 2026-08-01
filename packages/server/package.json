@@ -1,0 +1,28 @@
+{
+    "name": "@mawid/server",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "bun --watch src/server.ts",
+        "start": "bun src/server.ts",
+        "build": "bun build --compile --outfile dist/mawid src/server.ts",
+        "typecheck": "tsc --noEmit",
+        "test": "bun test"
+    },
+    "dependencies": {
+        "@mawid/shared": "workspace:*",
+        "express": "^5.1.0",
+        "helmet": "^8.1.0",
+        "pino": "^10.0.0",
+        "pino-pretty": "^13.1.2",
+        "ws": "^8.19.0",
+        "zod": "^4.1.13"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.6",
+        "@types/ws": "^8.18.1",
+        "supertest": "^7.1.4",
+        "@types/supertest": "^6.0.3"
+    }
+}

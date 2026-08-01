@@ -1,0 +1,58 @@
+{
+    "clinic": {
+        "name": "عيادة الأسنان",
+        "nameEn": "Dental Clinic",
+        "phone": "+201000000000",
+        "address": "١٢ شارع المثال، القاهرة",
+        "addressEn": "12 Example St, Cairo",
+        "timezone": "Africa/Cairo"
+    },
+    "hours": {
+        "0": [{ "from": "10:00", "to": "14:00" }],
+        "1": [{ "from": "10:00", "to": "14:00" }, { "from": "17:00", "to": "21:00" }],
+        "2": [{ "from": "10:00", "to": "14:00" }],
+        "3": [{ "from": "10:00", "to": "14:00" }, { "from": "17:00", "to": "21:00" }],
+        "4": [{ "from": "10:00", "to": "14:00" }],
+        "6": [{ "from": "17:00", "to": "21:00" }]
+    },
+    "appointmentTypes": [
+        { "id": "checkup", "label": "كشف", "labelEn": "Check-up", "minutes": 20 },
+        { "id": "cleaning", "label": "تنظيف", "labelEn": "Cleaning", "minutes": 30 },
+        { "id": "filling", "label": "حشو", "labelEn": "Filling", "minutes": 45 },
+        { "id": "extraction", "label": "خلع", "labelEn": "Extraction", "minutes": 45 },
+        { "id": "rootcanal", "label": "علاج عصب", "labelEn": "Root canal", "minutes": 90 },
+        { "id": "other", "label": "أخرى", "labelEn": "Other", "minutes": 30 }
+    ],
+    "reminders": {
+        "enabled": true,
+        "hoursBefore": 18,
+        "sendWindow": { "from": "10:00", "to": "20:00" },
+        "minLeadHours": 3,
+        "catchUp": {
+            "minGapMinutes": 5,
+            "maxGapMinutes": 15,
+            "maxMessages": 15
+        },
+        "template": "أهلاً {patient}، تذكير بموعدك في {clinic} يوم {date} الساعة {time}.\nالعنوان: {address}\nللإلغاء أو التأجيل اتصل على {phone}.\nللإيقاف اكتب: إيقاف"
+    },
+    "whatsapp": {
+        "sessionPath": "./session",
+        "dryRun": true
+    },
+    "printing": {
+        "driver": "file",
+        "outputDir": "./print-out"
+    },
+    "server": {
+        "port": 8080,
+        "host": "0.0.0.0"
+    },
+    "defaultLocale": "ar",
+    "hostname": "mawid",
+    "database": "./mawid.sqlite",
+    "backups": {
+        "local": "./backups",
+        "intervalHours": 6,
+        "retention": { "daily": 14, "weekly": 8, "monthly": 12 }
+    }
+}

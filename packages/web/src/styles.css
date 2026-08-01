@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+/*
+ * RTL is the default — the document sets dir="rtl". Use logical properties
+ * (ps-/pe-, ms-/me-, start/end) throughout; pl-/pr- will mirror wrong.
+ */
+
+@theme {
+    --font-sans: 'Cairo', 'Noto Kufi Arabic', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    }
+
+    /* Touch targets sized for a phone and a tablet, not a mouse. */
+    button,
+    a[role='button'] {
+        @apply min-h-11;
+    }
+}

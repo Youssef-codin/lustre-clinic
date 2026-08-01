@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.log
+
+# built frontend — generated from packages/web
+packages/server/public/
+
+# clinic-specific, never committed
+config.json
+.env
+.env.*
+!.env.example
+
+# runtime state
+session/
+backups/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
