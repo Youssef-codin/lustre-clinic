@@ -13,7 +13,10 @@ import {
     patientSearchQuerySchema,
     printDayQuerySchema,
     printSlipParamSchema,
+    type RemindersResponse,
+    remindersQuerySchema,
     slotsQuerySchema,
+    type WhatsAppStatus,
 } from '@mawid/shared';
 import { FALLBACK_CONFIG, MockStore } from './store.ts';
 
@@ -138,6 +141,21 @@ async function handle(
         const body = createPatientSchema.safeParse(JSON.parse(String(init?.body ?? '{}')));
         if (!body.success) return invalid(body.error);
         return ok(store.createPatient(body.data.name, body.data.phone, body.data.notes ?? null), 201);
+    }
+
+    if (method === 'GET' && path === '/api/whatsapp/status') {
+        return ok<WhatsAppStatus>(store.whatsapp);
+    }
+
+    if (method === 'POST' && path === '/api/whatsapp/logout') {
+        store.whatsapp = { connected: false, dryRun: store.whatsapp.dryRun };
+        return ok<WhatsAppStatus>(store.whatsapp);
+    }
+
+    if (method === 'GET' && path === '/api/reminders') {
+        const query = remindersQuerySchema.safeParse(queryObject(url));
+        if (!query.success) return invalid(query.error);
+        return ok<RemindersResponse>(store.remindersOn(query.data.date as IsoDate));
     }
 
     if (method === 'GET' && path === '/api/print/failures') {

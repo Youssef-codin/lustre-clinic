@@ -5,7 +5,9 @@ import {
     type OpenSlot,
     type PrintFailuresResponse,
     type PublicConfig,
+    type RemindersResponse,
     type SlotsResponse,
+    type WhatsAppStatus,
 } from '@mawid/shared';
 import { createRoute, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -13,8 +15,10 @@ import { BookingSheet } from '../components/BookingSheet.tsx';
 import { DateNav } from '../components/DateNav.tsx';
 import { DayList } from '../components/DayList.tsx';
 import { PrintFailureBanner } from '../components/PrintFailureBanner.tsx';
+import { ReminderAlerts } from '../components/ReminderAlerts.tsx';
 import { SlotPanel } from '../components/SlotPanel.tsx';
 import { SystemStatus } from '../components/SystemStatus.tsx';
+import { WhatsAppPanel } from '../components/WhatsAppPanel.tsx';
 import { useI18n } from '../contexts/LocaleContext.tsx';
 import { useScan } from '../contexts/ScanContext.tsx';
 import { useServerEvent } from '../contexts/SocketContext.tsx';
@@ -45,10 +49,13 @@ interface DeskData {
     appointments: DayAppointments;
     slots: SlotsResponse;
     printFailures: PrintFailuresResponse;
+    reminders: RemindersResponse;
+    whatsapp: WhatsAppStatus | null;
 }
 
 function DeskScreen() {
-    const { config, date, typeId, appointments, slots, printFailures } = deskRoute.useLoaderData();
+    const { config, date, typeId, appointments, slots, printFailures, reminders, whatsapp } =
+        deskRoute.useLoaderData();
     const navigate = deskRoute.useNavigate();
     const router = useRouter();
     const { t } = useI18n();
@@ -83,7 +90,9 @@ function DeskScreen() {
     return (
         <>
             <SystemStatus />
+            <WhatsAppPanel fetched={whatsapp} />
             <PrintFailureBanner fetched={printFailures} />
+            <ReminderAlerts fetched={reminders} />
             <DateNav date={date} onChange={(next) => setSearch({ date: next })} />
 
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -168,15 +177,17 @@ export const deskRoute = createRoute({
 
         // One round trip each, in parallel — the desk screen is the one the
         // secretary waits on with a patient standing in front of her.
-        const [appointments, slots, printFailures] = await Promise.all([
+        const [appointments, slots, printFailures, reminders, whatsapp] = await Promise.all([
             api.get<DayAppointments>(`/api/appointments?date=${date}`),
             api.get<SlotsResponse>(`/api/slots?date=${date}&typeId=${encodeURIComponent(typeId)}`),
             // Never fatal: a broken failures endpoint must not take the whole
             // booking screen down with it.
             api.get<PrintFailuresResponse>('/api/print/failures').catch(() => []),
+            api.get<RemindersResponse>(`/api/reminders?date=${date}`).catch(() => []),
+            api.get<WhatsAppStatus>('/api/whatsapp/status').catch(() => null),
         ]);
 
-        return { config, date, typeId, appointments, slots, printFailures };
+        return { config, date, typeId, appointments, slots, printFailures, reminders, whatsapp };
     },
     component: DeskScreen,
     errorComponent: DeskError,

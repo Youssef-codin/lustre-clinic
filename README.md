@@ -1,7 +1,8 @@
 # Mawid
 
 Clinic appointment booking with WhatsApp reminders and printed paper output.
-See [SPEC.MD](./SPEC.MD) for the full design.
+See [SPEC.MD](./SPEC.MD) for the full design, and [DEMO.md](./DEMO.md) for the
+feature walkthrough — what to show, in what order, and what to say.
 
 ## Setup
 
@@ -77,8 +78,25 @@ is a change in `shared`.
 
 ## Status
 
-Skeleton. Working: config load + validation, `/api/health`, `/api/config`,
-error envelope, websocket, static SPA serving with deep-link routes.
+**Web** — build items 7, 8, 11 (frontend), 12 (frontend) and 15 are done:
+booking screen with day view and open slots, patient page with history,
+scan-follow over the websocket, WhatsApp pairing UI, and the print-failure and
+"not reminded" banners. Routing is TanStack Router; the day and appointment type
+live in the URL and route loaders do the fetching.
 
-Not wired up yet: the database and migrations, printing, WhatsApp, reminders,
-backups. Their health entries report `disabled` until they exist.
+**Server** — config load + validation, `/api/health`, `/api/config`, error
+envelope, websocket, static SPA serving with deep-link routes. The database,
+printing, WhatsApp and reminders are in progress; their health entries report
+`disabled` until they exist.
+
+### The web app runs without the server
+
+`packages/web/src/mocks/` intercepts `fetch` and serves the appointment,
+patient, slot, print and reminder endpoints from memory, typed against — and
+validated with — the Zod schemas in `packages/shared`. So a contract change
+breaks the mock rather than silently diverging from it.
+
+It is dev-only: a `define` in `packages/web/build.ts` drops it from a production
+build entirely. Delete the `installMockApi()` call in `src/main.tsx` and the
+`src/mocks/` folder once the server owns these routes — no component, hook or
+URL changes, because every request is already a real relative URL.

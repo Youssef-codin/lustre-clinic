@@ -11,7 +11,10 @@ import {
     type PatientSummary,
     type PrintFailure,
     type PublicConfig,
+    type Reminder,
+    type ReminderWithPatient,
     type SlotsResponse,
+    type WhatsAppStatus,
 } from '@mawid/shared';
 import { addDays, clinicDay, clinicTimeToInstant, todayInClinic, weekdayOf } from '../lib/datetime.ts';
 
@@ -72,8 +75,13 @@ export class MockStore {
     readonly config: PublicConfig;
     private patients: Patient[] = [];
     private appointments: Appointment[] = [];
+    /** Mirrors `config.example.json`, which ships `whatsapp.dryRun: true` — so
+     *  dev shows the "logged, not sent" warning, which is the honest state. */
+    whatsapp: WhatsAppStatus = { connected: true, dryRun: true };
+    private reminders: Reminder[] = [];
     private nextPatientId = 1;
     private nextAppointmentId = 1;
+    private nextReminderId = 1;
 
     constructor(config: PublicConfig) {
         this.config = config;
@@ -129,7 +137,23 @@ export class MockStore {
 
         // One cancelled row, so the day view is built against a status it must show.
         const cancelled = this.appointments.find((appointment) => appointment.patientId === 3);
-        if (cancelled) cancelled.status = 'cancelled';
+        if (cancelled) {
+            cancelled.status = 'cancelled';
+            const reminder = this.reminders.find((r) => r.appointmentId === cancelled.id);
+            if (reminder) {
+                reminder.status = 'skipped';
+                reminder.skipReason = 'cancelled';
+            }
+        }
+
+        // And one delivery failure, so "these patients were not reminded" has
+        // both of the states it has to render.
+        const failed = this.reminders.find((r) => r.appointmentId === 2);
+        if (failed) {
+            failed.status = 'failed';
+            failed.error = 'connection closed';
+            failed.attempts = 3;
+        }
     }
 
     createPatient(name: string, phone: string, notes: string | null): Patient {
@@ -200,6 +224,23 @@ export class MockStore {
             updatedAt: now,
         };
         this.appointments.push(appointment);
+
+        /*
+         * A reminder row is created when an appointment is booked (§9). The real
+         * `scheduledFor` snaps backwards into open hours; the mock only needs a
+         * plausible instant, since nothing here actually sends.
+         */
+        this.reminders.push({
+            id: this.nextReminderId++,
+            appointmentId: appointment.id,
+            status: 'pending',
+            scheduledFor: new Date(new Date(startsAt).getTime() - 18 * 3_600_000).toISOString(),
+            sentAt: null,
+            error: null,
+            skipReason: null,
+            attempts: 0,
+        });
+
         return appointment;
     }
 
@@ -263,6 +304,33 @@ export class MockStore {
         }
 
         return { date, typeId, durationMin, slots };
+    }
+
+    /**
+     * `GET /api/reminders?date=` — one row per appointment that day, with the
+     * patient attached so the desk can show a name and a number without a
+     * second lookup.
+     */
+    remindersOn(date: IsoDate): ReminderWithPatient[] {
+        const timezone = this.config.clinic.timezone;
+
+        return this.reminders
+            .map((reminder) => {
+                const appointment = this.findAppointment(reminder.appointmentId);
+                if (!appointment) return null;
+                if (clinicDay(appointment.startsAt, timezone) !== date) return null;
+
+                const patient = this.findPatient(appointment.patientId);
+                if (!patient) return null;
+
+                return {
+                    ...reminder,
+                    patient: summarize(patient),
+                    appointmentStartsAt: appointment.startsAt,
+                };
+            })
+            .filter((row): row is ReminderWithPatient => row !== null)
+            .sort((a, b) => a.appointmentStartsAt.localeCompare(b.appointmentStartsAt));
     }
 
     /**
