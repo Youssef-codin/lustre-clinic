@@ -147,9 +147,23 @@ would have looked fine, because the tests were among the deleted files.
 This was resolved in `c0b3317` by restoring all 107 files from the `server`
 branch. `packages/shared` was byte-identical on both sides.
 
-**The commit is still on `web`.** Any future merge from that branch repeats this,
-with a different and equally silent set of casualties. Drop it from `web`, or
-stop merging that branch.
+The `web` branch and its worktree have since been deleted, so the hazard is
+closed — there is no branch left to merge from, and `ea392fa` survives only as
+history inside `main`. Do not resurrect that branch from before `3735006`.
+
+**One loose end: `c0b3317` is not a merge commit.** It has a single parent, so
+git does not record `server` as merged — `git branch --merged main` omits it and
+the merge base is still `3cf5239`, two commits behind `server`'s tip. The trees
+already agree (`git diff server main -- packages/server packages/shared` is
+empty; a dry-run merge conflicts only on the generated `bun.lock`), so the fix is
+to record the relationship without changing the tree:
+
+```bash
+git merge -s ours server -m "record server merge (content already applied in c0b3317)"
+```
+
+Until that is done, any further merge from `server` replays against the stale
+base rather than from where `main` actually is.
 
 ---
 
