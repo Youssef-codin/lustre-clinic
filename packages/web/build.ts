@@ -26,6 +26,11 @@ async function build(): Promise<boolean> {
         // and a relative asset URL there would resolve to /p/chunk-….js.
         publicPath: '/',
         plugins: [tailwind],
+        // Lets the mock API (src/mocks) be dropped from a production bundle
+        // rather than shipped and merely left unused.
+        define: {
+            'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development'),
+        },
         minify: production,
         sourcemap: production ? 'none' : 'linked',
         naming: production ? '[dir]/[name]-[hash].[ext]' : '[dir]/[name].[ext]',

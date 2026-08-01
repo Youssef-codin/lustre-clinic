@@ -1,93 +1,122 @@
-import { appointmentTypeLabel, type ComponentStatus, type HealthResponse } from '@mawid/shared';
+import type { IsoDate, OpenSlot, PublicConfig } from '@mawid/shared';
 import { createRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import { BookingSheet } from '../components/BookingSheet.tsx';
+import { DateNav } from '../components/DateNav.tsx';
+import { DayList } from '../components/DayList.tsx';
+import { SlotPanel } from '../components/SlotPanel.tsx';
+import { SystemStatus } from '../components/SystemStatus.tsx';
 import { useConfig } from '../contexts/ConfigContext.tsx';
 import { useI18n } from '../contexts/LocaleContext.tsx';
-import { useSocket } from '../contexts/SocketContext.tsx';
-import type { TranslationKey } from '../i18n/index.ts';
-import { api } from '../lib/api.ts';
+import { useDayAppointments } from '../hooks/useDayAppointments.ts';
+import { useSlots } from '../hooks/useSlots.ts';
+import { todayInClinic, weekdayOf } from '../lib/datetime.ts';
+import { localizeError } from '../lib/errorMessage.ts';
 import { rootRoute } from './root.tsx';
 
-const STATUS_STYLES: Record<ComponentStatus, string> = {
-    ok: 'bg-emerald-100 text-emerald-800',
-    degraded: 'bg-amber-100 text-amber-800',
-    down: 'bg-rose-100 text-rose-800',
-    disabled: 'bg-slate-200 text-slate-600',
-};
-
-const STATUS_KEY: Record<ComponentStatus, TranslationKey> = {
-    ok: 'status.ok',
-    degraded: 'status.degraded',
-    down: 'status.down',
-    disabled: 'status.disabled',
-};
-
-function StatusPill({ label, status }: { label: string; status: ComponentStatus }) {
-    const { t } = useI18n();
-
-    return (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-white px-4 py-3 shadow-sm">
-            <span className="text-slate-700">{label}</span>
-            <span className={`rounded-full px-3 py-1 text-sm font-medium ${STATUS_STYLES[status]}`}>
-                {t(STATUS_KEY[status])}
-            </span>
-        </div>
-    );
+interface BoardProps {
+    config: PublicConfig;
+    date: IsoDate;
+    typeId: string;
+    onDateChange: (date: IsoDate) => void;
+    onTypeChange: (typeId: string) => void;
 }
 
-/**
- * The secretary's screen. The day view, open slots and booking form land here
- * in build item 7; what is below is the system-status panel that was already
- * here, kept because spec §15 wants failures visible on exactly this screen.
- */
-function DeskScreen() {
-    const { config } = useConfig();
-    const { connected } = useSocket();
-    const { locale, t } = useI18n();
-    const [health, setHealth] = useState<HealthResponse | null>(null);
+function Board({ config, date, typeId, onDateChange, onTypeChange }: BoardProps) {
+    const { t } = useI18n();
+    const day = useDayAppointments(date);
+    const slots = useSlots(date, typeId);
+    const [picked, setPicked] = useState<OpenSlot | null>(null);
 
-    useEffect(() => {
-        const load = () => {
-            api.get<HealthResponse>('/api/health')
-                .then(setHealth)
-                .catch(() => setHealth(null));
-        };
-        load();
-        const timer = setInterval(load, 30_000);
-        return () => clearInterval(timer);
-    }, []);
+    const closed = (config.hours[weekdayOf(date)] ?? []).length === 0;
 
     return (
         <>
-            <section className="mb-8">
-                <h2 className="mb-3 text-lg font-semibold">{t('status.heading')}</h2>
-                <div className="grid gap-2 sm:grid-cols-2">
-                    <StatusPill label={t('status.socket')} status={connected ? 'ok' : 'down'} />
-                    <StatusPill label={t('status.db')} status={health?.db ?? 'down'} />
-                    <StatusPill label={t('status.printer')} status={health?.printer ?? 'down'} />
-                    <StatusPill label={t('status.whatsapp')} status={health?.whatsapp ?? 'down'} />
-                </div>
-                {health && (
-                    <p className="mt-3 text-sm text-slate-500">
-                        {t('status.meta', { version: health.version, uptime: health.uptimeSeconds })}
-                    </p>
-                )}
-            </section>
+            <DateNav date={date} onChange={onDateChange} />
 
-            {config && (
+            <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
                 <section>
-                    <h2 className="mb-3 text-lg font-semibold">{t('appointmentTypes.heading')}</h2>
-                    <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg bg-white shadow-sm">
-                        {config.appointmentTypes.map((type) => (
-                            <li key={type.id} className="flex items-center justify-between px-4 py-3">
-                                <span>{appointmentTypeLabel(type, locale)}</span>
-                                <span className="text-sm text-slate-500">
-                                    {t('appointmentTypes.minutes', { minutes: type.minutes })}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="mb-3 flex items-baseline justify-between gap-3">
+                        <h2 className="text-lg font-semibold">{t('day.heading')}</h2>
+                        {day.appointments && (
+                            <span className="text-sm text-slate-500">
+                                {t('day.count', { count: day.appointments.length })}
+                            </span>
+                        )}
+                    </div>
+
+                    {closed && (
+                        <p className="mb-3 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-600">
+                            {t('day.closed')}
+                        </p>
+                    )}
+
+                    {day.error != null && (
+                        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                            {t('day.loadFailed', { message: localizeError(t, day.error) })}
+                        </p>
+                    )}
+
+                    {day.error == null && day.appointments && <DayList appointments={day.appointments} />}
                 </section>
+
+                <SlotPanel
+                    typeId={typeId}
+                    onTypeChange={onTypeChange}
+                    slots={slots.slots}
+                    loading={slots.loading}
+                    error={slots.error}
+                    onPick={setPicked}
+                />
+            </div>
+
+            {picked && slots.slots && (
+                <BookingSheet
+                    date={date}
+                    slot={picked}
+                    typeId={typeId}
+                    durationMin={slots.slots.durationMin}
+                    onClose={() => setPicked(null)}
+                    onBooked={() => {
+                        setPicked(null);
+                        // Both change: the day gains a row, the slot stops being open.
+                        day.reload();
+                        slots.reload();
+                    }}
+                />
+            )}
+        </>
+    );
+}
+
+/** The secretary's screen: the day on one side, booking on the other. */
+function DeskScreen() {
+    const { config } = useConfig();
+    const { t } = useI18n();
+    const [date, setDate] = useState<IsoDate | null>(null);
+    const [typeId, setTypeId] = useState<string | null>(null);
+
+    // "Today" and the default type are both clinic settings, so neither can be
+    // decided before /api/config has answered.
+    useEffect(() => {
+        if (!config) return;
+        setDate((current) => current ?? todayInClinic(config.clinic.timezone));
+        setTypeId((current) => current ?? config.appointmentTypes[0]?.id ?? null);
+    }, [config]);
+
+    return (
+        <>
+            <SystemStatus />
+            {config && date && typeId ? (
+                <Board
+                    config={config}
+                    date={date}
+                    typeId={typeId}
+                    onDateChange={setDate}
+                    onTypeChange={setTypeId}
+                />
+            ) : (
+                <p className="py-8 text-center text-slate-500">{t('book.searching')}</p>
             )}
         </>
     );
