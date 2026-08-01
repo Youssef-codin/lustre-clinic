@@ -72,6 +72,16 @@ export const ar = {
     'book.needPatient': 'اختر مريضًا أولاً.',
     'book.failed': 'تعذّر الحجز: {message}',
 
+    'print.failedHeading': 'لم تتم الطباعة',
+    'print.slipJob': 'إيصال الموعد رقم {id}',
+    'print.dayJob': 'جدول يوم {date}',
+    'print.driver': 'الطابعة: {driver}',
+    'print.attempts': 'بعد {attempts} محاولات',
+    'print.retry': 'إعادة الطباعة',
+    'print.retrying': 'جاري الإرسال…',
+    'print.dismiss': 'تجاهل',
+    'print.retryFailed': 'تعذّر إرسال أمر الطباعة: {message}',
+
     'scan.label': 'مسح ضوئي',
     'scan.withName': 'تم مسح موعد {name}',
     'scan.withoutName': 'تم مسح ورقة موعد',

@@ -9,6 +9,7 @@ import {
     type OpenSlot,
     type Patient,
     type PatientSummary,
+    type PrintFailure,
     type PublicConfig,
     type SlotsResponse,
 } from '@mawid/shared';
@@ -262,6 +263,15 @@ export class MockStore {
         }
 
         return { date, typeId, durationMin, slots };
+    }
+
+    /**
+     * Empty: the mock does not print, so nothing can fail. The live path is
+     * exercised by pushing a `print:failed` event instead. Seed a row here to
+     * work on the banner's fetched-on-load path.
+     */
+    printFailures(): PrintFailure[] {
+        return [];
     }
 
     /** Only used by the mock's own logging, but it keeps the label lookup honest. */

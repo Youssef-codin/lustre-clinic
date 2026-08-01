@@ -3,6 +3,7 @@ import {
     type IsoDate,
     isoDateSchema,
     type OpenSlot,
+    type PrintFailuresResponse,
     type PublicConfig,
     type SlotsResponse,
 } from '@mawid/shared';
@@ -11,6 +12,7 @@ import { useState } from 'react';
 import { BookingSheet } from '../components/BookingSheet.tsx';
 import { DateNav } from '../components/DateNav.tsx';
 import { DayList } from '../components/DayList.tsx';
+import { PrintFailureBanner } from '../components/PrintFailureBanner.tsx';
 import { SlotPanel } from '../components/SlotPanel.tsx';
 import { SystemStatus } from '../components/SystemStatus.tsx';
 import { useI18n } from '../contexts/LocaleContext.tsx';
@@ -42,10 +44,11 @@ interface DeskData {
     typeId: string;
     appointments: DayAppointments;
     slots: SlotsResponse;
+    printFailures: PrintFailuresResponse;
 }
 
 function DeskScreen() {
-    const { config, date, typeId, appointments, slots } = deskRoute.useLoaderData();
+    const { config, date, typeId, appointments, slots, printFailures } = deskRoute.useLoaderData();
     const navigate = deskRoute.useNavigate();
     const router = useRouter();
     const { t } = useI18n();
@@ -80,6 +83,7 @@ function DeskScreen() {
     return (
         <>
             <SystemStatus />
+            <PrintFailureBanner fetched={printFailures} />
             <DateNav date={date} onChange={(next) => setSearch({ date: next })} />
 
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
@@ -164,12 +168,15 @@ export const deskRoute = createRoute({
 
         // One round trip each, in parallel — the desk screen is the one the
         // secretary waits on with a patient standing in front of her.
-        const [appointments, slots] = await Promise.all([
+        const [appointments, slots, printFailures] = await Promise.all([
             api.get<DayAppointments>(`/api/appointments?date=${date}`),
             api.get<SlotsResponse>(`/api/slots?date=${date}&typeId=${encodeURIComponent(typeId)}`),
+            // Never fatal: a broken failures endpoint must not take the whole
+            // booking screen down with it.
+            api.get<PrintFailuresResponse>('/api/print/failures').catch(() => []),
         ]);
 
-        return { config, date, typeId, appointments, slots };
+        return { config, date, typeId, appointments, slots, printFailures };
     },
     component: DeskScreen,
     errorComponent: DeskError,

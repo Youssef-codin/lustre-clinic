@@ -7,8 +7,12 @@ import {
     type FieldIssue,
     type IsoDate,
     type PatientDetail,
+    type PrintFailuresResponse,
+    type PrintQueued,
     type PublicConfig,
     patientSearchQuerySchema,
+    printDayQuerySchema,
+    printSlipParamSchema,
     slotsQuerySchema,
 } from '@mawid/shared';
 import { FALLBACK_CONFIG, MockStore } from './store.ts';
@@ -134,6 +138,26 @@ async function handle(
         const body = createPatientSchema.safeParse(JSON.parse(String(init?.body ?? '{}')));
         if (!body.success) return invalid(body.error);
         return ok(store.createPatient(body.data.name, body.data.phone, body.data.notes ?? null), 201);
+    }
+
+    if (method === 'GET' && path === '/api/print/failures') {
+        return ok<PrintFailuresResponse>(store.printFailures());
+    }
+
+    if (method === 'POST' && path === '/api/print/day') {
+        const query = printDayQuerySchema.safeParse(queryObject(url));
+        if (!query.success) return invalid(query.error);
+        return ok<PrintQueued>({ queued: true, kind: 'day' });
+    }
+
+    const slipMatch = /^\/api\/print\/slip\/(\d+)$/.exec(path);
+    if (method === 'POST' && slipMatch) {
+        const params = printSlipParamSchema.safeParse({ appointmentId: slipMatch[1] });
+        if (!params.success) return invalid(params.error);
+        if (!store.findAppointment(params.data.appointmentId)) {
+            return fail(404, 'APPOINTMENT_NOT_FOUND', 'no such appointment');
+        }
+        return ok<PrintQueued>({ queued: true, kind: 'slip' });
     }
 
     const patientMatch = /^\/api\/patients\/(\d+)$/.exec(path);

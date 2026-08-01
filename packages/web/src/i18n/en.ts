@@ -69,6 +69,16 @@ export const en: Dictionary = {
     'book.needPatient': 'Choose a patient first.',
     'book.failed': 'Could not book: {message}',
 
+    'print.failedHeading': 'Nothing came out of the printer',
+    'print.slipJob': 'Booking slip · appointment {id}',
+    'print.dayJob': 'Day schedule · {date}',
+    'print.driver': 'Printer: {driver}',
+    'print.attempts': 'after {attempts} attempts',
+    'print.retry': 'Print again',
+    'print.retrying': 'Sending…',
+    'print.dismiss': 'Dismiss',
+    'print.retryFailed': 'Could not send the print job: {message}',
+
     'scan.label': 'Scan',
     'scan.withName': 'Scanned: {name}',
     'scan.withoutName': 'A printed slip was scanned',
