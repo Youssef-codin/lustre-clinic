@@ -2,14 +2,11 @@ import { appointmentTypeLabel, type OpenSlot, type SlotsResponse } from '@mawid/
 import { useConfig } from '../contexts/ConfigContext.tsx';
 import { useI18n } from '../contexts/LocaleContext.tsx';
 import { formatClinicTime } from '../lib/datetime.ts';
-import { localizeError } from '../lib/errorMessage.ts';
 
 interface SlotPanelProps {
     typeId: string;
     onTypeChange: (typeId: string) => void;
-    slots: SlotsResponse | null;
-    loading: boolean;
-    error: unknown;
+    slots: SlotsResponse;
     onPick: (slot: OpenSlot) => void;
 }
 
@@ -18,7 +15,7 @@ interface SlotPanelProps {
  * Splitting them keeps the day view on screen while the secretary scans for a
  * time, which is the part she does with a patient waiting in front of her.
  */
-export function SlotPanel({ typeId, onTypeChange, slots, loading, error, onPick }: SlotPanelProps) {
+export function SlotPanel({ typeId, onTypeChange, slots, onPick }: SlotPanelProps) {
     const { config } = useConfig();
     const { locale, t } = useI18n();
 
@@ -45,19 +42,9 @@ export function SlotPanel({ typeId, onTypeChange, slots, loading, error, onPick 
 
             <h3 className="mb-2 text-sm font-medium text-slate-700">{t('book.slots')}</h3>
 
-            {error != null && (
-                <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    {t('book.loadSlotsFailed', { message: localizeError(t, error) })}
-                </p>
-            )}
-
-            {error == null && loading && <p className="py-4 text-sm text-slate-500">{t('book.searching')}</p>}
-
-            {error == null && !loading && slots && slots.slots.length === 0 && (
+            {slots.slots.length === 0 ? (
                 <p className="py-4 text-sm text-slate-500">{t('book.noSlots')}</p>
-            )}
-
-            {error == null && !loading && slots && slots.slots.length > 0 && (
+            ) : (
                 <div className="grid grid-cols-3 gap-2">
                     {slots.slots.map((slot) => (
                         <button

@@ -1,48 +1,94 @@
-import type { IsoDate, OpenSlot, PublicConfig } from '@mawid/shared';
-import { createRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import {
+    type DayAppointments,
+    type IsoDate,
+    isoDateSchema,
+    type OpenSlot,
+    type PublicConfig,
+    type SlotsResponse,
+} from '@mawid/shared';
+import { createRoute, useRouter } from '@tanstack/react-router';
+import { useState } from 'react';
 import { BookingSheet } from '../components/BookingSheet.tsx';
 import { DateNav } from '../components/DateNav.tsx';
 import { DayList } from '../components/DayList.tsx';
 import { SlotPanel } from '../components/SlotPanel.tsx';
 import { SystemStatus } from '../components/SystemStatus.tsx';
-import { useConfig } from '../contexts/ConfigContext.tsx';
 import { useI18n } from '../contexts/LocaleContext.tsx';
-import { useDayAppointments } from '../hooks/useDayAppointments.ts';
-import { useSlots } from '../hooks/useSlots.ts';
+import { useScan } from '../contexts/ScanContext.tsx';
+import { useServerEvent } from '../contexts/SocketContext.tsx';
+import { api } from '../lib/api.ts';
+import { loadConfig } from '../lib/config.ts';
 import { todayInClinic, weekdayOf } from '../lib/datetime.ts';
 import { localizeError } from '../lib/errorMessage.ts';
 import { rootRoute } from './root.tsx';
 
-interface BoardProps {
+/**
+ * The day and the appointment type live in the URL, not in component state:
+ * the loader needs them to fetch, and it makes a particular day linkable — the
+ * secretary can keep a tab on tomorrow.
+ *
+ * Both are optional. Their defaults are clinic settings ("today" in the clinic's
+ * timezone, the first configured type), so they are resolved in the loader once
+ * config has answered rather than baked into a redirect.
+ */
+interface DeskSearch {
+    date?: IsoDate;
+    typeId?: string;
+}
+
+interface DeskData {
     config: PublicConfig;
     date: IsoDate;
     typeId: string;
-    onDateChange: (date: IsoDate) => void;
-    onTypeChange: (typeId: string) => void;
+    appointments: DayAppointments;
+    slots: SlotsResponse;
 }
 
-function Board({ config, date, typeId, onDateChange, onTypeChange }: BoardProps) {
+function DeskScreen() {
+    const { config, date, typeId, appointments, slots } = deskRoute.useLoaderData();
+    const navigate = deskRoute.useNavigate();
+    const router = useRouter();
     const { t } = useI18n();
-    const day = useDayAppointments(date);
-    const slots = useSlots(date, typeId);
+    const scan = useScan();
     const [picked, setPicked] = useState<OpenSlot | null>(null);
+
+    /*
+     * Another desk booked, moved or cancelled something. Invalidate rather than
+     * testing the event's day against this one: a moved appointment leaves the
+     * day it used to be on, and its new `startsAt` says nothing about the day it
+     * just vanished from.
+     */
+    const refresh = () => {
+        void router.invalidate();
+    };
+    useServerEvent('appointment:created', refresh);
+    useServerEvent('appointment:updated', refresh);
+
+    // `replace`, so a morning of clicking through days leaves one history entry
+    // rather than thirty for the back button to chew through.
+    const setSearch = (next: DeskSearch) => {
+        void navigate({ search: (prev: DeskSearch) => ({ ...prev, ...next }), replace: true });
+    };
+
+    const closeSheet = () => {
+        setPicked(null);
+        scan.endEdit();
+    };
 
     const closed = (config.hours[weekdayOf(date)] ?? []).length === 0;
 
     return (
         <>
-            <DateNav date={date} onChange={onDateChange} />
+            <SystemStatus />
+            <DateNav date={date} onChange={(next) => setSearch({ date: next })} />
 
             <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
                 <section>
                     <div className="mb-3 flex items-baseline justify-between gap-3">
                         <h2 className="text-lg font-semibold">{t('day.heading')}</h2>
-                        {day.appointments && (
-                            <span className="text-sm text-slate-500">
-                                {t('day.count', { count: day.appointments.length })}
-                            </span>
-                        )}
+                        <span className="text-sm text-slate-500">
+                            {t('day.count', { count: appointments.length })}
+                        </span>
                     </div>
 
                     {closed && (
@@ -51,37 +97,32 @@ function Board({ config, date, typeId, onDateChange, onTypeChange }: BoardProps)
                         </p>
                     )}
 
-                    {day.error != null && (
-                        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                            {t('day.loadFailed', { message: localizeError(t, day.error) })}
-                        </p>
-                    )}
-
-                    {day.error == null && day.appointments && <DayList appointments={day.appointments} />}
+                    <DayList appointments={appointments} />
                 </section>
 
                 <SlotPanel
                     typeId={typeId}
-                    onTypeChange={onTypeChange}
-                    slots={slots.slots}
-                    loading={slots.loading}
-                    error={slots.error}
-                    onPick={setPicked}
+                    onTypeChange={(next) => setSearch({ typeId: next })}
+                    slots={slots}
+                    onPick={(slot) => {
+                        // Un-saved input from here on — a scan must not yank it away.
+                        setPicked(slot);
+                        scan.beginEdit();
+                    }}
                 />
             </div>
 
-            {picked && slots.slots && (
+            {picked && (
                 <BookingSheet
                     date={date}
                     slot={picked}
                     typeId={typeId}
-                    durationMin={slots.slots.durationMin}
-                    onClose={() => setPicked(null)}
+                    durationMin={slots.durationMin}
+                    onClose={closeSheet}
                     onBooked={() => {
-                        setPicked(null);
-                        // Both change: the day gains a row, the slot stops being open.
-                        day.reload();
-                        slots.reload();
+                        closeSheet();
+                        // The day gains a row and the slot stops being open.
+                        refresh();
                     }}
                 />
             )}
@@ -89,41 +130,48 @@ function Board({ config, date, typeId, onDateChange, onTypeChange }: BoardProps)
     );
 }
 
-/** The secretary's screen: the day on one side, booking on the other. */
-function DeskScreen() {
-    const { config } = useConfig();
+function DeskError({ error }: { error: Error }) {
     const { t } = useI18n();
-    const [date, setDate] = useState<IsoDate | null>(null);
-    const [typeId, setTypeId] = useState<string | null>(null);
-
-    // "Today" and the default type are both clinic settings, so neither can be
-    // decided before /api/config has answered.
-    useEffect(() => {
-        if (!config) return;
-        setDate((current) => current ?? todayInClinic(config.clinic.timezone));
-        setTypeId((current) => current ?? config.appointmentTypes[0]?.id ?? null);
-    }, [config]);
 
     return (
-        <>
-            <SystemStatus />
-            {config && date && typeId ? (
-                <Board
-                    config={config}
-                    date={date}
-                    typeId={typeId}
-                    onDateChange={setDate}
-                    onTypeChange={setTypeId}
-                />
-            ) : (
-                <p className="py-8 text-center text-slate-500">{t('book.searching')}</p>
-            )}
-        </>
+        <p className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {t('day.loadFailed', { message: localizeError(t, error) })}
+        </p>
     );
+}
+
+function DeskPending() {
+    const { t } = useI18n();
+    return <p className="py-8 text-center text-slate-500">{t('common.loading')}</p>;
 }
 
 export const deskRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/',
+    validateSearch: (search: Record<string, unknown>): DeskSearch => ({
+        // A bad value in a hand-edited URL falls back to the default rather
+        // than throwing the secretary onto an error screen.
+        date: isoDateSchema.safeParse(search.date).success ? (search.date as IsoDate) : undefined,
+        typeId: typeof search.typeId === 'string' && search.typeId !== '' ? search.typeId : undefined,
+    }),
+    loaderDeps: ({ search }: { search: DeskSearch }) => ({ date: search.date, typeId: search.typeId }),
+    loader: async ({ deps }): Promise<DeskData> => {
+        const config = await loadConfig();
+        const date = deps.date ?? todayInClinic(config.clinic.timezone);
+        const typeId = deps.typeId ?? config.appointmentTypes[0]?.id;
+
+        if (!typeId) throw new Error('config.appointmentTypes is empty');
+
+        // One round trip each, in parallel — the desk screen is the one the
+        // secretary waits on with a patient standing in front of her.
+        const [appointments, slots] = await Promise.all([
+            api.get<DayAppointments>(`/api/appointments?date=${date}`),
+            api.get<SlotsResponse>(`/api/slots?date=${date}&typeId=${encodeURIComponent(typeId)}`),
+        ]);
+
+        return { config, date, typeId, appointments, slots };
+    },
     component: DeskScreen,
+    errorComponent: DeskError,
+    pendingComponent: DeskPending,
 });

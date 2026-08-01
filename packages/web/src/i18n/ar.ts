@@ -27,15 +27,18 @@ export const ar = {
 
     'config.loadFailed': 'تعذّر تحميل إعدادات العيادة: {message}',
 
-    'patient.heading': 'ملف المريض',
-    'patient.pending': 'بيانات المريض رقم {id} وسجل مواعيده لم يتم ربطها بعد.',
     'patient.badId': 'رقم المريض في الرابط غير صالح.',
+    'patient.loadFailed': 'تعذّر تحميل بيانات المريض: {message}',
+    'patient.notes': 'ملاحظات',
+    'patient.nextVisit': 'الموعد القادم',
+    'patient.history': 'سجل المواعيد',
+    'patient.noHistory': 'لا توجد مواعيد لهذا المريض.',
 
     'day.prev': 'اليوم السابق',
     'day.next': 'اليوم التالي',
     'day.today': 'اليوم',
     'day.heading': 'المواعيد',
-    'day.count': '{count} موعد',
+    'day.count': 'الإجمالي: {count}',
     'day.empty': 'لا توجد مواعيد في هذا اليوم.',
     'day.closed': 'العيادة مغلقة في هذا اليوم.',
     'day.loadFailed': 'تعذّر تحميل المواعيد: {message}',
@@ -69,7 +72,14 @@ export const ar = {
     'book.needPatient': 'اختر مريضًا أولاً.',
     'book.failed': 'تعذّر الحجز: {message}',
 
+    'scan.label': 'مسح ضوئي',
+    'scan.withName': 'تم مسح موعد {name}',
+    'scan.withoutName': 'تم مسح ورقة موعد',
+    'scan.open': 'فتح',
+    'scan.dismiss': 'تجاهل',
+
     'common.retry': 'إعادة المحاولة',
+    'common.loading': 'جاري التحميل…',
 
     'notFound.heading': 'الصفحة غير موجودة',
     'notFound.body': 'الرابط الذي فتحته غير صحيح أو لم يعد متاحًا.',

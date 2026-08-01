@@ -2,6 +2,7 @@ import {
     type Appointment,
     type AppointmentWithPatient,
     appointmentTypeLabel,
+    formatAppointmentRef,
     type IsoDate,
     type IsoInstant,
     type NewPatient,
@@ -53,16 +54,6 @@ export const FALLBACK_CONFIG: PublicConfig = {
     ],
     defaultLocale: 'ar',
 };
-
-const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-function makeRef(): string {
-    let ref = '';
-    for (let i = 0; i < 5; i += 1) {
-        ref += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-    }
-    return ref;
-}
 
 /** What the server does on write — the desk form is never asked to. */
 export function normalizePhone(raw: string): string {
@@ -182,10 +173,21 @@ export class MockStore {
         if (!this.findPatient(patientId)) throw new Error('PATIENT_NOT_FOUND');
         if (this.overlaps(startsAt, durationMin, null)) throw new Error('SLOT_TAKEN');
 
+        /*
+         * `DDMMYY-NN` off the appointment's *clinic-local* day, so the code on
+         * the paper the patient is holding says when to come. Real uniqueness is
+         * the db's job (insert, on conflict take the next number); counting rows
+         * is only safe here because a mock has no concurrent writers.
+         */
+        const clinicDate = clinicDay(startsAt, this.config.clinic.timezone);
+        const sameDay = this.appointments.filter(
+            (other) => clinicDay(other.startsAt, this.config.clinic.timezone) === clinicDate,
+        ).length;
+
         const now = new Date().toISOString();
         const appointment: Appointment = {
             id: this.nextAppointmentId++,
-            ref: makeRef(),
+            ref: formatAppointmentRef(clinicDate, sameDay + 1),
             patientId,
             startsAt,
             durationMin,

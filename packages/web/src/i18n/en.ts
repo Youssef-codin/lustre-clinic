@@ -22,15 +22,20 @@ export const en: Dictionary = {
 
     'config.loadFailed': 'Could not load clinic settings: {message}',
 
-    'patient.heading': 'Patient record',
-    'patient.pending': 'Details and appointment history for patient {id} are not wired up yet.',
     'patient.badId': 'That patient link is not valid.',
+    'patient.loadFailed': 'Could not load this patient: {message}',
+    'patient.notes': 'Notes',
+    'patient.nextVisit': 'Next visit',
+    'patient.history': 'Appointment history',
+    'patient.noHistory': 'No appointments for this patient.',
 
     'day.prev': 'Previous day',
     'day.next': 'Next day',
     'day.today': 'Today',
     'day.heading': 'Appointments',
-    'day.count': '{count} appointments',
+    // Deliberately number-agnostic: there is no plural machinery in `translate`,
+    // and Arabic has six plural categories — a half-done job reads worse.
+    'day.count': 'Total: {count}',
     'day.empty': 'Nothing booked for this day.',
     'day.closed': 'The clinic is closed this day.',
     'day.loadFailed': 'Could not load appointments: {message}',
@@ -64,7 +69,14 @@ export const en: Dictionary = {
     'book.needPatient': 'Choose a patient first.',
     'book.failed': 'Could not book: {message}',
 
+    'scan.label': 'Scan',
+    'scan.withName': 'Scanned: {name}',
+    'scan.withoutName': 'A printed slip was scanned',
+    'scan.open': 'Open',
+    'scan.dismiss': 'Dismiss',
+
     'common.retry': 'Try again',
+    'common.loading': 'Loading…',
 
     'notFound.heading': 'Page not found',
     'notFound.body': 'That link is wrong, or it no longer exists.',

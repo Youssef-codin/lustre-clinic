@@ -1,7 +1,7 @@
 import type { PublicConfig } from '@mawid/shared';
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { storedLocale } from '../i18n/index.ts';
-import { api } from '../lib/api.ts';
+import { loadConfig } from '../lib/config.ts';
 import { useI18n } from './LocaleContext.tsx';
 
 interface ConfigState {
@@ -20,7 +20,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let cancelled = false;
 
-        api.get<PublicConfig>('/api/config')
+        loadConfig()
             .then((config) => {
                 if (cancelled) return;
                 setState({ config, error: null });

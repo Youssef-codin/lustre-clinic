@@ -1,8 +1,10 @@
 import { clinicName } from '@mawid/shared';
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router';
 import { LocaleToggle } from '../components/LocaleToggle.tsx';
+import { ScanBanner } from '../components/ScanBanner.tsx';
 import { useConfig } from '../contexts/ConfigContext.tsx';
 import { useI18n } from '../contexts/LocaleContext.tsx';
+import { ScanProvider } from '../contexts/ScanContext.tsx';
 import { localizeError } from '../lib/errorMessage.ts';
 
 /**
@@ -34,7 +36,12 @@ function RootLayout() {
                 </p>
             )}
 
-            <Outlet />
+            {/* Inside the router — scan-follow navigates — but above every route,
+                so a scan is honoured wherever the desk happens to be. */}
+            <ScanProvider>
+                <ScanBanner />
+                <Outlet />
+            </ScanProvider>
         </main>
     );
 }
