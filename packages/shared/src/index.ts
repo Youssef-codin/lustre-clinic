@@ -4,6 +4,7 @@ export * from './clinic.ts';
 export * from './health.ts';
 export * from './locale.ts';
 export * from './patient.ts';
+export * from './print.ts';
 export * from './slots.ts';
 export * from './time.ts';
 export * from './ws.ts';
