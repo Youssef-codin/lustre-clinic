@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { newPatientSchema, type PatientSummary } from './patient.ts';
-import { type IsoInstant, isoInstantSchema } from './time.ts';
+import { type IsoDate, type IsoInstant, isoInstantSchema } from './time.ts';
 
 export const APPOINTMENT_STATUSES = ['booked', 'done', 'cancelled', 'no_show'] as const;
 export const appointmentStatusSchema = z.enum(APPOINTMENT_STATUSES);
@@ -11,22 +11,45 @@ export const appointmentChannelSchema = z.enum(APPOINTMENT_CHANNELS);
 export type AppointmentChannel = (typeof APPOINTMENT_CHANNELS)[number];
 
 /**
- * The short code printed on the slip and encoded in its QR, e.g. `M7K2Q`. It is
- * what `/s/:ref` resolves, so it is read off paper by a human or a camera —
- * uppercase and short on purpose.
+ * The short code printed on the slip and encoded in its QR, e.g. `020826-03` —
+ * the third appointment on 2 Aug 2026. `DDMMYY-NN`, day first.
+ *
+ * The date alone cannot be the ref: it is `UNIQUE` and the clinic books many
+ * appointments a day, so `NN` is a per-day sequence. Uniqueness is the db's job
+ * — insert, and on conflict take the next number; two bookings taken at once
+ * will otherwise race to the same count.
+ *
+ * The date is the **appointment's** clinic-local day, not the day it was booked,
+ * so the code on the paper the patient is holding says when to come. The ref is
+ * assigned once and never changes: rescheduling leaves it pointing at the old
+ * day, which is why moving an appointment means reprinting the slip.
  */
 export const appointmentRefSchema = z
     .string()
     .trim()
-    .toUpperCase()
-    .regex(/^[A-Z0-9]{4,8}$/, 'expected a short alphanumeric ref code');
+    .regex(/^\d{6}-\d{2,3}$/, 'expected a ref code as DDMMYY-NN');
 
 export const refParamSchema = z.object({
     ref: appointmentRefSchema,
 });
 
+/**
+ * Builds a ref from the appointment's **clinic-local** day — pass the day from
+ * `toClinicClock(startsAt, timezone).date`, never `startsAt.slice(0, 10)`, or a
+ * 21:00 Cairo booking gets tomorrow's date on its slip.
+ *
+ * Lives here so the format is written down once, next to the regex that guards
+ * it. `sequence` is 1-based, per day.
+ */
+export function formatAppointmentRef(clinicDate: IsoDate, sequence: number): string {
+    // Fixed offsets into `YYYY-MM-DD`, which `isoDateSchema` guarantees.
+    const shortDate = clinicDate.slice(8, 10) + clinicDate.slice(5, 7) + clinicDate.slice(2, 4);
+    return `${shortDate}-${String(sequence).padStart(2, '0')}`;
+}
+
 export interface Appointment {
     id: number;
+    /** `DDMMYY-NN`, e.g. `020826-03`. See `appointmentRefSchema`. */
     ref: string;
     patientId: number;
     /** UTC ISO. */
