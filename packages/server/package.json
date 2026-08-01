@@ -8,10 +8,13 @@
         "start": "bun src/server.ts",
         "build": "bun build --compile --outfile dist/mawid src/server.ts",
         "typecheck": "tsc --noEmit",
-        "test": "bun test"
+        "test": "bun test",
+        "db:generate": "drizzle-kit generate && bun run scripts/embed-migrations.ts",
+        "db:migrate": "bun run scripts/migrate.ts"
     },
     "dependencies": {
         "@mawid/shared": "workspace:*",
+        "drizzle-orm": "^0.45.2",
         "express": "^5.1.0",
         "helmet": "^8.1.0",
         "pino": "^10.0.0",
@@ -21,8 +24,9 @@
     },
     "devDependencies": {
         "@types/express": "^5.0.6",
+        "@types/supertest": "^6.0.3",
         "@types/ws": "^8.18.1",
-        "supertest": "^7.1.4",
-        "@types/supertest": "^6.0.3"
+        "drizzle-kit": "^0.31.10",
+        "supertest": "^7.1.4"
     }
 }

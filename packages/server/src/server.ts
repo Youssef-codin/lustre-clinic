@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { createApp } from './app.ts';
 import { ConfigError, configPath, loadConfig, setConfig } from './config/index.ts';
+import { closeDb, openDb } from './db/index.ts';
 import { logger } from './middleware/logger.ts';
 import { setStatus } from './services/status.ts';
 import { VERSION } from './version.ts';
@@ -11,14 +12,16 @@ async function main(): Promise<void> {
     const config = setConfig(loadConfig());
     logger.info({ version: VERSION, config: configPath(), clinic: config.clinic.nameEn }, 'starting mawid');
 
-    // 2. Migrations, then long-running services (db, printer, whatsapp, reminders,
-    //    backups) go here — each flipping its own entry in services/status.ts.
-    setStatus('db', 'disabled');
+    // 2. Database and migrations, before anything that reads data starts.
+    openDb(config.database);
+
+    // 3. Long-running services (printer, whatsapp, reminders, backups) go here —
+    //    each flipping its own entry in services/status.ts.
     setStatus('printer', 'disabled');
     setStatus('whatsapp', 'disabled');
-    logger.warn('skeleton build: database, printer and whatsapp services are not wired up yet');
+    logger.warn('skeleton build: printer and whatsapp services are not wired up yet');
 
-    // 3. HTTP + websocket on one port.
+    // 4. HTTP + websocket on one port.
     const app = createApp();
     const server = createServer(app);
     attachWebSocket(server);
@@ -33,6 +36,7 @@ async function main(): Promise<void> {
     const shutdown = async (signal: string) => {
         logger.info({ signal }, 'shutting down');
         await closeWebSocket();
+        closeDb();
         server.close(() => process.exit(0));
         // Don't let a hung connection keep the clinic PC's port bound.
         setTimeout(() => process.exit(0), 5_000).unref();
