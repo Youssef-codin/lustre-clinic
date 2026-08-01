@@ -27,6 +27,14 @@ export const ar = {
 
     'config.loadFailed': 'تعذّر تحميل إعدادات العيادة: {message}',
 
+    'patient.heading': 'ملف المريض',
+    'patient.pending': 'بيانات المريض رقم {id} وسجل مواعيده لم يتم ربطها بعد.',
+    'patient.badId': 'رقم المريض في الرابط غير صالح.',
+
+    'notFound.heading': 'الصفحة غير موجودة',
+    'notFound.body': 'الرابط الذي فتحته غير صحيح أو لم يعد متاحًا.',
+    'notFound.back': 'العودة إلى شاشة المواعيد',
+
     'error.BAD_REQUEST': 'طلب غير صالح.',
     'error.VALIDATION_FAILED': 'من فضلك راجع البيانات المُدخلة.',
     'error.NOT_FOUND': 'غير موجود.',

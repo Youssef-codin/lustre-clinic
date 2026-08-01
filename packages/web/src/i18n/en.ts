@@ -22,6 +22,14 @@ export const en: Dictionary = {
 
     'config.loadFailed': 'Could not load clinic settings: {message}',
 
+    'patient.heading': 'Patient record',
+    'patient.pending': 'Details and appointment history for patient {id} are not wired up yet.',
+    'patient.badId': 'That patient link is not valid.',
+
+    'notFound.heading': 'Page not found',
+    'notFound.body': 'That link is wrong, or it no longer exists.',
+    'notFound.back': 'Back to the appointments screen',
+
     'error.BAD_REQUEST': 'Invalid request.',
     'error.VALIDATION_FAILED': 'Please check the details you entered.',
     'error.NOT_FOUND': 'Not found.',

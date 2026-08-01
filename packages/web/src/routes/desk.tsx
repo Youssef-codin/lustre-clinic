@@ -1,12 +1,12 @@
-import { appointmentTypeLabel, type ComponentStatus, clinicName, type HealthResponse } from '@mawid/shared';
+import { appointmentTypeLabel, type ComponentStatus, type HealthResponse } from '@mawid/shared';
+import { createRoute } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { LocaleToggle } from './components/LocaleToggle.tsx';
-import { useConfig } from './contexts/ConfigContext.tsx';
-import { useI18n } from './contexts/LocaleContext.tsx';
-import { useSocket } from './contexts/SocketContext.tsx';
-import type { TranslationKey } from './i18n/index.ts';
-import { api } from './lib/api.ts';
-import { localizeError } from './lib/errorMessage.ts';
+import { useConfig } from '../contexts/ConfigContext.tsx';
+import { useI18n } from '../contexts/LocaleContext.tsx';
+import { useSocket } from '../contexts/SocketContext.tsx';
+import type { TranslationKey } from '../i18n/index.ts';
+import { api } from '../lib/api.ts';
+import { rootRoute } from './root.tsx';
 
 const STATUS_STYLES: Record<ComponentStatus, string> = {
     ok: 'bg-emerald-100 text-emerald-800',
@@ -35,8 +35,13 @@ function StatusPill({ label, status }: { label: string; status: ComponentStatus 
     );
 }
 
-export default function App() {
-    const { config, error: configError } = useConfig();
+/**
+ * The secretary's screen. The day view, open slots and booking form land here
+ * in build item 7; what is below is the system-status panel that was already
+ * here, kept because spec §15 wants failures visible on exactly this screen.
+ */
+function DeskScreen() {
+    const { config } = useConfig();
     const { connected } = useSocket();
     const { locale, t } = useI18n();
     const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -52,25 +57,8 @@ export default function App() {
         return () => clearInterval(timer);
     }, []);
 
-    const title = config ? clinicName(config.clinic, locale) : t('app.name');
-    const subtitle = config ? clinicName(config.clinic, locale === 'ar' ? 'en' : 'ar') : null;
-
     return (
-        <main className="mx-auto min-h-dvh w-full max-w-3xl px-4 py-8 sm:px-6">
-            <header className="mb-8 flex items-start justify-between gap-4 border-b border-slate-200 pb-6">
-                <div>
-                    <h1 className="text-2xl font-bold sm:text-3xl">{title}</h1>
-                    {subtitle && <p className="mt-1 text-slate-500">{subtitle}</p>}
-                </div>
-                <LocaleToggle />
-            </header>
-
-            {configError && (
-                <p className="mb-6 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    {t('config.loadFailed', { message: localizeError(t, configError) })}
-                </p>
-            )}
-
+        <>
             <section className="mb-8">
                 <h2 className="mb-3 text-lg font-semibold">{t('status.heading')}</h2>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -101,6 +89,12 @@ export default function App() {
                     </ul>
                 </section>
             )}
-        </main>
+        </>
     );
 }
+
+export const deskRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/',
+    component: DeskScreen,
+});
