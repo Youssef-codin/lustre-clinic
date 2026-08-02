@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mawid — clinic appointment system</title>
+<style>
+    :root {
+        color-scheme: only light;
+        --ink: #1a1a1a;
+        --ink-soft: #3d3d3d;
+        --ink-faint: #6b6b6b;
+        --rule: #c9c9c9;
+        --rule-faint: #e2e2e2;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+        margin: 0;
+        background: #ececec;
+        color: var(--ink);
+        font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif;
+        font-size: 17px;
+        line-height: 1.6;
+    }
+
+    .sheet {
+        max-width: 42rem;
+        margin: 2rem auto;
+        padding: 3rem 3rem 2.5rem;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+    }
+
+    /* ---------- top ---------- */
+
+    .masthead {
+        border-bottom: 2px solid var(--ink);
+        padding-bottom: .8rem;
+        margin-bottom: 2rem;
+    }
+
+    h1 {
+        margin: 0;
+        font-size: 2.1rem;
+        line-height: 1.1;
+        font-weight: 700;
+    }
+
+    h1 .ar {
+        font-size: 1.4rem;
+        font-weight: 400;
+        color: var(--ink-faint);
+        margin-left: .4rem;
+    }
+
+    .tagline {
+        margin: .5rem 0 0;
+        font-size: 1.05rem;
+        color: var(--ink-soft);
+    }
+
+    /* ---------- sections ---------- */
+
+    section { margin-bottom: 2rem; }
+
+    h2 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin: 0 0 .9rem;
+        padding-bottom: .35rem;
+        border-bottom: 1px solid var(--rule);
+    }
+
+    h3 {
+        margin: 0 0 .3rem;
+        font-size: 1.02rem;
+        font-weight: 700;
+    }
+
+    p { margin: 0 0 .7rem; }
+    p:last-child { margin-bottom: 0; }
+
+    /* ---------- numbered steps ---------- */
+
+    ol.steps {
+        list-style: none;
+        counter-reset: step;
+        margin: 0;
+        padding: 0;
+    }
+
+    ol.steps > li {
+        counter-increment: step;
+        position: relative;
+        padding: 0 0 1rem 2.6rem;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--rule-faint);
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    ol.steps > li:last-child {
+        border-bottom: 0;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    ol.steps > li::before {
+        content: counter(step) ".";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1.9rem;
+        text-align: right;
+        font-size: 1.02rem;
+        font-weight: 700;
+        color: var(--ink-faint);
+    }
+
+    ol.steps p { color: var(--ink-soft); }
+
+    /* ---------- plain bullet lists ---------- */
+
+    ul.plain {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+
+    ul.plain > li {
+        margin-bottom: .55rem;
+        color: var(--ink-soft);
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    ul.plain > li:last-child { margin-bottom: 0; }
+
+    /* ---------- labelled rows ---------- */
+
+    dl.rows { margin: 0; }
+
+    dl.rows dt {
+        font-weight: 700;
+        margin-top: .8rem;
+        break-inside: avoid;
+        page-break-after: avoid;
+    }
+
+    dl.rows dt:first-of-type { margin-top: 0; }
+
+    dl.rows dd {
+        margin: 0;
+        color: var(--ink-soft);
+        break-inside: avoid;
+    }
+
+    /* ---------- note box ---------- */
+
+    .note {
+        border: 1px solid var(--rule);
+        padding: .9rem 1.1rem;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .note p { color: var(--ink-soft); }
+
+    .footer {
+        margin-top: 2rem;
+        padding-top: .8rem;
+        border-top: 1px solid var(--rule);
+        font-size: .9rem;
+        color: var(--ink-faint);
+    }
+
+    /* ---------- print ---------- */
+
+    @page {
+        size: A4;
+        margin: 18mm 16mm;
+    }
+
+    @media print {
+        html, body {
+            background: #fff;
+            font-size: 11pt;
+            line-height: 1.45;
+        }
+
+        :root {
+            --ink: #000;
+            --ink-soft: #222;
+            --ink-faint: #555;
+            --rule: #999;
+            --rule-faint: #ccc;
+        }
+
+        .sheet {
+            max-width: none;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+        }
+
+        p { orphans: 2; widows: 2; }
+
+        section { margin-bottom: 1.4rem; }
+
+        h1 { font-size: 22pt; }
+        h1 .ar { font-size: 14pt; }
+        h2 {
+            font-size: 13pt;
+            margin-bottom: .7rem;
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+
+        .masthead { margin-bottom: 1.5rem; }
+        ol.steps > li { padding-bottom: .7rem; margin-bottom: .7rem; }
+        ul.plain > li { margin-bottom: .4rem; }
+        .footer { margin-top: 1.5rem; }
+    }
+
+    @media screen and (max-width: 40rem) {
+        .sheet { margin: 0; padding: 1.6rem 1.2rem; }
+    }
+</style>
+</head>
+<body>
+<article class="sheet">
+
+    <header class="masthead">
+        <h1>Mawid <span class="ar" lang="ar" dir="rtl">موعد</span></h1>
+        <p class="tagline">An appointment system for your clinic.</p>
+    </header>
+
+    <section>
+        <h2>What Mawid does</h2>
+
+        <p>Mawid takes the place of the paper appointment book. The secretary books
+        appointments on a computer. The system then does three things:</p>
+
+        <ul class="plain">
+            <li>It prints a paper slip for the patient.</li>
+            <li>It prints the schedule for the whole day, every morning.</li>
+            <li>It sends each patient a WhatsApp reminder before the appointment.</li>
+        </ul>
+
+        <p style="margin-top:.7rem">Mawid runs on one computer inside the clinic. There is no
+        monthly fee. Your patient information stays in the clinic. It is not sent to any
+        outside company.</p>
+    </section>
+
+    <section>
+        <h2>How it is used</h2>
+
+        <ol class="steps">
+
+            <li>
+                <h3>Book the appointment</h3>
+                <p>The secretary chooses the type of visit. The system shows only the times
+                that are long enough for that visit. A check-up needs 20 minutes. A root canal
+                needs 90 minutes. So they show different times on the same day. A new patient
+                can be added while booking.</p>
+            </li>
+
+            <li>
+                <h3>The slip prints</h3>
+                <p>The slip prints as soon as the booking is saved. Nobody has to press a print
+                button. The slip shows the appointment details. It also has a QR code.</p>
+            </li>
+
+            <li>
+                <h3>Scan the QR code</h3>
+                <p>Point a phone camera at the QR code on the slip. The patient's record opens
+                on the phone. At the same time, the computer at the desk shows the same
+                patient.</p>
+            </li>
+
+            <li>
+                <h3>The patient record</h3>
+                <p>It shows the patient's name and phone number, their next appointment, and
+                all their past visits. It is easy to read on a phone.</p>
+            </li>
+
+            <li>
+                <h3>The WhatsApp reminder</h3>
+                <p>The patient gets a WhatsApp message about 18 hours before the appointment.
+                It comes from the clinic's WhatsApp number. It gives the day, the time, the
+                clinic address, and the phone number to call to cancel or change the
+                appointment.</p>
+            </li>
+
+            <li>
+                <h3>Problems are shown on the screen</h3>
+                <p>Sometimes the printer does not work. Sometimes a message cannot be sent to a
+                patient. When this happens, the desk computer shows it on the screen. It gives
+                the reason and the patient's phone number. The secretary can then call the
+                patient.</p>
+            </li>
+
+            <li>
+                <h3>The morning schedule</h3>
+                <p>Every morning the system prints the whole day on one page. There is a wide
+                empty column for your notes. Cancelled appointments are not printed.</p>
+            </li>
+
+            <li>
+                <h3>The statistics screen</h3>
+                <p>It shows how many appointments you had, how many reminders were sent, how
+                many reminders failed, and how many patients cancelled or did not come. You
+                choose the period of time you want to see.</p>
+            </li>
+
+        </ol>
+    </section>
+
+    <section>
+        <h2>Other things to know</h2>
+
+        <ul class="plain">
+            <li>The system plans the reminder when the appointment is booked. If the reminder
+            time falls when the clinic is closed, the system sends it earlier. For example, an
+            appointment on Monday morning gets its reminder on Saturday afternoon, not on
+            Sunday when the clinic is closed.</li>
+
+            <li>In three cases the system does not send a reminder: the appointment already
+            started, it is less than 3 hours away, or it was cancelled. The patient is shown on
+            the desk screen instead, so the secretary can call.</li>
+
+            <li>Some phone numbers do not have WhatsApp. The system checks the number before it
+            sends. Without this check, the system would say the patient was reminded, but the
+            patient would get nothing.</li>
+
+            <li>You can use the system in Arabic or in English.</li>
+
+            <li>These are all settings: your clinic name, your working hours, the types of
+            visit, how long each visit takes, and the words in the reminder message. We can
+            change them without new software.</li>
+
+            <li>The system copies your data by itself. One copy stays on the clinic computer.
+            One copy is kept outside the clinic, in a protected form. Each copy is checked
+            after it is made.</li>
+        </ul>
+    </section>
+
+    <section>
+        <h2>What the clinic needs</h2>
+
+        <dl class="rows">
+            <dt>A computer at the desk</dt>
+            <dd>It stays on during working hours. It needs a fixed address on the clinic
+            network. If the address changes, the QR codes on papers you already printed stop
+            working.</dd>
+
+            <dt>A printer</dt>
+            <dd>Any printer that the computer can already print to. You can also use a small
+            receipt printer. Then each slip is a small strip of paper instead of a full A4
+            page.</dd>
+
+            <dt>A second WhatsApp number</dt>
+            <dd>Only for reminders. Not your main clinic number. We connect it one time at the
+            desk.</dd>
+
+            <dt>Wifi</dt>
+            <dd>Any phone that scans the QR codes must be on the same wifi as the computer.</dd>
+        </dl>
+    </section>
+
+    <p class="footer">Mawid <span lang="ar" dir="rtl">موعد</span> — clinic appointment system</p>
+
+</article>
+</body>
+</html>

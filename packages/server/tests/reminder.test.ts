@@ -198,12 +198,11 @@ describe('the message', () => {
         expect(text).not.toContain('{');
     });
 
-    test('identifies the clinic and offers a way out', () => {
+    test('identifies the clinic it came from', () => {
         const text = renderReminder(config.reminders.template, 'منى', atMonday('08:00'), config);
 
-        // Required by §8: who it is from, and an opt-out.
+        // Required by §8: a patient must be able to tell who is messaging them.
         expect(text).toContain(config.clinic.name);
-        expect(text).toContain('إيقاف');
     });
 
     test('an unknown placeholder is left visible rather than blanked', () => {

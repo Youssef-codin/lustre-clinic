@@ -33,7 +33,7 @@
             "maxGapMinutes": 15,
             "maxMessages": 15
         },
-        "template": "أهلاً {patient}، تذكير بموعدك في {clinic} يوم {date} الساعة {time}.\nالعنوان: {address}\nللإلغاء أو التأجيل اتصل على {phone}.\nللإيقاف اكتب: إيقاف"
+        "template": "أهلاً {patient}، تذكير بموعدك في {clinic} يوم {date} الساعة {time}.\nالعنوان: {address}\nللإلغاء أو التأجيل اتصل على {phone}."
     },
     "whatsapp": {
         "sessionPath": "./session",

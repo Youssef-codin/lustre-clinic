@@ -477,7 +477,9 @@ These exist to keep the number healthy, and are requirements, not suggestions:
 - Ramp up volume gradually on a new number rather than starting at full rate
 - Only send inside `reminders.sendWindow`
 - Identify the clinic clearly in every message
-- Include an opt-out line — an opt-out costs nothing, a report costs the number
+- ~~Include an opt-out line~~ — dropped from the template by decision. Worth
+  revisiting if delivery failures or blocks appear: an opt-out costs nothing,
+  and a spam report costs the number
 - Alert if delivery failures spike; that's the early signal something is wrong
 
 ### Message template
