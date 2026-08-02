@@ -38,6 +38,17 @@ const printingSchema = z.object({
     printerName: z.string().optional(),
     outputDir: z.string().optional(),
     /**
+     * Language of the printed documents, when it differs from the desk's.
+     * Defaults to `defaultLocale`.
+     *
+     * Paper and screen are not the same product — spec §7 — and they do not
+     * always have the same reader. A clinic can run an Arabic desk and still
+     * hand out English slips, or print an English day sheet for a doctor who
+     * reads his notes in English. Overriding here changes only what is printed;
+     * nothing on the desk moves.
+     */
+    locale: localeSchema.optional(),
+    /**
      * Windows only — the portable SumatraPDF exe shipped beside the binary.
      * Defaults to `./SumatraPDF.exe` relative to the install root.
      */

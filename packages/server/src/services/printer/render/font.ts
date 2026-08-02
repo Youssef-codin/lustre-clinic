@@ -26,6 +26,14 @@ import harfbuzzWasmPath from '../../../../assets/harfbuzz.wasm' with { type: 'fi
  * and a missing font would surface as blank glyphs on printed paper, which is
  * the one place nobody is watching. Imported with `type: 'file'` so it is
  * embedded by `bun build --compile` and resolves inside the binary.
+ *
+ * Still one face even though the documents now set some text bold, and that is
+ * deliberate. Every weighted Noto Naskh Arabic face — Bold, SemiBold, Medium,
+ * and the UI variants — ships Arabic and digits only: no Latin letters, and no
+ * `+`, `-` or `/`. Embedding one would print a patient's phone as `□2010…`,
+ * the ref as `150826□01`, and the entire English locale as boxes. The Regular
+ * is the only face in the family with full coverage, so bold is stroked from
+ * it instead — see `drawShapedText` in `text.ts`.
  */
 
 let cached: { bytes: Uint8Array; face: Face; font: Font; upem: number } | null = null;

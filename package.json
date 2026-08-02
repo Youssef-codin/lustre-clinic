@@ -14,7 +14,8 @@
         "format": "biome format --write .",
         "test": "LOG_LEVEL=silent bun test",
         "seed": "bun run --cwd packages/server seed",
-        "sample-print": "bun run --cwd packages/server sample-print"
+        "sample-print": "bun run --cwd packages/server sample-print",
+        "print-patient": "bun run --cwd packages/server print-patient"
     },
     "devDependencies": {
         "@biomejs/biome": "^2.3.14",

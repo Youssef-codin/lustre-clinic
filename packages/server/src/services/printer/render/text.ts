@@ -3,6 +3,7 @@ import { Direction, Buffer as HbBuffer, shape } from 'harfbuzzjs';
 import {
     beginText,
     endText,
+    LineJoinStyle,
     type PDFFont,
     PDFHexString,
     type PDFPage,
@@ -11,8 +12,13 @@ import {
     rgb,
     setFillingColor,
     setFontAndSize,
+    setLineJoin,
+    setLineWidth,
+    setStrokingColor,
     setTextMatrix,
+    setTextRenderingMode,
     showText,
+    TextRenderingMode,
 } from 'pdf-lib';
 import { getFont } from './font.ts';
 
@@ -149,7 +155,12 @@ export function shapeText(text: string, base: BaseDirection = 'rtl'): ShapedText
     return { glyphs, width: glyphs.reduce((sum, g) => sum + g.xAdvance, 0) };
 }
 
-/** Width in points, for laying out and right-aligning without drawing. */
+/**
+ * Width in points, for laying out and right-aligning without drawing.
+ *
+ * Bold needs no separate measurement: it is the same face stroked, so the
+ * advances are identical and truncation stays exact.
+ */
 export function measureText(text: string, size: number, base: BaseDirection = 'rtl'): number {
     return (shapeText(text, base).width * size) / getFont().upem;
 }
@@ -161,7 +172,16 @@ export interface DrawOptions {
     font: PDFFont;
     base?: BaseDirection;
     color?: ReturnType<typeof rgb>;
+    /** Stroke-emboldened. See the note on synthetic bold above. */
+    bold?: boolean;
 }
+
+/**
+ * Emboldening stroke, as a fraction of the point size. Enough to read as a
+ * different weight across a desk, low enough that a 9pt Arabic label does not
+ * fill its counters in on a laser.
+ */
+const BOLD_STROKE = 0.028;
 
 /**
  * Draws shaped glyphs at `x, y` (the text baseline's left edge).
@@ -170,21 +190,35 @@ export interface DrawOptions {
  * because `pdf-lib` embeds a custom font as Type0/Identity-H — in that encoding
  * the character code *is* the glyph id. Each glyph is positioned individually
  * so harfbuzz's mark placement (the vowel sitting above a letter) survives.
+ *
+ * `bold` strokes the glyph outline in the fill colour rather than swapping in a
+ * bold face, because there is no bold face to swap to — see `font.ts`. It also
+ * happens to be the safer of the two: the advances are the Regular's, so a
+ * bold value measures exactly as it draws and cannot overrun the column it was
+ * truncated to fit.
  */
 export function drawShapedText(page: PDFPage, text: string, options: DrawOptions): number {
-    const { x, y, size, font, base = 'rtl', color = rgb(0, 0, 0) } = options;
+    const { x, y, size, font, base = 'rtl', color = rgb(0, 0, 0), bold = false } = options;
     const { upem } = getFont();
     const { glyphs, width } = shapeText(text, base);
 
     // `newFontDictionary` hands back a PDFName; `setFontAndSize` wants the bare
     // key and re-wraps it, so the leading slash comes off.
     const fontKey = page.node.newFontDictionary(font.name, font.ref).asString().slice(1);
-    const operators = [
-        pushGraphicsState(),
-        setFillingColor(color),
-        beginText(),
-        setFontAndSize(fontKey, size),
-    ];
+    const operators = [pushGraphicsState(), setFillingColor(color)];
+
+    if (bold) {
+        operators.push(
+            setStrokingColor(color),
+            setLineWidth(size * BOLD_STROKE),
+            // Naskh is full of sharp joins; mitring them spikes the corners.
+            setLineJoin(LineJoinStyle.Round),
+        );
+    }
+
+    operators.push(beginText(), setFontAndSize(fontKey, size));
+
+    if (bold) operators.push(setTextRenderingMode(TextRenderingMode.FillAndOutline));
 
     let penX = x;
     for (const glyph of glyphs) {

@@ -1,4 +1,4 @@
-import type { Locale } from '@mawid/shared';
+import type { AppointmentStatus, Locale } from '@mawid/shared';
 
 /**
  * Labels for printed output only. Kept here rather than shared with the web
@@ -15,8 +15,11 @@ interface PrintLabels {
     time: string;
     duration: string;
     minutes: string;
-    type: string;
+    reason: string;
+    fileNo: string;
     ref: string;
+    /** Only ever printed on a reprint — a fresh slip is always `booked`. */
+    statuses: Record<AppointmentStatus, string>;
     note: string;
     bookedBy: string;
     daySchedule: string;
@@ -27,6 +30,9 @@ interface PrintLabels {
     columnNotes: string;
     noAppointments: string;
     printedAt: string;
+    scanHint: string;
+    page: string;
+    of: string;
 }
 
 const AR: PrintLabels = {
@@ -37,8 +43,15 @@ const AR: PrintLabels = {
     time: 'الوقت',
     duration: 'المدة',
     minutes: 'دقيقة',
-    type: 'نوع الكشف',
+    reason: 'سبب الزيارة',
+    fileNo: 'رقم الملف',
     ref: 'رقم الحجز',
+    statuses: {
+        booked: 'محجوز',
+        done: 'تم الكشف',
+        cancelled: 'ملغي',
+        no_show: 'لم يحضر',
+    },
     note: 'ملاحظات',
     bookedBy: 'تم الحجز بواسطة',
     daySchedule: 'مواعيد اليوم',
@@ -49,6 +62,9 @@ const AR: PrintLabels = {
     columnNotes: 'ملاحظات الطبيب',
     noAppointments: 'لا توجد مواعيد في هذا اليوم',
     printedAt: 'طُبع في',
+    scanHint: 'امسح الكود لعرض موعدك',
+    page: 'صفحة',
+    of: 'من',
 };
 
 const EN: PrintLabels = {
@@ -59,8 +75,15 @@ const EN: PrintLabels = {
     time: 'Time',
     duration: 'Duration',
     minutes: 'min',
-    type: 'Type',
+    reason: 'Reason for visit',
+    fileNo: 'File no.',
     ref: 'Ref',
+    statuses: {
+        booked: 'Booked',
+        done: 'Completed',
+        cancelled: 'Cancelled',
+        no_show: 'No-show',
+    },
     note: 'Note',
     bookedBy: 'Booked by',
     daySchedule: 'Today’s schedule',
@@ -71,6 +94,9 @@ const EN: PrintLabels = {
     columnNotes: 'Doctor’s notes',
     noAppointments: 'No appointments this day',
     printedAt: 'Printed',
+    scanHint: 'Scan to view your appointment',
+    page: 'Page',
+    of: 'of',
 };
 
 export function printLabels(locale: Locale): PrintLabels {
