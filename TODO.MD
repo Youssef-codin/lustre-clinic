@@ -4,108 +4,52 @@ Deferred deliberately, not forgotten. Ordered by what bites first.
 
 ---
 
-## Desk UI — things the secretary cannot do yet
+## Desk UI
 
-**Every endpoint below already exists and is tested.** Nothing here needs new
-backend work except the stats screen; it is wiring, not building. The API was
-finished ahead of the desk and these are the calls the desk never got around to
-making.
+Every endpoint below already exists and is tested. This is wiring, not backend.
 
-- [ ] **Cancel an appointment.** `DELETE /api/appointments/:id`. Nothing in the
-      web app calls it — `api.delete` is defined in `lib/api.ts` and used
-      nowhere. Today a cancellation means editing the database by hand, and
-      cancelling is the single most common thing a clinic does after booking.
-- [ ] **Move an appointment to another time.** `PATCH /api/appointments/:id`
-      with `startsAt` / `typeId`. Re-runs the overlap check and reschedules the
-      pending reminder automatically (`rescheduleReminderFor`), so the hard part
-      is done.
-- [ ] **Mark done / no-show.** Same `PATCH`, `status` field —
-      `booked | done | cancelled | no_show`. Note the no-show count is one of
-      the numbers the stats screen is supposed to show the doctor, so without
-      this that screen is reporting a figure nobody can enter.
-- [ ] **Edit an appointment's note.** Same `PATCH`, `note` field.
-- [ ] **Edit a patient — name, phone, notes.** `PATCH /api/patients/:id`.
-      Correcting a mistyped phone number currently needs `curl`. A wrong number
-      means that patient silently never gets reminded.
-- [ ] **Reprint a slip.** `POST /api/print/slip/:appointmentId`. Booking
-      auto-prints one, but a patient who loses theirs cannot be given another
-      from the UI — the endpoint is reachable today *only* by retrying a
-      failure in `PrintFailureBanner`.
-- [ ] **Print the day schedule.** `POST /api/print/day`. Same story: renders
-      correctly, only reachable as a failure retry.
-- [ ] **Stats screen.** Needs the endpoint below built first.
+- [ ] **Cancel an appointment** — `DELETE /api/appointments/:id`, called from nowhere.
+- [ ] **Move to another time** — `PATCH /api/appointments/:id`; overlap check and reminder reschedule already handled.
+- [ ] **Mark done / no-show** — same `PATCH`, `status`. Stats reports no-shows nobody can enter.
+- [ ] **Edit an appointment note** — same `PATCH`, `note`.
+- [ ] **Edit a patient** — `PATCH /api/patients/:id`. A wrong phone silently never gets reminded.
+- [ ] **Reprint a slip** — `POST /api/print/slip/:id`, today only reachable as a failure retry.
+- [ ] **Print the day schedule** — `POST /api/print/day`, same.
+- [ ] **Stats screen** — needs the endpoint below.
 
 ---
 
 ## Server
 
-- [ ] **`GET /api/stats?from=&to=`** — the last unbuilt endpoint in §6. Contract
-      is already in `packages/shared/src/stats.ts`.
+- [ ] **`GET /api/stats?from=&to=`** — last unbuilt endpoint (§6). Contract in `shared/src/stats.ts`.
+  - [ ] Both bounds through `clinicDayBounds()` — string compares drop hours off each end.
+  - [ ] `bookings` off `created_at`, not `starts_at`.
+  - [ ] `cancelled` / `noShows` by status; reminder counts by `reminders.status`.
 
-      Inclusive range of **clinic-local** days, so both bounds go through
-      `clinicDayBounds()` rather than being compared as strings — `starts_at` is
-      UTC and a naive comparison drops the first and last few hours of the range.
+- [ ] **Backups (§11)** — nothing built. Losing the Baileys session means re-pairing at the clinic.
+  - [ ] `VACUUM INTO`, never a file copy.
+  - [ ] Verify each with `PRAGMA integrity_check`.
+  - [ ] Database, session folder, `config.json`.
+  - [ ] On startup, every N hours, and on clean shutdown — not wall-clock.
+  - [ ] Prune to the configured retention.
+  - [ ] Loud on failure, or after 48 quiet hours.
 
-      - `bookings` — appointments **created** in the range (`created_at`),
-        whatever became of them since. Not `starts_at`.
-      - `cancelled`, `noShows` — by `status` over the same range.
-      - `remindersSent` / `remindersFailed` / `remindersSkipped` — by
-        `reminders.status`.
-
-      This is the screen shown to the doctor to justify the fee, which is
-      exactly why §7 says it is never printed.
-
-- [ ] **Backups (§11).** Nothing built, and the stakes went up the day a real
-      WhatsApp session started existing — losing it is not a file restore, it is
-      someone standing in the clinic re-scanning a pairing QR. §14 defers the
-      backups *UI*, not backups themselves, and `config.backups` is already
-      modelled and validated.
-
-      - [ ] `VACUUM INTO`, never a file copy — a copy taken mid-write produces a
-            corrupt backup that looks valid until the day it is needed.
-      - [ ] Verify every one by opening it and running `PRAGMA integrity_check`.
-      - [ ] Back up the database, the Baileys session folder, and `config.json`.
-      - [ ] On startup, every N hours while running, and on clean shutdown —
-            never on wall-clock time, because the clinic PC is not on 24/7.
-      - [ ] Prune to the retention in config; an unbounded folder eventually
-            fills the disk and takes the whole system down.
-      - [ ] Loud on failure, or if nothing has succeeded in 48 hours.
-
-- [ ] **CI (§3).** No `.github/` exists. Two path-filtered workflows,
-      `server.yml` and `web.yml`, both triggering on `shared/**` — a contract
-      change has to be validated against both sides. install → type-check →
-      lint → test. No service containers needed.
-
-- [ ] **`escpos` print driver** — deferred in §14. `driverFor()` falls back to
-      the file driver with a warning rather than silently printing nothing.
-
-- [ ] **Monitoring and alerting (§10)** — explicitly post-demo.
+- [ ] **CI (§3)** — no `.github/`. `server.yml` + `web.yml`, both on `shared/**`. Install → typecheck → lint → test.
+- [ ] **`escpos` driver** — deferred (§14); falls back to the file driver with a warning.
+- [ ] **Monitoring and alerting (§10)** — post-demo.
 
 ---
 
-## Live WhatsApp — operational, not code
+## Live WhatsApp
 
-- [x] Pair a real number and send a live message. Done — see INTEGRATION.MD §10.
-- [ ] **Ramp volume up gradually.** §8 is a requirement, not advice: a new
-      number that starts at full rate is a number that gets restricted. The
-      catch-up path caps at 15 messages spaced 5–15 minutes, so the code will
-      not burst on its own — but keep real traffic light for the first days.
-- [ ] **Watch for delivery failures spiking.** That is the early signal the
-      number is in trouble, and nothing surfaces it yet beyond individual rows
-      on the desk. Overlaps with monitoring above.
+- [ ] **Ramp volume gradually** — §8 is a requirement. Code won't burst; real traffic still should stay light at first.
+- [ ] **Watch delivery failures** — the early signal the number is in trouble. Overlaps with monitoring.
 
 ---
 
 ## Done
 
-- [x] **Scan a printed slip with a real phone.** A slip printed on the HP
-      LaserJet was scanned and opened the patient's page; the desk followed the
-      scan on its own. Two bugs had to be fixed to get there — INTEGRATION.MD §9.
-- [x] **WhatsApp / Baileys.** Socket, session persistence, pairing QR rendered
-      to a scannable image, reconnect with backoff, `onWhatsApp` guard against
-      silent sends to numbers with no account, and a desk test button.
-      INTEGRATION.MD §10.
-- [x] **`seed` script** (§3) — `bun run seed` / `bun run seed --reset`, plus
-      `bun run sample-print` which renders the slip and the day schedule to
-      `docs/`. Points every seeded patient at `whatsapp.testNumber` when sending
-      is live, so re-seeding cannot message strangers.
+- [x] **WhatsApp / Baileys** — socket, session, scannable pairing QR, reconnect, `onWhatsApp` guard, desk test button. INTEGRATION.MD §10.
+- [x] **Live pairing and send** — verified on a real handset.
+- [x] **Scan a printed slip** — desk followed the scan on its own. Two bugs fixed to get there; INTEGRATION.MD §9.
+- [x] **`seed` script** — `bun run seed [--reset]`, `bun run sample-print`. Points seeded patients at `whatsapp.testNumber` when sending is live.
