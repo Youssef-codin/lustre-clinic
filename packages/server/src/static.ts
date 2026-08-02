@@ -17,7 +17,16 @@ export function serveFrontend(app: Express): void {
         logger.warn({ publicDir }, 'no built frontend found — run `bun run build` in packages/web');
     }
 
-    app.use(express.static(publicDir, { index: false, maxAge: '1h' }));
+    /*
+     * Every emitted asset filename carries a content hash (see `naming` in
+     * packages/web/build.ts), so changed content is always a changed URL and
+     * these can be cached hard. `immutable` also stops the revalidation request
+     * a phone would otherwise make on every scan.
+     *
+     * This is only safe because `index.html` below is never cached. If that
+     * changes, this must change with it.
+     */
+    app.use(express.static(publicDir, { index: false, maxAge: '1y', immutable: true }));
 
     // Everything that is not /api and not a real file is the SPA: the desk view,
     // /p/:patientId on a phone, and any client route added later.
@@ -32,6 +41,19 @@ export function serveFrontend(app: Express): void {
             return;
         }
 
-        res.sendFile(index);
+        /*
+         * Never cached. This file names the hashed asset URLs, so a stale copy
+         * points at files the last build deleted — which renders as a blank
+         * page with nothing in the console to explain it.
+         *
+         * `no-cache` permits a conditional request rather than forbidding
+         * storage, so the usual answer is a 304 costing one round trip, not a
+         * re-download. `cacheControl: false` stops `sendFile` writing its own
+         * `public, max-age=0` over the top of this.
+         */
+        res.sendFile(index, {
+            cacheControl: false,
+            headers: { 'Cache-Control': 'no-cache' },
+        });
     });
 }

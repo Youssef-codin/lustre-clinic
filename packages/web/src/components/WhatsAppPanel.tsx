@@ -1,4 +1,4 @@
-import type { WhatsAppStatus } from '@mawid/shared';
+import type { WhatsAppStatus, WhatsAppTestResult } from '@mawid/shared';
 import { useState } from 'react';
 import { useI18n } from '../contexts/LocaleContext.tsx';
 import { useServerEvent } from '../contexts/SocketContext.tsx';
@@ -14,12 +14,25 @@ import { localizeError } from '../lib/errorMessage.ts';
  * dead WhatsApp connection means no patient gets reminded and nothing else in
  * the system will say so.
  */
+/**
+ * Wraps a phone number in bidi isolates so it reads correctly inside an Arabic
+ * sentence. Without them `+201000946068` renders as `201000946068+` in RTL —
+ * the browser is following the bidi algorithm, and the result is a number the
+ * clinic cannot check against the one they configured.
+ */
+function ltr(number: string): string {
+    return `⁦${number}⁩`;
+}
+
 export function WhatsAppPanel({ fetched }: { fetched: WhatsAppStatus | null }) {
     const { t } = useI18n();
     const [live, setLive] = useState<WhatsAppStatus | null>(null);
     const [confirming, setConfirming] = useState(false);
     const [unlinking, setUnlinking] = useState(false);
     const [error, setError] = useState<unknown>(null);
+    const [testing, setTesting] = useState(false);
+    const [tested, setTested] = useState<WhatsAppTestResult | null>(null);
+    const [testError, setTestError] = useState<unknown>(null);
 
     useServerEvent('whatsapp:status', setLive);
 
@@ -39,6 +52,24 @@ export function WhatsAppPanel({ fetched }: { fetched: WhatsAppStatus | null }) {
         }
     };
 
+    /**
+     * The recipient is `config.whatsapp.testNumber` — the desk cannot type one.
+     * A free-text send box on the busiest screen in the clinic is a way to
+     * message a patient by accident.
+     */
+    const sendTest = async () => {
+        setTesting(true);
+        setTestError(null);
+        setTested(null);
+        try {
+            setTested(await api.post<WhatsAppTestResult>('/api/whatsapp/test'));
+        } catch (err: unknown) {
+            setTestError(err);
+        } finally {
+            setTesting(false);
+        }
+    };
+
     // The QR is an image the server rendered; it already has `qrcode` installed
     // for printing. If it arrives as raw pairing text instead, show the text
     // rather than a broken image — the web app should not ship a second QR
@@ -55,6 +86,35 @@ export function WhatsAppPanel({ fetched }: { fetched: WhatsAppStatus | null }) {
                 {status.dryRun && (
                     <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-900">
                         {t('whatsapp.dryRun')}
+                    </span>
+                )}
+
+                {/* Only offered when a test number is configured — a button
+                    whose only possible outcome is an error is worse than none. */}
+                {status.testNumber && (
+                    <button
+                        type="button"
+                        onClick={sendTest}
+                        disabled={testing}
+                        className="h-9 rounded-lg border border-emerald-300 px-3 font-medium text-emerald-800 disabled:text-slate-400"
+                    >
+                        {testing
+                            ? t('whatsapp.testing')
+                            : t('whatsapp.test', { number: ltr(status.testNumber) })}
+                    </button>
+                )}
+
+                {tested && (
+                    <span className={tested.dryRun ? 'text-amber-800' : 'text-emerald-800'}>
+                        {t(tested.dryRun ? 'whatsapp.testLogged' : 'whatsapp.testSent', {
+                            number: ltr(tested.to),
+                        })}
+                    </span>
+                )}
+
+                {testError != null && (
+                    <span className="text-rose-700">
+                        {t('whatsapp.testFailed', { message: localizeError(t, testError) })}
                     </span>
                 )}
 

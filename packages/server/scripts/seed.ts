@@ -18,6 +18,7 @@ import { eq, sql } from 'drizzle-orm';
 import { loadConfig, setConfig } from '../src/config/index.ts';
 import { closeDb, getDb, openDb, schema } from '../src/db/index.ts';
 import { createAppointment } from '../src/modules/appointment/appointment.service.ts';
+import { normalizePhone } from '../src/modules/patient/patient.service.ts';
 import { findOpenSlots } from '../src/modules/slots/slots.service.ts';
 import { startPrinter } from '../src/services/printer/index.ts';
 import { addDays, clinicDate, nowIso } from '../src/util/time.ts';
@@ -140,19 +141,46 @@ function main(): void {
     const timezone = config.clinic.timezone;
     const today = clinicDate(now, timezone);
 
+    /**
+     * The seeded numbers above are invented, but they are *plausible* — real
+     * prefixes, right length. With a live socket the reminder loop would message
+     * whoever actually owns them: a stranger gets an appointment reminder from a
+     * clinic they have never heard of, and a brand-new number collects exactly
+     * the kind of report that gets it restricted (§8).
+     *
+     * So once sending is real, everything seeded points at the clinic's own test
+     * number instead. Under `dryRun` the varied numbers stay, because nothing
+     * leaves the process and distinct numbers demo the phone search better.
+     */
+    const sendingIsLive = !config.whatsapp.dryRun && config.reminders.enabled;
+    const testNumber = config.whatsapp.testNumber;
+    const redirect = sendingIsLive && testNumber ? normalizePhone(testNumber) : undefined;
+
+    if (sendingIsLive && !testNumber) {
+        console.warn(
+            '\n! whatsapp.dryRun is false and no whatsapp.testNumber is set.\n' +
+                '! Seeded reminders will be sent to invented numbers that may belong to real people.\n' +
+                '! Set whatsapp.testNumber, or seed with dryRun on.\n',
+        );
+    }
+
     const patients = PEOPLE.map((person) =>
         db
             .insert(schema.patients)
             .values({
                 name: person.name,
-                phone: `+20${person.phone.replace(/^0/, '')}`,
+                phone: redirect ?? `+20${person.phone.replace(/^0/, '')}`,
                 notes: null,
                 createdAt: now,
             })
             .returning()
             .get(),
     );
-    console.log(`created ${patients.length} patients`);
+    console.log(
+        redirect
+            ? `created ${patients.length} patients, all reachable at ${redirect} (sending is live)`
+            : `created ${patients.length} patients`,
+    );
 
     /*
      * Three weeks behind and two ahead. The past is what makes the patient page

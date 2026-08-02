@@ -342,3 +342,115 @@ With no booking in progress a scan makes the desk **navigate** to the patient;
 there is no banner to click. The banner only appears mid-booking, where
 `beginEdit()` suppresses auto-follow so a scan cannot discard a half-typed form.
 An idle desk that simply follows the paper is the intended behaviour.
+
+---
+
+## 10. WhatsApp (Baileys) — connected for the first time
+
+The Baileys code had been written but **never run**: `@whiskeysockets/baileys`
+was in `package.json` and imported, and the whole thing type-checked, but no
+socket had ever opened. Everything below was verified by connecting to real
+WhatsApp servers.
+
+### It works
+
+A socket against `7.0.0-rc14` opens and a pairing QR arrives in **about one
+second**. Reconnect, backoff, session persistence and the logout path are as
+written.
+
+Verified on the **compiled binary** (`dist/mawid`), not just `bun src/server.ts`
+— which matters more here than elsewhere: Baileys v7 pulls in
+`whatsapp-rust-bridge`, and a native `.node` addon would not survive
+`bun build --compile`. It ships its WASM inlined in a single 2 MB JS file, so
+the single-file binary carries the whole stack. Nothing extra to install on the
+clinic PC.
+
+### Fix 1 — the QR was a string, and a string does not scan
+
+Baileys hands over the pairing code as ~270 characters of text.
+`setWhatsAppState({ qr })` passed it straight through, and `WhatsAppPanel`
+checks `qr.startsWith('data:')` — so the desk landed on its text fallback and
+showed base64 in a `<code>` block. The en/ar strings even name the cause:
+*"the server did not render it to an image"*. Nobody can pair with that.
+
+`services/whatsapp/qr.ts` now renders it to a PNG data URL with the `qrcode`
+package the server already had for printing — the browser does not ship a second
+QR encoder to redraw a value the server holds. Error correction **L**, not the
+slips' **M**: the pairing string is near a QR's capacity, and a higher level
+forces a denser code that scans *worse* on screen. A screen QR lives twenty
+seconds and is never folded, so there is no damage to recover from.
+
+A failed render falls back to the raw string rather than throwing — honest and
+unscannable beats losing the ability to link at all.
+
+### Fix 2 — a dead QR stayed on screen
+
+WhatsApp reissues the pairing code every ~20s, and a socket close left the last
+one on the desk. Two ways that misleads: a stale code after a disconnect, and —
+because rendering is async — a slow render landing *after* the next code
+arrived. Both look like a working QR that silently refuses to pair.
+
+A `pairing` counter now invalidates in-flight renders, and a close clears the
+code. Confirmed in a browser: the QR replaces itself live over
+`whatsapp:status`, no reload.
+
+### Fix 3 — numbers that are not on WhatsApp
+
+`sendMessage` to a number with no WhatsApp account **resolves**. The row would
+be marked `sent` and the patient never told — a silent failure, which §14 says
+is the one thing this system must not do. `send()` now checks `onWhatsApp()`
+first and throws, which lands the patient on the desk's "not reminded" list so
+someone phones them. That list is the recovery path; it only works if failures
+reach it.
+
+A *failed* lookup is not proof of absence — only an explicit `exists: false` is.
+A timed-out query still sends, otherwise a network blip silences reminders for
+patients who are perfectly reachable.
+
+### Smaller
+
+- Dropped `printQRInTerminal` — removed in v7, deprecated in the types.
+- `browser: Browsers.ubuntu('Mawid')` names the entry in the phone's *Linked
+  devices* list. Months later someone has to know which session not to unlink.
+
+### Still needs a handset
+
+Pairing itself, and one live reminder to a real phone. Must be a dedicated
+number, never the clinic's main line — and note the sending discipline in §8 is
+about a number's *reputation*, so the first real sends should be few and spaced.
+
+### The test button
+
+Proving the link works needed a real appointment booked at a time whose reminder
+happened to be due — which is a lot of ceremony, and it puts junk in the
+database to answer one question.
+
+`POST /api/whatsapp/test` sends one message to `config.whatsapp.testNumber`
+down the same path a reminder takes: same sender, same template, same phone
+normalization. The desk gets a **Send a test to …** button beside the linked
+pill, and reports back the E.164 number actually messaged rather than the one
+typed in config.
+
+The recipient is config, deliberately **not** a request field. A free-text send
+box on the busiest screen in the clinic is a way to message a patient by
+accident. No test number configured means no button — a control whose only
+possible outcome is an error is worse than none.
+
+The message carries a `رسالة تجريبية · Test message` marker and a test patient
+name. A clinic's test number is usually somebody's personal phone, and a message
+that reads exactly like a real reminder is one someone will act on.
+
+Numbers in the UI are wrapped in bidi isolates (U+2066/U+2069). Without them
+`+201000946068` renders as `201000946068+` inside an Arabic sentence — correct
+per the bidi algorithm, and useless for checking against what you configured.
+
+### Trap — `bun run format` was rewriting the live session
+
+`biome.json` sets `vcs.enabled: false`, so `.gitignore` is never consulted, and
+`files.includes` did not exclude runtime state. Once a real pairing existed,
+`bun run format` reformatted **1978 files** inside the Baileys session folder —
+credential material, rewritten underneath a running socket.
+
+Harmless as it happened (whitespace-only changes to JSON that Baileys parses
+back the same), but only by luck. `session`, `backups` and `print-out` are now
+excluded. The tell was the file count jumping from 160 to 2138.

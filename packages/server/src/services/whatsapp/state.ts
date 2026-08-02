@@ -43,7 +43,10 @@ export function setWhatsAppState(next: Partial<WhatsAppStatus>): void {
 }
 
 /** Called at boot before anything connects. */
-export function resetWhatsAppState(dryRun: boolean): void {
-    state = { connected: false, dryRun };
+export function resetWhatsAppState(dryRun: boolean, testNumber?: string): void {
+    // `testNumber` rides along in the state rather than being read from config
+    // by the endpoint, so the pushed event and the fetched status carry it
+    // alike — otherwise the desk's test button would vanish on the first push.
+    state = testNumber ? { connected: false, dryRun, testNumber } : { connected: false, dryRun };
     setStatus('whatsapp', 'down');
 }

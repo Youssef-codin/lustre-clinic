@@ -18,7 +18,7 @@ let sender: MessageSender | null = null;
  * not fatal — the desk shows it and reminders wait.
  */
 export async function startWhatsApp(config: Config): Promise<void> {
-    resetWhatsAppState(config.whatsapp.dryRun);
+    resetWhatsAppState(config.whatsapp.dryRun, config.whatsapp.testNumber);
 
     if (!config.reminders.enabled) {
         setStatus('whatsapp', 'disabled');

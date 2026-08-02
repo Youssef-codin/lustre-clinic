@@ -103,6 +103,11 @@ export const ar = {
     'whatsapp.unlinkConfirm': 'تأكيد؟ ستتوقف كل التذكيرات.',
     'whatsapp.unlinking': 'جاري الإلغاء…',
     'whatsapp.unlinkFailed': 'تعذّر إلغاء الربط: {message}',
+    'whatsapp.test': 'إرسال رسالة تجريبية إلى {number}',
+    'whatsapp.testing': 'جاري الإرسال…',
+    'whatsapp.testSent': 'تم إرسال رسالة تجريبية إلى {number}.',
+    'whatsapp.testLogged': 'الوضع التجريبي — سُجِّلت للرقم {number} ولم تُرسل.',
+    'whatsapp.testFailed': 'فشل الإرسال التجريبي: {message}',
 
     'reminder.notRemindedHeading': 'لم يتم تذكير هؤلاء المرضى',
     'reminder.callThem': 'اتصلي بهم لتأكيد المواعيد.',
@@ -131,4 +136,5 @@ export const ar = {
     'error.OUTSIDE_WORKING_HOURS': 'هذا الوقت خارج مواعيد العمل.',
     'error.PRINTER_UNAVAILABLE': 'الطابعة غير متاحة.',
     'error.WHATSAPP_DISCONNECTED': 'واتساب غير متصل.',
+    'error.WHATSAPP_NO_TEST_NUMBER': 'لا يوجد رقم تجريبي في config.json.',
 } as const;

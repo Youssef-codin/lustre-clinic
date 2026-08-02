@@ -9,3 +9,7 @@ export async function getStatus(_req: Request, res: Response): Promise<void> {
 export async function postLogout(_req: Request, res: Response): Promise<void> {
     respond(res, 200, ok(await service.logout()));
 }
+
+export async function postTest(_req: Request, res: Response): Promise<void> {
+    respond(res, 200, ok(await service.sendTest()));
+}

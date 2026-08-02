@@ -8,6 +8,7 @@ import type { Config } from '../src/config/index.ts';
 import { setConfig } from '../src/config/index.ts';
 import { getStatus } from '../src/services/status.ts';
 import { startWhatsApp, stopWhatsApp } from '../src/services/whatsapp/index.ts';
+import { renderPairingQr } from '../src/services/whatsapp/qr.ts';
 import { toWhatsAppJid } from '../src/services/whatsapp/sender.ts';
 import { getWhatsAppState, resetWhatsAppState, setWhatsAppState } from '../src/services/whatsapp/state.ts';
 import { attachWebSocket, closeWebSocket } from '../src/ws/index.ts';
@@ -35,6 +36,27 @@ describe('addressing', () => {
         // Silently sending to a malformed jid means the message goes nowhere
         // and the reminder is marked sent.
         expect(() => toWhatsAppJid('+20')).toThrow();
+    });
+});
+
+describe('the pairing QR', () => {
+    test('is rendered to an image the desk can actually scan', async () => {
+        // Baileys hands over a ~270-character string. A string is not something
+        // anyone can hold a phone up to, and the browser has no QR encoder.
+        const pairing = `2@${'a'.repeat(240)},b/c+d=`;
+
+        const rendered = await renderPairingQr(pairing);
+
+        expect(rendered.startsWith('data:image/png;base64,')).toBe(true);
+        expect(rendered.length).toBeGreaterThan(1_000);
+    });
+
+    test('falls back to the raw string rather than losing the ability to link', async () => {
+        // Past what a QR can hold. Honest and unscannable beats a broken image
+        // tag — the panel has a text branch for exactly this.
+        const tooLong = 'x'.repeat(5_000);
+
+        expect(await renderPairingQr(tooLong)).toBe(tooLong);
     });
 });
 
@@ -121,6 +143,57 @@ describe('POST /api/whatsapp/logout', () => {
 
         const res = await request(app).post('/api/whatsapp/logout').expect(200);
         expect(res.body.data.connected).toBe(false);
+    });
+});
+
+describe('POST /api/whatsapp/test', () => {
+    const withTestNumber = (extra: Partial<Config['whatsapp']> = {}) =>
+        ({
+            ...base,
+            whatsapp: { ...base.whatsapp, dryRun: true, testNumber: '01000000000', ...extra },
+        }) as Config;
+
+    test('sends one message and says where it went', async () => {
+        const config = withTestNumber();
+        setConfig(config);
+        await startWhatsApp(config);
+
+        const res = await request(app).post('/api/whatsapp/test').expect(200);
+
+        // Normalized, not echoed back as typed — this is what was really
+        // messaged, and checking it against the configured number is the point.
+        expect(res.body.data.to).toBe('+201000000000');
+        expect(res.body.data.dryRun).toBe(true);
+    });
+
+    test('refuses when no test number is configured', async () => {
+        // Dropped explicitly: `config.example.json` ships one, so spreading the
+        // base config would quietly keep it and the test would pass for the
+        // wrong reason.
+        const { testNumber: _none, ...whatsapp } = base.whatsapp;
+        const config = { ...base, whatsapp: { ...whatsapp, dryRun: true } } as Config;
+        setConfig(config);
+        await startWhatsApp(config);
+
+        const res = await request(app).post('/api/whatsapp/test').expect(400);
+        expect(res.body.error.code).toBe('WHATSAPP_NO_TEST_NUMBER');
+    });
+
+    test('refuses while the socket is down rather than failing silently', async () => {
+        setConfig(withTestNumber());
+        await stopWhatsApp();
+
+        const res = await request(app).post('/api/whatsapp/test').expect(409);
+        expect(res.body.error.code).toBe('WHATSAPP_DISCONNECTED');
+    });
+
+    test('the configured number reaches the desk so the button can name it', async () => {
+        const config = withTestNumber();
+        setConfig(config);
+        await startWhatsApp(config);
+
+        const res = await request(app).get('/api/whatsapp/status').expect(200);
+        expect(res.body.data.testNumber).toBe('01000000000');
     });
 });
 

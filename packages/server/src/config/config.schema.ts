@@ -23,6 +23,14 @@ const remindersSchema = z.object({
 const whatsappSchema = z.object({
     sessionPath: z.string().min(1),
     dryRun: z.boolean(),
+    /**
+     * Where the desk's "send a test" button sends to. Optional: a clinic that
+     * has not set one simply does not get the button.
+     *
+     * Written the way the secretary writes any number (`01000946068`) and
+     * normalized to E.164 on send, exactly like a patient's.
+     */
+    testNumber: z.string().min(1).optional(),
 });
 
 const printingSchema = z.object({

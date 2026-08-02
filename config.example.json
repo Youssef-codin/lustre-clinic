@@ -37,7 +37,8 @@
     },
     "whatsapp": {
         "sessionPath": "./session",
-        "dryRun": true
+        "dryRun": true,
+        "testNumber": "01000000000"
     },
     "printing": {
         "driver": "file",

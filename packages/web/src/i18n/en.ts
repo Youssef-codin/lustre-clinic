@@ -101,6 +101,11 @@ export const en: Dictionary = {
     'whatsapp.unlinkConfirm': 'Confirm? All reminders will stop.',
     'whatsapp.unlinking': 'Unlinking…',
     'whatsapp.unlinkFailed': 'Could not unlink: {message}',
+    'whatsapp.test': 'Send a test to {number}',
+    'whatsapp.testing': 'Sending…',
+    'whatsapp.testSent': 'Test message sent to {number}.',
+    'whatsapp.testLogged': 'Test mode — logged to {number}, nothing was sent.',
+    'whatsapp.testFailed': 'Test failed: {message}',
 
     'reminder.notRemindedHeading': 'These patients were not reminded',
     'reminder.callThem': 'Call them to confirm their appointments.',
@@ -129,4 +134,5 @@ export const en: Dictionary = {
     'error.OUTSIDE_WORKING_HOURS': 'That time is outside working hours.',
     'error.PRINTER_UNAVAILABLE': 'The printer is unavailable.',
     'error.WHATSAPP_DISCONNECTED': 'WhatsApp is disconnected.',
+    'error.WHATSAPP_NO_TEST_NUMBER': 'No test number is set in config.json.',
 };

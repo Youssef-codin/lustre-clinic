@@ -20,4 +20,25 @@ export interface WhatsAppStatus {
      * a working one, and that is a demo-day trap.
      */
     dryRun: boolean;
+    /**
+     * `config.whatsapp.testNumber`, as the clinic wrote it. Present only when
+     * one is configured — the desk hides the test button without it, because a
+     * button that can only fail is worse than no button.
+     */
+    testNumber?: string;
+}
+
+/**
+ * `POST /api/whatsapp/test` → `WhatsAppTestResult`
+ *
+ * Sends one message to the configured test number, down the same path a real
+ * reminder takes. This is the only way to prove the link actually carries a
+ * message: a socket reports `connected` long before anyone knows whether the
+ * clinic's Arabic template arrives readable on a real handset.
+ */
+export interface WhatsAppTestResult {
+    /** Normalized to E.164 — what was really messaged, not what was typed. */
+    to: string;
+    /** True when the message was logged rather than sent. Nothing arrived. */
+    dryRun: boolean;
 }
