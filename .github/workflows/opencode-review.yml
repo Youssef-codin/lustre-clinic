@@ -3,31 +3,33 @@ name: opencode review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-  issue_comment:
-    types: [created]
 
 concurrency:
-  group: opencode-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: opencode-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   auto-review:
-    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: write
       id-token: write
+      contents: read
+      pull-requests: read
+      issues: read
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: sst/opencode/github@latest
+      - name: Run opencode
+        uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: opencode/grok-code
+          model: opencode/big-pickle
           share: false
           prompt: |
             Review the changes in this pull request against the base branch.
@@ -50,25 +52,3 @@ jobs:
             nothing if the change is clean.
 
             Post your findings as a single PR comment.
-
-  comment-review:
-    if: |
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/oc')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - uses: sst/opencode/github@latest
-        env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        with:
-          model: opencode/grok-code
-          share: false
