@@ -5,13 +5,18 @@
     "main": "index.ts",
     "scripts": {
         "start": "expo start",
-        "android": "expo start --android",
-        "ios": "expo start --ios",
+        "android": "expo run:android",
+        "device": "bash scripts/device.sh",
+        "device:build": "bash scripts/device.sh --build",
+        "device:start": "bash scripts/device.sh --start",
+        "device:logs": "adb logcat -s ReactNativeJS:V ReactNative:V",
+        "ios": "expo run:ios",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@mawid/shared": "workspace:*",
         "expo": "~57.0.9",
+        "expo-dev-client": "^57.0.10",
         "expo-status-bar": "~57.0.1",
         "react": "19.2.3",
         "react-native": "0.86.2"

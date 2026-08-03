@@ -12,3 +12,9 @@ backups/
 
 # expo
 .expo/
+
+# native projects are generated from app.json by `expo prebuild` (CNG) —
+# regenerate them, don't edit or commit them
+packages/app/android/
+packages/app/ios/
+

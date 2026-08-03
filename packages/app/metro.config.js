@@ -14,6 +14,12 @@ config.resolver.nodeModulesPaths = [
     path.resolve(projectRoot, 'node_modules'),
     path.resolve(workspaceRoot, 'node_modules'),
 ];
-config.resolver.disableHierarchicalLookup = true;
+// Hierarchical lookup must stay ON. Bun installs isolated, so a package's own
+// dependencies live in a sibling `node_modules` next to it under
+// `node_modules/.bun/<pkg>@<hash>/node_modules/` rather than hoisted to the
+// root. Disabling the upward walk — the usual Expo monorepo advice, written for
+// hoisted layouts — makes those unresolvable: expo-dev-client re-exports
+// expo-dev-menu, and the bundle fails outright without this.
+config.resolver.disableHierarchicalLookup = false;
 
 module.exports = config;
