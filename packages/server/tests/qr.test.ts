@@ -78,6 +78,18 @@ describe('the printed URL', () => {
         }
     });
 
+    test('never picks a docker or VPN address over the real interface', () => {
+        // A container bridge sits on 172.17.0.1 — private, and reachable from
+        // nothing a patient is holding. This machine may not have one, in which
+        // case there is nothing to assert.
+        const detected = lanIp();
+        if (!detected) return;
+
+        expect(detected).not.toStartWith('172.17.');
+        expect(detected).not.toStartWith('172.18.');
+        expect(detected).not.toStartWith('100.');
+    });
+
     test('a detected address is a LAN address, not a public one', () => {
         const detected = lanIp();
         if (!detected) return;

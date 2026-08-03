@@ -18,20 +18,44 @@ function isPrivate(address: string): boolean {
 }
 
 /**
- * The machine's LAN address. Private ranges are preferred over anything else —
- * a VPN or docker bridge address would be routable from nowhere the phone is.
+ * Interfaces that hold a private address the phone can never reach: docker and
+ * libvirt bridges, VPN tunnels, container veth pairs. `isPrivate` alone does not
+ * exclude them — docker0 sits on 172.17.0.1, squarely inside a private range —
+ * so they are ranked last rather than filtered out, in case they are genuinely
+ * all this machine has.
+ */
+const VIRTUAL = /^(docker|br-|veth|virbr|tailscale|tun|tap|wg|zt|utun|vmnet|vboxnet)/;
+
+/** Real Wi-Fi and ethernet, on Linux/macOS/BSD naming. */
+const PHYSICAL = /^(wl|en|eth|wlan|wifi)/;
+
+function rank(name: string, address: string): number {
+    if (!isPrivate(address)) return 3;
+    if (VIRTUAL.test(name)) return 2;
+    return PHYSICAL.test(name) ? 0 : 1;
+}
+
+/**
+ * The machine's LAN address — the one a phone on the same network can open.
+ *
+ * Interface *name* matters as much as the address range here. A laptop running
+ * docker has several private addresses, and enumeration order is not stable, so
+ * picking the first private one prints a QR pointing at a container bridge maybe
+ * half the time. Physical interfaces win, virtual ones are the last resort.
  */
 export function lanIp(): string | null {
-    const candidates: string[] = [];
+    const candidates: { address: string; rank: number }[] = [];
 
-    for (const addresses of Object.values(networkInterfaces())) {
+    for (const [name, addresses] of Object.entries(networkInterfaces())) {
         for (const address of addresses ?? []) {
             if (address.family !== 'IPv4' || address.internal) continue;
-            candidates.push(address.address);
+            candidates.push({ address: address.address, rank: rank(name, address.address) });
         }
     }
 
-    return candidates.find(isPrivate) ?? candidates[0] ?? null;
+    candidates.sort((a, b) => a.rank - b.rank);
+
+    return candidates[0]?.address ?? null;
 }
 
 /**

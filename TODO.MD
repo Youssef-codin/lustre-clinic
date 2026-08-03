@@ -26,6 +26,16 @@ Every endpoint below already exists and is tested. This is wiring, not backend.
   - [ ] `bookings` off `created_at`, not `starts_at`.
   - [ ] `cancelled` / `noShows` by status; reminder counts by `reminders.status`.
 
+- [ ] **Search by ref number** — the desk box takes name and phone only (`searchPatients`). A
+      secretary holding a slip has to read the date off it and scroll the day. Ref lookup exists
+      today only as `recordScan`, which is the wrong tool: it broadcasts a `scan` event to every
+      screen and is meant for a phone hitting `/s/:ref`.
+  - [ ] Detect a ref by shape — `/^\d{6}-\d{2,3}$/`, already in `shared/src/appointment.ts`.
+  - [ ] On a ref match, go straight to that appointment's patient, not a name-match list.
+  - [ ] Decide what the box returns — it is typed `PatientSummary[]`, and a ref identifies one
+        *appointment*. Either widen the response or have the desk follow up with the detail call.
+  - [ ] Do not broadcast. Only a real scan moves other people's screens.
+
 - [ ] **Backups (§11)** — nothing built. Losing the Baileys session means re-pairing at the clinic.
   - [ ] `VACUUM INTO`, never a file copy.
   - [ ] Verify each with `PRAGMA integrity_check`.
