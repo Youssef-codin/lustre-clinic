@@ -662,6 +662,8 @@ Two agents work in parallel: **B** on `packages/server`, **F** on `packages/app`
 
 Phase 0 is the fork point. Both agents need the schema and a working `AppRouter` type to build against.
 
+**The design system is done separately**, directly after the scaffold and before Phase 2 screens begin. Tokens, type scale, and shared components are settled by hand rather than generated as a build step, and everything in Phase 2 builds on the result.
+
 ### Phase 1 — parallel
 
 | # | B — server | # | F — app |
@@ -669,8 +671,8 @@ Phase 0 is the fork point. Both agents need the schema and a working `AppRouter`
 | B1 | Monitoring (§17) — Discord webhook, heartbeat | F1 | App shell — Tailscale + LAN onboarding, connection probing (§14) |
 | B2 | Backups (§16) — including a tested restore | F2 | tRPC client wiring, TanStack Query setup |
 | B3 | `settings` module + seed row | F3 | Role selection, navigation, offline banner |
-| B4 | `branch`, `procedure` modules | F4 | Design system — tokens, type scale, shared components |
-| B5 | `patient`, `customQuestion` modules | F5 | Localization scaffold — dictionaries, direction |
+| B4 | `branch`, `procedure` modules | F4 | Localization scaffold — dictionaries, direction |
+| B5 | `patient`, `customQuestion` modules | | |
 | B6 | `appointment` module, including walk-ins | | |
 | B7 | `visit` module — check-in, procedures, pricing, checkout | | |
 | B8 | `balance` module | | |
@@ -731,7 +733,3 @@ A tablet running the app in kiosk mode, handed to a new patient to complete the 
 **Network** — the tablet needs to reach the server. Decide the approach before buying hardware.
 
 ---
-
-## 20. Unresolved
-
-1. **Will there be a second practitioner?** Currently assumed no, so `branch_id` is not part of the exclusion constraint. If this changes, the constraint must be revisited.
