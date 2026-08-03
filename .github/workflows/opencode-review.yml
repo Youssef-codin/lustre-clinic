@@ -27,7 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           use_github_token: true
-          model: opencode/grok-code
+          model: opencode/big-pickle
           share: false
           prompt: |
             Review the changes in this pull request against the base branch.
