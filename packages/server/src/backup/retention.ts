@@ -8,6 +8,33 @@
  * whatever is in none of those sets.
  */
 
+/**
+ * The dump file name carries the timestamp retention sorts on, and it lives
+ * here rather than beside the run because every destination has to be able to
+ * read one back — a name that cannot be parsed is a file pruning must not touch.
+ */
+const FILE_PREFIX = 'mawid-';
+const FILE_SUFFIX = '.dump';
+
+/** `mawid-2026-08-03T08-41-32Z.dump` — sortable, filesystem-safe, UTC. */
+export function backupFileName(at: Date): string {
+    const stamp = at
+        .toISOString()
+        .replace(/\.\d+Z$/, 'Z')
+        .replaceAll(':', '-');
+    return `${FILE_PREFIX}${stamp}${FILE_SUFFIX}`;
+}
+
+export function parseBackupFileName(name: string): Date | null {
+    if (!name.startsWith(FILE_PREFIX) || !name.endsWith(FILE_SUFFIX)) return null;
+
+    const stamp = name.slice(FILE_PREFIX.length, -FILE_SUFFIX.length);
+    // Undo the `:` → `-` substitution in the time part only.
+    const iso = stamp.replace(/T(\d{2})-(\d{2})-(\d{2})Z$/, 'T$1:$2:$3Z');
+    const at = new Date(iso);
+    return Number.isNaN(at.getTime()) ? null : at;
+}
+
 export interface BackupFile {
     readonly name: string;
     readonly at: Date;

@@ -9,6 +9,7 @@ import {
     encrypt,
     generateKey,
     listLocalBackups,
+    offsiteDestination,
     parseBackupFileName,
     parseKey,
     readLastSuccess,
@@ -99,6 +100,14 @@ describe('retention', () => {
         const doomed = selectForDeletion(files, { daily: 1, weekly: 1, monthly: 1 });
 
         expect(doomed.map((f) => f.name)).toEqual(['ancient']);
+    });
+});
+
+describe('offsiteDestination', () => {
+    test('is null when nothing is configured, so a run stays local', () => {
+        // The test environment sets neither Drive nor S3 credentials. If this
+        // ever fails, `runBackup` in the suite below is talking to the network.
+        expect(offsiteDestination()).toBeNull();
     });
 });
 
