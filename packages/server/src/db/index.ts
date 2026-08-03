@@ -19,4 +19,11 @@ export const db = drizzle(sql, { schema });
 
 export type Db = typeof db;
 
+/**
+ * Either the pool or an open transaction. Services take one of these so a
+ * multi-table operation — a walk-in creating an appointment and a visit
+ * together (§7) — can be composed without duplicating the query code.
+ */
+export type Executor = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
+
 export { schema };

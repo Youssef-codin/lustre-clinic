@@ -46,6 +46,24 @@ bun test
 
 All three must pass before a task is considered complete.
 
+## Backups
+
+```sh
+bun backup                              # dump, verify by restoring, prune
+bun restore backups/mawid-....dump      # restore into a scratch db and drop it
+bun restore backups/mawid-....dump.enc --key <base64>
+```
+
+`pg_dump` and `pg_restore` must be on PATH and must be version 17. The server
+image installs them (see `Dockerfile`); on a dev machine install your
+distribution's `postgresql-client`, or set `PG_BIN_DIR`. Without them the backup
+job fails loudly and its tests skip.
+
+Every run is verified by restoring the dump into a scratch database and
+comparing row counts — an unverified dump is not a backup (SPEC §16). Off-site
+upload is encrypted with `BACKUP_ENCRYPTION_KEY` and is skipped when no bucket
+is configured.
+
 ## Deployment
 
 `docker compose up -d` on the clinic machine brings up Postgres and the server.
