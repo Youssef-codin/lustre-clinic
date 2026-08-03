@@ -30,11 +30,13 @@ jobs:
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
 
       - name: Review
+        shell: bash
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          set -euo pipefail
           opencode run --model opencode/big-pickle "$(cat <<'EOF'
           Review this pull request. Get the diff with:
             git diff $BASE_SHA...$HEAD_SHA
@@ -56,9 +58,21 @@ jobs:
           stylistic rewrites — biome owns formatting. If the change is clean,
           reply with exactly: LGTM
 
-          Output the review as markdown, with no preamble.
+          Output the review as markdown, with no preamble, wrapped in
+          sentinels on their own lines:
+
+          <<<REVIEW>>>
+          ...your review here...
+          <<<END>>>
           EOF
-          )" 2>&1 | tee review.md
+          )" >raw.txt 2>run.log || { echo "opencode failed:"; cat run.log; exit 1; }
+
+          # opencode prints its tool-call transcript to stdout too, so keep
+          # only what is between the sentinels and strip ANSI escapes.
+          sed -e 's/\x1b\[[0-9;]*[a-zA-Z]//g' raw.txt \
+            | awk '/^<<<REVIEW>>>/{f=1;next} /^<<<END>>>/{f=0} f' \
+            > review.md
+          cat review.md
 
       - name: Post review comment
         env:
@@ -66,6 +80,10 @@ jobs:
         run: |
           if [ ! -s review.md ]; then
             echo "empty review, nothing to post"
+            exit 0
+          fi
+          if [ "$(tr -d '[:space:]' < review.md)" = "LGTM" ]; then
+            echo "clean review, nothing to post"
             exit 0
           fi
           {
