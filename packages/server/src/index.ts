@@ -1,16 +1,33 @@
 /**
  * Entrypoint (SPEC §4): migrate → background services → listen.
  *
- * Background services (`background/reminder.job.ts`, `background/backup.job.ts`)
- * are started here once they exist.
+ * Background services live in `background/`. The reminder job lands here once
+ * it exists.
  */
+import { startBackupJob } from './background/backup.job.ts';
 import { config } from './config.ts';
 import { runMigrations } from './db/migrate.ts';
 import { logger } from './logger.ts';
+import { alert, startMonitoring, stopMonitoring } from './monitoring/index.ts';
 import { createServer } from './server.ts';
 
-await runMigrations();
-logger.info('migrations applied');
+// Before anything else, so a failure during startup is reported (§17).
+startMonitoring();
+
+try {
+    await runMigrations();
+    logger.info('migrations applied');
+} catch (err) {
+    logger.fatal({ err }, 'migration failed');
+    await alert({
+        code: 'db.migration_failed',
+        summary: 'Migrations failed on boot. The server did not start.',
+        context: { error: err instanceof Error ? err.name : typeof err },
+    });
+    process.exit(1);
+}
+
+const backupJob = startBackupJob();
 
 const server = createServer();
 
@@ -18,6 +35,8 @@ logger.info({ port: server.port }, 'mawid server listening');
 
 function shutdown(signal: string) {
     logger.info({ signal }, 'shutting down');
+    backupJob.stop();
+    stopMonitoring();
     server.stop();
     process.exit(0);
 }

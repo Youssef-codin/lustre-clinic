@@ -9,7 +9,9 @@
         "typecheck": "tsc --noEmit",
         "test": "LOG_LEVEL=silent bun test --env-file=../../.env",
         "db:generate": "drizzle-kit generate",
-        "db:migrate": "bun --env-file=../../.env scripts/migrate.ts"
+        "db:migrate": "bun --env-file=../../.env scripts/migrate.ts",
+        "backup": "bun --env-file=../../.env scripts/backup.ts",
+        "restore": "bun --env-file=../../.env scripts/restore.ts"
     },
     "dependencies": {
         "@mawid/shared": "workspace:*",

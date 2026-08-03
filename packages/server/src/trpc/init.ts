@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 import { db } from '../db/index.ts';
 import { AppError, isAppError } from '../errors/AppError.ts';
 import { logger } from '../logger.ts';
+import { alert } from '../monitoring/index.ts';
 
 /**
  * SPEC §4. The context is minimal: `{ db }`. There is no auth (§1), so there is
@@ -86,6 +87,12 @@ const errorMapper = t.middleware(async ({ next, path }) => {
     }
 
     logger.error({ err: result.error, path }, 'unhandled procedure error');
+    // §17: unexpected failures are reported. Path and error name only.
+    void alert({
+        code: 'trpc.unhandled_error',
+        summary: 'A procedure failed with an unexpected error.',
+        context: { path: path ?? null, error: cause instanceof Error ? cause.name : typeof cause },
+    });
     throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Internal error',
