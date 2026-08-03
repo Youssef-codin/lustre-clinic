@@ -1,13 +1,31 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 /**
- * SPEC §16 — encrypt before off-site upload. The key is not stored on the
- * clinic machine, so a dump sitting in object storage is useless on its own.
+ * SPEC §16 — encrypt before off-site upload, so a dump sitting in somebody
+ * else's storage is inert on its own.
+ *
+ * ## Where the key comes from
+ *
+ * `BACKUP_ENCRYPTION_KEY` in the environment — 32 bytes, hex or base64. It is
+ * the one secret §16 says must NOT live on the clinic machine: the operator
+ * generates it once, keeps it somewhere the clinic machine cannot reach (a
+ * password manager, a note in a safe), and passes it to `scripts/restore.ts`
+ * with `--key` when a restore is actually needed.
+ *
+ * Generate one with:
+ *
+ *     bun -e 'console.log(require("crypto").randomBytes(32).toString("base64"))'
+ *
+ * If it is lost, every off-site dump is lost with it — there is no recovery
+ * path and deliberately no escrow. Local dumps stay unencrypted, because they
+ * sit on the same disk as the database they came from, so encrypting them
+ * would protect nothing and add a way to lose the data.
+ *
+ * When the key is unset the server still backs up locally; `runBackup` refuses
+ * the off-site upload rather than sending patient data in the clear.
  *
  * AES-256-GCM, from the platform's own crypto. Chosen over age/libsodium
- * because it needs no dependency and no key-management format: the operator
- * holds 32 bytes, and `scripts/backup-decrypt.ts` turns a file back into a
- * dump with them.
+ * because it needs no dependency and no key-management format.
  *
  * Layout: MAGIC (6) ‖ IV (12) ‖ ciphertext ‖ tag (16).
  */

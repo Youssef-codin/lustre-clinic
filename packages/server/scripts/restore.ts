@@ -20,7 +20,7 @@ import { logger } from '../src/logger.ts';
 const [file, ...rest] = Bun.argv.slice(2);
 
 if (!file) {
-    console.error('usage: restore.ts <dump-file> [--into <database>] [--key <base64-or-hex>]');
+    logger.error('usage: restore.ts <dump-file> [--into <database>] [--key <base64-or-hex>]');
     process.exit(1);
 }
 
@@ -36,7 +36,7 @@ const keyArg = flag('key') ?? config.BACKUP_ENCRYPTION_KEY;
 let dumpPath = file;
 if (file.endsWith('.enc')) {
     if (!keyArg) {
-        console.error('encrypted dump: pass --key or set BACKUP_ENCRYPTION_KEY');
+        logger.error('encrypted dump: pass --key or set BACKUP_ENCRYPTION_KEY');
         process.exit(1);
     }
     dumpPath = `${file.replace(/\.enc$/, '')}.decrypted`;
@@ -46,7 +46,7 @@ if (file.endsWith('.enc')) {
 
 if (into) {
     if (into === databaseName(config.DATABASE_URL)) {
-        console.error('refusing to restore over the live database');
+        logger.error({ database: into }, 'refusing to restore over the live database');
         process.exit(1);
     }
     const url = await recreateDatabase(config.DATABASE_URL, into);

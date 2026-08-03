@@ -13,8 +13,8 @@ import { alert } from '../monitoring/index.ts';
  */
 
 export interface BackupJob {
-    /** Runs one backup now, outside the schedule. Never throws. */
-    runNow(): Promise<void>;
+    /** Runs one backup now, outside the schedule. Never throws; true on success. */
+    runNow(): Promise<boolean>;
     stop(): void;
 }
 
@@ -22,13 +22,16 @@ export function startBackupJob(): BackupJob {
     const intervalMs = config.BACKUP_INTERVAL_HOURS * 3_600_000;
     const staleAfterMs = config.BACKUP_STALE_AFTER_HOURS * 3_600_000;
 
-    async function runNow(): Promise<void> {
-        try {
-            await runBackup();
-        } catch {
-            // `runBackup` has already logged and alerted. The job survives so
-            // the next interval still tries.
-        }
+    /**
+     * A failed run is already logged and alerted by `runBackup`; what this adds
+     * is that the rejection stops here, so one bad night does not take the
+     * interval — and with it every later backup — down with it.
+     */
+    async function runNow(): Promise<boolean> {
+        return runBackup().then(
+            () => true,
+            () => false,
+        );
     }
 
     /** §16: alert on no successful backup in 48h, not only on a failed run. */

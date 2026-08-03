@@ -25,7 +25,8 @@ services:
         build: .
         restart: always
         working_dir: /app
-        command: ['bun', 'packages/server/src/index.ts']
+        # The command comes from the image's ENTRYPOINT/CMD, so
+        # `docker compose run server packages/server/scripts/backup.ts` works.
         environment:
             DATABASE_URL: postgres://mawid:${POSTGRES_PASSWORD}@db:5432/mawid
             PORT: 3000
