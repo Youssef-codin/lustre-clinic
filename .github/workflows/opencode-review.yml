@@ -25,6 +25,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install opencode
+        env:
+          # Pinned deliberately: this job holds OPENCODE_API_KEY. Bump manually.
+          VERSION: 1.18.11
         run: |
           curl -fsSL https://opencode.ai/install | bash
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
@@ -79,8 +82,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ ! -s review.md ]; then
-            echo "empty review, nothing to post"
-            exit 0
+            echo "reviewer produced no sentinel-delimited output — review did not happen"
+            exit 1
           fi
           if [ "$(tr -d '[:space:]' < review.md)" = "LGTM" ]; then
             echo "clean review, nothing to post"
