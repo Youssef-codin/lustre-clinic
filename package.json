@@ -15,6 +15,7 @@
         "test": "LOG_LEVEL=silent bun test",
         "app": "bun run --cwd packages/app device",
         "app:build": "bun run --cwd packages/app device:build",
+        "app:stop": "bun run --cwd packages/app device:stop",
         "db:generate": "bun run --cwd packages/server db:generate",
         "db:migrate": "bun packages/server/scripts/migrate.ts"
     },
