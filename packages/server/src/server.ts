@@ -1,60 +1,47 @@
-import { createServer } from 'node:http';
-import { createApp } from './app.ts';
-import { ConfigError, configPath, loadConfig, setConfig } from './config/index.ts';
-import { closeDb, openDb } from './db/index.ts';
-import { logger } from './middleware/logger.ts';
-import { startPrinter } from './services/printer/index.ts';
-import { startReminders, stopReminders } from './services/reminders/index.ts';
-import { startWhatsApp, stopWhatsApp } from './services/whatsapp/index.ts';
-import { VERSION } from './version.ts';
-import { attachWebSocket, closeWebSocket } from './ws/index.ts';
+import { TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
+import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
+import type { Server } from 'bun';
+import { config } from './config.ts';
+import { logger } from './logger.ts';
+import { createContext } from './trpc/init.ts';
+import { appRouter } from './trpc/router.ts';
+import { type WsData, wsHandlers } from './ws/index.ts';
 
-async function main(): Promise<void> {
-    // 1. Config first — a bad config must stop the boot, loudly.
-    const config = setConfig(loadConfig());
-    logger.info({ version: VERSION, config: configPath(), clinic: config.clinic.nameEn }, 'starting mawid');
+/**
+ * SPEC §4. `Bun.serve` is the entire HTTP layer — no Express, no `ws`
+ * dependency. It hosts the tRPC fetch adapter, native WebSockets, and (later)
+ * APK downloads.
+ */
+export function createServer(port = config.PORT): Server<WsData> {
+    return Bun.serve({
+        port,
+        // No public ingress and no TLS: Tailscale is the transport and the
+        // security boundary (§1).
+        fetch(req, server) {
+            const url = new URL(req.url);
 
-    // 2. Database and migrations, before anything that reads data starts.
-    openDb(config.database);
+            if (url.pathname === WS_PATH) {
+                if (server.upgrade(req, { data: { connectedAt: Date.now() } })) return;
+                return new Response('Expected a websocket upgrade', { status: 426 });
+            }
 
-    // 3. Long-running services (printer, whatsapp, reminders, backups) go here —
-    //    each flipping its own entry in services/status.ts.
-    await startPrinter(config);
-    await startWhatsApp(config);
-    startReminders();
+            if (url.pathname.startsWith(TRPC_ENDPOINT)) {
+                return fetchRequestHandler({
+                    endpoint: TRPC_ENDPOINT,
+                    req,
+                    router: appRouter,
+                    createContext,
+                    // Batching enabled (§4).
+                    allowBatching: true,
+                });
+            }
 
-    // 4. HTTP + websocket on one port.
-    const app = createApp();
-    const server = createServer(app);
-    attachWebSocket(server);
-
-    server.listen(config.server.port, config.server.host, () => {
-        logger.info(
-            { host: config.server.host, port: config.server.port },
-            `listening on http://${config.hostname}:${config.server.port}`,
-        );
+            return new Response('Not found', { status: 404 });
+        },
+        websocket: wsHandlers,
+        error(err) {
+            logger.error({ err }, 'unhandled server error');
+            return new Response('Internal error', { status: 500 });
+        },
     });
-
-    const shutdown = async (signal: string) => {
-        logger.info({ signal }, 'shutting down');
-        await closeWebSocket();
-        stopReminders();
-        await stopWhatsApp();
-        closeDb();
-        server.close(() => process.exit(0));
-        // Don't let a hung connection keep the clinic PC's port bound.
-        setTimeout(() => process.exit(0), 5_000).unref();
-    };
-
-    process.on('SIGINT', () => void shutdown('SIGINT'));
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
-
-main().catch((err: unknown) => {
-    if (err instanceof ConfigError) {
-        logger.fatal(`\n${err.message}\n`);
-    } else {
-        logger.fatal({ err }, 'failed to start');
-    }
-    process.exit(1);
-});

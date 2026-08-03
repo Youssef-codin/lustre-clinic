@@ -1,37 +1,51 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { closeDb, type Db, getSqlite, openDb } from '../../src/db/index.ts';
+import { sql as dbSql } from '../../src/db/index.ts';
+import { runMigrations } from '../../src/db/migrate.ts';
 
 /**
- * Integration tests run against a real SQLite file rather than a mock — with
- * SQLite that costs a temp directory, and it means the overlap check and the
- * UNIQUE constraints are exercised by the same engine the clinic runs.
+ * Tests run against a real Postgres, because the things worth testing here are
+ * enforced by Postgres — the `EXCLUDE` constraint above all. Point
+ * `DATABASE_URL` at a scratch database; `docker compose up -d db` is enough.
  */
+export const sql = dbSql;
 
-let dir: string | null = null;
+let migrated = false;
 
-export function openTestDb(): Db {
-    // Test files share a process, so a file that failed to clean up must not
-    // hand its database to the next one — `openDb` is a no-op if one is open.
-    closeDb();
-    dir = mkdtempSync(join(tmpdir(), 'mawid-test-'));
-    return openDb(join(dir, 'test.sqlite'));
+export async function setupDatabase(): Promise<void> {
+    if (migrated) return;
+    await runMigrations();
+    migrated = true;
 }
 
-export function closeTestDb(): void {
-    closeDb();
-    if (dir) rmSync(dir, { recursive: true, force: true });
-    dir = null;
+/** Wipes every table. Order matters only in that CASCADE handles it for us. */
+export async function truncateAll(): Promise<void> {
+    await sql`
+        TRUNCATE TABLE
+            payments,
+            visit_procedures,
+            visits,
+            reminders,
+            appointments,
+            patients,
+            procedure_types,
+            branches,
+            custom_questions,
+            settings
+        RESTART IDENTITY CASCADE
+    `;
 }
 
-/** Empties every table between tests without re-running migrations. */
-export function resetDb(): void {
-    const sqlite = getSqlite();
-    sqlite.exec('PRAGMA foreign_keys = OFF');
-    for (const table of ['reminders', 'appointments', 'patients']) {
-        sqlite.exec(`DELETE FROM ${table}`);
-        sqlite.run('DELETE FROM sqlite_sequence WHERE name = ?', [table]);
-    }
-    sqlite.exec('PRAGMA foreign_keys = ON');
+export function uuid(): string {
+    return Bun.randomUUIDv7();
+}
+
+export async function insertBranch(name = 'Main'): Promise<string> {
+    const id = uuid();
+    await sql`INSERT INTO branches (id, name) VALUES (${id}, ${name})`;
+    return id;
+}
+
+export async function insertPatient(name = 'Test Patient'): Promise<string> {
+    const id = uuid();
+    await sql`INSERT INTO patients (id, name, phone) VALUES (${id}, ${name}, '+201000000000')`;
+    return id;
 }

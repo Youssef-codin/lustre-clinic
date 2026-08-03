@@ -1,14 +1,18 @@
 /**
- * Applies migrations to the configured database without booting the server.
- * The server does this itself at startup; this exists for a manual run against
- * a clinic install, and for CI.
+ * Applies pending migrations. Run standalone (`bun db:migrate`) and also on
+ * boot from `src/index.ts` (SPEC §4: migrate → background services → listen).
  */
-import { loadConfig } from '../src/config/index.ts';
-import { closeDb, openDb } from '../src/db/index.ts';
-import { logger } from '../src/middleware/logger.ts';
-import { getStatus } from '../src/services/status.ts';
 
-const config = loadConfig();
-openDb(config.database);
-logger.info({ migration: getStatus().migration }, 'migrations up to date');
-closeDb();
+import { sql } from '../src/db/index.ts';
+import { runMigrations } from '../src/db/migrate.ts';
+import { logger } from '../src/logger.ts';
+
+try {
+    await runMigrations();
+    logger.info('migrations applied');
+} catch (err) {
+    logger.error({ err }, 'migration failed');
+    process.exitCode = 1;
+} finally {
+    await sql.end();
+}

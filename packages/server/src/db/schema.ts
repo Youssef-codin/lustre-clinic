@@ -1,116 +1,243 @@
-import { relations, sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+    APPOINTMENT_CHANNELS,
+    APPOINTMENT_STATUSES,
+    DEFAULT_DURATION_MINUTES,
+    DEFAULT_DURATION_OPTIONS,
+    DEFAULT_REMINDER_LEAD_HOURS,
+    DEFAULT_REMINDER_NOTIFY_AT,
+    DEFAULT_REMINDER_REPEAT_MINUTES,
+    PAYMENT_METHODS,
+    QUESTION_KINDS,
+    REMINDER_STATUSES,
+} from '@mawid/shared';
+import { sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import {
+    boolean,
+    check,
+    date,
+    index,
+    integer,
+    jsonb,
+    pgTable,
+    text,
+    time,
+    timestamp,
+    uuid,
+} from 'drizzle-orm/pg-core';
+
+/** Every timestamp in the schema is `timestamptz`, read back as a JS `Date`. */
+const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
 /**
- * Times are stored as UTC ISO-8601 strings, never as local time — DST and
- * timezone bugs in a booking system are miserable to debug. Convert to clinic
- * time only for display and scheduling. See spec §5.
+ * SPEC §5. Timestamps are `timestamptz`. Money is integer piastres — never
+ * floats. IDs are UUIDv7, generated in application code (`Bun.randomUUIDv7()`)
+ * because Postgres 17 has no `uuidv7()`.
+ *
+ * The `EXCLUDE USING gist` overlap constraint on `appointments` and the
+ * `btree_gist` extension it needs are not expressible in Drizzle's schema DSL.
+ * They live in a hand-written migration; see `db/migrations/`.
  */
 
-export const APPOINTMENT_STATUS = ['booked', 'done', 'cancelled', 'no_show'] as const;
-export const APPOINTMENT_CHANNEL = ['desk', 'whatsapp', 'phone'] as const;
-export const REMINDER_STATUS = ['pending', 'sent', 'failed', 'skipped'] as const;
-export const REMINDER_SKIP_REASON = ['started', 'too_late', 'cancelled', 'catch_up_cap'] as const;
+export const branches = pgTable('branches', {
+    id: uuid('id').primaryKey(),
+    name: text('name').notNull(),
+    address: text('address'),
+    active: boolean('active').notNull().default(true),
+});
 
-export const patients = sqliteTable(
+export const patients = pgTable(
     'patients',
     {
-        id: integer('id').primaryKey({ autoIncrement: true }),
+        id: uuid('id').primaryKey(),
         name: text('name').notNull(),
-        /** E.164, normalized on write: +20... */
+        /** E.164, normalized on write. */
         phone: text('phone').notNull(),
+        email: text('email'),
+        /** Age is derived at read time and never stored. */
+        birthDate: date('birth_date'),
+        gender: text('gender'),
+        /** Answers keyed by `custom_questions.key`. */
+        custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),
-        createdAt: text('created_at').notNull(),
-    },
-    (t) => [index('idx_patients_phone').on(t.phone), index('idx_patients_name').on(t.name)],
-);
-
-export const appointments = sqliteTable(
-    'appointments',
-    {
-        id: integer('id').primaryKey({ autoIncrement: true }),
-        /** Short human code, e.g. "M7K2Q" — printed on the slip and used by /s/:ref. */
-        ref: text('ref').notNull().unique(),
-        patientId: integer('patient_id')
-            .notNull()
-            .references(() => patients.id),
-        /** UTC ISO. */
-        startsAt: text('starts_at').notNull(),
-        durationMin: integer('duration_min').notNull(),
-        /** Matches config.appointmentTypes[].id. */
-        typeId: text('type_id').notNull(),
-        note: text('note'),
-        status: text('status', { enum: APPOINTMENT_STATUS }).notNull().default('booked'),
-        channel: text('channel', { enum: APPOINTMENT_CHANNEL }).notNull().default('desk'),
-        createdAt: text('created_at').notNull(),
-        updatedAt: text('updated_at').notNull(),
-    },
-    (t) => [index('idx_appt_starts').on(t.startsAt), index('idx_appt_patient').on(t.patientId)],
-);
-
-export const reminders = sqliteTable(
-    'reminders',
-    {
-        id: integer('id').primaryKey({ autoIncrement: true }),
-        /**
-         * UNIQUE is the guarantee a patient is never messaged twice for the same
-         * appointment. Rely on the constraint, not on application logic — see spec §5.
-         */
-        appointmentId: integer('appointment_id')
-            .notNull()
-            .references(() => appointments.id),
-        status: text('status', { enum: REMINDER_STATUS }).notNull(),
-        /**
-         * Why it was not sent. Stored rather than logged because every skipped
-         * reminder is a patient the secretary has to phone — the desk screen
-         * lists them and the reason tells her which. See spec §9.
-         */
-        skipReason: text('skip_reason', { enum: REMINDER_SKIP_REASON }),
-        /** UTC ISO. */
-        scheduledFor: text('scheduled_for').notNull(),
-        sentAt: text('sent_at'),
-        error: text('error'),
-        attempts: integer('attempts').notNull().default(0),
+        createdAt: timestamptz('created_at').notNull().defaultNow(),
     },
     (t) => [
-        uniqueIndex('idx_rem_appointment').on(t.appointmentId),
-        index('idx_rem_status').on(t.status, t.scheduledFor),
+        index('patients_phone_idx').on(t.phone),
+        index('patients_name_idx').using('gin', sql`to_tsvector('simple', ${t.name})`),
     ],
 );
 
-export const patientRelations = relations(patients, ({ many }) => ({
-    appointments: many(appointments),
-}));
+export const procedureTypes = pgTable('procedure_types', {
+    id: uuid('id').primaryKey(),
+    /** Null means this row is a category root. One level of nesting only (§5). */
+    parentId: uuid('parent_id').references((): AnyPgColumn => procedureTypes.id),
+    name: text('name').notNull(),
+    /** Piastres. */
+    defaultPrice: integer('default_price').notNull(),
+    hasQuantity: boolean('has_quantity').notNull().default(false),
+    isCheckup: boolean('is_checkup').notNull().default(false),
+    active: boolean('active').notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+});
 
-export const appointmentRelations = relations(appointments, ({ one }) => ({
-    patient: one(patients, { fields: [appointments.patientId], references: [patients.id] }),
-    reminder: one(reminders),
-}));
+export const appointments = pgTable(
+    'appointments',
+    {
+        id: uuid('id').primaryKey(),
+        /** `DDMMYY-XXXX`, day first. Stored uppercase, matched case-insensitively. */
+        ref: text('ref').notNull().unique(),
+        patientId: uuid('patient_id')
+            .notNull()
+            .references(() => patients.id),
+        branchId: uuid('branch_id')
+            .notNull()
+            .references(() => branches.id),
+        startsAt: timestamptz('starts_at').notNull(),
+        /** Chosen by the secretary, never derived from the procedure type (§7). */
+        durationMinutes: integer('duration_minutes').notNull(),
+        typeId: uuid('type_id').references(() => procedureTypes.id),
+        note: text('note'),
+        status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
+        channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
+        createdAt: timestamptz('created_at').notNull().defaultNow(),
+        updatedAt: timestamptz('updated_at').notNull().defaultNow(),
+    },
+    (t) => [
+        // The day view queries a date range.
+        index('appointments_starts_at_idx').on(t.startsAt),
+        index('appointments_patient_id_idx').on(t.patientId),
+        check('appointments_duration_positive', sql`${t.durationMinutes} > 0`),
+    ],
+);
 
-export const reminderRelations = relations(reminders, ({ one }) => ({
-    appointment: one(appointments, {
-        fields: [reminders.appointmentId],
-        references: [appointments.id],
-    }),
-}));
+export const visits = pgTable('visits', {
+    id: uuid('id').primaryKey(),
+    /** One appointment has at most one visit (§5). */
+    appointmentId: uuid('appointment_id')
+        .notNull()
+        .unique()
+        .references(() => appointments.id),
+    checkedInAt: timestamptz('checked_in_at').notNull(),
+    /** When `charged_total` was set, if that happened before checkout. */
+    pricedAt: timestamptz('priced_at'),
+    /** Checked out. */
+    completedAt: timestamptz('completed_at'),
+    /** Rule output from the entered procedures (§9). Never edited. */
+    computedTotal: integer('computed_total').notNull().default(0),
+    /** What the patient owes. The difference from computed is the discount. */
+    chargedTotal: integer('charged_total').notNull().default(0),
+    createdAt: timestamptz('created_at').notNull().defaultNow(),
+});
 
-export type PatientRow = typeof patients.$inferSelect;
-export type NewPatientRow = typeof patients.$inferInsert;
-export type AppointmentRow = typeof appointments.$inferSelect;
-export type NewAppointmentRow = typeof appointments.$inferInsert;
-export type ReminderRow = typeof reminders.$inferSelect;
-export type NewReminderRow = typeof reminders.$inferInsert;
+export const payments = pgTable(
+    'payments',
+    {
+        id: uuid('id').primaryKey(),
+        visitId: uuid('visit_id')
+            .notNull()
+            .references(() => visits.id),
+        /** Piastres, always positive. A visit may have zero, one, or several. */
+        amount: integer('amount').notNull(),
+        method: text('method', { enum: PAYMENT_METHODS }).notNull(),
+        /** Required when `method = 'other'`. */
+        methodNote: text('method_note'),
+        paidAt: timestamptz('paid_at').notNull().defaultNow(),
+    },
+    (t) => [
+        index('payments_visit_id_idx').on(t.visitId),
+        check('payments_amount_positive', sql`${t.amount} > 0`),
+        check(
+            'payments_other_requires_note',
+            sql`${t.method} <> 'other' OR (${t.methodNote} IS NOT NULL AND ${t.methodNote} <> '')`,
+        ),
+    ],
+);
 
-export type AppointmentStatus = (typeof APPOINTMENT_STATUS)[number];
-export type AppointmentChannel = (typeof APPOINTMENT_CHANNEL)[number];
-export type ReminderStatus = (typeof REMINDER_STATUS)[number];
-export type ReminderSkipReason = (typeof REMINDER_SKIP_REASON)[number];
+export const visitProcedures = pgTable(
+    'visit_procedures',
+    {
+        id: uuid('id').primaryKey(),
+        visitId: uuid('visit_id')
+            .notNull()
+            .references(() => visits.id, { onDelete: 'cascade' }),
+        procedureId: uuid('procedure_id')
+            .notNull()
+            .references(() => procedureTypes.id),
+        quantity: integer('quantity').notNull().default(1),
+        /** Snapshot of the price on the day. Line total is unit_price × quantity. */
+        unitPrice: integer('unit_price').notNull(),
+        note: text('note'),
+    },
+    (t) => [
+        index('visit_procedures_visit_id_idx').on(t.visitId),
+        check('visit_procedures_quantity_positive', sql`${t.quantity} > 0`),
+    ],
+);
 
-/**
- * The half-open interval `[starts_at, starts_at + duration_min)` of an
- * appointment, as a raw SQL expression. The overlap check in
- * `appointment.service.ts` is written by hand against these rather than composed
- * through the query builder — it is the one hard correctness guarantee in the
- * system and it must be obviously correct on reading. See spec §5.
- */
-export const apptEndsAt = sql`datetime(${appointments.startsAt}, '+' || ${appointments.durationMin} || ' minutes')`;
+export const customQuestions = pgTable('custom_questions', {
+    id: uuid('id').primaryKey(),
+    /** Stable key into `patients.custom`. */
+    key: text('key').notNull().unique(),
+    label: text('label').notNull(),
+    kind: text('kind', { enum: QUESTION_KINDS }).notNull(),
+    /** Only meaningful when `kind = 'select'`. */
+    options: jsonb('options'),
+    required: boolean('required').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+});
+
+export const reminders = pgTable(
+    'reminders',
+    {
+        id: uuid('id').primaryKey(),
+        appointmentId: uuid('appointment_id')
+            .notNull()
+            .unique()
+            .references(() => appointments.id),
+        /** `starts_at - settings.reminder_lead_hours`, set on booking (§11). */
+        dueAt: timestamptz('due_at').notNull(),
+        status: text('status', { enum: REMINDER_STATUSES }).notNull().default('pending'),
+        sentAt: timestamptz('sent_at'),
+    },
+    (t) => [index('reminders_status_due_at_idx').on(t.status, t.dueAt)],
+);
+
+/** A single enforced row (§5). */
+export const settings = pgTable(
+    'settings',
+    {
+        id: integer('id').primaryKey().default(1),
+        clinicName: text('clinic_name').notNull(),
+        clinicPhone: text('clinic_phone'),
+        durationOptions: integer('duration_options')
+            .array()
+            .notNull()
+            .default([...DEFAULT_DURATION_OPTIONS]),
+        defaultDuration: integer('default_duration').notNull().default(DEFAULT_DURATION_MINUTES),
+        reminderLeadHours: integer('reminder_lead_hours').notNull().default(DEFAULT_REMINDER_LEAD_HOURS),
+        reminderNotifyAt: time('reminder_notify_at').notNull().default(DEFAULT_REMINDER_NOTIFY_AT),
+        reminderRepeatMinutes: integer('reminder_repeat_minutes')
+            .notNull()
+            .default(DEFAULT_REMINDER_REPEAT_MINUTES),
+        /** §11: the repeat is suppressed while this equals today. */
+        reminderDismissedOn: date('reminder_dismissed_on'),
+        reminderTemplate: text('reminder_template').notNull(),
+        updatedAt: timestamptz('updated_at').notNull().defaultNow(),
+    },
+    (t) => [check('settings_single_row', sql`${t.id} = 1`)],
+);
+
+export const schema = {
+    branches,
+    patients,
+    procedureTypes,
+    appointments,
+    visits,
+    payments,
+    visitProcedures,
+    customQuestions,
+    reminders,
+    settings,
+};

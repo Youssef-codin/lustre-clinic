@@ -1,8 +1,4 @@
 {
     "extends": "../../tsconfig.base.json",
-    "compilerOptions": {
-        "lib": ["ESNext"],
-        "types": ["bun"]
-    },
-    "include": ["src", "tests"]
+    "include": ["src", "tests", "scripts", "drizzle.config.ts"]
 }

@@ -1,0 +1,45 @@
+services:
+    db:
+        image: postgres:17-alpine
+        restart: always
+        environment:
+            POSTGRES_USER: mawid
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+            POSTGRES_DB: mawid
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U mawid -d mawid']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+        # Loopback only. The server container reaches it over the compose
+        # network; this mapping exists so migrations, tests, and psql can run
+        # from the host. Nothing outside the machine can connect.
+        ports:
+            - '127.0.0.1:5432:5432'
+
+    server:
+        image: oven/bun:1.3-alpine
+        restart: always
+        working_dir: /app
+        command: ['bun', 'packages/server/src/index.ts']
+        environment:
+            DATABASE_URL: postgres://mawid:${POSTGRES_PASSWORD}@db:5432/mawid
+            PORT: 3000
+            LOG_LEVEL: ${LOG_LEVEL:-info}
+            DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+            BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+        volumes:
+            - .:/app
+            - ./backups:/app/backups
+        # Bound to the Tailscale interface only — Tailscale is the security
+        # boundary (SPEC §1). Set TAILSCALE_IP in .env.
+        ports:
+            - '${TAILSCALE_IP:-0.0.0.0}:3000:3000'
+        depends_on:
+            db:
+                condition: service_healthy
+
+volumes:
+    pgdata:

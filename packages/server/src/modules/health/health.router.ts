@@ -1,8 +1,6 @@
-import { Router } from 'express';
-import { getHealth } from './health.handler.ts';
+import { publicProcedure, router } from '../../trpc/init.ts';
+import { healthService } from './health.service.ts';
 
-const router = Router();
-
-router.get('/', getHealth);
-
-export default router;
+export const healthRouter = router({
+    check: publicProcedure.query(() => healthService.check()),
+});

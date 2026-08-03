@@ -1,35 +1,47 @@
-import { ERROR_CODE, type ErrorCode, type FieldIssue } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
 
 /**
- * The only error type services throw. `errorHandler` maps it to the response
- * envelope — so a domain failure reaches the frontend as a code, not a string.
+ * SPEC §4. Services throw `AppError`; the tRPC `errorFormatter` maps it onto a
+ * `TRPCError` and carries `code` through as `shape.data.appCode`.
+ *
+ * `message` stays English — it is for logs. The client localizes from `code`
+ * and never parses the message.
  */
 export class AppError extends Error {
-    readonly status: number;
     readonly code: ErrorCode;
-    readonly issues?: FieldIssue[];
+    readonly httpStatus: number;
 
-    constructor(status: number, code: ErrorCode, message: string, issues?: FieldIssue[]) {
-        super(message);
+    constructor(code: ErrorCode, message: string, httpStatus = 400, options?: { cause?: unknown }) {
+        super(message, options);
         this.name = 'AppError';
-        this.status = status;
         this.code = code;
-        this.issues = issues;
+        this.httpStatus = httpStatus;
     }
 
-    static badRequest(message: string, code: ErrorCode = ERROR_CODE.BAD_REQUEST) {
-        return new AppError(400, code, message);
+    static notFound(what: string): AppError {
+        return new AppError(ERROR_CODE.NOT_FOUND, `${what} not found`, 404);
     }
 
-    static notFound(message: string, code: ErrorCode = ERROR_CODE.NOT_FOUND) {
-        return new AppError(404, code, message);
+    static internal(message = 'Internal error', options?: { cause?: unknown }): AppError {
+        return new AppError(ERROR_CODE.INTERNAL, message, 500, options);
     }
+}
 
-    static conflict(message: string, code: ErrorCode) {
-        return new AppError(409, code, message);
-    }
+export function isAppError(err: unknown): err is AppError {
+    return err instanceof AppError;
+}
 
-    static internal(message = 'Internal server error') {
-        return new AppError(500, ERROR_CODE.INTERNAL, message);
+/** Postgres SQLSTATE codes the services care about. */
+export const PG_ERROR = {
+    UNIQUE_VIOLATION: '23505',
+    EXCLUSION_VIOLATION: '23P01',
+    CHECK_VIOLATION: '23514',
+    FOREIGN_KEY_VIOLATION: '23503',
+} as const;
+
+export function pgErrorCode(err: unknown): string | undefined {
+    if (err && typeof err === 'object' && 'code' in err && typeof err.code === 'string') {
+        return err.code;
     }
+    return undefined;
 }

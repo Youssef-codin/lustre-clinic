@@ -1,223 +1,312 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE } from '@mawid/shared';
-import type { AppError } from '../src/errors/AppError.ts';
-import {
-    cancelAppointment,
-    createAppointment,
-    updateAppointment,
-} from '../src/modules/appointment/appointment.service.ts';
-import { searchPatients } from '../src/modules/patient/patient.service.ts';
-import { atMonday, loadTestConfig } from './helpers/app.ts';
-import { closeTestDb, openTestDb, resetDb } from './helpers/db.ts';
+import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import type { AppointmentStatus } from '@mawid/shared';
+import { insertBranch, insertPatient, setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 
 /**
- * Double-booking is the one hard correctness guarantee in the system (spec §5),
- * so it gets its own suite covering every boundary of the interval comparison
- * rather than being tested incidentally through the HTTP layer.
+ * SPEC §5 requires boundary tests for `appointments_no_overlap`: identical
+ * start, one ending exactly when the next begins, fully contained, spanning,
+ * and that cancelled and no-show rows are excluded.
  *
- * Durations come from `config.example.json`:
- *   checkup 20 · cleaning 30 · filling 45 · rootcanal 90
- *
- * The fixture booking is a 30-minute cleaning at 08:00Z, so it occupies
- * [08:00, 08:30).
+ * These assert Postgres behaviour, not application behaviour. Nothing here goes
+ * through a service — the point is that the database refuses, so that no code
+ * path anywhere can produce a double-booking.
  */
 
-let counter = 0;
+const BASE = new Date('2026-03-10T09:00:00.000Z');
 
-function book(startsAt: string, typeId = 'cleaning') {
-    counter += 1;
-    return createAppointment({
-        patient: { name: `Patient ${counter}`, phone: `0101000${String(counter).padStart(4, '0')}` },
-        startsAt,
-        typeId,
-    });
+/**
+ * Minutes after BASE, as an ISO string. postgres.js does not serialize a `Date`
+ * bind parameter correctly under Bun, so raw SQL here passes strings. Drizzle
+ * converts `Date` itself, so application code is unaffected.
+ */
+function at(minutes: number): string {
+    return new Date(BASE.getTime() + minutes * 60_000).toISOString();
 }
 
-function errorFrom(fn: () => unknown): AppError {
+let branchId: string;
+let patientId: string;
+let refCounter = 0;
+
+function nextRef(): string {
+    refCounter += 1;
+    return `100326-T${String(refCounter).padStart(3, '0')}`;
+}
+
+async function book(
+    startMinutes: number,
+    durationMinutes: number,
+    status: AppointmentStatus = 'booked',
+): Promise<string> {
+    const id = uuid();
+    await sql`
+        INSERT INTO appointments (id, ref, patient_id, branch_id, starts_at, duration_minutes, status)
+        VALUES (${id}, ${nextRef()}, ${patientId}, ${branchId}, ${at(startMinutes)}, ${durationMinutes}, ${status})
+    `;
+    return id;
+}
+
+/** The exclusion constraint surfaces as SQLSTATE 23P01, exclusion_violation. */
+async function expectOverlap(fn: () => Promise<unknown>): Promise<void> {
+    let code: string | undefined;
     try {
-        fn();
+        await fn();
     } catch (err) {
-        return err as AppError;
+        code = (err as { code?: string }).code;
     }
-    throw new Error('expected the booking to be rejected, but it succeeded');
+    expect(code).toBe('23P01');
 }
 
-beforeAll(() => {
-    loadTestConfig();
-    openTestDb();
+beforeAll(async () => {
+    await setupDatabase();
 });
 
-afterAll(() => {
-    closeTestDb();
+beforeEach(async () => {
+    await truncateAll();
+    branchId = await insertBranch();
+    patientId = await insertPatient();
 });
 
-beforeEach(() => {
-    resetDb();
-    counter = 0;
-    book(atMonday('08:00')); // the appointment every case below is compared against
-});
-
-describe('the overlap check — boundaries', () => {
-    test('exactly the same start is taken', () => {
-        const err = errorFrom(() => book(atMonday('08:00')));
-        expect(err.status).toBe(409);
-        expect(err.code).toBe(ERROR_CODE.SLOT_TAKEN);
+describe('appointments_no_overlap', () => {
+    test('rejects an identical start and duration', async () => {
+        await book(0, 30);
+        await expectOverlap(() => book(0, 30));
     });
 
-    test('starting exactly when the previous one ends is free', () => {
-        expect(book(atMonday('08:30')).startsAt).toBe(atMonday('08:30'));
+    test('rejects an identical start with a different duration', async () => {
+        await book(0, 30);
+        await expectOverlap(() => book(0, 10));
     });
 
-    test('ending exactly when the next one begins is free', () => {
-        // 07:30 + 30min = 08:00, the moment the fixture starts.
-        expect(book(atMonday('07:30')).startsAt).toBe(atMonday('07:30'));
+    test('allows one ending exactly when the next begins', async () => {
+        await book(0, 30);
+        // The range is half-open, so 09:30 is free.
+        const id = await book(30, 30);
+        expect(id).toBeTruthy();
     });
 
-    test('fully contained inside an existing appointment is taken', () => {
-        // a 20-minute checkup at 08:05 sits entirely within [08:00, 08:30)
-        expect(errorFrom(() => book(atMonday('08:05'), 'checkup')).code).toBe(ERROR_CODE.SLOT_TAKEN);
+    test('allows one beginning exactly when the previous ends, booked in reverse', async () => {
+        await book(30, 30);
+        const id = await book(0, 30);
+        expect(id).toBeTruthy();
     });
 
-    test('spanning an existing appointment is taken', () => {
-        // a 90-minute root canal at 07:30 swallows [08:00, 08:30) whole
-        expect(errorFrom(() => book(atMonday('07:30'), 'rootcanal')).code).toBe(ERROR_CODE.SLOT_TAKEN);
+    test('rejects a fully contained appointment', async () => {
+        await book(0, 60);
+        await expectOverlap(() => book(15, 10));
     });
 
-    test('overlapping only the head is taken', () => {
-        // 07:45 + 20min = 08:05 — crosses the fixture's start
-        expect(errorFrom(() => book(atMonday('07:45'), 'checkup')).code).toBe(ERROR_CODE.SLOT_TAKEN);
+    test('rejects an appointment that spans an existing one', async () => {
+        await book(20, 10);
+        await expectOverlap(() => book(0, 60));
     });
 
-    test('overlapping only the tail is taken', () => {
-        // 08:20 + 20min = 08:40 — crosses the fixture's end
-        expect(errorFrom(() => book(atMonday('08:20'), 'checkup')).code).toBe(ERROR_CODE.SLOT_TAKEN);
+    test('rejects an overlap on the leading edge', async () => {
+        await book(30, 30);
+        // 09:15–09:45 runs into the 09:30 booking.
+        await expectOverlap(() => book(15, 30));
     });
 
-    test('a whole day can be filled back to back', () => {
-        expect(book(atMonday('08:30')).id).toBeGreaterThan(0);
-        expect(book(atMonday('09:00')).id).toBeGreaterThan(0);
-        expect(book(atMonday('09:30')).id).toBeGreaterThan(0);
-        expect(errorFrom(() => book(atMonday('09:15'), 'checkup')).code).toBe(ERROR_CODE.SLOT_TAKEN);
-    });
-});
-
-describe('the overlap check — which appointments count', () => {
-    test('a cancelled appointment frees its slot', () => {
-        const taken = errorFrom(() => book(atMonday('08:00')));
-        expect(taken.code).toBe(ERROR_CODE.SLOT_TAKEN);
-
-        const existing = book(atMonday('08:30'));
-        cancelAppointment(existing.id);
-
-        expect(book(atMonday('08:30')).id).toBeGreaterThan(0);
+    test('rejects an overlap on the trailing edge', async () => {
+        await book(0, 30);
+        // 09:15–09:45 runs out of the 09:00 booking.
+        await expectOverlap(() => book(15, 30));
     });
 
-    test('a no-show does not hold the slot open either', () => {
-        const existing = book(atMonday('09:00'));
-        updateAppointment(existing.id, { status: 'no_show' });
-
-        expect(book(atMonday('09:00')).id).toBeGreaterThan(0);
-    });
-});
-
-describe('the overlap check — moving an appointment', () => {
-    test('an appointment does not collide with itself when it stays put', () => {
-        const existing = book(atMonday('09:00'));
-        expect(updateAppointment(existing.id, { note: 'moved nothing' }).startsAt).toBe(atMonday('09:00'));
+    test('rejects an overlap of a single minute', async () => {
+        await book(0, 30);
+        await expectOverlap(() => book(29, 30));
     });
 
-    test('moving onto a taken slot is rejected', () => {
-        const existing = book(atMonday('09:00'));
-        const err = errorFrom(() => updateAppointment(existing.id, { startsAt: atMonday('08:15') }));
-        expect(err.code).toBe(ERROR_CODE.SLOT_TAKEN);
+    test('allows a gap of a single minute', async () => {
+        await book(0, 30);
+        const id = await book(31, 30);
+        expect(id).toBeTruthy();
     });
 
-    test('moving onto a free slot succeeds', () => {
-        const existing = book(atMonday('09:00'));
-        expect(updateAppointment(existing.id, { startsAt: atMonday('10:00') }).startsAt).toBe(
-            atMonday('10:00'),
+    test('ignores cancelled appointments', async () => {
+        await book(0, 30, 'cancelled');
+        const id = await book(0, 30);
+        expect(id).toBeTruthy();
+    });
+
+    test('ignores no-show appointments', async () => {
+        await book(0, 30, 'no_show');
+        const id = await book(0, 30);
+        expect(id).toBeTruthy();
+    });
+
+    test('a done appointment does not hold its slot', async () => {
+        // Only 'booked' and 'checked_in' participate in the constraint.
+        await book(0, 30, 'done');
+        const id = await book(0, 30);
+        expect(id).toBeTruthy();
+    });
+
+    test('a checked-in appointment holds its slot', async () => {
+        await book(0, 30, 'checked_in');
+        await expectOverlap(() => book(0, 30));
+    });
+
+    test('cancelling frees the slot for a new booking', async () => {
+        const first = await book(0, 30);
+        await expectOverlap(() => book(0, 30));
+
+        await sql`UPDATE appointments SET status = 'cancelled' WHERE id = ${first}`;
+
+        const second = await book(0, 30);
+        expect(second).toBeTruthy();
+    });
+
+    test('rejects reinstating a cancelled appointment into a taken slot', async () => {
+        const first = await book(0, 30, 'cancelled');
+        await book(0, 30);
+
+        await expectOverlap(() => sql`UPDATE appointments SET status = 'booked' WHERE id = ${first}`);
+    });
+
+    test('rejects moving an appointment onto another', async () => {
+        await book(0, 30);
+        const second = await book(60, 30);
+
+        await expectOverlap(() => sql`UPDATE appointments SET starts_at = ${at(10)} WHERE id = ${second}`);
+    });
+
+    test('rejects extending an appointment into the next one', async () => {
+        const first = await book(0, 30);
+        await book(30, 30);
+
+        await expectOverlap(() => sql`UPDATE appointments SET duration_minutes = 45 WHERE id = ${first}`);
+    });
+
+    test('overlap is enforced across branches — there is one practitioner', async () => {
+        const other = await insertBranch('Second');
+        await book(0, 30);
+
+        const id = uuid();
+        await expectOverlap(
+            () => sql`
+                INSERT INTO appointments (id, ref, patient_id, branch_id, starts_at, duration_minutes)
+                VALUES (${id}, ${nextRef()}, ${patientId}, ${other}, ${at(0)}, 30)
+            `,
         );
     });
+});
 
-    test('growing an appointment into its neighbour is rejected', () => {
-        // 08:30 cleaning ends 09:00; the neighbour starts 09:00. Switching it to
-        // a 90-minute root canal would run to 10:00 and swallow the neighbour.
-        const growing = book(atMonday('08:30'));
-        book(atMonday('09:00'));
-
-        expect(errorFrom(() => updateAppointment(growing.id, { typeId: 'rootcanal' })).code).toBe(
-            ERROR_CODE.SLOT_TAKEN,
-        );
+describe('appointment_span', () => {
+    test('is half-open at the end', async () => {
+        const [row] = await sql<{ contains_start: boolean; contains_end: boolean }[]>`
+            SELECT
+                appointment_span(${at(0)}::timestamptz, 30) @> ${at(0)}::timestamptz  AS contains_start,
+                appointment_span(${at(0)}::timestamptz, 30) @> ${at(30)}::timestamptz AS contains_end
+        `;
+        expect(row?.contains_start).toBe(true);
+        expect(row?.contains_end).toBe(false);
     });
 
-    test('un-cancelling into a slot taken meanwhile is rejected', () => {
-        const existing = book(atMonday('09:00'));
-        cancelAppointment(existing.id);
-        book(atMonday('09:00'));
+    test('is unaffected by the session timezone', async () => {
+        // The wrapper is declared IMMUTABLE, which is only sound if its result
+        // does not depend on session state. This is the assertion behind that.
+        // 2026-03-10 is chosen to sit near a DST boundary in many zones.
+        const ends = async (zone: string) => {
+            await sql.unsafe(`SET TIME ZONE '${zone}'`);
+            const [row] = await sql<{ correct: boolean }[]>`
+                SELECT upper(appointment_span(${at(0)}::timestamptz, 90)) = ${at(90)}::timestamptz
+                    AS correct
+            `;
+            return row?.correct;
+        };
 
-        expect(errorFrom(() => updateAppointment(existing.id, { status: 'booked' })).code).toBe(
-            ERROR_CODE.SLOT_TAKEN,
-        );
+        expect(await ends('UTC')).toBe(true);
+        expect(await ends('Africa/Cairo')).toBe(true);
+        expect(await ends('America/New_York')).toBe(true);
+
+        await sql.unsafe(`SET TIME ZONE 'UTC'`);
     });
 });
 
-describe('appointment refs', () => {
-    test('number sequentially within a clinic day', () => {
-        expect(book(atMonday('08:30')).ref).toBe('030826-02');
-        expect(book(atMonday('09:00')).ref).toBe('030826-03');
+describe('column constraints', () => {
+    test('rejects a non-positive duration', async () => {
+        let code: string | undefined;
+        try {
+            await book(0, 0);
+        } catch (err) {
+            code = (err as { code?: string }).code;
+        }
+        // check_violation
+        expect(code).toBe('23514');
     });
 
-    test('restart at 01 on a different day', () => {
-        // Tuesday 2026-08-04, 10:00 Cairo
-        expect(
-            createAppointment({
-                patient: { name: 'Next Day', phone: '01088888888' },
-                startsAt: '2026-08-04T07:00:00.000Z',
-                typeId: 'cleaning',
-            }).ref,
-        ).toBe('040826-01');
+    test('rejects a second visit for the same appointment', async () => {
+        const appointmentId = await book(0, 30, 'checked_in');
+        await sql`
+            INSERT INTO visits (id, appointment_id, checked_in_at)
+            VALUES (${uuid()}, ${appointmentId}, now())
+        `;
+
+        let code: string | undefined;
+        try {
+            await sql`
+                INSERT INTO visits (id, appointment_id, checked_in_at)
+                VALUES (${uuid()}, ${appointmentId}, now())
+            `;
+        } catch (err) {
+            code = (err as { code?: string }).code;
+        }
+        // unique_violation
+        expect(code).toBe('23505');
     });
 
-    test('a cancelled booking does not hand its number to the next one', () => {
-        const second = book(atMonday('08:30'));
-        expect(second.ref).toBe('030826-02');
+    test("rejects a payment with method 'other' and no note", async () => {
+        const appointmentId = await book(0, 30, 'checked_in');
+        const visitId = uuid();
+        await sql`
+            INSERT INTO visits (id, appointment_id, checked_in_at)
+            VALUES (${visitId}, ${appointmentId}, now())
+        `;
 
-        cancelAppointment(second.id);
-        expect(book(atMonday('09:00')).ref).toBe('030826-03');
+        let code: string | undefined;
+        try {
+            await sql`
+                INSERT INTO payments (id, visit_id, amount, method)
+                VALUES (${uuid()}, ${visitId}, 30000, 'other')
+            `;
+        } catch (err) {
+            code = (err as { code?: string }).code;
+        }
+        expect(code).toBe('23514');
     });
 
-    test('the last appointment of the day still carries that day’s date', () => {
-        // 20:30 Cairo, the latest a 30-minute cleaning fits before the 21:00 close.
-        const late = createAppointment({
-            patient: { name: 'Late Night', phone: '01077777777' },
-            startsAt: atMonday('17:30'),
-            typeId: 'cleaning',
-        });
-        expect(late.ref.startsWith('030826-')).toBe(true);
+    test('accepts a payment with any other method and no note', async () => {
+        const appointmentId = await book(0, 30, 'checked_in');
+        const visitId = uuid();
+        await sql`
+            INSERT INTO visits (id, appointment_id, checked_in_at)
+            VALUES (${visitId}, ${appointmentId}, now())
+        `;
+        await sql`
+            INSERT INTO payments (id, visit_id, amount, method)
+            VALUES (${uuid()}, ${visitId}, 30000, 'cash')
+        `;
+
+        const rows = await sql`SELECT 1 FROM payments WHERE visit_id = ${visitId}`;
+        expect(rows.length).toBe(1);
     });
 
-    test('a moved appointment keeps the ref already printed on its slip', () => {
-        const appointment = book(atMonday('08:30'));
-        const moved = updateAppointment(appointment.id, { startsAt: '2026-08-04T07:00:00.000Z' });
+    test('settings is a single enforced row', async () => {
+        await sql`
+            INSERT INTO settings (id, clinic_name, reminder_template)
+            VALUES (1, 'Clinic', 'Reminder: {{time}}')
+        `;
 
-        expect(moved.ref).toBe(appointment.ref);
-    });
-});
-
-describe('booking is all-or-nothing', () => {
-    test('a rejected walk-in booking leaves no patient behind', () => {
-        const before = book(atMonday('09:00'));
-        expect(before.id).toBeGreaterThan(0);
-
-        const err = errorFrom(() =>
-            createAppointment({
-                patient: { name: 'Never Created', phone: '01099999999' },
-                startsAt: atMonday('09:00'),
-                typeId: 'cleaning',
-            }),
-        );
-        expect(err.code).toBe(ERROR_CODE.SLOT_TAKEN);
-
-        expect(searchPatients('Never Created', 10)).toHaveLength(0);
+        let code: string | undefined;
+        try {
+            await sql`
+                INSERT INTO settings (id, clinic_name, reminder_template)
+                VALUES (2, 'Other', 'Reminder: {{time}}')
+            `;
+        } catch (err) {
+            code = (err as { code?: string }).code;
+        }
+        expect(code).toBe('23514');
     });
 });

@@ -2,20 +2,13 @@ node_modules/
 dist/
 *.log
 
-# built frontend — generated from packages/web
-packages/server/public/
-
-# clinic-specific, never committed
-config.json
+# secrets — never committed
 .env
 .env.*
 !.env.example
 
 # runtime state
-session/
 backups/
-print-out/
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-*.db
+
+# expo
+.expo/

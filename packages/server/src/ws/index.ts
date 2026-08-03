@@ -1,39 +1,49 @@
-import type { Server } from 'node:http';
-import type { ServerEvent, ServerEventName, ServerEvents } from '@mawid/shared';
-import { WebSocket, WebSocketServer } from 'ws';
-import { logger } from '../middleware/logger.ts';
+import type { WsEvent } from '@mawid/shared';
+import type { ServerWebSocket, WebSocketHandler } from 'bun';
+import { logger } from '../logger.ts';
 
-let wss: WebSocketServer | null = null;
+/**
+ * SPEC §13. Native Bun WebSockets, upgraded in the same `fetch` handler and
+ * kept separate from tRPC — with two clients and low volume, tRPC subscriptions
+ * are not required.
+ *
+ * Payloads carry IDs only. The client refetches through tRPC on receipt, so no
+ * patient data crosses this channel.
+ */
 
-/** Attached to the same HTTP server and port — the clinic opens one port, not two. */
-export function attachWebSocket(server: Server): WebSocketServer {
-    wss = new WebSocketServer({ server, path: '/ws' });
-
-    wss.on('connection', (socket) => {
-        logger.debug({ clients: wss?.clients.size }, 'ws client connected');
-        socket.on('close', () => logger.debug({ clients: wss?.clients.size }, 'ws client disconnected'));
-        socket.on('error', (err) => logger.warn({ err }, 'ws client error'));
-    });
-
-    return wss;
+export interface WsData {
+    connectedAt: number;
 }
 
-/** Typed fan-out to every desk screen and phone currently connected. */
-export function broadcast<E extends ServerEventName>(event: E, payload: ServerEvents[E]): void {
-    if (!wss) return;
+type Socket = ServerWebSocket<WsData>;
 
-    const message: ServerEvent<E> = { event, at: new Date().toISOString(), payload };
-    const frame = JSON.stringify(message);
+const TOPIC = 'clinic';
 
-    for (const client of wss.clients) {
-        if (client.readyState === WebSocket.OPEN) client.send(frame);
+const sockets = new Set<Socket>();
+
+export const wsHandlers: WebSocketHandler<WsData> = {
+    open(ws) {
+        sockets.add(ws);
+        ws.subscribe(TOPIC);
+        logger.debug({ clients: sockets.size }, 'ws client connected');
+    },
+    close(ws) {
+        sockets.delete(ws);
+        ws.unsubscribe(TOPIC);
+        logger.debug({ clients: sockets.size }, 'ws client disconnected');
+    },
+    message() {
+        // The channel is server-to-client only. Client messages are ignored.
+    },
+};
+
+export function broadcast(event: WsEvent, payload: Record<string, string> = {}): void {
+    const message = JSON.stringify({ event, ...payload });
+    for (const ws of sockets) {
+        ws.send(message);
     }
 }
 
-export function closeWebSocket(): Promise<void> {
-    return new Promise((resolve) => {
-        if (!wss) return resolve();
-        wss.close(() => resolve());
-        wss = null;
-    });
+export function connectedClients(): number {
+    return sockets.size;
 }

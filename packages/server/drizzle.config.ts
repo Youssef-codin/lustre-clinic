@@ -1,13 +1,14 @@
 import { defineConfig } from 'drizzle-kit';
 
-/**
- * Generate-and-commit only. Never run `drizzle-kit push` against a clinic
- * install — migrations are versioned artefacts, applied on boot. See spec §5.
- */
 export default defineConfig({
-    dialect: 'sqlite',
+    dialect: 'postgresql',
     schema: './src/db/schema.ts',
     out: './src/db/migrations',
-    strict: true,
+    dbCredentials: {
+        // drizzle-kit runs under Node, not Bun, so this reads process.env.
+        url: process.env.DATABASE_URL ?? 'postgres://mawid:mawid@localhost:5432/mawid',
+    },
+    casing: 'snake_case',
     verbose: true,
+    strict: true,
 });
