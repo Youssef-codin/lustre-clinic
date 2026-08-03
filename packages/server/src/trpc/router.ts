@@ -1,14 +1,29 @@
+import { appointmentRouter } from '../modules/appointment/appointment.router.ts';
+import { balanceRouter } from '../modules/balance/balance.router.ts';
+import { branchRouter } from '../modules/branch/branch.router.ts';
+import { customQuestionRouter } from '../modules/customQuestion/customQuestion.router.ts';
 import { healthRouter } from '../modules/health/health.router.ts';
+import { patientRouter } from '../modules/patient/patient.router.ts';
+import { procedureRouter } from '../modules/procedure/procedure.router.ts';
+import { reminderRouter } from '../modules/reminder/reminder.router.ts';
+import { settingsRouter } from '../modules/settings/settings.router.ts';
+import { statsRouter } from '../modules/stats/stats.router.ts';
+import { visitRouter } from '../modules/visit/visit.router.ts';
 import { router } from './init.ts';
 
-/**
- * Merges every module router (SPEC §4). This file does nothing else.
- *
- * Modules land here as they are built: settings, branch, procedure, patient,
- * customQuestion, appointment, visit, balance, reminder, stats.
- */
+/** Merges every module router (SPEC §4, §13). This file does nothing else. */
 export const appRouter = router({
     health: healthRouter,
+    settings: settingsRouter,
+    branch: branchRouter,
+    procedure: procedureRouter,
+    patient: patientRouter,
+    customQuestion: customQuestionRouter,
+    appointment: appointmentRouter,
+    visit: visitRouter,
+    balance: balanceRouter,
+    reminder: reminderRouter,
+    stats: statsRouter,
 });
 
 /**

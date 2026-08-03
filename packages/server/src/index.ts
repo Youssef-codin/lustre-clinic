@@ -8,6 +8,7 @@ import { startBackupJob } from './background/backup.job.ts';
 import { config } from './config.ts';
 import { runMigrations } from './db/migrate.ts';
 import { logger } from './logger.ts';
+import { settingsService } from './modules/settings/settings.service.ts';
 import { alert, startMonitoring, stopMonitoring } from './monitoring/index.ts';
 import { createServer } from './server.ts';
 
@@ -26,6 +27,9 @@ try {
     });
     process.exit(1);
 }
+
+// The single settings row is seeded before anything reads it (§5, §12).
+await settingsService.ensureSeeded();
 
 const backupJob = startBackupJob();
 

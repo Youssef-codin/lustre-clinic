@@ -39,9 +39,17 @@ export const PG_ERROR = {
     FOREIGN_KEY_VIOLATION: '23503',
 } as const;
 
+/**
+ * The SQLSTATE, wherever it is. Drizzle wraps driver errors in a
+ * `DrizzleQueryError` and hangs the original off `cause`, so the code services
+ * switch on is usually a level or two down.
+ */
 export function pgErrorCode(err: unknown): string | undefined {
-    if (err && typeof err === 'object' && 'code' in err && typeof err.code === 'string') {
-        return err.code;
+    let current: unknown = err;
+
+    for (let depth = 0; depth < 5 && current && typeof current === 'object'; depth += 1) {
+        if ('code' in current && typeof current.code === 'string') return current.code;
+        current = (current as { cause?: unknown }).cause;
     }
     return undefined;
 }
