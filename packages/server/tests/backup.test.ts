@@ -9,11 +9,13 @@ import {
     encrypt,
     generateKey,
     listLocalBackups,
+    offsiteDestination,
     parseBackupFileName,
     parseKey,
     readLastSuccess,
     runBackup,
     selectForDeletion,
+    selectOffsiteDumps,
     selectRetained,
 } from '../src/backup/index.ts';
 import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpers/db.ts';
@@ -99,6 +101,56 @@ describe('retention', () => {
         const doomed = selectForDeletion(files, { daily: 1, weekly: 1, monthly: 1 });
 
         expect(doomed.map((f) => f.name)).toEqual(['ancient']);
+    });
+});
+
+describe('offsiteDestination', () => {
+    test('is null when nothing is configured, so a run stays local', () => {
+        // The test environment sets neither Drive nor S3 credentials. If this
+        // ever fails, `runBackup` in the suite below is talking to the network.
+        expect(offsiteDestination()).toBeNull();
+    });
+});
+
+describe('off-site listings', () => {
+    const dump = `${backupFileName(new Date('2027-01-01T00:00:00Z'))}.enc`;
+
+    test('reads the timestamp back out of an encrypted dump name', () => {
+        const [file] = selectOffsiteDumps([{ name: dump, handle: 'drive-id-1' }]);
+
+        expect(file?.at.toISOString()).toBe('2027-01-01T00:00:00.000Z');
+        expect(file?.handle).toBe('drive-id-1');
+    });
+
+    test('a file whose name is not a dump is never a candidate for pruning', () => {
+        // The safety property: the folder may hold anything, and retention only
+        // ever sees the files it can name.
+        const entries = [
+            { name: dump, handle: 'ours' },
+            { name: 'clinic-scans.zip', handle: 'theirs' },
+            { name: 'mawid-nonsense.dump.enc', handle: 'malformed' },
+            { name: 'notes.txt', handle: 'notes' },
+        ];
+
+        expect(selectOffsiteDumps(entries).map((f) => f.handle)).toEqual(['ours']);
+        // Even a policy that keeps nothing cannot reach the strangers.
+        const doomed = selectForDeletion(selectOffsiteDumps(entries), { daily: 0, weekly: 0, monthly: 0 });
+        expect(doomed.map((f) => f.handle)).toEqual(['ours']);
+    });
+
+    test('carries the handle through retention, so deletion never looks up by name', () => {
+        // Two runs in the same second: same name, two distinct files off-site.
+        const older = `${backupFileName(new Date('2020-01-01T00:00:00Z'))}.enc`;
+        const doomed = selectForDeletion(
+            [
+                { name: dump, handle: 'newest' },
+                { name: older, handle: 'copy-a' },
+                { name: older, handle: 'copy-b' },
+            ].flatMap((e) => selectOffsiteDumps([e])),
+            { daily: 1, weekly: 1, monthly: 1 },
+        );
+
+        expect(doomed.map((f) => f.handle).sort()).toEqual(['copy-a', 'copy-b']);
     });
 });
 

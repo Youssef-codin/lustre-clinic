@@ -8,6 +8,33 @@
  * whatever is in none of those sets.
  */
 
+/**
+ * The dump file name carries the timestamp retention sorts on, and it lives
+ * here rather than beside the run because every destination has to be able to
+ * read one back — a name that cannot be parsed is a file pruning must not touch.
+ */
+const FILE_PREFIX = 'mawid-';
+const FILE_SUFFIX = '.dump';
+
+/** `mawid-2026-08-03T08-41-32Z.dump` — sortable, filesystem-safe, UTC. */
+export function backupFileName(at: Date): string {
+    const stamp = at
+        .toISOString()
+        .replace(/\.\d+Z$/, 'Z')
+        .replaceAll(':', '-');
+    return `${FILE_PREFIX}${stamp}${FILE_SUFFIX}`;
+}
+
+export function parseBackupFileName(name: string): Date | null {
+    if (!name.startsWith(FILE_PREFIX) || !name.endsWith(FILE_SUFFIX)) return null;
+
+    const stamp = name.slice(FILE_PREFIX.length, -FILE_SUFFIX.length);
+    // Undo the `:` → `-` substitution in the time part only.
+    const iso = stamp.replace(/T(\d{2})-(\d{2})-(\d{2})Z$/, 'T$1:$2:$3Z');
+    const at = new Date(iso);
+    return Number.isNaN(at.getTime()) ? null : at;
+}
+
 export interface BackupFile {
     readonly name: string;
     readonly at: Date;
@@ -72,11 +99,15 @@ export function selectRetained(
     ]);
 }
 
-/** The complement of `selectRetained`, in newest-first order. */
-export function selectForDeletion(
-    files: readonly BackupFile[],
+/**
+ * The complement of `selectRetained`, in newest-first order. Generic over the
+ * file so a destination's own fields — an off-site handle — survive the trip
+ * and the caller never has to look a doomed file back up by name.
+ */
+export function selectForDeletion<T extends BackupFile>(
+    files: readonly T[],
     policy: RetentionPolicy = DEFAULT_RETENTION,
-): BackupFile[] {
+): T[] {
     const retained = selectRetained(files, policy);
     return [...files].sort((a, b) => b.at.getTime() - a.at.getTime()).filter((f) => !retained.has(f.name));
 }

@@ -5,8 +5,16 @@ import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import { alert } from '../monitoring/index.ts';
 import { encrypt, parseKey } from './crypto.ts';
+import { offsiteDestination } from './destination.ts';
 import { databaseName, pgDump, pgRestore, withScratchDatabase } from './pg.ts';
-import { type BackupFile, DEFAULT_RETENTION, type RetentionPolicy, selectForDeletion } from './retention.ts';
+import {
+    type BackupFile,
+    backupFileName,
+    DEFAULT_RETENTION,
+    parseBackupFileName,
+    type RetentionPolicy,
+    selectForDeletion,
+} from './retention.ts';
 
 /**
  * SPEC §16. One backup run is: dump → verify by restoring → copy off-site
@@ -15,10 +23,9 @@ import { type BackupFile, DEFAULT_RETENTION, type RetentionPolicy, selectForDele
  */
 
 export * from './crypto.ts';
+export * from './destination.ts';
 export * from './retention.ts';
 
-const FILE_PREFIX = 'mawid-';
-const FILE_SUFFIX = '.dump';
 /** Written after a successful run; read by the 48h staleness check. */
 const MARKER_FILE = 'last-success.json';
 
@@ -26,6 +33,7 @@ export interface BackupResult {
     readonly file: string;
     readonly bytes: number;
     readonly verified: boolean;
+    /** Drive file id, or S3 key. Null when no off-site destination is set. */
     readonly offsiteKey: string | null;
     readonly pruned: readonly string[];
 }
@@ -37,25 +45,6 @@ export interface BackupOptions {
     now?: Date;
     /** Verification is the point of §16; only tests turn it off. */
     verify?: boolean;
-}
-
-/** `mawid-2026-08-03T08-41-32Z.dump` — sortable, filesystem-safe, UTC. */
-export function backupFileName(at: Date): string {
-    const stamp = at
-        .toISOString()
-        .replace(/\.\d+Z$/, 'Z')
-        .replaceAll(':', '-');
-    return `${FILE_PREFIX}${stamp}${FILE_SUFFIX}`;
-}
-
-export function parseBackupFileName(name: string): Date | null {
-    if (!name.startsWith(FILE_PREFIX) || !name.endsWith(FILE_SUFFIX)) return null;
-
-    const stamp = name.slice(FILE_PREFIX.length, -FILE_SUFFIX.length);
-    // Undo the `:` → `-` substitution in the time part only.
-    const iso = stamp.replace(/T(\d{2})-(\d{2})-(\d{2})Z$/, 'T$1:$2:$3Z');
-    const at = new Date(iso);
-    return Number.isNaN(at.getTime()) ? null : at;
 }
 
 export async function listLocalBackups(directory: string): Promise<BackupFile[]> {
@@ -132,36 +121,30 @@ async function countRows(sql: postgres.Sql, tables: readonly string[]): Promise<
     return counts;
 }
 
-function s3Client(): Bun.S3Client | null {
-    if (!config.BACKUP_S3_BUCKET) return null;
-
-    return new Bun.S3Client({
-        bucket: config.BACKUP_S3_BUCKET,
-        endpoint: config.BACKUP_S3_ENDPOINT,
-        region: config.BACKUP_S3_REGION,
-        accessKeyId: config.BACKUP_S3_ACCESS_KEY_ID,
-        secretAccessKey: config.BACKUP_S3_SECRET_ACCESS_KEY,
-    });
-}
-
 /**
- * Off-site copy. Encrypted first — the key is not on this machine, so a dump in
- * object storage is inert without the operator (§16).
+ * Off-site copy. Encrypted first — the key is not on this machine, so a dump
+ * sitting in Drive is inert without the operator (§16).
  */
 async function uploadOffsite(localPath: string, name: string): Promise<string | null> {
-    const client = s3Client();
-    if (!client) return null;
+    const destination = offsiteDestination();
+    if (!destination) return null;
 
     if (!config.BACKUP_ENCRYPTION_KEY) {
         // Refusing is the safe failure: patient data must not leave the clinic
         // in the clear.
-        throw new Error('BACKUP_S3_BUCKET is set but BACKUP_ENCRYPTION_KEY is not — refusing to upload');
+        throw new Error(
+            'an off-site destination is configured but BACKUP_ENCRYPTION_KEY is not — refusing to upload',
+        );
     }
 
-    const key = `${config.BACKUP_S3_PREFIX}/${name}.enc`;
     const plaintext = await Bun.file(localPath).bytes();
-    await client.file(key).write(encrypt(plaintext, parseKey(config.BACKUP_ENCRYPTION_KEY)));
-    return key;
+    const handle = await destination.upload(
+        `${name}.enc`,
+        encrypt(plaintext, parseKey(config.BACKUP_ENCRYPTION_KEY)),
+    );
+
+    logger.info({ destination: destination.kind, file: name }, 'off-site copy uploaded');
+    return handle;
 }
 
 async function pruneLocal(directory: string, policy: RetentionPolicy): Promise<string[]> {
@@ -173,23 +156,20 @@ async function pruneLocal(directory: string, policy: RetentionPolicy): Promise<s
     return doomed.map((f) => f.name);
 }
 
-async function pruneOffsite(policy: RetentionPolicy): Promise<void> {
-    const client = s3Client();
-    if (!client) return;
+/** The same retention policy, applied where the off-site copies live (§16). */
+async function pruneOffsite(policy: RetentionPolicy): Promise<number> {
+    const destination = offsiteDestination();
+    if (!destination) return 0;
 
-    const prefix = `${config.BACKUP_S3_PREFIX}/`;
-    const listed = await client.list({ prefix });
+    // `selectForDeletion` carries the handle through, so each doomed file is
+    // deleted by the handle it was listed with — no re-lookup by a name two
+    // runs in the same second could share.
+    const doomed = selectForDeletion(await destination.list(), policy);
 
-    const files: BackupFile[] = [];
-    for (const entry of listed.contents ?? []) {
-        const name = entry.key.slice(prefix.length).replace(/\.enc$/, '');
-        const at = parseBackupFileName(name);
-        if (at) files.push({ name: entry.key, at });
+    for (const file of doomed) {
+        await destination.remove(file.handle);
     }
-
-    for (const file of selectForDeletion(files, policy)) {
-        await client.delete(file.name);
-    }
+    return doomed.length;
 }
 
 export interface BackupMarker {
@@ -231,7 +211,7 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         const offsiteKey = await uploadOffsite(path, name);
 
         const pruned = await pruneLocal(directory, retention);
-        await pruneOffsite(retention);
+        const prunedOffsite = await pruneOffsite(retention);
 
         const marker: BackupMarker = { at: now.toISOString(), file: name, bytes: size };
         await Bun.write(join(directory, MARKER_FILE), JSON.stringify(marker));
@@ -243,6 +223,7 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
                 verified: verify,
                 offsite: offsiteKey !== null,
                 pruned: pruned.length,
+                prunedOffsite,
             },
             'backup complete',
         );

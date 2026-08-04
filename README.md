@@ -61,8 +61,31 @@ job fails loudly and its tests skip.
 
 Every run is verified by restoring the dump into a scratch database and
 comparing row counts — an unverified dump is not a backup (SPEC §16). Off-site
-upload is encrypted with `BACKUP_ENCRYPTION_KEY` and is skipped when no bucket
-is configured.
+upload is encrypted with `BACKUP_ENCRYPTION_KEY` and is skipped when no
+destination is configured.
+
+### Off-site copies (Google Drive)
+
+The second destination is a Drive folder, reached with a **service account** so
+nothing has to be re-authorized when the clinic machine reboots unattended.
+
+1. In a Google Cloud project, enable the Drive API and create a service account.
+2. Create a JSON key for it. `client_email` and `private_key` go into `.env` as
+   `BACKUP_DRIVE_CLIENT_EMAIL` and `BACKUP_DRIVE_PRIVATE_KEY` (keep the `\n`
+   escapes; the server unescapes them).
+3. Create the backup folder **in a shared drive**, share that drive with the
+   service account as Content manager, and put the folder id in
+   `BACKUP_DRIVE_FOLDER_ID`.
+4. Set `BACKUP_ENCRYPTION_KEY`, or the upload is refused.
+
+A service account has no Drive storage of its own, so a folder in somebody's
+personal My Drive fails with `storageQuotaExceeded`. Either use a shared drive
+as above, or set `BACKUP_DRIVE_SUBJECT` to a user the service account may
+impersonate through domain-wide delegation, so the files count against that
+user's quota.
+
+Retention applies off-site exactly as it does locally: same 14/8/12 policy,
+and a file whose name does not parse as a dump is never touched.
 
 ## Deployment
 

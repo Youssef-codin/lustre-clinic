@@ -42,7 +42,21 @@ const envSchema = z.object({
     /** Set when `pg_dump`/`pg_restore` are not on PATH. */
     PG_BIN_DIR: z.string().optional(),
 
-    /** Off-site destination (§16). Uploads are skipped when unset. */
+    /**
+     * Off-site destination (§16) — Google Drive, via a service account. All
+     * three are required together; uploads are skipped when they are unset.
+     * The folder must live in a shared drive, or `BACKUP_DRIVE_SUBJECT` must
+     * name a user to impersonate: a service account has no Drive storage of its
+     * own. See `backup/drive.ts`.
+     */
+    BACKUP_DRIVE_FOLDER_ID: z.string().optional(),
+    BACKUP_DRIVE_CLIENT_EMAIL: z.string().optional(),
+    /** PEM from the service-account JSON; `\n` escapes are accepted. */
+    BACKUP_DRIVE_PRIVATE_KEY: z.string().optional(),
+    /** Domain-wide delegation: the user whose quota the files count against. */
+    BACKUP_DRIVE_SUBJECT: z.string().optional(),
+
+    /** Fallback off-site destination. Drive wins when both are configured. */
     BACKUP_S3_BUCKET: z.string().optional(),
     BACKUP_S3_ENDPOINT: z.string().optional(),
     BACKUP_S3_REGION: z.string().optional(),
