@@ -45,6 +45,13 @@ export interface BackupOptions {
     now?: Date;
     /** Verification is the point of §16; only tests turn it off. */
     verify?: boolean;
+    /**
+     * Whether to copy off-site and apply retention there. Only tests turn it
+     * off, and they must: a run started with real credentials in the
+     * environment uploads to the clinic's actual Drive folder and then prunes
+     * it against the run's own timestamp.
+     */
+    offsite?: boolean;
 }
 
 export async function listLocalBackups(directory: string): Promise<BackupFile[]> {
@@ -194,6 +201,7 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         retention = DEFAULT_RETENTION,
         now = new Date(),
         verify = true,
+        offsite = true,
     } = options;
 
     const name = backupFileName(now);
@@ -208,10 +216,10 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
 
         if (verify) await verifyDump(databaseUrl, path, now);
 
-        const offsiteKey = await uploadOffsite(path, name);
+        const offsiteKey = offsite ? await uploadOffsite(path, name) : null;
 
         const pruned = await pruneLocal(directory, retention);
-        const prunedOffsite = await pruneOffsite(retention);
+        const prunedOffsite = offsite ? await pruneOffsite(retention) : 0;
 
         const marker: BackupMarker = { at: now.toISOString(), file: name, bytes: size };
         await Bun.write(join(directory, MARKER_FILE), JSON.stringify(marker));

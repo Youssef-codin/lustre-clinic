@@ -1,0 +1,91 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      # Same image as compose.yaml — the suite asserts Postgres behaviour (the
+      # GiST exclusion constraint above all), so testing against a different
+      # major version tests a different database than the clinic runs.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: mawid
+          POSTGRES_PASSWORD: mawid
+          # Matches packages/server/.env.test. `assertTestDatabase` refuses to
+          # truncate anything whose name does not end in `_test`.
+          POSTGRES_DB: mawid_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mawid -d mawid_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://mawid:mawid@localhost:5432/mawid_test
+      LOG_LEVEL: silent
+      # `backup.test.ts` turns a missing pg_dump into a failure rather than a
+      # skip when this is set. Actions sets it too; naming it here keeps the
+      # dependency visible.
+      CI: 'true'
+      # The runner ships PostgreSQL 16 and puts its bin directory on PATH ahead
+      # of the Debian wrapper, so an unqualified `pg_dump` is 16 even with
+      # postgresql-client-17 installed — and pg_dump refuses a server newer than
+      # itself. This is the knob config.ts documents for exactly this case.
+      PG_BIN_DIR: /usr/lib/postgresql/17/bin
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # The backup suite shells out to these (SPEC §16). Without them the
+      # restore test — the only proof a dump is usable — would skip, and a
+      # green run would mean less than it appears to.
+      - name: Install Postgres client tools
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends postgresql-client-17
+
+      # Asserts rather than prints. pg_dump refuses to dump a server newer than
+      # itself, so a mismatch here fails the backup test with an error that
+      # looks like a code bug; better to fail on the cause.
+      - name: Verify pg_dump matches the server major version
+        run: |
+          server_major=$("$PG_BIN_DIR/psql" "$DATABASE_URL" -XAtc 'SHOW server_version' | cut -d. -f1)
+          dump_major=$("$PG_BIN_DIR/pg_dump" --version | grep -oE '[0-9]+' | head -1)
+          echo "server=$server_major pg_dump=$dump_major"
+          test "$server_major" = "$dump_major"
+          "$PG_BIN_DIR/pg_restore" --version
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun lint
+
+      - name: Typecheck
+        run: bun typecheck
+
+      - name: Test
+        run: bun test

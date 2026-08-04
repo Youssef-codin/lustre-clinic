@@ -18,6 +18,7 @@ import {
     selectOffsiteDumps,
     selectRetained,
 } from '../src/backup/index.ts';
+import { config } from '../src/config.ts';
 import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpers/db.ts';
 
 /**
@@ -69,7 +70,7 @@ describe('retention', () => {
         const retained = selectRetained(files);
 
         for (const file of files.slice(0, 14)) {
-            expect(retained.has(file.name)).toBe(true);
+            expect(retained.has(file)).toBe(true);
         }
     });
 
@@ -89,8 +90,25 @@ describe('retention', () => {
         const evening = { name: 'b', at: new Date('2027-01-01T20:00:00Z') };
         const retained = selectRetained([morning, evening], { daily: 1, weekly: 0, monthly: 0 });
 
-        expect(retained.has('b')).toBe(true);
-        expect(retained.has('a')).toBe(false);
+        expect(retained.has(evening)).toBe(true);
+        expect(retained.has(morning)).toBe(false);
+    });
+
+    test('keeps one of two dumps that share a name, and deletes the other', () => {
+        // Two runs inside the same second produce the same file name. Matching
+        // on name kept both forever — the bucket was full, so neither was ever
+        // a deletion candidate. Retention has to tell them apart by identity.
+        const at = new Date('2027-01-01T00:00:00Z');
+        const first = { name: 'mawid-2027-01-01T00-00-00Z.dump', at };
+        const second = { name: 'mawid-2027-01-01T00-00-00Z.dump', at };
+
+        const retained = selectRetained([first, second], { daily: 1, weekly: 0, monthly: 0 });
+        const doomed = selectForDeletion([first, second], { daily: 1, weekly: 0, monthly: 0 });
+
+        expect(retained.size).toBe(1);
+        expect(doomed.length).toBe(1);
+        // Whichever was kept, the other one goes — and they are different objects.
+        expect(retained.has(doomed[0] as (typeof doomed)[number])).toBe(false);
     });
 
     test('a dump older than every window is deleted', () => {
@@ -140,17 +158,33 @@ describe('off-site listings', () => {
 
     test('carries the handle through retention, so deletion never looks up by name', () => {
         // Two runs in the same second: same name, two distinct files off-site.
+        // Listed in one call, as `pruneOffsite` lists them — not one at a time.
         const older = `${backupFileName(new Date('2020-01-01T00:00:00Z'))}.enc`;
         const doomed = selectForDeletion(
-            [
+            selectOffsiteDumps([
                 { name: dump, handle: 'newest' },
                 { name: older, handle: 'copy-a' },
                 { name: older, handle: 'copy-b' },
-            ].flatMap((e) => selectOffsiteDumps([e])),
+            ]),
             { daily: 1, weekly: 1, monthly: 1 },
         );
 
         expect(doomed.map((f) => f.handle).sort()).toEqual(['copy-a', 'copy-b']);
+    });
+
+    test('a duplicate of the newest dump is pruned rather than kept forever', () => {
+        // The retained side of the same problem: both copies fill the newest
+        // bucket, so a name-keyed policy never proposed either for deletion.
+        const doomed = selectForDeletion(
+            selectOffsiteDumps([
+                { name: dump, handle: 'keep-one' },
+                { name: dump, handle: 'keep-two' },
+            ]),
+            { daily: 1, weekly: 1, monthly: 1 },
+        );
+
+        expect(doomed.length).toBe(1);
+        expect(['keep-one', 'keep-two']).toContain(doomed[0]?.handle ?? '');
     });
 });
 
@@ -203,18 +237,40 @@ describe('encryption', () => {
 });
 
 /**
- * Needs `pg_dump`/`pg_restore` on PATH and a reachable database. Skipped rather
- * than failed where they are absent, so the unit tests above still run.
+ * Needs `pg_dump`/`pg_restore` and a reachable database. Skipped rather than
+ * failed on a workstation that lacks them, so the unit tests above still run —
+ * but never in CI, where a silent skip would mean the one test that proves a
+ * dump can be restored quietly stops running (§16).
+ *
+ * Resolved through `PG_BIN_DIR` the same way `backup/pg.ts` does, so this probes
+ * the binary the backup will actually invoke. Checking a bare `pg_dump` instead
+ * would answer for a different one — on a host where PATH holds an older major
+ * version, which is precisely when `PG_BIN_DIR` is set.
  */
-const hasPgTools = await (async () => {
+function pgBinary(program: string): string {
+    return config.PG_BIN_DIR ? join(config.PG_BIN_DIR, program) : program;
+}
+
+async function isRunnable(program: string): Promise<boolean> {
     try {
         return (
-            (await Bun.spawn(['pg_dump', '--version'], { stdout: 'ignore', stderr: 'ignore' }).exited) === 0
+            (await Bun.spawn([pgBinary(program), '--version'], { stdout: 'ignore', stderr: 'ignore' })
+                .exited) === 0
         );
     } catch {
         return false;
     }
-})();
+}
+
+const hasPgTools = (await isRunnable('pg_dump')) && (await isRunnable('pg_restore'));
+
+if (!hasPgTools && Bun.env.CI) {
+    throw new Error(
+        `pg_dump/pg_restore are not runnable (PG_BIN_DIR=${config.PG_BIN_DIR ?? 'unset'}). ` +
+            'The backup restore test is the only proof a dump is usable, and CI must ' +
+            'not skip it — install postgresql-client.',
+    );
+}
 
 describe.skipIf(!hasPgTools)('runBackup', () => {
     const directory = join(tmpdir(), `mawid-backup-test-${Bun.randomUUIDv7()}`);
@@ -228,7 +284,15 @@ describe.skipIf(!hasPgTools)('runBackup', () => {
 
     test('dumps, verifies by restoring, prunes, and records success', async () => {
         try {
-            const result = await runBackup({ directory, now: new Date('2027-01-01T00:00:00Z') });
+            // `offsite: false` is not decoration. Without it a developer or a
+            // runner with Drive credentials in the environment uploads this
+            // throwaway dump to the clinic's real folder and prunes it against
+            // the 2027 timestamp below.
+            const result = await runBackup({
+                directory,
+                now: new Date('2027-01-01T00:00:00Z'),
+                offsite: false,
+            });
 
             expect(result.bytes).toBeGreaterThan(0);
             expect(result.verified).toBe(true);

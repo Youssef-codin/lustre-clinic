@@ -70,9 +70,22 @@ function weekKey(d: Date): string {
     return `${t.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
-/** Newest dump in each of the most recent `count` buckets. */
-function keepByBucket(sorted: readonly BackupFile[], key: (d: Date) => string, count: number): Set<string> {
-    const kept = new Set<string>();
+/**
+ * Newest dump in each of the most recent `count` buckets, as the files
+ * themselves.
+ *
+ * Identity, not name: two runs inside the same second produce the same name,
+ * and a policy that matched on name would either keep both copies forever or
+ * delete both. Off-site, where a destination may hold several distinct files
+ * under one name, that is the difference between pruning a duplicate and
+ * pruning the only backup of a day.
+ */
+function keepByBucket<T extends BackupFile>(
+    sorted: readonly T[],
+    key: (d: Date) => string,
+    count: number,
+): Set<T> {
+    const kept = new Set<T>();
     const seen = new Set<string>();
 
     for (const file of sorted) {
@@ -80,16 +93,17 @@ function keepByBucket(sorted: readonly BackupFile[], key: (d: Date) => string, c
         if (seen.has(bucket)) continue;
         if (seen.size >= count) break;
         seen.add(bucket);
-        kept.add(file.name);
+        kept.add(file);
     }
 
     return kept;
 }
 
-export function selectRetained(
-    files: readonly BackupFile[],
+/** The files a policy keeps. Membership is by identity — see `keepByBucket`. */
+export function selectRetained<T extends BackupFile>(
+    files: readonly T[],
     policy: RetentionPolicy = DEFAULT_RETENTION,
-): Set<string> {
+): Set<T> {
     const sorted = [...files].sort((a, b) => b.at.getTime() - a.at.getTime());
 
     return new Set([
@@ -109,5 +123,5 @@ export function selectForDeletion<T extends BackupFile>(
     policy: RetentionPolicy = DEFAULT_RETENTION,
 ): T[] {
     const retained = selectRetained(files, policy);
-    return [...files].sort((a, b) => b.at.getTime() - a.at.getTime()).filter((f) => !retained.has(f.name));
+    return [...files].sort((a, b) => b.at.getTime() - a.at.getTime()).filter((f) => !retained.has(f));
 }

@@ -12,7 +12,7 @@
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
         "format": "biome format --write .",
-        "test": "LOG_LEVEL=silent bun test",
+        "test": "bun test",
         "app": "bun run --cwd packages/app device",
         "app:build": "bun run --cwd packages/app device:build",
         "db:generate": "bun run --cwd packages/server db:generate",

@@ -75,7 +75,9 @@ export const reminderService = {
             .where(and(eq(reminders.appointmentId, appointmentId), eq(reminders.status, 'pending')));
     },
 
-    async pending(input: PendingRemindersInput = { dueOnly: true, limit: 100 }): Promise<PendingReminder[]> {
+    async pending(
+        input: PendingRemindersInput = { dueOnly: true, limit: 100, offsetMinutes: 0 },
+    ): Promise<PendingReminder[]> {
         const settings = await settingsService.get();
 
         const rows = await db
@@ -104,11 +106,15 @@ export const reminderService = {
             .limit(input.limit);
 
         return rows.map((row) => {
+            // Shifted into the clinic's local time before formatting: the
+            // message tells a patient when to turn up, and `startsAt` is UTC.
+            const local = new Date(row.startsAt.getTime() + input.offsetMinutes * 60_000);
+
             const message = renderTemplate(settings.reminderTemplate, {
                 name: row.name,
                 clinic: settings.clinicName,
-                date: row.startsAt.toISOString().slice(0, 10),
-                time: row.startsAt.toISOString().slice(11, 16),
+                date: local.toISOString().slice(0, 10),
+                time: local.toISOString().slice(11, 16),
                 ref: row.ref,
             });
 

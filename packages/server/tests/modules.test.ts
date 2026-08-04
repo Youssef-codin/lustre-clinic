@@ -1,9 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
-import { AppError } from '../src/errors/AppError.ts';
+import { ERROR_CODE } from '@mawid/shared';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
-import { branchService } from '../src/modules/branch/branch.service.ts';
 import { customQuestionService } from '../src/modules/customQuestion/customQuestion.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { procedureService } from '../src/modules/procedure/procedure.service.ts';
@@ -12,6 +10,13 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
+import {
+    CHECKUP_PRICE,
+    expectAppError,
+    clinic as fixtures,
+    ROOT_CANAL_PRICE,
+    slot,
+} from './helpers/factories.ts';
 
 /**
  * Phase 1 modules against a real Postgres. The rules worth asserting are the
@@ -19,21 +24,6 @@ import { setupDatabase, truncateAll } from './helpers/db.ts';
  * procedure nesting (§5), status transitions (§7), and balances being derived
  * rather than stored (§10).
  */
-
-/** Every amount is piastres. 300 EGP is 30 000. */
-const CHECKUP_PRICE = 30_000;
-const ROOT_CANAL_PRICE = 270_000;
-
-async function expectAppError(code: ErrorCode, fn: () => Promise<unknown>): Promise<void> {
-    try {
-        await fn();
-    } catch (err) {
-        expect(err).toBeInstanceOf(AppError);
-        expect((err as AppError).code).toBe(code);
-        return;
-    }
-    throw new Error(`expected ${code}, but nothing was thrown`);
-}
 
 beforeAll(async () => {
     await setupDatabase();
@@ -185,10 +175,20 @@ describe('procedure', () => {
             isCheckup: false,
             sortOrder: 0,
         });
+        // Selectable before, so the assertions below are about the change and
+        // not about an empty list.
+        expect((await procedureService.selectableList()).map((p) => p.id)).toEqual([child.id]);
+
         await procedureService.update({ id: child.id, active: false });
 
         const selectable = await procedureService.selectableList();
+        // The subtype is gone, and its category did not inherit selectability:
+        // a category with no bookable children is bookable by nobody.
+        expect(selectable.map((p) => p.id)).not.toContain(child.id);
         expect(selectable.map((p) => p.id)).not.toContain(category.id);
+
+        const root = (await procedureService.tree()).find((n) => n.id === category.id);
+        expect(root?.selectable).toBe(false);
     });
 });
 
@@ -318,47 +318,6 @@ describe('patient', () => {
     });
 });
 
-/** The rest of the suite books against a fixed clinic. */
-async function fixtures() {
-    const branch = await branchService.create({ name: 'Main' });
-    const checkup = await procedureService.create({
-        name: 'Checkup',
-        defaultPrice: CHECKUP_PRICE,
-        hasQuantity: false,
-        isCheckup: true,
-        sortOrder: 0,
-    });
-    const rootCanal = await procedureService.create({
-        name: 'Root canal',
-        defaultPrice: ROOT_CANAL_PRICE,
-        hasQuantity: false,
-        isCheckup: false,
-        sortOrder: 1,
-    });
-    const xray = await procedureService.create({
-        name: 'X-ray',
-        defaultPrice: 5_000,
-        hasQuantity: true,
-        isCheckup: false,
-        sortOrder: 2,
-    });
-    const patient = await patientService.create({
-        name: 'Nadia Hassan',
-        phone: '01012345678',
-        custom: {},
-    });
-
-    return { branch, checkup, rootCanal, xray, patient };
-}
-
-/** Tomorrow at 09:00 UTC — future, so nothing lands in the missed list. */
-function slot(offsetMinutes = 0): string {
-    const at = new Date();
-    at.setUTCDate(at.getUTCDate() + 1);
-    at.setUTCHours(9, 0, 0, 0);
-    return new Date(at.getTime() + offsetMinutes * 60_000).toISOString();
-}
-
 describe('appointment', () => {
     test('books, generates a ref, and creates the reminder', async () => {
         const { branch, patient } = await fixtures();
@@ -373,7 +332,7 @@ describe('appointment', () => {
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z2-9]{4}$/);
         expect(appointment.status).toBe('booked');
 
-        const pending = await reminderService.pending({ dueOnly: false, limit: 100 });
+        const pending = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
         expect(pending.map((r) => r.appointmentId)).toContain(appointment.id);
     });
 
@@ -470,7 +429,7 @@ describe('appointment', () => {
 
         expect(rebooked.id).not.toBe(first.id);
 
-        const pending = await reminderService.pending({ dueOnly: false, limit: 100 });
+        const pending = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
         expect(pending.map((r) => r.appointmentId)).not.toContain(first.id);
     });
 
@@ -624,6 +583,27 @@ describe('visit', () => {
         // clinic's, not something a recompute may quietly undo.
         expect(updated.computedTotal).toBe(ROOT_CANAL_PRICE);
         expect(updated.chargedTotal).toBe(200_000);
+    });
+
+    test('refuses to re-price a visit that is already checked out', async () => {
+        const { visit } = await checkedIn();
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: 100_000,
+            paidTotal: 40_000,
+            method: 'cash',
+        });
+
+        // What the patient owes was settled at checkout. Moving it afterwards
+        // would silently change a balance someone has already been quoted —
+        // §10 has `recordPayment` for what comes next, not a re-price.
+        await expectAppError(ERROR_CODE.VISIT_ALREADY_COMPLETED, () =>
+            visitService.setPrice({ visitId: visit.id, chargedTotal: 10_000 }),
+        );
+
+        const after = await visitService.byId(visit.id);
+        expect(after.chargedTotal).toBe(100_000);
+        expect(after.balance).toBe(60_000);
     });
 
     test('checks out with a partial payment and leaves a balance', async () => {
@@ -780,7 +760,7 @@ describe('reminder', () => {
             offsetMinutes: 0,
         });
 
-        const [reminder] = await reminderService.pending({ dueOnly: false, limit: 100 });
+        const [reminder] = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
 
         expect(reminder?.message).toContain('Nadia Hassan');
         expect(reminder?.whatsAppUrl.startsWith('https://wa.me/201012345678?text=')).toBe(true);
@@ -795,12 +775,14 @@ describe('reminder', () => {
             offsetMinutes: 0,
         });
 
-        const [reminder] = await reminderService.pending({ dueOnly: false, limit: 100 });
+        const [reminder] = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
         if (!reminder) throw new Error('expected a pending reminder');
 
         await reminderService.markSent(reminder.id);
 
-        expect((await reminderService.pending({ dueOnly: false, limit: 100 })).length).toBe(0);
+        expect((await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 })).length).toBe(
+            0,
+        );
     });
 
     test('dismissing for today records the date on settings', async () => {

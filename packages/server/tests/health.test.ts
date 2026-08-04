@@ -1,11 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { ERROR_CODE, TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import type { Server } from 'bun';
-import { createServer } from '../src/server.ts';
-import type { AppRouter } from '../src/trpc/router.ts';
-import type { WsData } from '../src/ws/index.ts';
 import { setupDatabase } from './helpers/db.ts';
+import { startTestServer, type TestServer } from './helpers/trpc.ts';
 
 /**
  * Exercises the real transport — Bun.serve, the tRPC fetch adapter, and the
@@ -13,23 +9,19 @@ import { setupDatabase } from './helpers/db.ts';
  * green (SPEC §18).
  */
 
-let server: Server<WsData>;
+let server: TestServer;
 let baseUrl: string;
 
-const client = () =>
-    createTRPCClient<AppRouter>({
-        links: [httpBatchLink({ url: `${baseUrl}${TRPC_ENDPOINT}` })],
-    });
+const client = () => server.client;
 
 beforeAll(async () => {
     await setupDatabase();
-    // Port 0 lets the OS pick a free one, so tests never collide with `bun dev`.
-    server = createServer(0);
-    baseUrl = `http://localhost:${server.port}`;
+    server = startTestServer();
+    baseUrl = server.baseUrl;
 });
 
 afterAll(() => {
-    server.stop(true);
+    server.stop();
 });
 
 describe('health.check', () => {
@@ -55,9 +47,16 @@ describe('health.check', () => {
 describe('transport', () => {
     test('batches multiple calls into one request', async () => {
         const trpc = client();
+        server.resetRequestCount();
+
         const [a, b] = await Promise.all([trpc.health.check.query(), trpc.health.check.query()]);
+
         expect(a.ok).toBe(true);
         expect(b.ok).toBe(true);
+        // The assertion that makes this a batching test: two queries, one
+        // round trip. Counting is the only way to tell — both calls resolve
+        // whether or not `allowBatching` is on.
+        expect(server.requestCount()).toBe(1);
     });
 
     test('returns 404 for an unknown path', async () => {
@@ -71,7 +70,7 @@ describe('transport', () => {
     });
 
     test('accepts a websocket upgrade', async () => {
-        const ws = new WebSocket(`ws://localhost:${server.port}${WS_PATH}`);
+        const ws = new WebSocket(server.wsUrl);
         const opened = await new Promise<boolean>((resolve) => {
             ws.onopen = () => resolve(true);
             ws.onerror = () => resolve(false);
