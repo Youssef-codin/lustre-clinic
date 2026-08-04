@@ -1,7 +1,12 @@
 name: ci
 
 on:
+  # Branch pushes are covered by the pull_request event. Listing both would run
+  # every commit on a PR branch twice — same job, same containers, no more
+  # information. `main` still gets its own run, so what actually ships is
+  # verified after the merge commit exists.
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
