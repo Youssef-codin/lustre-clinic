@@ -271,15 +271,35 @@ export const visitService = {
         return this.byId(input.visitId);
     },
 
-    /** §9 — the discount is the difference from `computed_total`. */
+    /**
+     * §9 — the discount is the difference from `computed_total`.
+     *
+     * Refused once the visit is checked out, for the same reason
+     * `setProcedures` is: what the patient owes is settled at checkout, and a
+     * later edit would silently move a balance someone has already been told
+     * about. A payment against that balance is a separate call (§10).
+     */
     async setPrice(input: SetPriceInput): Promise<Visit> {
-        const [row] = await db
-            .update(visits)
-            .set({ chargedTotal: input.chargedTotal, pricedAt: new Date() })
-            .where(eq(visits.id, input.visitId))
-            .returning();
+        const row = await db.transaction(async (tx) => {
+            const visit = await requireVisit(tx, input.visitId);
 
-        if (!row) throw AppError.notFound('visit');
+            if (visit.completedAt) {
+                throw new AppError(
+                    ERROR_CODE.VISIT_ALREADY_COMPLETED,
+                    'this visit is already checked out',
+                    409,
+                );
+            }
+
+            const [updated] = await tx
+                .update(visits)
+                .set({ chargedTotal: input.chargedTotal, pricedAt: new Date() })
+                .where(eq(visits.id, visit.id))
+                .returning();
+
+            if (!updated) throw AppError.notFound('visit');
+            return updated;
+        });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: row.id });
         return this.byId(row.id);

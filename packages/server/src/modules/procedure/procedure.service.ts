@@ -60,12 +60,20 @@ export const procedureService = {
             childrenByParent.set(row.parentId, siblings);
         }
 
+        // Parenthood is computed over every row, active or not — the same rule
+        // `selectableList` and `requireSelectable` apply. Deriving it from the
+        // visible rows instead would mark a category whose only subtype was
+        // deactivated as selectable, and the picker would offer a row that
+        // `requireSelectable` then refuses.
+        const parents = new Set(rows.map((r) => r.parentId).filter((id): id is string => id !== null));
+
         return visible
             .filter((row) => row.parentId === null)
-            .map((root) => {
-                const children = childrenByParent.get(root.id) ?? [];
-                return { ...root, children, selectable: children.length === 0 };
-            });
+            .map((root) => ({
+                ...root,
+                children: childrenByParent.get(root.id) ?? [],
+                selectable: !parents.has(root.id),
+            }));
     },
 
     async byId(id: string): Promise<Procedure> {

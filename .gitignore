@@ -6,6 +6,9 @@ dist/
 .env
 .env.*
 !.env.example
+# Local-only Postgres credentials and a set of deliberately empty values that
+# keep a test run off the network. No secrets, and CI needs it in the checkout.
+!packages/server/.env.test
 
 # runtime state
 backups/

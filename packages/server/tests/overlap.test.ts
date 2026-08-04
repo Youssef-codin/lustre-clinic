@@ -207,20 +207,46 @@ describe('appointment_span', () => {
         // The wrapper is declared IMMUTABLE, which is only sound if its result
         // does not depend on session state. This is the assertion behind that.
         // 2026-03-10 is chosen to sit near a DST boundary in many zones.
-        const ends = async (zone: string) => {
-            await sql.unsafe(`SET TIME ZONE '${zone}'`);
-            const [row] = await sql<{ correct: boolean }[]>`
-                SELECT upper(appointment_span(${at(0)}::timestamptz, 90)) = ${at(90)}::timestamptz
-                    AS correct
-            `;
-            return row?.correct;
-        };
+        //
+        // `SET TIME ZONE` is connection state, and the pool hands out whichever
+        // connection is free — so the SET and the SELECT must be pinned to one
+        // connection or the SELECT can run somewhere still on UTC and assert
+        // nothing. `SET LOCAL` inside a transaction also unwinds the change, so
+        // no connection is left in a foreign zone for the rest of the run.
+        const ends = async (zone: string) =>
+            sql.begin(async (tx) => {
+                await tx.unsafe(`SET LOCAL TIME ZONE '${zone}'`);
+
+                const [check] = await tx<{ zone: string }[]>`
+                    SELECT current_setting('TimeZone') AS zone
+                `;
+                // Proves the SET and the SELECT really shared a connection.
+                expect(check?.zone).toBe(zone);
+
+                const [row] = await tx<{ correct: boolean }[]>`
+                    SELECT upper(appointment_span(${at(0)}::timestamptz, 90)) = ${at(90)}::timestamptz
+                        AS correct
+                `;
+                return row?.correct;
+            });
 
         expect(await ends('UTC')).toBe(true);
         expect(await ends('Africa/Cairo')).toBe(true);
         expect(await ends('America/New_York')).toBe(true);
+    });
 
-        await sql.unsafe(`SET TIME ZONE 'UTC'`);
+    test('leaves no pooled connection in a foreign timezone', async () => {
+        // The reason the test above uses SET LOCAL. A stray `SET TIME ZONE`
+        // outlives its test and quietly changes what every later query sees.
+        const zones = await Promise.all(
+            Array.from(
+                { length: 10 },
+                async () =>
+                    (await sql<{ zone: string }[]>`SELECT current_setting('TimeZone') AS zone`)[0]?.zone,
+            ),
+        );
+
+        expect(zones.every((zone) => zone === 'UTC')).toBe(true);
     });
 });
 

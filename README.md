@@ -44,7 +44,28 @@ bun typecheck
 bun test
 ```
 
-All three must pass before a task is considered complete.
+All three must pass before a task is considered complete. CI runs the same three
+on every push (`.github/workflows/ci.yml`).
+
+### The test database
+
+The suite runs against a real Postgres — the rules worth testing are the ones
+Postgres enforces — and it **truncates every table between tests**. It therefore
+runs against its own database, never the one `.env` points at. Create it once:
+
+```sh
+docker compose exec db createdb -U mawid mawid_test
+```
+
+`bun test` loads `packages/server/.env.test` through a preload
+(`bunfig.toml`), so the safe database is the default however the runner is
+invoked. `assertTestDatabase` in `packages/server/tests/helpers/db.ts` is the
+backstop: it refuses to start against any database whose name does not end in
+`_test`.
+
+The backup suite shells out to `pg_dump` and `pg_restore`. Without them on PATH
+the restore test — the only proof a dump is usable — skips locally, and fails
+outright in CI rather than skipping silently.
 
 ## Backups
 

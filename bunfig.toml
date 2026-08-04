@@ -1,0 +1,6 @@
+[test]
+# Loads packages/server/.env.test before any test file is imported, so a bare
+# `bun test` runs against the throwaway database rather than whatever `.env`
+# happens to point at. The suite truncates every table; see the preload and
+# `assertTestDatabase` in packages/server/tests/helpers/db.ts.
+preload = ["./packages/server/tests/preload.ts"]

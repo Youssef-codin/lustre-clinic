@@ -7,8 +7,14 @@ export const pendingRemindersInput = z
         /** Only those already due. False lists every pending row. */
         dueOnly: z.boolean().default(true),
         limit: z.number().int().min(1).max(200).default(100),
+        /**
+         * The client's UTC offset in minutes, matching every other date-facing
+         * input. The rendered message quotes a date and a time to the patient,
+         * so it has to be the clinic's, not UTC's.
+         */
+        offsetMinutes: z.number().int().min(-840).max(840).default(0),
     })
-    .default({ dueOnly: true, limit: 100 });
+    .default({ dueOnly: true, limit: 100, offsetMinutes: 0 });
 
 export const reminderIdInput = z.object({ id: z.uuid() });
 
