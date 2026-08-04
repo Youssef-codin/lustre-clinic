@@ -18,6 +18,7 @@ import {
     selectOffsiteDumps,
     selectRetained,
 } from '../src/backup/index.ts';
+import { config } from '../src/config.ts';
 import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpers/db.ts';
 
 /**
@@ -236,25 +237,38 @@ describe('encryption', () => {
 });
 
 /**
- * Needs `pg_dump`/`pg_restore` on PATH and a reachable database. Skipped rather
- * than failed on a workstation that lacks them, so the unit tests above still
- * run — but never in CI, where a silent skip would mean the one test that
- * proves a dump can be restored quietly stops running (§16).
+ * Needs `pg_dump`/`pg_restore` and a reachable database. Skipped rather than
+ * failed on a workstation that lacks them, so the unit tests above still run —
+ * but never in CI, where a silent skip would mean the one test that proves a
+ * dump can be restored quietly stops running (§16).
+ *
+ * Resolved through `PG_BIN_DIR` the same way `backup/pg.ts` does, so this probes
+ * the binary the backup will actually invoke. Checking a bare `pg_dump` instead
+ * would answer for a different one — on a host where PATH holds an older major
+ * version, which is precisely when `PG_BIN_DIR` is set.
  */
-async function onPath(program: string): Promise<boolean> {
+function pgBinary(program: string): string {
+    return config.PG_BIN_DIR ? join(config.PG_BIN_DIR, program) : program;
+}
+
+async function isRunnable(program: string): Promise<boolean> {
     try {
-        return (await Bun.spawn([program, '--version'], { stdout: 'ignore', stderr: 'ignore' }).exited) === 0;
+        return (
+            (await Bun.spawn([pgBinary(program), '--version'], { stdout: 'ignore', stderr: 'ignore' })
+                .exited) === 0
+        );
     } catch {
         return false;
     }
 }
 
-const hasPgTools = (await onPath('pg_dump')) && (await onPath('pg_restore'));
+const hasPgTools = (await isRunnable('pg_dump')) && (await isRunnable('pg_restore'));
 
 if (!hasPgTools && Bun.env.CI) {
     throw new Error(
-        'pg_dump/pg_restore are not on PATH. The backup restore test is the only ' +
-            'proof a dump is usable, and CI must not skip it — install postgresql-client.',
+        `pg_dump/pg_restore are not runnable (PG_BIN_DIR=${config.PG_BIN_DIR ?? 'unset'}). ` +
+            'The backup restore test is the only proof a dump is usable, and CI must ' +
+            'not skip it — install postgresql-client.',
     );
 }
 
