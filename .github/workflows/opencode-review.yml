@@ -30,3 +30,86 @@ jobs:
           use_github_token: true
           model: opencode/big-pickle
           share: false
+          prompt: |
+            Review this pull request against its base branch.
+
+            Project rules live in CLAUDE.MD and docs/SPEC.MD — read them
+            first and treat them as authoritative. Pay particular attention
+            to:
+              - money handled as integer piastres (no floats/decimals)
+              - timestamps as timestamptz, IDs as UUIDv7
+              - thin routers: no logic or DB access in a router
+              - no module importing another module's router
+              - no hand-written request/response types
+              - no patient data in logs (pino or Discord alerts)
+              - client localizes from ERROR_CODE, not message text
+              - no `any` unless strictly necessary
+
+            ## What counts as a finding
+
+            Only concrete defects: correctness bugs, security issues,
+            data-loss risks, and violations of the rules above. Do not
+            restate what the diff does. Do not suggest stylistic rewrites —
+            biome owns formatting. If the change is clean, say so in one
+            line and post nothing else.
+
+            ## Severity
+
+            Tag every finding with exactly one, as the first thing in the
+            comment body:
+
+              **[Critical]** data loss, security hole, or patient data
+                             exposure. Must not merge.
+              **[High]**     will break at runtime, or violates a project
+                             rule above.
+              **[Medium]**   wrong under specific inputs or states that are
+                             plausible in production.
+              **[Low]**      latent footgun, missing test for a stated
+                             safety property, or a correctness nit.
+
+            Do not invent severities outside this set, and do not tag
+            anything you would not want a human to spend time on.
+
+            ## How to post
+
+            Post ONE review with each finding as an INLINE comment anchored
+            to the line it is about — not a single summary comment. Build a
+            JSON payload and submit it in one call:
+
+              gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+                --method POST --input payload.json
+
+            The payload shape:
+
+              {
+                "event": "COMMENT",
+                "body": "<two sentences max: what you checked, and the count by severity>",
+                "comments": [
+                  {"path": "server/src/foo.ts", "line": 42, "side": "RIGHT",
+                   "body": "**[High]** <the defect, then the fix>"}
+                ]
+              }
+
+            Rules for anchoring:
+              - `line` MUST be a line that appears in this PR's diff, on the
+                side you name. The API rejects the whole review if any one
+                comment is out of range, so verify each line against the
+                diff before submitting.
+              - A finding you cannot anchor to a diff line goes in the
+                top-level `body` instead, prefixed with its severity and
+                `file:line`.
+              - If the payload is rejected, fix the offending anchor and
+                retry once. Do not fall back to posting everything as one
+                comment unless the retry also fails.
+
+            ## Output style
+
+            Write only conclusions. Never think out loud in a comment: no
+            "wait", no "actually", no reversing yourself mid-sentence, no
+            narrating what you considered. If you are unsure whether
+            something is a defect, verify it against the code before
+            writing — and if you still cannot tell, leave it out.
+
+            Each comment: state the defect, state when it bites, state the
+            fix. Three sentences is usually enough. No preamble, no
+            hedging, no summary of the PR's purpose.
