@@ -1,4 +1,5 @@
 import { config } from '../config.ts';
+import { logger } from '../logger.ts';
 import { createDriveClient, normalizePrivateKey } from './drive.ts';
 import { type BackupFile, parseBackupFileName } from './retention.ts';
 
@@ -12,13 +13,18 @@ import { type BackupFile, parseBackupFileName } from './retention.ts';
  * Drive's service-account storage rules (see `drive.ts`) get in the way.
  */
 
+/** A dump off-site: the name it is stored under, and what deletes it. */
+export interface OffsiteFile extends BackupFile {
+    readonly handle: string;
+}
+
 export interface OffsiteDestination {
     /** For logs and alerts. */
     readonly kind: 'drive' | 's3';
     /** Returns an opaque handle — a Drive file id, or an S3 key. */
     upload(name: string, body: Uint8Array): Promise<string>;
     /** Dumps already there, so retention can be applied off-site too. */
-    list(): Promise<(BackupFile & { handle: string })[]>;
+    list(): Promise<OffsiteFile[]>;
     remove(handle: string): Promise<void>;
 }
 
@@ -27,10 +33,42 @@ function toBackupName(name: string): string {
     return name.replace(/\.enc$/, '');
 }
 
+/**
+ * A raw listing from an off-site store, reduced to the dumps in it.
+ *
+ * Anything whose name does not parse as a dump is somebody else's file and is
+ * dropped here rather than handed to retention — pruning must never delete a
+ * file it cannot name. Pure and exported so that property can be tested without
+ * credentials.
+ */
+export function selectOffsiteDumps(entries: readonly { name: string; handle: string }[]): OffsiteFile[] {
+    return entries.flatMap((entry) => {
+        const at = parseBackupFileName(toBackupName(entry.name));
+        return at ? [{ name: entry.name, at, handle: entry.handle }] : [];
+    });
+}
+
 function driveDestination(): OffsiteDestination | null {
     const { BACKUP_DRIVE_FOLDER_ID, BACKUP_DRIVE_CLIENT_EMAIL, BACKUP_DRIVE_PRIVATE_KEY } = config;
+    if (!BACKUP_DRIVE_FOLDER_ID || !BACKUP_DRIVE_CLIENT_EMAIL || !BACKUP_DRIVE_PRIVATE_KEY) {
+        const missing = [
+            BACKUP_DRIVE_FOLDER_ID ? null : 'BACKUP_DRIVE_FOLDER_ID',
+            BACKUP_DRIVE_CLIENT_EMAIL ? null : 'BACKUP_DRIVE_CLIENT_EMAIL',
+            BACKUP_DRIVE_PRIVATE_KEY ? null : 'BACKUP_DRIVE_PRIVATE_KEY',
+        ].filter((name) => name !== null);
 
-    if (!BACKUP_DRIVE_FOLDER_ID || !BACKUP_DRIVE_CLIENT_EMAIL || !BACKUP_DRIVE_PRIVATE_KEY) return null;
+        // Half-configured is the dangerous case: the run still succeeds locally
+        // and still writes its marker, so the 48h staleness check stays quiet
+        // while nothing is leaving the machine (§16, §17). Say so loudly. All
+        // three unset is just "no Drive", and stays silent.
+        if (missing.length < 3) {
+            logger.warn(
+                { missing },
+                'Google Drive backups are partially configured — the off-site copy is disabled',
+            );
+        }
+        return null;
+    }
 
     const client = createDriveClient({
         credentials: {
@@ -46,13 +84,7 @@ function driveDestination(): OffsiteDestination | null {
         upload: (name, body) => client.upload(name, body),
         async list() {
             const files = await client.list();
-
-            return files.flatMap((file) => {
-                const at = parseBackupFileName(toBackupName(file.name));
-                // Anything else in the folder is somebody else's and is left
-                // alone — pruning must never delete a file it cannot name.
-                return at ? [{ name: file.name, at, handle: file.id }] : [];
-            });
+            return selectOffsiteDumps(files.map((file) => ({ name: file.name, handle: file.id })));
         },
         remove: (handle) => client.remove(handle),
     };
@@ -81,10 +113,12 @@ function s3Destination(): OffsiteDestination | null {
         async list() {
             const listed = await client.list({ prefix });
 
-            return (listed.contents ?? []).flatMap((entry) => {
-                const at = parseBackupFileName(toBackupName(entry.key.slice(prefix.length)));
-                return at ? [{ name: entry.key, at, handle: entry.key }] : [];
-            });
+            return selectOffsiteDumps(
+                (listed.contents ?? []).map((entry) => ({
+                    name: entry.key.slice(prefix.length),
+                    handle: entry.key,
+                })),
+            );
         },
         remove: (handle) => client.delete(handle),
     };

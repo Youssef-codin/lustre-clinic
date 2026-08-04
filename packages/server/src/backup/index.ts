@@ -161,12 +161,13 @@ async function pruneOffsite(policy: RetentionPolicy): Promise<number> {
     const destination = offsiteDestination();
     if (!destination) return 0;
 
-    const files = await destination.list();
-    const doomed = selectForDeletion(files, policy);
+    // `selectForDeletion` carries the handle through, so each doomed file is
+    // deleted by the handle it was listed with — no re-lookup by a name two
+    // runs in the same second could share.
+    const doomed = selectForDeletion(await destination.list(), policy);
 
     for (const file of doomed) {
-        const match = files.find((f) => f.name === file.name);
-        if (match) await destination.remove(match.handle);
+        await destination.remove(file.handle);
     }
     return doomed.length;
 }

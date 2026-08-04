@@ -99,11 +99,15 @@ export function selectRetained(
     ]);
 }
 
-/** The complement of `selectRetained`, in newest-first order. */
-export function selectForDeletion(
-    files: readonly BackupFile[],
+/**
+ * The complement of `selectRetained`, in newest-first order. Generic over the
+ * file so a destination's own fields — an off-site handle — survive the trip
+ * and the caller never has to look a doomed file back up by name.
+ */
+export function selectForDeletion<T extends BackupFile>(
+    files: readonly T[],
     policy: RetentionPolicy = DEFAULT_RETENTION,
-): BackupFile[] {
+): T[] {
     const retained = selectRetained(files, policy);
     return [...files].sort((a, b) => b.at.getTime() - a.at.getTime()).filter((f) => !retained.has(f.name));
 }
