@@ -11,6 +11,8 @@ export const createProcedureInput = z.object({
     name: z.string().trim().min(1).max(160),
     defaultPrice: price,
     hasQuantity: z.boolean().default(false),
+    /** Lines for this procedure must name a tooth; others must not (§5). */
+    isToothSpecific: z.boolean().default(false),
     isCheckup: z.boolean().default(false),
     sortOrder: z.number().int().min(0).max(9999).default(0),
 });
@@ -21,6 +23,7 @@ export const updateProcedureInput = z.object({
     name: z.string().trim().min(1).max(160).optional(),
     defaultPrice: price.optional(),
     hasQuantity: z.boolean().optional(),
+    isToothSpecific: z.boolean().optional(),
     isCheckup: z.boolean().optional(),
     active: z.boolean().optional(),
     sortOrder: z.number().int().min(0).max(9999).optional(),

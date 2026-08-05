@@ -1,4 +1,4 @@
-import { MAX_AMOUNT_PIASTRES, paymentMethodSchema } from '@mawid/shared';
+import { MAX_AMOUNT_PIASTRES, paymentMethodSchema, toothSchema } from '@mawid/shared';
 import { z } from 'zod';
 
 /** SPEC §8, §9, §13. Amounts are integer piastres. */
@@ -19,6 +19,8 @@ export const setProceduresInput = z.object({
                 quantity: z.number().int().min(1).max(999).default(1),
                 /** Overrides the snapshot; defaults to the procedure's price. */
                 unitPrice: amount.optional(),
+                /** Palmer notation. Omitted when the procedure is not tooth-specific (§5). */
+                tooth: toothSchema.nullish(),
                 note: z.string().trim().max(500).nullish(),
             }),
         )
