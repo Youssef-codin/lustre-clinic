@@ -1,4 +1,4 @@
-import { canTransition, ERROR_CODE, WS_EVENT } from '@mawid/shared';
+import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
 import { eq } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, payments, procedureTypes, visitProcedures, visits } from '../../db/schema.ts';
@@ -32,6 +32,8 @@ export interface VisitLine {
     quantity: number;
     unitPrice: number;
     isCheckup: boolean;
+    /** Palmer notation, e.g. `UL6`. Null when the procedure is not tooth-specific (§5). */
+    tooth: Tooth | null;
     note: string | null;
     /** `unit_price × quantity`, before the checkup waiver (§9). */
     lineTotal: number;
@@ -168,6 +170,7 @@ export const visitService = {
                 quantity: visitProcedures.quantity,
                 unitPrice: visitProcedures.unitPrice,
                 isCheckup: procedureTypes.isCheckup,
+                tooth: visitProcedures.tooth,
                 note: visitProcedures.note,
             })
             .from(visitProcedures)
@@ -201,6 +204,10 @@ export const visitService = {
      * so a later price change never rewrites history.
      */
     async setProcedures(input: SetProceduresInput): Promise<Visit> {
+        // §5 — uniqueness is per tooth, not per procedure: an extraction on UL6
+        // and one on UR3 are two real lines. Lines with no tooth share the
+        // single empty-string key, so the old once-per-visit rule still holds
+        // for procedures that are not tooth-specific.
         const seen = new Set<string>();
 
         // Resolved before the transaction: these are reads against reference
@@ -208,16 +215,20 @@ export const visitService = {
         const resolved = await Promise.all(
             input.procedures.map(async (line) => {
                 const procedure = await procedureService.requireSelectable(line.procedureId);
+                const tooth = line.tooth ?? null;
 
                 if (!procedure.hasQuantity) {
-                    if (seen.has(procedure.id)) {
+                    const key = `${procedure.id}:${tooth ?? ''}`;
+                    if (seen.has(key)) {
                         throw new AppError(
                             ERROR_CODE.PROCEDURE_DUPLICATE,
-                            'that procedure may appear only once on a visit',
+                            tooth
+                                ? 'that procedure may appear only once per tooth on a visit'
+                                : 'that procedure may appear only once on a visit',
                             422,
                         );
                     }
-                    seen.add(procedure.id);
+                    seen.add(key);
                     if (line.quantity !== 1) {
                         throw new AppError(
                             ERROR_CODE.VALIDATION,
@@ -231,6 +242,7 @@ export const visitService = {
                     procedureId: procedure.id,
                     quantity: line.quantity,
                     unitPrice: line.unitPrice ?? procedure.defaultPrice,
+                    tooth,
                     note: line.note ?? null,
                 };
             }),

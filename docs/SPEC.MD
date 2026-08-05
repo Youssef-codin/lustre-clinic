@@ -269,6 +269,7 @@ CREATE TABLE visit_procedures (
   procedure_id UUID NOT NULL REFERENCES procedure_types(id),
   quantity     INTEGER NOT NULL DEFAULT 1,
   unit_price   INTEGER NOT NULL,          -- snapshot
+  tooth        TEXT,                      -- e.g. 'UL6'; null when not tooth-specific
   note         TEXT
 );
 
@@ -331,7 +332,9 @@ Test cases: identical start, one ending exactly when the next begins, fully cont
 
 **Price snapshotting** — `visit_procedures.unit_price` is copied at write time. Line total is `unit_price × quantity`.
 
-**`has_quantity` false** ⇒ that procedure may appear at most once per visit.
+**`has_quantity` false** ⇒ that procedure may appear at most once per visit *per tooth*. An extraction on `UL6` and one on `UR3` are two lines; two extraction lines on `UL6`, or two lines of the same non-tooth-specific procedure, are rejected as `PROCEDURE_DUPLICATE`. Enforced in the service layer.
+
+**Tooth notation** — Palmer. Quadrant (`UR | UL | LL | LR`) then position: `1`–`8` outwards from the central incisor for permanent teeth, `A`–`E` for primary. `UL6` is the upper-left first molar. The full set is `TEETH` in `@mawid/shared`; the client renders it as a searchable dropdown, so `tooth` is never free text. Null means the procedure is not tooth-specific — nothing marks *which* procedures those are, so it is the operator's call.
 
 **Age** derived from `birth_date` at read time.
 

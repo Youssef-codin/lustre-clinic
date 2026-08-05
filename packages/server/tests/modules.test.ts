@@ -8,6 +8,7 @@ import { procedureService } from '../src/modules/procedure/procedure.service.ts'
 import { reminderService, renderTemplate } from '../src/modules/reminder/reminder.service.ts';
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
+import { setProceduresInput } from '../src/modules/visit/visit.schema.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import {
@@ -554,6 +555,69 @@ describe('visit', () => {
                 ],
             }),
         );
+    });
+
+    test('allows a repeat of the same procedure on a different tooth', async () => {
+        const { visit, rootCanal } = await checkedIn();
+
+        const updated = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [
+                { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
+                { procedureId: rootCanal.id, quantity: 1, tooth: 'UR3' },
+            ],
+        });
+
+        // §5 — uniqueness is per tooth. Two root canals is two root canals.
+        expect(updated.procedures.length).toBe(2);
+        expect(updated.computedTotal).toBe(ROOT_CANAL_PRICE * 2);
+        expect(updated.procedures.map((p) => p.tooth).sort()).toEqual(['UL6', 'UR3']);
+    });
+
+    test('refuses a repeat of the same procedure on the same tooth', async () => {
+        const { visit, rootCanal } = await checkedIn();
+
+        await expectAppError(ERROR_CODE.PROCEDURE_DUPLICATE, () =>
+            visitService.setProcedures({
+                visitId: visit.id,
+                procedures: [
+                    { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
+                    { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
+                ],
+            }),
+        );
+    });
+
+    test('a tooth-specific line and an unspecified one are not duplicates', async () => {
+        const { visit, rootCanal } = await checkedIn();
+
+        const updated = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [
+                { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
+                { procedureId: rootCanal.id, quantity: 1 },
+            ],
+        });
+
+        expect(updated.procedures.length).toBe(2);
+    });
+
+    test('defaults tooth to null and rejects a tooth that is not on the chart', async () => {
+        const { visit, rootCanal } = await checkedIn();
+
+        const updated = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
+        });
+        expect(updated.procedures[0]?.tooth).toBeNull();
+
+        // The client picks from `TEETH`; nothing else parses.
+        expect(
+            setProceduresInput.safeParse({
+                visitId: visit.id,
+                procedures: [{ procedureId: rootCanal.id, quantity: 1, tooth: 'UL9' }],
+            }).success,
+        ).toBe(false);
     });
 
     test('snapshots the price, so a later price change does not rewrite history', async () => {
