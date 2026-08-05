@@ -1,1 +1,0 @@
-ALTER TABLE "visit_procedures" ADD COLUMN "tooth" text;

@@ -18,22 +18,26 @@ export const CHECKUP_PRICE = 30_000;
 export const ROOT_CANAL_PRICE = 270_000;
 /** 50 EGP, and the one procedure that takes a quantity. */
 export const XRAY_PRICE = 5_000;
+/** 800 EGP, and the one procedure that is tooth-specific (§5). */
+export const EXTRACTION_PRICE = 80_000;
 
 export interface Clinic {
     branch: Awaited<ReturnType<typeof branchService.create>>;
     checkup: Awaited<ReturnType<typeof procedureService.create>>;
     rootCanal: Awaited<ReturnType<typeof procedureService.create>>;
     xray: Awaited<ReturnType<typeof procedureService.create>>;
+    extraction: Awaited<ReturnType<typeof procedureService.create>>;
     patient: Awaited<ReturnType<typeof patientService.create>>;
 }
 
-/** One branch, three procedures, one patient. */
+/** One branch, four procedures, one patient. */
 export async function clinic(): Promise<Clinic> {
     const branch = await branchService.create({ name: 'Main' });
     const checkup = await procedureService.create({
         name: 'Checkup',
         defaultPrice: CHECKUP_PRICE,
         hasQuantity: false,
+        isToothSpecific: false,
         isCheckup: true,
         sortOrder: 0,
     });
@@ -41,6 +45,7 @@ export async function clinic(): Promise<Clinic> {
         name: 'Root canal',
         defaultPrice: ROOT_CANAL_PRICE,
         hasQuantity: false,
+        isToothSpecific: false,
         isCheckup: false,
         sortOrder: 1,
     });
@@ -48,8 +53,17 @@ export async function clinic(): Promise<Clinic> {
         name: 'X-ray',
         defaultPrice: XRAY_PRICE,
         hasQuantity: true,
+        isToothSpecific: false,
         isCheckup: false,
         sortOrder: 2,
+    });
+    const extraction = await procedureService.create({
+        name: 'Extraction',
+        defaultPrice: EXTRACTION_PRICE,
+        hasQuantity: false,
+        isToothSpecific: true,
+        isCheckup: false,
+        sortOrder: 3,
     });
     const patient = await patientService.create({
         name: 'Nadia Hassan',
@@ -57,7 +71,7 @@ export async function clinic(): Promise<Clinic> {
         custom: {},
     });
 
-    return { branch, checkup, rootCanal, xray, patient };
+    return { branch, checkup, rootCanal, xray, extraction, patient };
 }
 
 /**

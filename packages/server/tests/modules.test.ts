@@ -13,6 +13,7 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import {
     CHECKUP_PRICE,
+    EXTRACTION_PRICE,
     expectAppError,
     clinic as fixtures,
     ROOT_CANAL_PRICE,
@@ -76,6 +77,7 @@ describe('procedure', () => {
             name: 'Endodontics',
             defaultPrice: 0,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -84,6 +86,7 @@ describe('procedure', () => {
             name: 'Root canal',
             defaultPrice: ROOT_CANAL_PRICE,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -100,6 +103,7 @@ describe('procedure', () => {
             name: 'Checkup',
             defaultPrice: CHECKUP_PRICE,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: true,
             sortOrder: 0,
         });
@@ -114,6 +118,7 @@ describe('procedure', () => {
             name: 'Endodontics',
             defaultPrice: 0,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -122,6 +127,7 @@ describe('procedure', () => {
             name: 'Root canal',
             defaultPrice: ROOT_CANAL_PRICE,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -132,6 +138,7 @@ describe('procedure', () => {
                 name: 'Molar',
                 defaultPrice: 1,
                 hasQuantity: false,
+                isToothSpecific: false,
                 isCheckup: false,
                 sortOrder: 0,
             }),
@@ -143,6 +150,7 @@ describe('procedure', () => {
             name: 'Endodontics',
             defaultPrice: 0,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -151,6 +159,7 @@ describe('procedure', () => {
             name: 'Root canal',
             defaultPrice: ROOT_CANAL_PRICE,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -165,6 +174,7 @@ describe('procedure', () => {
             name: 'Endodontics',
             defaultPrice: 0,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -173,6 +183,7 @@ describe('procedure', () => {
             name: 'Root canal',
             defaultPrice: ROOT_CANAL_PRICE,
             hasQuantity: false,
+            isToothSpecific: false,
             isCheckup: false,
             sortOrder: 0,
         });
@@ -558,51 +569,59 @@ describe('visit', () => {
     });
 
     test('allows a repeat of the same procedure on a different tooth', async () => {
-        const { visit, rootCanal } = await checkedIn();
+        const { visit, extraction } = await checkedIn();
 
         const updated = await visitService.setProcedures({
             visitId: visit.id,
             procedures: [
-                { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
-                { procedureId: rootCanal.id, quantity: 1, tooth: 'UR3' },
+                { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+                { procedureId: extraction.id, quantity: 1, tooth: 'UR3' },
             ],
         });
 
-        // §5 — uniqueness is per tooth. Two root canals is two root canals.
+        // §5 — uniqueness is per tooth. Two extractions is two extractions.
         expect(updated.procedures.length).toBe(2);
-        expect(updated.computedTotal).toBe(ROOT_CANAL_PRICE * 2);
+        expect(updated.computedTotal).toBe(EXTRACTION_PRICE * 2);
         expect(updated.procedures.map((p) => p.tooth).sort()).toEqual(['UL6', 'UR3']);
     });
 
     test('refuses a repeat of the same procedure on the same tooth', async () => {
-        const { visit, rootCanal } = await checkedIn();
+        const { visit, extraction } = await checkedIn();
 
         await expectAppError(ERROR_CODE.PROCEDURE_DUPLICATE, () =>
             visitService.setProcedures({
                 visitId: visit.id,
                 procedures: [
-                    { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
-                    { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
+                    { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+                    { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
                 ],
             }),
         );
     });
 
-    test('a tooth-specific line and an unspecified one are not duplicates', async () => {
-        const { visit, rootCanal } = await checkedIn();
+    test('refuses a tooth-specific procedure with no tooth', async () => {
+        const { visit, extraction } = await checkedIn();
 
-        const updated = await visitService.setProcedures({
-            visitId: visit.id,
-            procedures: [
-                { procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' },
-                { procedureId: rootCanal.id, quantity: 1 },
-            ],
-        });
-
-        expect(updated.procedures.length).toBe(2);
+        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
+            visitService.setProcedures({
+                visitId: visit.id,
+                procedures: [{ procedureId: extraction.id, quantity: 1 }],
+            }),
+        );
     });
 
-    test('defaults tooth to null and rejects a tooth that is not on the chart', async () => {
+    test('refuses a tooth on a procedure that is not tooth-specific', async () => {
+        const { visit, rootCanal } = await checkedIn();
+
+        await expectAppError(ERROR_CODE.TOOTH_NOT_APPLICABLE, () =>
+            visitService.setProcedures({
+                visitId: visit.id,
+                procedures: [{ procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' }],
+            }),
+        );
+    });
+
+    test('leaves tooth null on a procedure that is not tooth-specific', async () => {
         const { visit, rootCanal } = await checkedIn();
 
         const updated = await visitService.setProcedures({
@@ -610,12 +629,16 @@ describe('visit', () => {
             procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
         expect(updated.procedures[0]?.tooth).toBeNull();
+    });
+
+    test('rejects a tooth that is not on the chart', async () => {
+        const { visit, extraction } = await checkedIn();
 
         // The client picks from `TEETH`; nothing else parses.
         expect(
             setProceduresInput.safeParse({
                 visitId: visit.id,
-                procedures: [{ procedureId: rootCanal.id, quantity: 1, tooth: 'UL9' }],
+                procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL9' }],
             }).success,
         ).toBe(false);
     });

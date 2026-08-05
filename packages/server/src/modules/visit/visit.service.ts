@@ -217,6 +217,24 @@ export const visitService = {
                 const procedure = await procedureService.requireSelectable(line.procedureId);
                 const tooth = line.tooth ?? null;
 
+                // §5 — `is_tooth_specific` decides whether a tooth belongs on
+                // the line at all, so an extraction cannot be filed against no
+                // tooth and a consultation cannot be filed against UL6.
+                if (procedure.isToothSpecific && !tooth) {
+                    throw new AppError(
+                        ERROR_CODE.TOOTH_REQUIRED,
+                        'that procedure must name the tooth it was done on',
+                        422,
+                    );
+                }
+                if (!procedure.isToothSpecific && tooth) {
+                    throw new AppError(
+                        ERROR_CODE.TOOTH_NOT_APPLICABLE,
+                        'that procedure is not done on a specific tooth',
+                        422,
+                    );
+                }
+
                 if (!procedure.hasQuantity) {
                     const key = `${procedure.id}:${tooth ?? ''}`;
                     if (seen.has(key)) {

@@ -77,6 +77,8 @@ export const procedureTypes = pgTable('procedure_types', {
     /** Piastres. */
     defaultPrice: integer('default_price').notNull(),
     hasQuantity: boolean('has_quantity').notNull().default(false),
+    /** Whether a line for this procedure must name a tooth (§5). */
+    isToothSpecific: boolean('is_tooth_specific').notNull().default(false),
     isCheckup: boolean('is_checkup').notNull().default(false),
     active: boolean('active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),

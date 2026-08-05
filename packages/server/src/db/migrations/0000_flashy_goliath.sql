@@ -63,6 +63,7 @@ CREATE TABLE "procedure_types" (
 	"name" text NOT NULL,
 	"default_price" integer NOT NULL,
 	"has_quantity" boolean DEFAULT false NOT NULL,
+	"is_tooth_specific" boolean DEFAULT false NOT NULL,
 	"is_checkup" boolean DEFAULT false NOT NULL,
 	"active" boolean DEFAULT true NOT NULL,
 	"sort_order" integer DEFAULT 0 NOT NULL
@@ -98,6 +99,7 @@ CREATE TABLE "visit_procedures" (
 	"procedure_id" uuid NOT NULL,
 	"quantity" integer DEFAULT 1 NOT NULL,
 	"unit_price" integer NOT NULL,
+	"tooth" text,
 	"note" text,
 	CONSTRAINT "visit_procedures_quantity_positive" CHECK ("visit_procedures"."quantity" > 0)
 );

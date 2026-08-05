@@ -114,6 +114,7 @@ export const procedureService = {
                 name: input.name,
                 defaultPrice: input.defaultPrice,
                 hasQuantity: input.hasQuantity,
+                isToothSpecific: input.isToothSpecific,
                 isCheckup: input.isCheckup,
                 sortOrder: input.sortOrder,
             })

@@ -215,6 +215,7 @@ CREATE TABLE procedure_types (
   name          TEXT NOT NULL,
   default_price INTEGER NOT NULL,
   has_quantity  BOOLEAN NOT NULL DEFAULT false,
+  is_tooth_specific BOOLEAN NOT NULL DEFAULT false,  -- lines must name a tooth
   is_checkup    BOOLEAN NOT NULL DEFAULT false,
   active        BOOLEAN NOT NULL DEFAULT true,
   sort_order    INTEGER NOT NULL DEFAULT 0
@@ -334,7 +335,9 @@ Test cases: identical start, one ending exactly when the next begins, fully cont
 
 **`has_quantity` false** ⇒ that procedure may appear at most once per visit *per tooth*. An extraction on `UL6` and one on `UR3` are two lines; two extraction lines on `UL6`, or two lines of the same non-tooth-specific procedure, are rejected as `PROCEDURE_DUPLICATE`. Enforced in the service layer.
 
-**Tooth notation** — Palmer. Quadrant (`UR | UL | LL | LR`) then position: `1`–`8` outwards from the central incisor for permanent teeth, `A`–`E` for primary. `UL6` is the upper-left first molar. The full set is `TEETH` in `@mawid/shared`; the client renders it as a searchable dropdown, so `tooth` is never free text. Null means the procedure is not tooth-specific — nothing marks *which* procedures those are, so it is the operator's call.
+**Tooth notation** — Palmer. Quadrant (`UR | UL | LL | LR`) then position: `1`–`8` outwards from the central incisor for permanent teeth, `A`–`E` for primary. `UL6` is the upper-left first molar. The full set is `TEETH` in `@mawid/shared`; the client renders it as a searchable dropdown, so `tooth` is never free text.
+
+**`is_tooth_specific`** decides whether a tooth belongs on the line, and the two cases are symmetric. A tooth-specific procedure with no tooth is `TOOTH_REQUIRED`; a tooth on a procedure that is not tooth-specific is `TOOTH_NOT_APPLICABLE`. Both are 422, enforced in the service layer. The flag is also what tells the client whether to show the tooth dropdown at all.
 
 **Age** derived from `birth_date` at read time.
 
