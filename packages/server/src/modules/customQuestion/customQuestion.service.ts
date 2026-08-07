@@ -13,11 +13,26 @@ import type {
  * SPEC §5, §12. The clinic defines its own intake questions; answers live in
  * `patients.custom`, keyed by `key`.
  *
- * `validateAnswers` is the reason this module is a dependency of `patient`: a
- * required question that is never enforced is a form the clinic thinks it has.
+ * Validating those answers is the reason this module is a dependency of
+ * `patient`, and it has two entry points because a questionnaire is edited over
+ * years while the records filled in against it are kept forever:
+ *
+ * - `validateIntake` is the whole form, answered in one sitting. Every active
+ *   required question must come back with an answer — a required question that
+ *   is never enforced is a form the clinic only thinks it has.
+ * - `validatePatch` is an edit to one existing record. Only the keys the caller
+ *   actually sent are checked; everything already stored passes through exactly
+ *   as it is.
+ *
+ * The asymmetry is the whole point. If a patient picked a `select` option in
+ * 2024 and the doctor removed that option in 2026, correcting that patient's
+ * phone number must not fail on an answer nobody touched.
  */
 
 export type CustomQuestion = typeof customQuestions.$inferSelect;
+
+/** Answers keyed by `custom_questions.key`, as stored in `patients.custom`. */
+export type Answers = Record<string, unknown>;
 
 /** What a `select` question stores in its `options` JSONB column. */
 function optionsOf(question: CustomQuestion): string[] {
@@ -72,38 +87,84 @@ export const customQuestionService = {
         return row;
     },
 
+    /** Every question, active or not, indexed by the key answers are stored under. */
+    async byKey(): Promise<Map<string, CustomQuestion>> {
+        const rows = await this.list({ includeInactive: true });
+        return new Map(rows.map((question) => [question.key, question]));
+    },
+
     /**
-     * Validates a patient's answers against the active questions and returns
-     * the object to store. Answers to unknown or inactive keys are kept as they
-     * are: a question deactivated after the fact must not silently erase what
-     * patients already answered.
+     * The complete questionnaire, filled in as one form. Returns the object to
+     * store in `patients.custom`.
      */
-    async validateAnswers(answers: Record<string, unknown>): Promise<Record<string, unknown>> {
-        const questions = await this.list();
-        const result: Record<string, unknown> = { ...answers };
+    async validateIntake(answers: Answers): Promise<Answers> {
+        const questions = await this.byKey();
+        const result = checkSubmitted(answers, questions);
 
-        for (const question of questions) {
-            const value = answers[question.key];
-            const missing = value === undefined || value === null || value === '';
+        for (const question of questions.values()) {
+            const answered = question.key in result;
+            if (question.active && question.required && !answered) throw missingAnswer(question);
+        }
 
-            if (missing) {
-                if (question.required) {
-                    throw new AppError(
-                        ERROR_CODE.CUSTOM_QUESTION_REQUIRED,
-                        `custom question '${question.key}' is required`,
-                        422,
-                    );
-                }
-                delete result[question.key];
-                continue;
-            }
+        return result;
+    },
 
-            result[question.key] = coerce(question, value);
+    /**
+     * An edit to one patient's answers. Returns the object to store: `stored`
+     * with the submitted keys applied over it.
+     *
+     * Questions the caller said nothing about are not looked at, whatever the
+     * questionnaire says about them today. That is what lets a record outlive
+     * the form it was filled in on — a question added, deactivated, made
+     * required, or narrowed since never blocks an unrelated edit. Use
+     * `auditAnswers` to find what such a record is now missing.
+     */
+    async validatePatch(stored: Answers, patch: Answers): Promise<Answers> {
+        const questions = await this.byKey();
+        const edits = checkSubmitted(patch, questions);
+        const result: Answers = { ...stored };
+
+        for (const key of Object.keys(patch)) {
+            // A key that survived `checkSubmitted` without landing in `edits`
+            // was submitted blank, which means the caller cleared the answer.
+            if (key in edits) result[key] = edits[key];
+            else delete result[key];
         }
 
         return result;
     },
 };
+
+/**
+ * The answers the caller actually sent, each checked against its own question.
+ * A blank answer is dropped rather than stored, and a key with no question
+ * behind it is refused: nothing would ever validate it again, so a typo would
+ * sit in the patient's record for good.
+ */
+function checkSubmitted(submitted: Answers, questions: Map<string, CustomQuestion>): Answers {
+    const result: Answers = {};
+
+    for (const [key, value] of Object.entries(submitted)) {
+        const question = questions.get(key);
+        if (!question) {
+            throw new AppError(ERROR_CODE.VALIDATION, `no custom question has the key '${key}'`, 422);
+        }
+
+        if (isBlank(value)) {
+            if (question.active && question.required) throw missingAnswer(question);
+            continue;
+        }
+
+        result[key] = coerce(question, value);
+    }
+
+    return result;
+}
+
+/** What counts as "not answered", for a form where every field is optional to send. */
+function isBlank(value: unknown): boolean {
+    return value === undefined || value === null || value === '';
+}
 
 /** One answer, checked against its question's kind. */
 function coerce(question: CustomQuestion, value: unknown): unknown {
@@ -135,4 +196,12 @@ function coerce(question: CustomQuestion, value: unknown): unknown {
 function wrongKind(question: CustomQuestion, expected: string): AppError {
     // The message names the key, never the answer — answers are patient data.
     return new AppError(ERROR_CODE.VALIDATION, `custom question '${question.key}' expects ${expected}`, 422);
+}
+
+function missingAnswer(question: CustomQuestion): AppError {
+    return new AppError(
+        ERROR_CODE.CUSTOM_QUESTION_REQUIRED,
+        `custom question '${question.key}' is required`,
+        422,
+    );
 }
