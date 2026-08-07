@@ -4,6 +4,7 @@ import { appointments, patients, payments, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { normalizePhone } from '../../util/phone.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
+import type { Answers } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
 import type { CreatePatientInput, SearchPatientInput, UpdatePatientInput } from './patient.schema.ts';
 
@@ -43,6 +44,11 @@ export interface PatientDetail {
 
 function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
+}
+
+/** `patients.custom` is JSONB, which Drizzle hands back as `unknown`. */
+function answersOf(row: PatientRow): Answers {
+    return (row.custom ?? {}) as Answers;
 }
 
 async function requireRow(id: string): Promise<PatientRow> {
@@ -116,7 +122,9 @@ export const patientService = {
     },
 
     async create(input: CreatePatientInput): Promise<Patient> {
-        const custom = await customQuestionService.validateAnswers(input.custom);
+        // A new record is the questionnaire filled in as a whole, so every
+        // required question has to be answered here (§5).
+        const custom = await customQuestionService.validateIntake(input.custom);
 
         const [row] = await db
             .insert(patients)
@@ -139,13 +147,11 @@ export const patientService = {
     async update({ id, ...patch }: UpdatePatientInput): Promise<Patient> {
         const current = await requireRow(id);
 
-        // A partial `custom` patch is merged over what is stored, so editing
-        // one answer does not drop the rest.
+        // A partial `custom` patch is merged over what is stored, so editing one
+        // answer does not drop the rest — and answers the caller left out are
+        // not re-checked against a questionnaire that has moved on since.
         const custom = patch.custom
-            ? await customQuestionService.validateAnswers({
-                  ...(current.custom as Record<string, unknown>),
-                  ...patch.custom,
-              })
+            ? await customQuestionService.validatePatch(answersOf(current), patch.custom)
             : undefined;
 
         const [row] = await db
