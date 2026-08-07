@@ -9,11 +9,12 @@ section before building against it.
 
 ## Key Conventions
 
+- Always use Stacked PRs (new gh feature)
+- DO NOT use useEffect unless strictly needed to.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)
 - **Money is integer piastres.** No floats, no decimal types, anywhere. Parse at
   the boundary, format at the display layer.
-- **Timestamps are `timestamptz`. IDs are UUIDv7.**
 - **Routers are thin.** Input schema → service call → return. No logic and no
   database access in a router. Services hold the business logic, throw
   `AppError`, and never import tRPC.
