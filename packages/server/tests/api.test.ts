@@ -122,6 +122,11 @@ describe('every path in §13 answers', () => {
         const detail = await client.patient.byId.query({ id: patient.id });
         expect(detail.patient.name).toBe('Nadia H.');
         expect(detail.visits).toEqual([]);
+        // This patient predates the question created above, so it is unanswered
+        // — carrying the label as it reads now (§12).
+        expect(detail.questionnaireGaps).toEqual([
+            { key: 'allergies', label: 'Known allergies', required: false, reason: 'unanswered' },
+        ]);
 
         const settings = await client.settings.update.mutate({ clinicName: 'Mawid Dental' });
         expect(settings.clinicName).toBe('Mawid Dental');

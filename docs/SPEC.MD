@@ -526,7 +526,7 @@ procedure.create            m
 procedure.update            m
 
 patient.search              q  ({ q })
-patient.byId                q  → { patient, visits }   — one payload
+patient.byId                q  → { patient, visits, questionnaireGaps }  — one payload
 patient.create              m
 patient.update              m
 
@@ -567,7 +567,7 @@ stats.summary               q  ({ from, to, branchId })
 
 **`appointment.byDate`** embeds `{ id, name, phone }` per row.
 
-**`patient.byId`** returns patient and visit history in one payload.
+**`patient.byId`** returns patient and visit history in one payload, plus `questionnaireGaps`: the active custom questions this record is `unanswered` for, or whose stored answer is `answer_no_longer_valid` because the question narrowed since. Custom answers are validated against the questionnaire as it stood when they were given, never as it stands now, so editing a patient is never blocked by a question added or changed since they registered — `questionnaireGaps` is how the records screen knows what is left to ask.
 
 **`visit.setProcedures`** replaces the full procedure list; it does not patch individual lines.
 

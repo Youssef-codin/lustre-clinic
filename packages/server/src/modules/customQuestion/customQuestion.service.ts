@@ -34,6 +34,25 @@ export type CustomQuestion = typeof customQuestions.$inferSelect;
 /** Answers keyed by `custom_questions.key`, as stored in `patients.custom`. */
 export type Answers = Record<string, unknown>;
 
+/**
+ * Why one patient's questionnaire wants the clinic's attention.
+ *
+ * `unanswered` — the question is asked today and this record has no answer to
+ * it. Every patient on the books the day a question is added is unanswered.
+ *
+ * `answer_no_longer_valid` — there is an answer, but the question would not
+ * accept it now. In practice this is a `select` whose option was removed.
+ */
+export type QuestionnaireGapReason = 'unanswered' | 'answer_no_longer_valid';
+
+export interface QuestionnaireGap {
+    key: string;
+    /** Carried so the records screen does not have to join `customQuestion.list`. */
+    label: string;
+    required: boolean;
+    reason: QuestionnaireGapReason;
+}
+
 /** What a `select` question stores in its `options` JSONB column. */
 function optionsOf(question: CustomQuestion): string[] {
     return Array.isArray(question.options) ? (question.options as string[]) : [];
@@ -133,7 +152,55 @@ export const customQuestionService = {
 
         return result;
     },
+
+    /**
+     * What one patient's stored answers are missing or no longer say, measured
+     * against the questionnaire as it stands today.
+     *
+     * `validatePatch` deliberately lets a record fall behind the form rather
+     * than block an edit on it, so the gap has to show up somewhere the clinic
+     * will see it. This is that somewhere: the records screen reads it off
+     * `patient.byId` and asks the questions the patient never got.
+     *
+     * Ordered by the questionnaire's own `sortOrder`, so the prompts come in
+     * the order the form asks them.
+     */
+    async auditAnswers(stored: Answers): Promise<QuestionnaireGap[]> {
+        // Active only — a deactivated question is no longer asked, so a patient
+        // who never answered it is not behind on anything.
+        const questions = await this.list();
+        const gaps: QuestionnaireGap[] = [];
+
+        for (const question of questions) {
+            const value = stored[question.key];
+            const reason = gapIn(question, value);
+            if (!reason) continue;
+
+            gaps.push({
+                key: question.key,
+                label: question.label,
+                required: question.required,
+                reason,
+            });
+        }
+
+        return gaps;
+    },
 };
+
+/** The reason this answer needs attention, or null if it is fine as it stands. */
+function gapIn(question: CustomQuestion, value: unknown): QuestionnaireGapReason | null {
+    if (isBlank(value)) return 'unanswered';
+
+    try {
+        // `coerce` is the one definition of an acceptable answer, and it reports
+        // by throwing. Borrowing it here beats a second copy that can drift.
+        coerce(question, value);
+        return null;
+    } catch {
+        return 'answer_no_longer_valid';
+    }
+}
 
 /**
  * The answers the caller actually sent, each checked against its own question.

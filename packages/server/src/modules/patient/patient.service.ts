@@ -4,7 +4,7 @@ import { appointments, patients, payments, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { normalizePhone } from '../../util/phone.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
-import type { Answers } from '../customQuestion/customQuestion.service.ts';
+import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
 import type { CreatePatientInput, SearchPatientInput, UpdatePatientInput } from './patient.schema.ts';
 
@@ -40,6 +40,11 @@ export interface PatientVisit {
 export interface PatientDetail {
     patient: Patient;
     visits: PatientVisit[];
+    /**
+     * What this record is missing against today's questionnaire — empty for a
+     * patient registered since the last change to it (§12).
+     */
+    questionnaireGaps: QuestionnaireGap[];
 }
 
 function toPatient(row: PatientRow): Patient {
@@ -118,6 +123,7 @@ export const patientService = {
         return {
             patient: toPatient(patient),
             visits: rows.map((r) => ({ ...r, balance: r.chargedTotal - r.paidTotal })),
+            questionnaireGaps: await customQuestionService.auditAnswers(answersOf(patient)),
         };
     },
 
