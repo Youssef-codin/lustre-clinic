@@ -7,9 +7,16 @@ section before building against it.
 
 - Always run `bun lint`, `bun typecheck`, `bun test` and `bun format` and make sure they pass before considering a task complete.
 
+## Branches
+
+**Work on the branch that is already checked out. Never `git checkout -b`.**
+
+Each worktree stays on one long-lived branch. Commit to the branch you found,
+push it, open the PR from there against `main`. Stacked PRs only when asked for
+by name.
+
 ## Key Conventions
 
-- Always use Stacked PRs (new gh feature)
 - DO NOT use useEffect unless strictly needed to.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)
