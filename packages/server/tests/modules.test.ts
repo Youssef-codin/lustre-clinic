@@ -225,7 +225,7 @@ describe('customQuestion', () => {
         );
     });
 
-    test('enforces required answers', async () => {
+    test('intake enforces required answers', async () => {
         await customQuestionService.create({
             key: 'blood_thinners',
             label: 'On blood thinners?',
@@ -235,7 +235,7 @@ describe('customQuestion', () => {
         });
 
         await expectAppError(ERROR_CODE.CUSTOM_QUESTION_REQUIRED, () =>
-            customQuestionService.validateAnswers({}),
+            customQuestionService.validateIntake({}),
         );
     });
 
@@ -248,11 +248,11 @@ describe('customQuestion', () => {
             sortOrder: 0,
         });
 
-        expect(await customQuestionService.validateAnswers({ visits_per_year: '3' })).toEqual({
+        expect(await customQuestionService.validateIntake({ visits_per_year: '3' })).toEqual({
             visits_per_year: 3,
         });
         await expectAppError(ERROR_CODE.VALIDATION, () =>
-            customQuestionService.validateAnswers({ visits_per_year: 'often' }),
+            customQuestionService.validateIntake({ visits_per_year: 'often' }),
         );
     });
 
@@ -266,11 +266,189 @@ describe('customQuestion', () => {
             sortOrder: 0,
         });
 
-        expect(await customQuestionService.validateAnswers({ referral: 'friend' })).toEqual({
+        expect(await customQuestionService.validateIntake({ referral: 'friend' })).toEqual({
             referral: 'friend',
         });
         await expectAppError(ERROR_CODE.VALIDATION, () =>
-            customQuestionService.validateAnswers({ referral: 'billboard' }),
+            customQuestionService.validateIntake({ referral: 'billboard' }),
+        );
+    });
+
+    test('refuses an answer to a key no question owns', async () => {
+        await expectAppError(ERROR_CODE.VALIDATION, () =>
+            customQuestionService.validateIntake({ allergies: 'penicillin' }),
+        );
+        await expectAppError(ERROR_CODE.VALIDATION, () =>
+            customQuestionService.validatePatch({}, { allergeis: 'penicillin' }),
+        );
+    });
+
+    /**
+     * The questionnaire moves; the records stay. Everything below is a change
+     * the doctor makes years after an answer was given, and none of it may
+     * touch an answer the caller did not submit.
+     */
+    describe('a patch against a questionnaire that has since changed', () => {
+        test('does not demand a question that became required', async () => {
+            const question = await customQuestionService.create({
+                key: 'blood_thinners',
+                label: 'On blood thinners?',
+                kind: 'boolean',
+                required: false,
+                sortOrder: 0,
+            });
+            await customQuestionService.create({
+                key: 'allergies',
+                label: 'Allergies',
+                kind: 'text',
+                required: false,
+                sortOrder: 1,
+            });
+
+            const stored = await customQuestionService.validateIntake({ allergies: 'none' });
+            await customQuestionService.update({ id: question.id, required: true });
+
+            expect(await customQuestionService.validatePatch(stored, { allergies: 'penicillin' })).toEqual({
+                allergies: 'penicillin',
+            });
+        });
+
+        test('keeps a select answer whose option was removed', async () => {
+            const question = await customQuestionService.create({
+                key: 'referral',
+                label: 'How did you hear about us?',
+                kind: 'select',
+                options: ['friend', 'facebook'],
+                required: false,
+                sortOrder: 0,
+            });
+            await customQuestionService.create({
+                key: 'allergies',
+                label: 'Allergies',
+                kind: 'text',
+                required: false,
+                sortOrder: 1,
+            });
+
+            const stored = await customQuestionService.validateIntake({ referral: 'facebook' });
+            await customQuestionService.update({ id: question.id, options: ['friend'] });
+
+            expect(await customQuestionService.validatePatch(stored, { allergies: 'none' })).toEqual({
+                referral: 'facebook',
+                allergies: 'none',
+            });
+            // Re-submitting it is another matter: that is the caller choosing an
+            // option the form no longer offers.
+            await expectAppError(ERROR_CODE.VALIDATION, () =>
+                customQuestionService.validatePatch(stored, { referral: 'facebook' }),
+            );
+        });
+
+        test('keeps the answer to a deactivated question, and still lets it be edited', async () => {
+            const question = await customQuestionService.create({
+                key: 'referral',
+                label: 'How did you hear about us?',
+                kind: 'select',
+                options: ['friend', 'facebook'],
+                required: true,
+                sortOrder: 0,
+            });
+            await customQuestionService.create({
+                key: 'allergies',
+                label: 'Allergies',
+                kind: 'text',
+                required: false,
+                sortOrder: 1,
+            });
+
+            const stored = await customQuestionService.validateIntake({ referral: 'friend' });
+            await customQuestionService.update({ id: question.id, active: false });
+
+            expect(await customQuestionService.validatePatch(stored, { allergies: 'none' })).toEqual({
+                referral: 'friend',
+                allergies: 'none',
+            });
+            // No longer required, because it is no longer asked.
+            expect(await customQuestionService.validatePatch(stored, { referral: '' })).toEqual({});
+        });
+    });
+
+    test('reports what a record is missing against the questionnaire today', async () => {
+        const referral = await customQuestionService.create({
+            key: 'referral',
+            label: 'How did you hear about us?',
+            kind: 'select',
+            options: ['friend', 'facebook'],
+            required: false,
+            sortOrder: 0,
+        });
+        const retired = await customQuestionService.create({
+            key: 'fax',
+            label: 'Fax number',
+            kind: 'text',
+            required: false,
+            sortOrder: 1,
+        });
+
+        const stored = await customQuestionService.validateIntake({ referral: 'facebook', fax: '123' });
+        expect(await customQuestionService.auditAnswers(stored)).toEqual([]);
+
+        // The doctor drops the option this patient picked, retires a question
+        // outright, and adds one nobody on the books has answered.
+        await customQuestionService.update({ id: referral.id, options: ['friend', 'instagram'] });
+        await customQuestionService.update({ id: retired.id, active: false });
+        await customQuestionService.create({
+            key: 'blood_thinners',
+            label: 'On blood thinners?',
+            kind: 'boolean',
+            required: true,
+            sortOrder: 2,
+        });
+
+        // In the questionnaire's own order, and silent about the retired
+        // question — it is not asked any more, so nobody is behind on it.
+        expect(await customQuestionService.auditAnswers(stored)).toEqual([
+            {
+                key: 'referral',
+                label: 'How did you hear about us?',
+                required: false,
+                reason: 'answer_no_longer_valid',
+            },
+            {
+                key: 'blood_thinners',
+                label: 'On blood thinners?',
+                required: true,
+                reason: 'unanswered',
+            },
+        ]);
+    });
+
+    test('a blank answer clears the key, unless the question is required', async () => {
+        await customQuestionService.create({
+            key: 'allergies',
+            label: 'Allergies',
+            kind: 'text',
+            required: false,
+            sortOrder: 0,
+        });
+        await customQuestionService.create({
+            key: 'blood_thinners',
+            label: 'On blood thinners?',
+            kind: 'boolean',
+            required: true,
+            sortOrder: 1,
+        });
+
+        const stored = await customQuestionService.validateIntake({
+            allergies: 'penicillin',
+            blood_thinners: true,
+        });
+
+        expect(await customQuestionService.validatePatch(stored, { allergies: '' })).toEqual({
+            blood_thinners: true,
+        });
+        await expectAppError(ERROR_CODE.CUSTOM_QUESTION_REQUIRED, () =>
+            customQuestionService.validatePatch(stored, { blood_thinners: null }),
         );
     });
 });
@@ -321,6 +499,74 @@ describe('patient', () => {
         const updated = await patientService.update({ id: created.id, custom: { allergies: 'none' } });
 
         expect(updated.custom).toEqual({ allergies: 'none', notes_for_doctor: 'anxious' });
+    });
+
+    test('editing an old patient survives the questionnaire changing under them', async () => {
+        const referral = await customQuestionService.create({
+            key: 'referral',
+            label: 'How did you hear about us?',
+            kind: 'select',
+            options: ['friend', 'facebook'],
+            required: false,
+            sortOrder: 0,
+        });
+        const bloodThinners = await customQuestionService.create({
+            key: 'blood_thinners',
+            label: 'On blood thinners?',
+            kind: 'boolean',
+            required: false,
+            sortOrder: 1,
+        });
+
+        const created = await patientService.create({
+            name: 'Nadia Hassan',
+            phone: '01012345678',
+            custom: { referral: 'facebook' },
+        });
+
+        // Two years of the doctor tidying up the form.
+        await customQuestionService.update({ id: referral.id, options: ['friend', 'instagram'] });
+        await customQuestionService.update({ id: bloodThinners.id, required: true });
+
+        const updated = await patientService.update({ id: created.id, phone: '01098765432' });
+
+        expect(updated.phone).toBe('+201098765432');
+        expect(updated.custom).toEqual({ referral: 'facebook' });
+    });
+
+    test('answers a question added long after the patient was registered', async () => {
+        const created = await patientService.create({
+            name: 'Nadia Hassan',
+            phone: '01012345678',
+            custom: {},
+        });
+
+        await customQuestionService.create({
+            key: 'blood_thinners',
+            label: 'On blood thinners?',
+            kind: 'boolean',
+            required: true,
+            sortOrder: 0,
+        });
+
+        // The record is behind the form, and `byId` is where the clinic sees it.
+        const before = await patientService.byId(created.id);
+        expect(before.questionnaireGaps).toEqual([
+            {
+                key: 'blood_thinners',
+                label: 'On blood thinners?',
+                required: true,
+                reason: 'unanswered',
+            },
+        ]);
+
+        const updated = await patientService.update({
+            id: created.id,
+            custom: { blood_thinners: false },
+        });
+
+        expect(updated.custom).toEqual({ blood_thinners: false });
+        expect((await patientService.byId(created.id)).questionnaireGaps).toEqual([]);
     });
 
     test('rejects a phone that cannot be normalized', async () => {
