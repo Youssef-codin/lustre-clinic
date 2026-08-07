@@ -373,6 +373,56 @@ describe('customQuestion', () => {
         });
     });
 
+    test('reports what a record is missing against the questionnaire today', async () => {
+        const referral = await customQuestionService.create({
+            key: 'referral',
+            label: 'How did you hear about us?',
+            kind: 'select',
+            options: ['friend', 'facebook'],
+            required: false,
+            sortOrder: 0,
+        });
+        const retired = await customQuestionService.create({
+            key: 'fax',
+            label: 'Fax number',
+            kind: 'text',
+            required: false,
+            sortOrder: 1,
+        });
+
+        const stored = await customQuestionService.validateIntake({ referral: 'facebook', fax: '123' });
+        expect(await customQuestionService.auditAnswers(stored)).toEqual([]);
+
+        // The doctor drops the option this patient picked, retires a question
+        // outright, and adds one nobody on the books has answered.
+        await customQuestionService.update({ id: referral.id, options: ['friend', 'instagram'] });
+        await customQuestionService.update({ id: retired.id, active: false });
+        await customQuestionService.create({
+            key: 'blood_thinners',
+            label: 'On blood thinners?',
+            kind: 'boolean',
+            required: true,
+            sortOrder: 2,
+        });
+
+        // In the questionnaire's own order, and silent about the retired
+        // question — it is not asked any more, so nobody is behind on it.
+        expect(await customQuestionService.auditAnswers(stored)).toEqual([
+            {
+                key: 'referral',
+                label: 'How did you hear about us?',
+                required: false,
+                reason: 'answer_no_longer_valid',
+            },
+            {
+                key: 'blood_thinners',
+                label: 'On blood thinners?',
+                required: true,
+                reason: 'unanswered',
+            },
+        ]);
+    });
+
     test('a blank answer clears the key, unless the question is required', async () => {
         await customQuestionService.create({
             key: 'allergies',
@@ -499,12 +549,24 @@ describe('patient', () => {
             sortOrder: 0,
         });
 
+        // The record is behind the form, and `byId` is where the clinic sees it.
+        const before = await patientService.byId(created.id);
+        expect(before.questionnaireGaps).toEqual([
+            {
+                key: 'blood_thinners',
+                label: 'On blood thinners?',
+                required: true,
+                reason: 'unanswered',
+            },
+        ]);
+
         const updated = await patientService.update({
             id: created.id,
             custom: { blood_thinners: false },
         });
 
         expect(updated.custom).toEqual({ blood_thinners: false });
+        expect((await patientService.byId(created.id)).questionnaireGaps).toEqual([]);
     });
 
     test('rejects a phone that cannot be normalized', async () => {
