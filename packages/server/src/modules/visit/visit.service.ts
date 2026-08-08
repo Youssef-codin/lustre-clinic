@@ -339,6 +339,9 @@ export const visitService = {
      * §8 — completes the visit regardless of what was paid. The amount is
      * confirmed and editable here, because it is often the first time anyone
      * has looked at it.
+     *
+     * Reached from `checked_in` or from `awaiting_payment` (§7); the middle
+     * step is optional, so a walk-in checks out straight from the chair.
      */
     async checkOut(input: CheckOutInput): Promise<Visit> {
         await db.transaction(async (tx) => {
@@ -349,6 +352,24 @@ export const visitService = {
                     ERROR_CODE.VISIT_ALREADY_COMPLETED,
                     'this visit is already checked out',
                     409,
+                );
+            }
+
+            // §7 — checkout closes either the chair (`checked_in`) or the desk
+            // (`awaiting_payment`). Anything else is not a visit in progress.
+            const [appointment] = await tx
+                .select()
+                .from(appointments)
+                .where(eq(appointments.id, visit.appointmentId))
+                .limit(1);
+
+            if (!appointment) throw AppError.notFound('appointment');
+
+            if (!canTransition(appointment.status, 'done')) {
+                throw new AppError(
+                    ERROR_CODE.INVALID_STATUS_TRANSITION,
+                    `cannot check out an appointment that is ${appointment.status}`,
+                    422,
                 );
             }
 
@@ -368,18 +389,10 @@ export const visitService = {
                 await insertPayment(tx, visit.id, input.paidTotal, input.method, input.methodNote ?? null);
             }
 
-            const [appointment] = await tx
-                .select()
-                .from(appointments)
-                .where(eq(appointments.id, visit.appointmentId))
-                .limit(1);
-
-            if (appointment && canTransition(appointment.status, 'done')) {
-                await tx
-                    .update(appointments)
-                    .set({ status: 'done', updatedAt: now })
-                    .where(eq(appointments.id, appointment.id));
-            }
+            await tx
+                .update(appointments)
+                .set({ status: 'done', updatedAt: now })
+                .where(eq(appointments.id, appointment.id));
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });

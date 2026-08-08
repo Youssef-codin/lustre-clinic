@@ -6,14 +6,29 @@ import { z } from 'zod';
  * both the Drizzle schema and the client.
  */
 
-/** §7. `checked_in` creates the visit; `done` is set at checkout. */
-export const APPOINTMENT_STATUSES = ['booked', 'checked_in', 'done', 'cancelled', 'no_show'] as const;
+/**
+ * §7. `checked_in` creates the visit; `done` is set at checkout.
+ *
+ * `awaiting_payment` is optional: the doctor marks it when he is finished and
+ * the patient goes to the desk to pay. Checkout still works straight from
+ * `checked_in`, which is what a walk-in or a quick checkup does.
+ */
+export const APPOINTMENT_STATUSES = [
+    'booked',
+    'checked_in',
+    'awaiting_payment',
+    'done',
+    'cancelled',
+    'no_show',
+] as const;
 export const appointmentStatusSchema = z.enum(APPOINTMENT_STATUSES);
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
 
 /**
  * Statuses that hold a slot. Only these participate in the `EXCLUDE USING gist`
- * overlap constraint — cancelled and no-show appointments free their slot.
+ * overlap constraint — cancelled and no-show appointments free their slot, and
+ * so does `awaiting_payment`: that patient has left the chair, so the slot is
+ * bookable again even though the visit is not settled.
  */
 export const SLOT_HOLDING_STATUSES = ['booked', 'checked_in'] as const satisfies readonly AppointmentStatus[];
 
@@ -90,7 +105,9 @@ export type Locale = z.infer<typeof localeSchema>;
  */
 export const APPOINTMENT_TRANSITIONS = {
     booked: ['checked_in', 'cancelled', 'no_show'],
-    checked_in: ['done'],
+    // `awaiting_payment` is a stop on the way to `done`, never a required one.
+    checked_in: ['awaiting_payment', 'done'],
+    awaiting_payment: ['done'],
     done: [],
     cancelled: [],
     no_show: [],

@@ -607,6 +607,24 @@ describe('websocket broadcasts', () => {
         });
     });
 
+    test('awaiting payment pushes appointment:updated', async () => {
+        const { client } = api;
+        const { branch, patient } = await clinicViaApi();
+        const appointment = await client.appointment.create.mutate({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+        });
+        await client.visit.checkIn.mutate({ appointmentId: appointment.id });
+
+        // §13 — the day view has to refetch; the desk is now owed money.
+        const { events } = await captureWsEvents(api.wsUrl, () =>
+            client.appointment.awaitPayment.mutate({ id: appointment.id }),
+        );
+
+        expect(events).toEqual([{ event: WS_EVENT.APPOINTMENT_UPDATED, id: appointment.id }]);
+    });
+
     test('a settings change pushes settings:updated', async () => {
         const { events } = await captureWsEvents(api.wsUrl, () =>
             api.client.settings.update.mutate({ clinicName: 'Renamed Clinic' }),
