@@ -38,6 +38,20 @@ export const DEFAULT_REMINDER_LEAD_HOURS = 24;
 export const DEFAULT_REMINDER_NOTIFY_AT = '19:00';
 export const DEFAULT_REMINDER_REPEAT_MINUTES = 30;
 
+/** Seeded on first boot. The clinic renames itself in-app (§12). */
+export const DEFAULT_CLINIC_NAME = 'Clinic';
+
+/**
+ * Seeded reminder message (§11). Placeholders are substituted at send time;
+ * anything unrecognized is left as written, so a typo is visible rather than
+ * silently dropped.
+ */
+export const DEFAULT_REMINDER_TEMPLATE =
+    'Hello {{name}}, this is a reminder of your appointment at {{clinic}} on {{date}} at {{time}}.';
+
+export const REMINDER_PLACEHOLDERS = ['name', 'clinic', 'date', 'time', 'ref'] as const;
+export type ReminderPlaceholder = (typeof REMINDER_PLACEHOLDERS)[number];
+
 /** Bounds for a duration, independent of what the clinic configures. */
 export const MIN_DURATION_MINUTES = 5;
 export const MAX_DURATION_MINUTES = 480;

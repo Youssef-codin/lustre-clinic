@@ -39,6 +39,10 @@ export const ERROR_CODE = {
     PROCEDURE_DUPLICATE: 'PROCEDURE_DUPLICATE',
     /** Procedure nesting is one level deep; a subtype may not have children. */
     PROCEDURE_NESTING_TOO_DEEP: 'PROCEDURE_NESTING_TOO_DEEP',
+    /** An `is_tooth_specific` procedure went on a visit with no tooth (§5). */
+    TOOTH_REQUIRED: 'TOOTH_REQUIRED',
+    /** A tooth was given for a procedure that is not tooth-specific (§5). */
+    TOOTH_NOT_APPLICABLE: 'TOOTH_NOT_APPLICABLE',
 
     // --- money --------------------------------------------------------------
     /** An amount was negative, or otherwise outside its allowed range. */

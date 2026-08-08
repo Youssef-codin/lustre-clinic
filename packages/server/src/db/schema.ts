@@ -9,6 +9,7 @@ import {
     PAYMENT_METHODS,
     QUESTION_KINDS,
     REMINDER_STATUSES,
+    TEETH,
 } from '@mawid/shared';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -76,6 +77,8 @@ export const procedureTypes = pgTable('procedure_types', {
     /** Piastres. */
     defaultPrice: integer('default_price').notNull(),
     hasQuantity: boolean('has_quantity').notNull().default(false),
+    /** Whether a line for this procedure must name a tooth (§5). */
+    isToothSpecific: boolean('is_tooth_specific').notNull().default(false),
     isCheckup: boolean('is_checkup').notNull().default(false),
     active: boolean('active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
@@ -167,6 +170,8 @@ export const visitProcedures = pgTable(
         quantity: integer('quantity').notNull().default(1),
         /** Snapshot of the price on the day. Line total is unit_price × quantity. */
         unitPrice: integer('unit_price').notNull(),
+        /** Palmer notation, e.g. `UL6`. Null when the procedure is not tooth-specific (§5). */
+        tooth: text('tooth', { enum: TEETH }),
         note: text('note'),
     },
     (t) => [

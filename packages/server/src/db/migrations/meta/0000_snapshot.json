@@ -511,6 +511,13 @@
           "notNull": true,
           "default": false
         },
+        "is_tooth_specific": {
+          "name": "is_tooth_specific",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "is_checkup": {
           "name": "is_checkup",
           "type": "boolean",
@@ -768,6 +775,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "tooth": {
+          "name": "tooth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "note": {
           "name": "note",

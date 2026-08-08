@@ -14,8 +14,55 @@ const envSchema = z.object({
         .url()
         .optional()
         .or(z.literal('').transform(() => undefined)),
-    /** §16 — not stored on the clinic machine. */
+    /**
+     * §17 — the external check that the machine is responding. Nothing can
+     * reach the clinic machine from outside the tailnet, so the heartbeat is
+     * outbound: the server pings this URL and the monitor alerts on silence.
+     * Disabled when unset.
+     */
+    HEARTBEAT_URL: z
+        .url()
+        .optional()
+        .or(z.literal('').transform(() => undefined)),
+    /** How often the heartbeat is sent. Keep it well under the monitor's window. */
+    HEARTBEAT_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
+
+    /**
+     * §16 — 32 bytes, hex or base64. Used to encrypt a dump before it leaves
+     * the machine. It is NOT stored on the clinic machine; off-site upload is
+     * refused without it. Local dumps are unencrypted, because the disk they
+     * sit on is the same disk Postgres is on.
+     */
     BACKUP_ENCRYPTION_KEY: z.string().optional(),
+    /** Where local dumps live. Mounted as a volume in compose. */
+    BACKUP_DIR: z.string().default('./backups'),
+    BACKUP_INTERVAL_HOURS: z.coerce.number().positive().default(24),
+    /** §16 — alert when no backup has succeeded in this long. */
+    BACKUP_STALE_AFTER_HOURS: z.coerce.number().positive().default(48),
+    /** Set when `pg_dump`/`pg_restore` are not on PATH. */
+    PG_BIN_DIR: z.string().optional(),
+
+    /**
+     * Off-site destination (§16) — Google Drive, via a service account. All
+     * three are required together; uploads are skipped when they are unset.
+     * The folder must live in a shared drive, or `BACKUP_DRIVE_SUBJECT` must
+     * name a user to impersonate: a service account has no Drive storage of its
+     * own. See `backup/drive.ts`.
+     */
+    BACKUP_DRIVE_FOLDER_ID: z.string().optional(),
+    BACKUP_DRIVE_CLIENT_EMAIL: z.string().optional(),
+    /** PEM from the service-account JSON; `\n` escapes are accepted. */
+    BACKUP_DRIVE_PRIVATE_KEY: z.string().optional(),
+    /** Domain-wide delegation: the user whose quota the files count against. */
+    BACKUP_DRIVE_SUBJECT: z.string().optional(),
+
+    /** Fallback off-site destination. Drive wins when both are configured. */
+    BACKUP_S3_BUCKET: z.string().optional(),
+    BACKUP_S3_ENDPOINT: z.string().optional(),
+    BACKUP_S3_REGION: z.string().optional(),
+    BACKUP_S3_ACCESS_KEY_ID: z.string().optional(),
+    BACKUP_S3_SECRET_ACCESS_KEY: z.string().optional(),
+    BACKUP_S3_PREFIX: z.string().default('mawid'),
 });
 
 export type Config = z.infer<typeof envSchema>;

@@ -215,6 +215,7 @@ CREATE TABLE procedure_types (
   name          TEXT NOT NULL,
   default_price INTEGER NOT NULL,
   has_quantity  BOOLEAN NOT NULL DEFAULT false,
+  is_tooth_specific BOOLEAN NOT NULL DEFAULT false,  -- lines must name a tooth
   is_checkup    BOOLEAN NOT NULL DEFAULT false,
   active        BOOLEAN NOT NULL DEFAULT true,
   sort_order    INTEGER NOT NULL DEFAULT 0
@@ -230,7 +231,8 @@ CREATE TABLE appointments (
   type_id      UUID REFERENCES procedure_types(id),
   note         TEXT,
   status       TEXT NOT NULL DEFAULT 'booked',
-               -- booked | checked_in | done | cancelled | no_show
+               -- booked | checked_in | awaiting_payment | done | cancelled | no_show
+               -- awaiting_payment is optional and does not hold the slot (§7)
   channel      TEXT NOT NULL DEFAULT 'desk',   -- desk | walk_in
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -269,6 +271,7 @@ CREATE TABLE visit_procedures (
   procedure_id UUID NOT NULL REFERENCES procedure_types(id),
   quantity     INTEGER NOT NULL DEFAULT 1,
   unit_price   INTEGER NOT NULL,          -- snapshot
+  tooth        TEXT,                      -- e.g. 'UL6'; null when not tooth-specific
   note         TEXT
 );
 
@@ -331,7 +334,11 @@ Test cases: identical start, one ending exactly when the next begins, fully cont
 
 **Price snapshotting** — `visit_procedures.unit_price` is copied at write time. Line total is `unit_price × quantity`.
 
-**`has_quantity` false** ⇒ that procedure may appear at most once per visit.
+**`has_quantity` false** ⇒ that procedure may appear at most once per visit *per tooth*. An extraction on `UL6` and one on `UR3` are two lines; two extraction lines on `UL6`, or two lines of the same non-tooth-specific procedure, are rejected as `PROCEDURE_DUPLICATE`. Enforced in the service layer.
+
+**Tooth notation** — Palmer. Quadrant (`UR | UL | LL | LR`) then position: `1`–`8` outwards from the central incisor for permanent teeth, `A`–`E` for primary. `UL6` is the upper-left first molar. The full set is `TEETH` in `@mawid/shared`; the client renders it as a searchable dropdown, so `tooth` is never free text.
+
+**`is_tooth_specific`** decides whether a tooth belongs on the line, and the two cases are symmetric. A tooth-specific procedure with no tooth is `TOOTH_REQUIRED`; a tooth on a procedure that is not tooth-specific is `TOOTH_NOT_APPLICABLE`. Both are 422, enforced in the service layer. The flag is also what tells the client whether to show the tooth dropdown at all.
 
 **Age** derived from `birth_date` at read time.
 
@@ -371,15 +378,24 @@ Walk-ins are subject to the same overlap constraint.
 **Status transitions**
 
 ```
-booked ──► checked_in ──► done
-   │
+booked ──► checked_in ──► awaiting_payment ──► done
+   │             └──────────────────────────────►┘
    ├──► cancelled
    └──► no_show
 ```
 
 `checked_in` creates the `visits` row. `done` is set at checkout.
 
-There is no unpaid status. Balance is derived (§10).
+`awaiting_payment` is optional. The doctor sets it when he is finished and the
+patient goes to the desk to settle up; the secretary then checks them out.
+Checkout accepts `checked_in` or `awaiting_payment`, so a walk-in or a quick
+checkup still goes straight to `done`.
+
+An `awaiting_payment` appointment does **not** hold its slot — the patient has
+left the chair, so the exclusion constraint stays `('booked','checked_in')`.
+
+`awaiting_payment` is not an unpaid status: it says where the patient is, not
+what they owe. Balance is derived (§10).
 
 ---
 
@@ -394,6 +410,9 @@ CHECK IN            patient has arrived
 (procedures and price may be set at any point from here)
                           ↓
 BOOK NEXT           optional, inline
+                          ↓
+AWAITING PAYMENT    optional — the doctor is done, the patient owes at the desk
+                    → appointment.status: awaiting_payment
                           ↓
 CHECK OUT           amount confirmed and editable here
                     → charged_total set
@@ -520,7 +539,7 @@ procedure.create            m
 procedure.update            m
 
 patient.search              q  ({ q })
-patient.byId                q  → { patient, visits }   — one payload
+patient.byId                q  → { patient, visits, questionnaireGaps }  — one payload
 patient.create              m
 patient.update              m
 
@@ -535,6 +554,7 @@ appointment.create          m  → discriminated union on patient
 appointment.walkIn          m  → creates + checks in, starts_at = now
 appointment.update          m
 appointment.cancel          m  → status: cancelled
+appointment.awaitPayment    m  → status: awaiting_payment, from checked_in only
 
 visit.checkIn               m  ({ appointmentId })
 visit.byId                  q
@@ -561,7 +581,7 @@ stats.summary               q  ({ from, to, branchId })
 
 **`appointment.byDate`** embeds `{ id, name, phone }` per row.
 
-**`patient.byId`** returns patient and visit history in one payload.
+**`patient.byId`** returns patient and visit history in one payload, plus `questionnaireGaps`: the active custom questions this record is `unanswered` for, or whose stored answer is `answer_no_longer_valid` because the question narrowed since. Custom answers are validated against the questionnaire as it stood when they were given, never as it stands now, so editing a patient is never blocked by a question added or changed since they registered — `questionnaireGaps` is how the records screen knows what is left to ask.
 
 **`visit.setProcedures`** replaces the full procedure list; it does not patch individual lines.
 

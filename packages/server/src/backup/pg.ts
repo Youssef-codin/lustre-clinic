@@ -1,0 +1,106 @@
+import { join } from 'node:path';
+import postgres from 'postgres';
+import { config } from '../config.ts';
+
+/**
+ * SPEC §16 — `pg_dump` on a schedule, and every dump verified by restoring it
+ * into a scratch database. A dump that has never been restored is not a backup.
+ *
+ * `pg_dump` and `pg_restore` are external binaries. The `oven/bun` image does
+ * not ship them, so the server image installs `postgresql-client` (see
+ * compose.yaml); `PG_BIN_DIR` covers a host where they are not on PATH.
+ *
+ * Custom format (`-Fc`) because it restores selectively and compresses.
+ */
+
+function bin(name: string): string {
+    return config.PG_BIN_DIR ? join(config.PG_BIN_DIR, name) : name;
+}
+
+async function run(cmd: string[]): Promise<void> {
+    const proc = Bun.spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
+    const [exitCode, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+
+    if (exitCode !== 0) {
+        // The command line can carry the database password, so it is not
+        // included in the error — only the program name and what it printed.
+        throw new Error(`${cmd[0]} exited ${exitCode}: ${stderr.trim().slice(0, 500)}`);
+    }
+}
+
+export async function pgDump(databaseUrl: string, outFile: string): Promise<void> {
+    await run([
+        bin('pg_dump'),
+        '--format=custom',
+        '--no-owner',
+        '--no-privileges',
+        '--file',
+        outFile,
+        databaseUrl,
+    ]);
+}
+
+export async function pgRestore(databaseUrl: string, dumpFile: string): Promise<void> {
+    await run([bin('pg_restore'), '--no-owner', '--no-privileges', '--dbname', databaseUrl, dumpFile]);
+}
+
+/** The same server, a different database name. */
+export function withDatabase(databaseUrl: string, database: string): string {
+    const url = new URL(databaseUrl);
+    url.pathname = `/${database}`;
+    return url.toString();
+}
+
+export function databaseName(databaseUrl: string): string {
+    return new URL(databaseUrl).pathname.replace(/^\//, '');
+}
+
+/** Creates an empty database, replacing any existing one of that name. */
+export async function recreateDatabase(databaseUrl: string, name: string): Promise<string> {
+    const admin = postgres(withDatabase(databaseUrl, 'postgres'), { max: 1, onnotice: () => {} });
+    try {
+        // `name` is generated or operator-supplied, never request input, but it
+        // is still quoted.
+        await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+        await admin.unsafe(`CREATE DATABASE "${name}"`);
+    } finally {
+        await admin.end();
+    }
+    return withDatabase(databaseUrl, name);
+}
+
+export async function dropDatabase(databaseUrl: string, name: string): Promise<void> {
+    const admin = postgres(withDatabase(databaseUrl, 'postgres'), { max: 1, onnotice: () => {} });
+    try {
+        await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+    } finally {
+        await admin.end();
+    }
+}
+
+/**
+ * Runs `fn` against a freshly created, empty database and drops it afterwards
+ * whether or not `fn` succeeded. `CREATE DATABASE` cannot run inside a
+ * transaction, so this uses a dedicated connection to `postgres`.
+ */
+export async function withScratchDatabase<T>(
+    databaseUrl: string,
+    name: string,
+    fn: (scratchUrl: string) => Promise<T>,
+): Promise<T> {
+    const admin = postgres(withDatabase(databaseUrl, 'postgres'), { max: 1, onnotice: () => {} });
+
+    try {
+        // `name` is generated here, never user input, but it is still quoted.
+        await admin.unsafe(`DROP DATABASE IF EXISTS "${name}"`);
+        await admin.unsafe(`CREATE DATABASE "${name}"`);
+
+        try {
+            return await fn(withDatabase(databaseUrl, name));
+        } finally {
+            await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+        }
+    } finally {
+        await admin.end();
+    }
+}

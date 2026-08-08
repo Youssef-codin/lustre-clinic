@@ -1,0 +1,262 @@
+import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { APPOINTMENT_TRANSITIONS, type AppointmentStatus, ERROR_CODE } from '@mawid/shared';
+import { eq } from 'drizzle-orm';
+import { db } from '../src/db/index.ts';
+import { reminders } from '../src/db/schema.ts';
+import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
+import { reminderService } from '../src/modules/reminder/reminder.service.ts';
+import { settingsService } from '../src/modules/settings/settings.service.ts';
+import { visitService } from '../src/modules/visit/visit.service.ts';
+import { setupDatabase, truncateAll } from './helpers/db.ts';
+import { bookedAppointment, clinic, expectAppError, slot } from './helpers/factories.ts';
+
+/**
+ * SPEC §7 — rescheduling and manual resolution.
+ *
+ * `appointment.update` is the one call that can move an appointment in time,
+ * and it carries three things nothing else does: the overlap constraint applies
+ * to an UPDATE as well as an INSERT, the reminder has to follow the new time,
+ * and `no_show` is the only status the client sets through this route.
+ *
+ * `overlap.test.ts` proves Postgres refuses a colliding UPDATE. This proves the
+ * service turns that refusal into something the client can act on.
+ */
+
+async function reminderFor(appointmentId: string) {
+    const [row] = await db.select().from(reminders).where(eq(reminders.appointmentId, appointmentId));
+    return row;
+}
+
+beforeAll(async () => {
+    await setupDatabase();
+});
+
+beforeEach(async () => {
+    await truncateAll();
+});
+
+describe('rescheduling', () => {
+    test('moves the appointment and reports the new time', async () => {
+        const { appointment } = await bookedAppointment();
+        const moved = new Date(Date.parse(slot()) + 3_600_000).toISOString();
+
+        const updated = await appointmentService.update({ id: appointment.id, startsAt: moved });
+
+        expect(updated.startsAt.toISOString()).toBe(moved);
+    });
+
+    test('reports a collision as SLOT_OVERLAP rather than a database error', async () => {
+        // The counterpart to the create-path test in modules.test.ts. Without
+        // the mapping the client gets an opaque 23P01 and cannot say why.
+        const fixtures = await clinic();
+        const first = await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+        const second = await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: new Date(Date.parse(slot()) + 3_600_000).toISOString(),
+            offsetMinutes: 0,
+        });
+
+        await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
+            appointmentService.update({ id: second.id, startsAt: first.startsAt.toISOString() }),
+        );
+    });
+
+    test('a refused reschedule leaves the appointment where it was', async () => {
+        const fixtures = await clinic();
+        const startsAt = slot();
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+        const movingAt = new Date(Date.parse(startsAt) + 3_600_000).toISOString();
+        const second = await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: movingAt,
+            offsetMinutes: 0,
+        });
+
+        await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
+            appointmentService.update({ id: second.id, startsAt }),
+        );
+
+        const after = await appointmentService.byId(second.id);
+        expect(after.startsAt.toISOString()).toBe(movingAt);
+    });
+
+    test('the reminder follows the appointment', async () => {
+        const { appointment } = await bookedAppointment();
+        const { reminderLeadHours } = await settingsService.get();
+        const moved = new Date(Date.parse(slot()) + 5 * 3_600_000).toISOString();
+
+        await appointmentService.update({ id: appointment.id, startsAt: moved });
+
+        // §11 — `due_at = starts_at - reminder_lead_hours`. A reminder left on
+        // the old time fires for an appointment that is no longer then.
+        const reminder = await reminderFor(appointment.id);
+        expect(reminder?.dueAt.toISOString()).toBe(
+            new Date(Date.parse(moved) - reminderLeadHours * 3_600_000).toISOString(),
+        );
+    });
+
+    test('extending a duration into the next appointment is refused', async () => {
+        // 09:00–09:20 followed by 09:20–09:40. Stretching the first to 45
+        // minutes runs it into the second. Both durations are ones the clinic
+        // actually offers, so this fails on the overlap and not on validation.
+        const fixtures = await clinic();
+        const startsAt = slot();
+        const first = await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt,
+            durationMinutes: 20,
+            offsetMinutes: 0,
+        });
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: new Date(Date.parse(startsAt) + 20 * 60_000).toISOString(),
+            durationMinutes: 20,
+            offsetMinutes: 0,
+        });
+
+        await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
+            appointmentService.update({ id: first.id, durationMinutes: 45 }),
+        );
+    });
+
+    test('refuses a duration the clinic has not configured', async () => {
+        const { appointment } = await bookedAppointment();
+
+        await expectAppError(ERROR_CODE.INVALID_DURATION, () =>
+            appointmentService.update({ id: appointment.id, durationMinutes: 37 }),
+        );
+    });
+
+    test('keeps the original ref, so the number the patient was given still works', async () => {
+        // The ref carries the booking date, not the appointment date. Moving an
+        // appointment does not reissue it — the patient is holding the old one.
+        const { appointment } = await bookedAppointment();
+        const moved = new Date(Date.parse(slot()) + 48 * 3_600_000).toISOString();
+
+        const updated = await appointmentService.update({ id: appointment.id, startsAt: moved });
+
+        expect(updated.ref).toBe(appointment.ref);
+    });
+
+    test('rejects an unknown appointment', async () => {
+        await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+            appointmentService.update({ id: Bun.randomUUIDv7(), note: 'nobody' }),
+        );
+    });
+});
+
+describe('status transitions', () => {
+    test('marking no_show skips the reminder', async () => {
+        const { appointment } = await bookedAppointment();
+
+        await appointmentService.update({ id: appointment.id, status: 'no_show' });
+
+        // §11 — nobody is owed a message about an appointment that did not happen.
+        expect((await reminderFor(appointment.id))?.status).toBe('skipped');
+        const pending = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
+        expect(pending.map((r) => r.appointmentId)).not.toContain(appointment.id);
+    });
+
+    test('a no_show frees the slot', async () => {
+        // The exclusion constraint covers `booked` and `checked_in` only, so
+        // resolving a missed appointment makes the time bookable again (§5).
+        const fixtures = await clinic();
+        const startsAt = slot();
+        const first = await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+
+        await appointmentService.update({ id: first.id, status: 'no_show' });
+
+        const rebooked = await appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+        expect(rebooked.id).not.toBe(first.id);
+    });
+
+    test('refuses no_show on an appointment that is already resolved', async () => {
+        const { appointment } = await bookedAppointment();
+        await appointmentService.cancel(appointment.id);
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            appointmentService.update({ id: appointment.id, status: 'no_show' }),
+        );
+    });
+
+    test('refuses no_show on a checked-in appointment', async () => {
+        const { appointment } = await bookedAppointment();
+        await visitService.checkIn({ appointmentId: appointment.id });
+
+        // §7: `checked_in` goes only to `awaiting_payment` or `done`. Somebody
+        // who is in the chair cannot retroactively not have turned up.
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            appointmentService.update({ id: appointment.id, status: 'no_show' }),
+        );
+    });
+
+    test('the transition table permits exactly what §7 draws', () => {
+        // A guard on the table itself: every service guard reads from it, so a
+        // stray edit here would quietly re-open a transition the spec closed.
+        expect(APPOINTMENT_TRANSITIONS).toEqual({
+            booked: ['checked_in', 'cancelled', 'no_show'],
+            checked_in: ['awaiting_payment', 'done'],
+            awaiting_payment: ['done'],
+            done: [],
+            cancelled: [],
+            no_show: [],
+        });
+    });
+
+    test('no terminal status transitions anywhere', () => {
+        const terminal: AppointmentStatus[] = ['done', 'cancelled', 'no_show'];
+        for (const status of terminal) {
+            expect(APPOINTMENT_TRANSITIONS[status]).toEqual([]);
+        }
+    });
+});
+
+describe('reminder.markSkipped', () => {
+    test('takes a reminder off the pending list without marking it sent', async () => {
+        await bookedAppointment();
+        const [reminder] = await reminderService.pending({
+            dueOnly: false,
+            limit: 100,
+            offsetMinutes: 0,
+        });
+        if (!reminder) throw new Error('expected a pending reminder');
+
+        const skipped = await reminderService.markSkipped(reminder.id);
+
+        expect(skipped.status).toBe('skipped');
+        // §11 — delivery is never confirmable, so `sent` must mean somebody said
+        // they sent it. Skipping is not sending.
+        expect(skipped.sentAt).toBeNull();
+        expect((await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 })).length).toBe(
+            0,
+        );
+    });
+
+    test('rejects an unknown reminder', async () => {
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => reminderService.markSkipped(Bun.randomUUIDv7()));
+    });
+});
