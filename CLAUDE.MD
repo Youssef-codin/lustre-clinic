@@ -12,8 +12,15 @@ section before building against it.
 **Work on the branch that is already checked out. Never `git checkout -b`.**
 
 Each worktree stays on one long-lived branch. Commit to the branch you found,
-push it, open the PR from there against `main`. Stacked PRs only when asked for
-by name.
+push it, open the PR from there against `main`.
+
+## Feature Workflow
+
+1. Build the feature on the checked-out branch, using stacked PRs.
+2. Open the PR against `main`.
+3. Wait for the automated `opencode` review to finish.
+4. Read its comments and fix what genuinely needs fixing.
+5. Only then report back to the user — they do the final review.
 
 ## Key Conventions
 
