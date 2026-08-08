@@ -142,6 +142,14 @@ describe('appointments_no_overlap', () => {
         expect(id).toBeTruthy();
     });
 
+    test('an appointment awaiting payment does not hold its slot', async () => {
+        // §7 — that patient has left the chair for the desk, so the slot is
+        // bookable again even though the visit is not settled.
+        await book(0, 30, 'awaiting_payment');
+        const id = await book(0, 30);
+        expect(id).toBeTruthy();
+    });
+
     test('a checked-in appointment holds its slot', async () => {
         await book(0, 30, 'checked_in');
         await expectOverlap(() => book(0, 30));

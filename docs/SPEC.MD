@@ -231,7 +231,8 @@ CREATE TABLE appointments (
   type_id      UUID REFERENCES procedure_types(id),
   note         TEXT,
   status       TEXT NOT NULL DEFAULT 'booked',
-               -- booked | checked_in | done | cancelled | no_show
+               -- booked | checked_in | awaiting_payment | done | cancelled | no_show
+               -- awaiting_payment is optional and does not hold the slot (§7)
   channel      TEXT NOT NULL DEFAULT 'desk',   -- desk | walk_in
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -377,15 +378,24 @@ Walk-ins are subject to the same overlap constraint.
 **Status transitions**
 
 ```
-booked ──► checked_in ──► done
-   │
+booked ──► checked_in ──► awaiting_payment ──► done
+   │             └──────────────────────────────►┘
    ├──► cancelled
    └──► no_show
 ```
 
 `checked_in` creates the `visits` row. `done` is set at checkout.
 
-There is no unpaid status. Balance is derived (§10).
+`awaiting_payment` is optional. The doctor sets it when he is finished and the
+patient goes to the desk to settle up; the secretary then checks them out.
+Checkout accepts `checked_in` or `awaiting_payment`, so a walk-in or a quick
+checkup still goes straight to `done`.
+
+An `awaiting_payment` appointment does **not** hold its slot — the patient has
+left the chair, so the exclusion constraint stays `('booked','checked_in')`.
+
+`awaiting_payment` is not an unpaid status: it says where the patient is, not
+what they owe. Balance is derived (§10).
 
 ---
 
@@ -400,6 +410,9 @@ CHECK IN            patient has arrived
 (procedures and price may be set at any point from here)
                           ↓
 BOOK NEXT           optional, inline
+                          ↓
+AWAITING PAYMENT    optional — the doctor is done, the patient owes at the desk
+                    → appointment.status: awaiting_payment
                           ↓
 CHECK OUT           amount confirmed and editable here
                     → charged_total set
@@ -541,6 +554,7 @@ appointment.create          m  → discriminated union on patient
 appointment.walkIn          m  → creates + checks in, starts_at = now
 appointment.update          m
 appointment.cancel          m  → status: cancelled
+appointment.awaitPayment    m  → status: awaiting_payment, from checked_in only
 
 visit.checkIn               m  ({ appointmentId })
 visit.byId                  q

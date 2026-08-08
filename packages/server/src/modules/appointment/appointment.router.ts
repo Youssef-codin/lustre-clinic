@@ -1,5 +1,6 @@
 import { publicProcedure, router } from '../../trpc/init.ts';
 import {
+    awaitPaymentInput,
     byDateInput,
     byIdInput,
     cancelAppointmentInput,
@@ -30,4 +31,8 @@ export const appointmentRouter = router({
     cancel: publicProcedure
         .input(cancelAppointmentInput)
         .mutation(({ input }) => appointmentService.cancel(input.id)),
+
+    awaitPayment: publicProcedure
+        .input(awaitPaymentInput)
+        .mutation(({ input }) => appointmentService.awaitPayment(input.id)),
 });

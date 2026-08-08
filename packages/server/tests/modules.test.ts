@@ -10,7 +10,7 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
 import { setProceduresInput } from '../src/modules/visit/visit.schema.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
-import { setupDatabase, truncateAll } from './helpers/db.ts';
+import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import {
     CHECKUP_PRICE,
     EXTRACTION_PRICE,
@@ -741,6 +741,116 @@ describe('appointment', () => {
         // §7 — nothing transitions on a timer; it is still booked.
         expect(missed.find((a) => a.id === appointment.id)?.status).toBe('booked');
     });
+
+    test('never lists an appointment awaiting payment as missed', async () => {
+        const { branch, patient } = await fixtures();
+        const past = new Date(Date.now() - 3 * 3_600_000).toISOString();
+
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: past,
+            offsetMinutes: 0,
+        });
+        await visitService.checkIn({ appointmentId: appointment.id });
+        await appointmentService.awaitPayment(appointment.id);
+
+        // §7 — missed is `booked` past its end, and nothing else. The patient
+        // is standing at the desk; they did not fail to turn up.
+        const missed = await appointmentService.missed({ limit: 100 });
+        expect(missed.map((a) => a.id)).not.toContain(appointment.id);
+    });
+
+    test('the doctor sends a checked-in patient to the desk to pay', async () => {
+        const { branch, patient } = await fixtures();
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+        await visitService.checkIn({ appointmentId: appointment.id });
+
+        const awaiting = await appointmentService.awaitPayment(appointment.id);
+        expect(awaiting.status).toBe('awaiting_payment');
+    });
+
+    test('refuses to await payment on an appointment that is only booked', async () => {
+        const { branch, patient } = await fixtures();
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            appointmentService.awaitPayment(appointment.id),
+        );
+    });
+
+    test('refuses to await payment twice', async () => {
+        const { branch, patient } = await fixtures();
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+        await visitService.checkIn({ appointmentId: appointment.id });
+        await appointmentService.awaitPayment(appointment.id);
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            appointmentService.awaitPayment(appointment.id),
+        );
+    });
+
+    test('refuses to await payment on a cancelled appointment', async () => {
+        const { branch, patient } = await fixtures();
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+        await appointmentService.cancel(appointment.id);
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            appointmentService.awaitPayment(appointment.id),
+        );
+    });
+
+    test('an appointment awaiting payment frees its slot for a new booking', async () => {
+        const { branch, patient } = await fixtures();
+        const startsAt = slot();
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+        await visitService.checkIn({ appointmentId: appointment.id });
+
+        // Checked in, the slot is held.
+        await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt,
+                offsetMinutes: 0,
+            }),
+        );
+
+        await appointmentService.awaitPayment(appointment.id);
+
+        const next = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt,
+            offsetMinutes: 0,
+        });
+        expect(next.id).toBeTruthy();
+    });
 });
 
 describe('visit', () => {
@@ -955,6 +1065,39 @@ describe('visit', () => {
 
         const after = await appointmentService.byId(appointment.id);
         expect(after.status).toBe('done');
+    });
+
+    test('checks out a patient the doctor sent to the desk', async () => {
+        const { visit, appointment } = await checkedIn();
+        await appointmentService.awaitPayment(appointment.id);
+
+        // §7 — checkout accepts `awaiting_payment` as readily as `checked_in`.
+        const done = await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: 100_000,
+            paidTotal: 100_000,
+            method: 'cash',
+        });
+
+        expect(done.completedAt).not.toBeNull();
+        expect(done.balance).toBe(0);
+        expect((await appointmentService.byId(appointment.id)).status).toBe('done');
+    });
+
+    test('refuses to check out against an appointment that is not in progress', async () => {
+        const { visit, appointment } = await checkedIn();
+        // A no-show is set on the appointment, so the visit row survives while
+        // the appointment leaves the states checkout is allowed to close.
+        await sql`UPDATE appointments SET status = 'no_show' WHERE id = ${appointment.id}`;
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            visitService.checkOut({
+                visitId: visit.id,
+                chargedTotal: 100_000,
+                paidTotal: 0,
+                method: 'cash',
+            }),
+        );
     });
 
     test('checks out with nothing paid', async () => {

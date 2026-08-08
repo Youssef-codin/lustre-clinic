@@ -61,6 +61,9 @@ export const updateAppointmentInput = z.object({
 
 export const cancelAppointmentInput = z.object({ id: z.uuid() });
 
+/** §7 — the doctor is finished; the patient pays at the desk. */
+export const awaitPaymentInput = z.object({ id: z.uuid() });
+
 export const missedInput = z
     .object({
         branchId: z.uuid().optional(),

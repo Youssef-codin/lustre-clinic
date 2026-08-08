@@ -207,8 +207,8 @@ describe('status transitions', () => {
         const { appointment } = await bookedAppointment();
         await visitService.checkIn({ appointmentId: appointment.id });
 
-        // §7: `checked_in` goes only to `done`. Somebody who is in the chair
-        // cannot retroactively not have turned up.
+        // §7: `checked_in` goes only to `awaiting_payment` or `done`. Somebody
+        // who is in the chair cannot retroactively not have turned up.
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
             appointmentService.update({ id: appointment.id, status: 'no_show' }),
         );
@@ -219,7 +219,8 @@ describe('status transitions', () => {
         // stray edit here would quietly re-open a transition the spec closed.
         expect(APPOINTMENT_TRANSITIONS).toEqual({
             booked: ['checked_in', 'cancelled', 'no_show'],
-            checked_in: ['done'],
+            checked_in: ['awaiting_payment', 'done'],
+            awaiting_payment: ['done'],
             done: [],
             cancelled: [],
             no_show: [],

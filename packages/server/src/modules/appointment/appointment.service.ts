@@ -319,6 +319,36 @@ export const appointmentService = {
         return row;
     },
 
+    /**
+     * §7 — the doctor is done with the patient, who now owes money at the desk.
+     * Optional: the secretary can check out straight from `checked_in`.
+     *
+     * The slot is released by this, not held: `awaiting_payment` is outside the
+     * overlap constraint, because the chair is free again.
+     */
+    async awaitPayment(id: string): Promise<AppointmentRow> {
+        const current = await requireRow(id);
+
+        if (!canTransition(current.status, 'awaiting_payment')) {
+            throw new AppError(
+                ERROR_CODE.INVALID_STATUS_TRANSITION,
+                `cannot await payment on an appointment that is ${current.status}`,
+                422,
+            );
+        }
+
+        const [updated] = await db
+            .update(appointments)
+            .set({ status: 'awaiting_payment', updatedAt: new Date() })
+            .where(eq(appointments.id, id))
+            .returning();
+
+        if (!updated) throw AppError.notFound('appointment');
+
+        broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id });
+        return updated;
+    },
+
     /** Used by the visit module, which owns the check-in transition itself. */
     async requireExists(id: string): Promise<AppointmentRow> {
         return requireRow(id);
