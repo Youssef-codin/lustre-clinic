@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { ERROR_CODE } from '@mawid/shared';
+import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
 import { customQuestionService } from '../src/modules/customQuestion/customQuestion.service.ts';
@@ -817,6 +818,33 @@ describe('appointment', () => {
 
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
             appointmentService.awaitPayment(appointment.id),
+        );
+    });
+
+    test('two concurrent calls cannot both move the same appointment', async () => {
+        const { branch, patient } = await fixtures();
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+        await visitService.checkIn({ appointmentId: appointment.id });
+
+        // The status check and the write are one statement, so the loser here
+        // is refused rather than overwriting a status that moved underneath it
+        // — a checkout landing in the gap would otherwise strand a settled
+        // visit against an appointment stuck in `awaiting_payment`.
+        const results = await Promise.allSettled([
+            appointmentService.awaitPayment(appointment.id),
+            appointmentService.awaitPayment(appointment.id),
+        ]);
+
+        expect(results.filter((r) => r.status === 'fulfilled').length).toBe(1);
+        const rejected = results.find((r) => r.status === 'rejected');
+        expect((rejected as PromiseRejectedResult).reason).toBeInstanceOf(AppError);
+        expect(((rejected as PromiseRejectedResult).reason as AppError).code).toBe(
+            ERROR_CODE.INVALID_STATUS_TRANSITION,
         );
     });
 

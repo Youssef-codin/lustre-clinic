@@ -337,13 +337,24 @@ export const appointmentService = {
             );
         }
 
+        // The status is repeated in the predicate, so the read above is only an
+        // optimization for the error message — the write itself is what decides.
+        // A checkout committing `done` in between would otherwise leave a
+        // settled visit against an appointment stuck here, and checkout refuses
+        // to run twice, so there would be no way back.
         const [updated] = await db
             .update(appointments)
             .set({ status: 'awaiting_payment', updatedAt: new Date() })
-            .where(eq(appointments.id, id))
+            .where(and(eq(appointments.id, id), eq(appointments.status, 'checked_in')))
             .returning();
 
-        if (!updated) throw AppError.notFound('appointment');
+        if (!updated) {
+            throw new AppError(
+                ERROR_CODE.INVALID_STATUS_TRANSITION,
+                'the appointment stopped being checked in before the change landed',
+                409,
+            );
+        }
 
         broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id });
         return updated;
