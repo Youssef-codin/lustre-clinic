@@ -10,6 +10,7 @@
         "device:build": "bash scripts/device.sh --build",
         "device:start": "bash scripts/device.sh --start",
         "device:logs": "adb logcat -s ReactNativeJS:V ReactNative:V",
+        "device:stop": "cd android && ./gradlew --stop",
         "ios": "expo run:ios",
         "typecheck": "tsc --noEmit"
     },
