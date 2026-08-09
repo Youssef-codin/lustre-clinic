@@ -9,6 +9,8 @@
             "!**/migrations",
             "!**/backups",
             "!**/.expo",
+            "!.claude",
+            "!.impeccable",
             "!packages/app/android",
             "!packages/app/ios"
         ]
