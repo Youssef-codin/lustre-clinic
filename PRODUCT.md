@@ -3,9 +3,9 @@
 <!-- impeccable:product-schema 1 -->
 
 Product truth for Mawid. Repo-wide: `packages/app` inherits this file. The
-narrative source is [`docs/PRD.MD`](docs/PRD.MD); the technical contract is
-[`docs/SPEC.MD`](docs/SPEC.MD). This file records the durable facts design work
-must not re-derive or contradict.
+narrative source is the PRD and the technical contract is the spec, both on
+[Notion](https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc). This file
+records the durable facts design work must not re-derive or contradict.
 
 ## Platform
 
@@ -157,8 +157,8 @@ scaffold's light-only `userInterfaceStyle` as a brand decision.
 
 ## Evidence on Hand
 
-- `docs/PRD.MD` — client-confirmed problem, users, constraints, scope, rollout.
-- `docs/SPEC.MD` — 735 lines of technical contract, section-numbered and cited
+- **PRD** (Notion) — client-confirmed problem, users, constraints, scope, rollout.
+- **Technical Spec** (Notion) — the technical contract, section-numbered and cited
   throughout the code.
 - `packages/shared/src/enums.ts`, `constants.ts` — the real domain vocabulary.
 - `packages/server/src/db/schema.ts` and migrations — the real data model.

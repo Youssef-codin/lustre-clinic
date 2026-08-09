@@ -3,8 +3,8 @@
 Clinic management app for a dental practice. React Native client, on-prem server,
 Tailscale-only network.
 
-See [`docs/PRD.MD`](docs/PRD.MD) for what it does and why, and
-[`docs/SPEC.MD`](docs/SPEC.MD) for how it is built.
+The PRD (what it does and why) and the technical spec (how it is built) live on
+[Notion](https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc).
 
 ## Layout
 

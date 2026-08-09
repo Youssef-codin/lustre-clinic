@@ -33,8 +33,8 @@ jobs:
           prompt: |
             Review this pull request against its base branch.
 
-            Project rules live in CLAUDE.MD and docs/SPEC.MD — read them
-            first and treat them as authoritative. Pay particular attention
+            Project rules live in CLAUDE.MD — read it first and treat it as
+            authoritative. Pay particular attention
             to:
               - money handled as integer piastres (no floats/decimals)
               - timestamps as timestamptz, IDs as UUIDv7

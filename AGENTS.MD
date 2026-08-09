@@ -1,7 +1,6 @@
 # Agents — Mawid Development Guide
 
-`docs/SPEC.MD` is authoritative. `docs/PRD.MD` says why. Read the relevant
-section before building against it.
+The docs live on Notion: https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc
 
 ## Task completion Requirements
 
