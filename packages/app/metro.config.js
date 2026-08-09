@@ -2,6 +2,7 @@
 // the `AppRouter` type from `@mawid/server` resolve from packages/, and must
 // resolve modules from both the package and the root node_modules.
 const { getDefaultConfig } = require('expo/metro-config');
+const { withNativeWind } = require('nativewind/metro');
 const path = require('node:path');
 
 const projectRoot = __dirname;
@@ -22,4 +23,5 @@ config.resolver.nodeModulesPaths = [
 // expo-dev-menu, and the bundle fails outright without this.
 config.resolver.disableHierarchicalLookup = false;
 
-module.exports = config;
+// NativeWind compiles tailwind.config.js through global.css at bundle time.
+module.exports = withNativeWind(config, { input: './global.css' });
