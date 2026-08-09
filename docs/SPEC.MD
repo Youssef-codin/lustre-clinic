@@ -631,7 +631,7 @@ Both addresses are configured during onboarding.
 
 ## 15. Deployment
 
-Docker Compose on Debian: server + postgres 17 + GlitchTip (web, worker, redis) per §17.
+Docker Compose on Debian: server + postgres 17, plus GlitchTip (web, worker, migrate, redis, and its own postgres 17) per §17.
 
 - Systemd, `Restart=always`, for Docker and Tailscale
 - BIOS auto-power-on after outage
@@ -680,7 +680,7 @@ A crash on a phone leaves no trace on the server. The secretary reports "it clos
 Expo app ──@sentry/react-native──> Tailscale ──> GlitchTip ──> PostgreSQL 17
 ```
 
-**Deployment** (§15) — additional compose services: the GlitchTip web process, its worker, and Redis for the queue. It gets its own database on the existing Postgres 17 container, separate from `mawid`; backups (§16) cover `mawid` only, since crash reports are disposable. Published on the Tailscale interface like the API. Open registration is disabled once the first account exists.
+**Deployment** (§15) — additional compose services: the GlitchTip web process, its worker, and Redis for the queue. It gets its **own Postgres 17 container and volume**, not a second database on the app's: backups (§16) then cover the `mawid` container wholesale without ever picking up crash reports, and the nightly retention purge cannot churn or bloat the volume the clinic's data lives on. Events older than `GLITCHTIP_MAX_EVENT_LIFE_DAYS` (default 90) are deleted by the Celery beat schedule in the worker — the worker is what enforces retention, so it is not optional. Crash reports are disposable and are never backed up. Published on the Tailscale interface like the API. Open registration is disabled once the first account exists.
 
 **DSN** — points at the **MagicDNS hostname**, never the LAN address. The DSN is baked into the build, so it has to resolve from anywhere on the tailnet; §14's two-address probe applies to the API only. A missing or empty DSN disables reporting and must not crash the app — that is the state every dev machine is in.
 
