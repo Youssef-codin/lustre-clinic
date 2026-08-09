@@ -171,6 +171,17 @@ describe('clinic days', () => {
         expect(result.success).toBe(false);
     });
 
+    test('rejects a time carrying seconds, which would not survive the round trip', () => {
+        const result = setClinicDayInput.safeParse({
+            weekday: 1,
+            branchId: Bun.randomUUIDv7(),
+            opensAt: '10:00:15',
+            closesAt: '18:00',
+        });
+
+        expect(result.success).toBe(false);
+    });
+
     test('rejects a weekday outside 0–6', () => {
         const branchId = Bun.randomUUIDv7();
         const hours = { opensAt: '10:00', closesAt: '18:00' };

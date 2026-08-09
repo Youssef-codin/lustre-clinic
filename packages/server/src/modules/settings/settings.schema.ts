@@ -41,18 +41,24 @@ export type UpdateSettingsInput = z.infer<typeof updateSettingsInput>;
  */
 const weekday = z.number().int().min(0).max(6);
 
-const withSeconds = (t: string) => (t.length === 5 ? `${t}:00` : t);
+/**
+ * `HH:MM` exactly — no seconds. A clinic opens at ten, not at ten and a
+ * quarter of a minute, and the schedule is read back as `HH:MM`: accepting
+ * seconds here would store a value that never survives a round trip, so
+ * echoing a day back into `setDay` would silently shift it.
+ */
+const openingTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'expected HH:MM');
 
 export const setClinicDayInput = z
     .object({
         weekday,
         branchId: z.uuid(),
-        opensAt: timeOfDay,
-        closesAt: timeOfDay,
+        opensAt: openingTime,
+        closesAt: openingTime,
     })
-    // Both are zero-padded `HH:MM[:SS]`, so comparing them as strings orders
-    // them by time — once the seconds are present on both sides.
-    .refine((v) => withSeconds(v.opensAt) < withSeconds(v.closesAt), {
+    // Both are zero-padded `HH:MM`, so comparing them as strings orders them
+    // by time.
+    .refine((v) => v.opensAt < v.closesAt, {
         message: 'opensAt must be before closesAt',
         path: ['closesAt'],
     });
