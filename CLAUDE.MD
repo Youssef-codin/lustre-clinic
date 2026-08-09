@@ -37,6 +37,7 @@ push it, open the PR from there against `main`.
   `AppRouter`. Only what inference cannot provide (`ERROR_CODE`, domain enums,
   constants, shared Zod schemas) lives in `packages/shared`.
 - **Never log patient data** — no names, phone numbers, notes, or amounts. IDs
-  and error codes only. This applies to pino and to Discord alerts.
+  and error codes only. This applies to pino, to Discord alerts, and to
+  everything the client sends GlitchTip (§17 — allow-list, never strip).
 - **The client localizes from `ERROR_CODE`**, never by parsing server message
   text. Server messages stay English for logs.
