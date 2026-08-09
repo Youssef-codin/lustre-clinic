@@ -3,6 +3,7 @@ import type { KeyboardTypeOptions } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import type { TextVariant } from '../../theme';
 import { color, containsArabic, font, size, space, Text, type } from '../../theme';
+import { Placeholder } from './Placeholder';
 
 export type InlineEditorProps = {
     value: string;
@@ -95,14 +96,14 @@ export function InlineEditor({
                 }}
                 keyboardType={keyboardType}
                 returnKeyType="done"
-                placeholder={placeholder}
-                placeholderTextColor={color.muted}
+                accessibilityLabel={accessibilityLabel ?? placeholder}
                 style={[
                     type[variant],
                     styles.input,
                     { fontFamily: containsArabic(draft) ? font.arabic.regular : font.sans.regular },
                 ]}
             />
+            <Placeholder text={placeholder} visible={!draft} variant={variant} />
         </View>
     );
 }

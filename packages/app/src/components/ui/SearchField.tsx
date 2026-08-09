@@ -1,6 +1,7 @@
 import type { TextInputProps } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { color, containsArabic, font, radius, size, space, Text, type } from '../../theme';
+import { Placeholder } from './Placeholder';
 
 export type SearchFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
     value: string;
@@ -10,8 +11,8 @@ export type SearchFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextCo
     onClear?: () => void;
 };
 
-export function SearchField({ variant = 'inline', onClear, ...input }: SearchFieldProps) {
-    const arabic = containsArabic(input.value || input.placeholder || '');
+export function SearchField({ variant = 'inline', onClear, placeholder, ...input }: SearchFieldProps) {
+    const arabic = containsArabic(input.value || placeholder || '');
 
     return (
         <View style={[styles.box, variant === 'sheet' ? styles.sheet : styles.inline]}>
@@ -19,14 +20,17 @@ export function SearchField({ variant = 'inline', onClear, ...input }: SearchFie
                 {'⌕'}
             </Text>
 
-            <TextInput
-                {...input}
-                accessibilityRole="search"
-                returnKeyType="search"
-                autoCorrect={false}
-                placeholderTextColor={color.muted}
-                style={[styles.input, { fontFamily: arabic ? font.arabic.regular : font.sans.regular }]}
-            />
+            <View style={styles.inputWrap}>
+                <TextInput
+                    accessibilityLabel={placeholder}
+                    {...input}
+                    accessibilityRole="search"
+                    returnKeyType="search"
+                    autoCorrect={false}
+                    style={[styles.input, { fontFamily: arabic ? font.arabic.regular : font.sans.regular }]}
+                />
+                <Placeholder text={placeholder} visible={!input.value} />
+            </View>
 
             {input.value.length > 0 ? (
                 <Pressable
@@ -63,5 +67,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     sheet: { minHeight: 42, backgroundColor: color.canvas },
-    input: { ...type.body, flex: 1, color: color.ink, paddingVertical: space[2] },
+    inputWrap: { flex: 1, justifyContent: 'center' },
+    input: { ...type.body, alignSelf: 'stretch', color: color.ink, paddingVertical: space[2] },
 });

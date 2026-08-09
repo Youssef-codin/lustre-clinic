@@ -42,6 +42,8 @@ export { ListEditor } from './ListEditor';
 export { duration, easing, PULSE } from './motion';
 export type { NumericFieldProps, NumericFieldVariant } from './NumericField';
 export { NumericField } from './NumericField';
+export type { PlaceholderProps } from './Placeholder';
+export { Placeholder } from './Placeholder';
 export type { MenuAnchor, MenuItem, PopoverMenuProps } from './PopoverMenu';
 export { MenuSurface, PopoverMenu } from './PopoverMenu';
 export type { ProgressBarProps, ProgressTone } from './ProgressBar';

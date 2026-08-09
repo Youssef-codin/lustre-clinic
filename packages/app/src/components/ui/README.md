@@ -68,7 +68,7 @@ in the content.
 | --- | --- |
 | Chrome | `TopBar` `ScreenHeader` `ActionBar` `PushView` |
 | Controls | `Button` `IconButton` `AddButton` `Chip` `Switch` `Radio` `SegmentedControl` `Stepper` `ReorderControls` |
-| Fields | `Field` `TextField` `Textarea` `NumericField` `SearchField` `Select` `InlineEditor` `ListEditor` |
+| Fields | `Field` `TextField` `Textarea` `NumericField` `SearchField` `Select` `InlineEditor` `ListEditor` `Placeholder` |
 | Surfaces | `Card` `CardDivider` `SectionLabel` `Tag` `Dot` `ProgressBar` `Chevron` |
 | Overlays | `Sheet` `ConfirmSheet` `Scrim` `PopoverMenu` `DropdownMenu` |
 | Feedback | `Toast` `Callout` `Banner` `EmptyState` |
@@ -98,6 +98,12 @@ ported. `HomeIndicator` is the device's, not ours.
   edit never reaches the caller, so it never reaches the server.
 - **`PopoverMenu` takes its anchor** rather than measuring the trigger. The
   trigger is a top-bar button at a fixed inset on every screen that has one.
+- **Placeholders are drawn by us, not by `TextInput`.** Android renders the
+  native hint in the system typeface whatever `fontFamily` the input carries — on
+  a Samsung the placeholder came out in One UI's face beside a label in
+  Instrument Sans. Every input routes through `Placeholder`, so the platforms
+  cannot drift, and an Arabic placeholder gets Noto Naskh, which the native hint
+  could not do either. Found on a device; no check we run would have caught it.
 
 ## Motion
 

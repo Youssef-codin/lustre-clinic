@@ -3,6 +3,7 @@ import type { TextInputProps } from 'react-native';
 import { I18nManager, StyleSheet, TextInput, View } from 'react-native';
 import { color, font, radius, size, space, Text, type } from '../../theme';
 import { Field } from './Field';
+import { Placeholder } from './Placeholder';
 
 export type NumericFieldVariant = 'display' | 'end' | 'inline';
 
@@ -38,6 +39,7 @@ export function NumericField({
     variant = 'end',
     prefix,
     suffix,
+    placeholder,
     ...input
 }: NumericFieldProps) {
     const [focused, setFocused] = useState(false);
@@ -60,24 +62,32 @@ export function NumericField({
                     </Text>
                 ) : null}
 
-                <TextInput
-                    {...input}
-                    keyboardType="decimal-pad"
-                    placeholderTextColor={color.muted}
-                    onFocus={(event) => {
-                        setFocused(true);
-                        input.onFocus?.(event);
-                    }}
-                    onBlur={(event) => {
-                        setFocused(false);
-                        input.onBlur?.(event);
-                    }}
-                    style={[
-                        styles.input,
-                        display ? styles.figure : styles.amount,
-                        variant === 'end' && styles.endAligned,
-                    ]}
-                />
+                <View style={styles.inputWrap}>
+                    <TextInput
+                        accessibilityLabel={label ?? placeholder}
+                        {...input}
+                        keyboardType="decimal-pad"
+                        onFocus={(event) => {
+                            setFocused(true);
+                            input.onFocus?.(event);
+                        }}
+                        onBlur={(event) => {
+                            setFocused(false);
+                            input.onBlur?.(event);
+                        }}
+                        style={[
+                            styles.input,
+                            display ? styles.figure : styles.amount,
+                            variant === 'end' && styles.endAligned,
+                        ]}
+                    />
+                    <Placeholder
+                        text={placeholder}
+                        visible={!input.value}
+                        variant={display ? 'figure' : 'amount'}
+                        align={variant === 'end' ? 'end' : 'start'}
+                    />
+                </View>
 
                 {suffix ? (
                     <Text variant="callout" tone="muted">
@@ -106,7 +116,8 @@ const styles = StyleSheet.create({
     focused: { borderColor: color.ink },
     inlineFocused: { borderBottomColor: color.ink },
     errored: { borderColor: color.danger },
-    input: { flex: 1, color: color.ink, paddingVertical: space[2] },
+    inputWrap: { flex: 1, justifyContent: 'center' },
+    input: { alignSelf: 'stretch', color: color.ink, paddingVertical: space[2] },
     figure: { ...type.figure, fontFamily: font.mono.medium },
     amount: { ...type.amount, fontFamily: font.mono.medium },
     // React Native has no logical `textAlign`, and `auto` aligns to the string's

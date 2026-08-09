@@ -96,6 +96,13 @@ export function Sheet({
     }, [visible, progress, reducedMotion]);
 
     function requestClose() {
+        // Every close path lands here, including Android's hardware back button —
+        // which `Modal` routes to `onRequestClose` whatever the scrim is doing. A
+        // sheet held open by a write in flight has to refuse all of them, or the
+        // back button cancels a confirm into an unknown state and the user
+        // re-confirms a write that may already have been issued.
+        if (!dismissable) return;
+
         // The keyboard belongs to a field that is about to unmount. Dismissing it
         // first means one animation instead of two fighting.
         Keyboard.dismiss();
@@ -121,7 +128,7 @@ export function Sheet({
             testID={testID}
         >
             <View style={styles.root}>
-                <Scrim opacity={progress} onPress={dismissable ? requestClose : undefined} />
+                <Scrim opacity={progress} onPress={requestClose} />
 
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
