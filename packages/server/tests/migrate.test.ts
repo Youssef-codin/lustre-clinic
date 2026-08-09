@@ -25,6 +25,7 @@ const TRUNCATED_TABLES = [
     'appointments',
     'patients',
     'procedure_types',
+    'clinic_days',
     'branches',
     'custom_questions',
     'settings',

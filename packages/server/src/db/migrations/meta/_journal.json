@@ -15,6 +15,13 @@
       "when": 1785743600000,
       "tag": "0001_appointment_overlap",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786274881909,
+      "tag": "0002_light_triton",
+      "breakpoints": true
     }
   ]
 }
