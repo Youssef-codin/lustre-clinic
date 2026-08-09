@@ -98,14 +98,19 @@ services:
             # Retention. Celery beat purges events older than this nightly, so
             # the worker below is what actually enforces it.
             GLITCHTIP_MAX_EVENT_LIFE_DAYS: ${GLITCHTIP_MAX_EVENT_LIFE_DAYS:-90}
-            # Off once the first account exists (§17).
+            # Off once the first account exists (§17). Two separate gates in
+            # v4.2.2: ENABLE_USER_REGISTRATION is the signup gate (and defaults
+            # True, so leaving it unset lets any tailnet device self-register),
+            # while ENABLE_OPEN_USER_REGISTRATION only feeds org creation.
+            # Signup is permitted regardless while there are no users at all,
+            # so the first account can still be made with both off.
+            ENABLE_USER_REGISTRATION: ${GLITCHTIP_OPEN_REGISTRATION:-False}
             ENABLE_OPEN_USER_REGISTRATION: ${GLITCHTIP_OPEN_REGISTRATION:-False}
-            ENABLE_ORGANIZATION_CREATION: 'False'
         volumes:
             - glitchtip-uploads:/code/uploads
-        # Tailscale interface only, like the API.
+        # Tailscale interface only, like the API. The image binds :8080.
         ports:
-            - '${TAILSCALE_IP:-0.0.0.0}:8000:8000'
+            - '${TAILSCALE_IP:-0.0.0.0}:8000:8080'
         depends_on:
             glitchtip-db:
                 condition: service_healthy
