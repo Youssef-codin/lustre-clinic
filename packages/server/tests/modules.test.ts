@@ -365,6 +365,29 @@ describe('customQuestion', () => {
         );
     });
 
+    test('a date answer is a real calendar day, stored as it came in', async () => {
+        await customQuestionService.create({
+            key: 'last_xray',
+            label: 'Last x-ray',
+            kind: 'date',
+            required: false,
+            sortOrder: 0,
+        });
+
+        expect(await customQuestionService.validateIntake({ last_xray: '2026-02-28' })).toEqual({
+            last_xray: '2026-02-28',
+        });
+
+        // A day that does not exist, the wrong shape, and a timestamp — the
+        // stored value is a calendar date, with no time to drift across a
+        // timezone.
+        for (const answer of ['2026-02-31', '28-02-2026', '2026-02-28T10:00:00Z']) {
+            await expectAppError(ERROR_CODE.VALIDATION, () =>
+                customQuestionService.validateIntake({ last_xray: answer }),
+            );
+        }
+    });
+
     test('a select answer must be one of its options', async () => {
         await customQuestionService.create({
             key: 'referral',
