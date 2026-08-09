@@ -1,56 +1,25 @@
-import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
+import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react-native';
+import { color, font, type } from './tokens';
 
 /**
  * The type ramp. A screen picks a variant; it never picks a size, a line height
- * or a family. Adding a size means adding it to `fontSize` in tailwind.config.js
- * and giving it a name here.
+ * or a family. Adding a size means adding it to `type` in tokens.ts and giving
+ * it a name here.
  */
-export type TextVariant =
-    | 'display' // money hero figure
-    | 'title' // screen h1
-    | 'title2'
-    | 'title3'
-    | 'headline' // card titles, row primaries
-    | 'body' // default
-    | 'callout'
-    | 'subhead' // row secondaries
-    | 'footnote'
-    | 'caption'
-    | 'figure' // large numeric field — mono
-    | 'amount' // prices and row amounts — mono
-    | 'eyebrow' // uppercase tracked section label — mono
-    | 'tag'; // uppercase tracked tag — mono
+export type TextVariant = keyof typeof type;
 
-export type TextWeight = 'regular' | 'medium' | 'semibold' | 'bold';
+export type TextWeight = keyof typeof font.sans;
 
-export type TextTone = 'ink' | 'ink2' | 'muted' | 'accent' | 'success' | 'danger' | 'wa' | 'inverse';
+export type TextTone = 'ink' | 'ink2' | 'muted' | 'accent' | 'success' | 'due' | 'danger' | 'wa' | 'inverse';
 
-type Script = 'latin' | 'mono' | 'arabic';
-
-// Every class string below is written out literally. NativeWind compiles the
-// stylesheet from what it can see in the source, so a class assembled at runtime
-// from fragments would resolve to nothing.
-const SIZE: Record<TextVariant, string> = {
-    display: 'text-display',
-    title: 'text-title',
-    title2: 'text-title2',
-    title3: 'text-title3',
-    headline: 'text-headline',
-    body: 'text-body',
-    callout: 'text-callout',
-    subhead: 'text-subhead',
-    footnote: 'text-footnote',
-    caption: 'text-caption',
-    figure: 'text-figure',
-    amount: 'text-amount',
-    eyebrow: 'text-eyebrow uppercase',
-    tag: 'text-tag uppercase',
-};
+type Script = keyof typeof font;
 
 // Variants that are mono by nature — numerals, eyebrows and tags stay in DM Mono
 // even inside an Arabic screen, because it has no Arabic-Indic coverage and
 // swapping the face would break tabular alignment (Component Inventory §7.11).
 const MONO_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>(['figure', 'amount', 'eyebrow', 'tag']);
+
+const UPPERCASE_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>(['eyebrow', 'tag']);
 
 const DEFAULT_WEIGHT: Record<TextVariant, TextWeight> = {
     display: 'bold',
@@ -69,38 +38,21 @@ const DEFAULT_WEIGHT: Record<TextVariant, TextWeight> = {
     tag: 'medium',
 };
 
-const FAMILY: Record<Script, Record<TextWeight, string>> = {
-    latin: {
-        regular: 'font-sans',
-        medium: 'font-sans-medium',
-        semibold: 'font-sans-semibold',
-        bold: 'font-sans-bold',
-    },
-    arabic: {
-        regular: 'font-ar',
-        medium: 'font-ar-medium',
-        semibold: 'font-ar-semibold',
-        bold: 'font-ar-bold',
-    },
-    // DM Mono ships 400 and 500 only; heavier weights round down to 500.
-    mono: {
-        regular: 'font-mono',
-        medium: 'font-mono-medium',
-        semibold: 'font-mono-medium',
-        bold: 'font-mono-medium',
-    },
+const TONE: Record<TextTone, string> = {
+    ink: color.ink,
+    ink2: color.ink2,
+    muted: color.muted,
+    accent: color.accent,
+    success: color.success,
+    due: color.due,
+    danger: color.danger,
+    wa: color.wa,
+    inverse: color.inverse,
 };
 
-const TONE: Record<TextTone, string> = {
-    ink: 'text-ink',
-    ink2: 'text-ink-2',
-    muted: 'text-muted',
-    accent: 'text-accent',
-    success: 'text-success',
-    danger: 'text-danger',
-    wa: 'text-wa',
-    inverse: 'text-white',
-};
+const styles = StyleSheet.create({
+    uppercase: { textTransform: 'uppercase' },
+});
 
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
 
@@ -111,7 +63,6 @@ const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
  */
 function containsArabic(node: React.ReactNode): boolean {
     if (typeof node === 'string') return ARABIC.test(node);
-    if (typeof node === 'number') return false;
     if (Array.isArray(node)) return node.some(containsArabic);
     return false;
 }
@@ -129,20 +80,21 @@ export function Text({
     weight,
     tone = 'ink',
     script,
-    className,
+    style,
     children,
     ...rest
 }: TextProps) {
     const resolvedScript: Script =
-        script ?? (MONO_VARIANTS.has(variant) ? 'mono' : containsArabic(children) ? 'arabic' : 'latin');
-
-    const resolvedWeight = weight ?? DEFAULT_WEIGHT[variant];
+        script ?? (MONO_VARIANTS.has(variant) ? 'mono' : containsArabic(children) ? 'arabic' : 'sans');
 
     return (
         <RNText
-            className={[SIZE[variant], FAMILY[resolvedScript][resolvedWeight], TONE[tone], className]
-                .filter(Boolean)
-                .join(' ')}
+            style={[
+                type[variant],
+                { fontFamily: font[resolvedScript][weight ?? DEFAULT_WEIGHT[variant]], color: TONE[tone] },
+                UPPERCASE_VARIANTS.has(variant) && styles.uppercase,
+                style,
+            ]}
             {...rest}
         >
             {children}

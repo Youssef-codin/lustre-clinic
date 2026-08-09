@@ -1,8 +1,33 @@
 # Theme
 
-The design tokens for Mawid. Every value lives in
-[`packages/app/tailwind.config.js`](../../tailwind.config.js) and is consumed
-through `className`. This file records where each token came from.
+The design tokens for Mawid. Every value lives in [`tokens.ts`](./tokens.ts) and
+is consumed through `StyleSheet.create`. This file records where each token came
+from.
+
+```tsx
+import { color, radius, size, space, Text } from '../theme';
+
+const styles = StyleSheet.create({
+    card: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: size.row,
+        padding: space[4],
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+});
+```
+
+There is no NativeWind and no Tailwind. That was the original plan and it worked,
+but it earns its keep by making components terser to *write by hand*, and these
+are written with an agent — so it was paying a build-layer cost for a benefit
+nobody collects. A plain typed module gives better guarantees for the same
+tokens: `color.dou` is a compile error, where a mistyped `className` renders
+unstyled and silent. Nothing here needs a babel plugin, a metro transform or a
+`tailwind.config.js` kept in sync with an upgrade.
 
 ## Where the values came from
 
@@ -30,10 +55,29 @@ disagrees with §7.1, §7.1 wins.
 
 ## Colours
 
-The one distinction that must not be collapsed: **`accent` is interactive,
-`success`/`danger` are status.** System B used its green `#12a150` as `--accent`,
-but it was never an accent — it meant *settled*. A green button and a green
-balance are different things and a single token cannot carry both.
+Two distinctions that must not be collapsed.
+
+**`accent` is interactive, everything else is status.** System B used its green
+`#12a150` as `--accent`, but it was never an accent — it meant *settled*. A green
+button and a green balance are different things and a single token cannot carry
+both.
+
+**`due` is money, `danger` is destruction.** §7.1 merged A's `--hot` and B's
+`--due` on the grounds that they were the same orange under two names. They were
+not: in the designs `--due` carries balance strips, the owing ring and patient
+amounts, while `--hot` carries the delete button, the destructive confirm and the
+`.del` press state — and, because A had nothing else warm, *also* every amount
+owed. That overload is the same mistake as `accent`, one level down. Split:
+
+| | |
+| --- | --- |
+| `due` | owed or late — money **and** time. Balances, overdue visits, no-show, a patient waiting too long, a fully-booked day. |
+| `danger` | destructive and error. Delete, deactivate, the destructive confirm, a missing required answer. |
+
+`due` keeps `#ef5f28` because it owns the ramp the money screens already use
+(`--due-soft`, `--due-text`). `danger` is new. The test is whether a delete
+button and an outstanding balance can be told apart at a glance; they are next to
+each other in the `App.tsx` smoke test for exactly that reason.
 
 | Token | Value | Means | Source |
 | --- | --- | --- | --- |
@@ -44,9 +88,12 @@ balance are different things and a single token cannot carry both.
 | `success-soft` | `#e8f6ee` | | B `--accent-soft` |
 | `success-text` | `#0d7a3d` | | B+ `--accent-text` |
 | `success-bright` | `#16c964` | money hero emphasis | B+ `--accent-bright` |
-| `danger` | `#ef5f28` | outstanding, overdue, destructive | A `--hot` = B `--due` |
-| `danger-soft` | `#fdeee7` | | B `--due-soft` |
-| `danger-text` | `#b3411a` | | B+ `--due-text` |
+| `due` | `#ef5f28` | outstanding, overdue, no-show | B `--due` |
+| `due-soft` | `#fdeee7` | | B `--due-soft` |
+| `due-text` | `#b3411a` | | B+ `--due-text` |
+| `danger` | `#e5342a` | delete, deactivate, error | **new** |
+| `danger-soft` | `#fdecea` | | **new** |
+| `danger-text` | `#b21e15` | | **new** |
 | `live` | `#7dff9b` | in-the-chair pulse, active-timer fill | A `--live` |
 | `wa` | `#1f9d54` | WhatsApp actions only | A `--wa` |
 | `canvas` | `#f4f4f6` | page ground, inset panels, total rows | B `--canvas` |
@@ -58,9 +105,11 @@ balance are different things and a single token cannot carry both.
 | `ink-2` | `#3a3a40` | secondary text | B `--fg-2` |
 | `muted` | `#8b8b92` | labels, eyebrows, placeholders | B `--muted` |
 
-Three tokens are **derived** rather than lifted, because A's blue never had a
-soft ramp — B's green and orange each had `-soft` and `-text` companions and the
-blue needs matching ones to be usable in the same layouts.
+Three accent tokens are **derived** rather than lifted, because A's blue never had
+a soft ramp — B's green and orange each had `-soft` and `-text` companions and the
+blue needs matching ones to be usable in the same layouts. The `danger` ramp is
+**new**, built to sit at the same lightness as `due` so the two read as siblings
+rather than as one colour someone got wrong.
 
 `--older` and `--discount` from the money dashboard are deliberately absent.
 `--discount` is fully specified in CSS and used by no markup; `--older` is
@@ -73,25 +122,26 @@ Design control, not a feature — §7.3. One palette only.
 
 ## Spacing
 
-The designs use a 2px grain up to 16 and a 4px grain above it. Tailwind's default
-scale is exactly that (`0.5` = 2px, `1` = 4px … `4` = 16px, `5` = 20px), so it is
-kept as-is; measured gaps of 5, 7, 9, 11 and 13px are noise from hand-tuning and
-snap to the grid.
+The designs use a 2px grain up to 16 and a 4px grain above it. `space` is keyed
+by the familiar 4px-step numbering, so `space[3]` is 12 and `space[1.5]` is 6;
+measured gaps of 5, 7, 9, 11 and 13px are noise from hand-tuning and snap to the
+grid.
 
-Added on top are the structural measurements that are not free choices:
+`size` holds the structural measurements that are not free choices:
 
 | Token | Value | Source |
 | --- | --- | --- |
-| `gutter` | 20px | B screen gutter (A used 22; B is the surface system) |
-| `bleed` | 16px | inset for cards running wider than the text column |
-| `row` | 44px | minimum interactive row — §7.1 |
-| `control` | 48px | text fields, selects |
-| `button` | 52px | primary button — §7.1 |
-| `nav` | 84px | bottom tab bar — B+ `--navh` |
-| `dock` | 12px | docked element to nav — B+ `--dock-gap` |
+| `gutter` | 20 | B screen gutter (A used 22; B is the surface system) |
+| `bleed` | 16 | inset for cards running wider than the text column |
+| `row` | 44 | minimum interactive row — §7.1 |
+| `control` | 48 | text fields, selects |
+| `button` | 52 | primary button — §7.1 |
+| `nav` | 84 | bottom tab bar — B+ `--navh` |
+| `dock` | 12 | docked element to nav — B+ `--dock-gap` |
 
-`row`, `control` and `button` are also on `minHeight`, which is how the designs
-declare them (`min-height: 44px`).
+`row`, `control` and `button` belong on `minHeight`, which is how the designs
+declare them (`min-height: 44px`) — a row that must grow for two lines of Arabic
+still has to clear 44.
 
 ## Radii and shadows
 
@@ -100,24 +150,24 @@ close enough that only the pill differs meaningfully; B's is used.
 
 | Token | Value | Used for |
 | --- | --- | --- |
-| `rounded-sm` | 10px | small controls, icon tiles |
-| `rounded-md` | 12px | inputs, chips |
-| `rounded-lg` | 14px | buttons, fields, toasts |
-| `rounded-xl` | 16px | cards |
-| `rounded-2xl` | 18px | group cards, due card |
-| `rounded-sheet` | 26px | bottom sheets (top corners) |
-| `rounded-full` | 999px | pills, primary buttons, dots |
+| `radius.sm` | 10 | small controls, icon tiles |
+| `radius.md` | 12 | inputs, chips |
+| `radius.lg` | 14 | buttons, fields, toasts |
+| `radius.xl` | 16 | cards |
+| `radius.xl2` | 18 | group cards, due card |
+| `radius.sheet` | 26 | bottom sheets (top corners) |
+| `radius.full` | 999 | pills, primary buttons, dots |
 
 | Shadow | Source |
 | --- | --- |
-| `shadow-pill` | B `--shadow-pill` |
-| `shadow-card` | B+ `--shadow-card` |
-| `shadow-dark` | B `--shadow-dark` |
-| `shadow-fab` | A `--accent-sh`, `rgba(accent, .35)` |
+| `shadow.pill` | B `--shadow-pill` |
+| `shadow.card` | B+ `--shadow-card` |
+| `shadow.dark` | B `--shadow-dark` |
+| `shadow.fab` | A `--accent-sh`, `rgba(accent, .35)` |
 
-Shadows are multi-layer `boxShadow`, supported natively on React Native 0.76+.
-Verify `shadow-fab` on a physical Android device before relying on it — Android
-has historically flattened multi-layer shadows to an elevation.
+Shadows are multi-layer `boxShadow` strings, which React Native takes directly on
+0.76+. Verify `shadow.fab` on a physical Android device before relying on it —
+Android has historically flattened multi-layer shadows to an elevation.
 
 Device frames, bezels, Dynamic Islands and status bars in the export are
 prototype scaffolding. No frame radius is tokenised.
@@ -137,12 +187,16 @@ Light — 430KB nothing uses.
 ### One family per weight
 
 React Native selects a face by family name alone; it does not synthesise a weight
-from a family. `font-medium` on Instrument Sans falls back to 400 with no error.
-So each weight is its own family token — `font-sans`, `font-sans-medium`,
-`font-sans-semibold`, `font-sans-bold`, and likewise `font-mono*` and `font-ar*`.
+from a family. `fontWeight: '600'` on Instrument Sans falls back to 400 with no
+error. So each weight is its own family name, grouped in `font`:
 
-**Do not use `font-medium` / `font-semibold` / `font-bold`.** They are Tailwind
-`fontWeight` utilities and do nothing here.
+```ts
+font.sans.semibold; // 'InstrumentSans_600SemiBold'
+font.mono.medium; //   'DMMono_500Medium'
+font.arabic.bold; //   'NotoNaskhArabic_700Bold'
+```
+
+**Never set `fontWeight`.** Set `fontFamily` from `font`, or let `<Text>` do it.
 
 ### The ramp
 
@@ -175,7 +229,7 @@ line height or a family:
 
 ```tsx
 <Text variant="headline">Root canal</Text>
-<Text variant="amount" tone="danger">EGP 2,600</Text>
+<Text variant="amount" tone="due">EGP 2,600</Text>
 <Text variant="subhead" tone="muted" weight="medium">Outstanding 12 days</Text>
 ```
 
@@ -193,49 +247,44 @@ languages so tabular alignment holds.
 
 ## RTL
 
-The app runs Arabic and English. Use logical utilities only — `ps-`/`pe-`,
-`ms-`/`me-`, `start-`/`end-`, `border-s-`/`border-e-`. Never `pl-`/`pr-`,
-`ml-`/`mr-`, `left-`/`right-`.
+The app runs Arabic and English, and React Native mirrors layout by direction
+only for logical properties. Use `paddingStart`/`paddingEnd`,
+`marginStart`/`marginEnd`, `start`/`end` and `borderStartWidth`. Never
+`paddingLeft`, `marginRight`, `left`, `right` or `borderLeftWidth`.
 
-React Native's `textAlign` has no logical values. Its default, `auto`, aligns to
+`textAlign` has no logical values in React Native. Its default, `auto`, aligns to
 the base direction of the string being rendered, which is the behaviour wanted —
-leave it alone rather than reaching for `text-left`.
+leave it alone rather than reaching for `'left'`.
+
+Layout does not actually mirror until the app shell calls `I18nManager.allowRTL`.
+That belongs with the localisation scaffold, not here.
 
 ## Enforcement
 
-`bun test` runs [`tokens.test.ts`](./tokens.test.ts), which fails the build on:
+Most of it is TypeScript's: `color.dou`, `radius.huge` and
+`<Text variant="huge">` are compile errors, which is the main reason this is a
+typed module rather than a class-name string.
 
-- **arbitrary values** — `bg-[#2f5bff]`, `p-[13px]`. If a value is not in the
-  config it does not exist. Adding one is a deliberate, reviewable config edit.
-- **physical-direction utilities** — `pl-`, `mr-`, `left-`, `text-right`,
-  `border-l-`.
+Two things types cannot catch, so [`tokens.test.ts`](./tokens.test.ts) does,
+under `bun test`:
 
-The stack lints with Biome, not ESLint, and neither Biome nor NativeWind ships a
-rule for either. This test is the enforcement instead.
+- **raw colour values** — any `#hex` or `rgba(` outside `tokens.ts`. If a colour
+  is not a token it does not exist.
+- **physical-direction style properties** — `paddingLeft`, `marginRight`,
+  `left:`, `textAlign: 'left'`.
 
-## Wiring
+There is deliberately no "no magic number" rule. A stray `padding: 13` is a
+review comment, not a build failure, and a check that fired on every numeric
+literal would be turned off within a week.
 
-NativeWind compiles `tailwind.config.js` through
-[`global.css`](../../global.css) at bundle time, hooked up in three places:
-`withNativeWind` in `metro.config.js`, `jsxImportSource: 'nativewind'` in
-`babel.config.js`, and the `import './global.css'` at the top of `App.tsx`. Miss
-any one and every `className` is silently ignored — nothing errors.
+## Verified
 
-`babel.config.js` resolves its presets with `require.resolve`, and
-`babel-preset-expo`, `@babel/plugin-transform-react-jsx` and
-`react-native-css-interop` are direct dependencies of this package even though
-nothing imports them by name. Bun's isolated linker keeps a package's own
-dependencies under `node_modules/.bun/<pkg>@<hash>/`, where neither Babel's
-preset resolution nor Metro's resolver — which walks up from the importing file,
-and the JSX runtime import is injected into `App.tsx` — can reach them. This is
-the same layout the comment in `metro.config.js` describes.
-
-Verified by `bunx expo export --platform android`: the bundle carries the token
-values and the ten font faces. Not yet seen on a physical device.
+`bunx expo export --platform android` bundles clean and carries the ten font
+faces. Not yet seen on a physical device.
 
 ## What is not here
 
 Motion. The designs specify a full set of curves (`promote`, `sheetup`,
-`--spring`, the reduced-motion block) but Reanimated takes them as JS values, not
-Tailwind utilities, so they belong with the animation helpers rather than in the
-token config. Component Inventory §3.4 has the table.
+`--spring`, the reduced-motion block). They belong with the animation helpers
+alongside Reanimated rather than in this file, which is values only. Component
+Inventory §3.4 has the table.

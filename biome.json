@@ -40,12 +40,6 @@
             }
         }
     },
-    "overrides": [
-        {
-            "includes": ["packages/app/global.css"],
-            "css": { "linter": { "enabled": false } }
-        }
-    ],
     "assist": {
         "actions": {
             "source": {

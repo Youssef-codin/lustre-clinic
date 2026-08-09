@@ -7,6 +7,6 @@
         "noFallthroughCasesInSwitch": true,
         "verbatimModuleSyntax": true
     },
-    "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
+    "include": ["**/*.ts", "**/*.tsx"],
     "exclude": ["node_modules", ".expo", "dist"]
 }
