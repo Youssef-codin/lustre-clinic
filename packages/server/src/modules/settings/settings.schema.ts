@@ -34,3 +34,36 @@ export const updateSettingsInput = z
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsInput>;
+
+/**
+ * MAW-1 — the weekly schedule. One row per weekday; no row means closed.
+ * `0` is Sunday, matching `Date#getDay`.
+ */
+const weekday = z.number().int().min(0).max(6);
+
+/**
+ * `HH:MM` exactly — no seconds. A clinic opens at ten, not at ten and a
+ * quarter of a minute, and the schedule is read back as `HH:MM`: accepting
+ * seconds here would store a value that never survives a round trip, so
+ * echoing a day back into `setDay` would silently shift it.
+ */
+const openingTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'expected HH:MM');
+
+export const setClinicDayInput = z
+    .object({
+        weekday,
+        branchId: z.uuid(),
+        opensAt: openingTime,
+        closesAt: openingTime,
+    })
+    // Both are zero-padded `HH:MM`, so comparing them as strings orders them
+    // by time.
+    .refine((v) => v.opensAt < v.closesAt, {
+        message: 'opensAt must be before closesAt',
+        path: ['closesAt'],
+    });
+
+export const clearClinicDayInput = z.object({ weekday });
+
+export type SetClinicDayInput = z.infer<typeof setClinicDayInput>;
+export type ClearClinicDayInput = z.infer<typeof clearClinicDayInput>;

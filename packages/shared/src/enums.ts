@@ -42,8 +42,14 @@ export const PAYMENT_METHODS = ['cash', 'visa', 'instapay', 'other'] as const;
 export const paymentMethodSchema = z.enum(PAYMENT_METHODS);
 export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
-/** §5. `select` carries an `options` array; the others ignore it. */
-export const QUESTION_KINDS = ['text', 'number', 'boolean', 'select'] as const;
+/**
+ * §5. `select` carries an `options` array; the others ignore it.
+ *
+ * A `date` answer is stored in `patients.custom` as a `YYYY-MM-DD` string —
+ * a calendar date, with no time and no timezone. A birthday or a last-x-ray
+ * date is the same date wherever it is read.
+ */
+export const QUESTION_KINDS = ['text', 'number', 'boolean', 'select', 'date'] as const;
 export const questionKindSchema = z.enum(QUESTION_KINDS);
 export type QuestionKind = z.infer<typeof questionKindSchema>;
 

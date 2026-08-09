@@ -250,6 +250,15 @@ function coerce(question: CustomQuestion, value: unknown): unknown {
             if (typeof value !== 'boolean') throw wrongKind(question, 'a boolean');
             return value;
 
+        case 'date':
+            // `YYYY-MM-DD`, and a real day: the pattern alone accepts
+            // 2026-02-31. Stored as the string it came in as — a calendar date
+            // has no time and no timezone to lose.
+            if (typeof value !== 'string' || !isCalendarDate(value)) {
+                throw wrongKind(question, 'a YYYY-MM-DD date');
+            }
+            return value;
+
         case 'select': {
             const options = optionsOf(question);
             if (typeof value !== 'string' || !options.includes(value)) {
@@ -258,6 +267,17 @@ function coerce(question: CustomQuestion, value: unknown): unknown {
             return value;
         }
     }
+}
+
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** True for a `YYYY-MM-DD` string that names a day that exists. */
+function isCalendarDate(value: string): boolean {
+    if (!CALENDAR_DATE.test(value)) return false;
+    // `Date.UTC` rolls an impossible day forward, so a date that survives the
+    // round trip unchanged is a real one.
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
 }
 
 function wrongKind(question: CustomQuestion, expected: string): AppError {

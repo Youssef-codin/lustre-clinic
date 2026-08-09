@@ -3,10 +3,12 @@ import { ERROR_CODE } from '@mawid/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
+import { branchService } from '../src/modules/branch/branch.service.ts';
 import { customQuestionService } from '../src/modules/customQuestion/customQuestion.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { procedureService } from '../src/modules/procedure/procedure.service.ts';
 import { reminderService, renderTemplate } from '../src/modules/reminder/reminder.service.ts';
+import { setClinicDayInput } from '../src/modules/settings/settings.schema.ts';
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
 import { setProceduresInput } from '../src/modules/visit/visit.schema.ts';
@@ -69,6 +71,123 @@ describe('settings', () => {
     test('returns the notification time as HH:MM', async () => {
         const updated = await settingsService.update({ reminderNotifyAt: '18:30' });
         expect(updated.reminderNotifyAt).toBe('18:30');
+    });
+});
+
+/**
+ * MAW-1. A weekday with no row is closed — the day view renders it as closed
+ * rather than as an empty schedule, so absence is the meaningful case here.
+ */
+describe('clinic days', () => {
+    test('an unset weekday is closed', async () => {
+        expect(await settingsService.schedule()).toEqual([]);
+        expect(await settingsService.dayFor(1)).toBeNull();
+    });
+
+    test('sets a weekday and returns hours as HH:MM', async () => {
+        const { branch } = await fixtures();
+
+        const day = await settingsService.setDay({
+            weekday: 1,
+            branchId: branch.id,
+            opensAt: '10:00',
+            closesAt: '18:00',
+        });
+
+        expect(day).toEqual({ weekday: 1, branchId: branch.id, opensAt: '10:00', closesAt: '18:00' });
+        expect(await settingsService.dayFor(1)).toEqual(day);
+    });
+
+    test('setting the same weekday twice replaces it rather than adding a second branch', async () => {
+        const { branch } = await fixtures();
+        const other = await branchService.create({ name: 'Second' });
+
+        await settingsService.setDay({
+            weekday: 2,
+            branchId: branch.id,
+            opensAt: '10:00',
+            closesAt: '18:00',
+        });
+        await settingsService.setDay({
+            weekday: 2,
+            branchId: other.id,
+            opensAt: '12:00',
+            closesAt: '20:00',
+        });
+
+        const schedule = await settingsService.schedule();
+        expect(schedule).toEqual([{ weekday: 2, branchId: other.id, opensAt: '12:00', closesAt: '20:00' }]);
+    });
+
+    test('lists open weekdays in order', async () => {
+        const { branch } = await fixtures();
+        for (const weekday of [4, 0, 2]) {
+            await settingsService.setDay({
+                weekday,
+                branchId: branch.id,
+                opensAt: '10:00',
+                closesAt: '18:00',
+            });
+        }
+
+        expect((await settingsService.schedule()).map((d) => d.weekday)).toEqual([0, 2, 4]);
+    });
+
+    test('clearing a weekday closes it, and clearing a closed day is a no-op', async () => {
+        const { branch } = await fixtures();
+        await settingsService.setDay({
+            weekday: 3,
+            branchId: branch.id,
+            opensAt: '10:00',
+            closesAt: '18:00',
+        });
+
+        await settingsService.clearDay(3);
+        await settingsService.clearDay(3);
+
+        expect(await settingsService.dayFor(3)).toBeNull();
+        expect(await settingsService.schedule()).toEqual([]);
+    });
+
+    test('refuses a branch that does not exist', async () => {
+        await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+            settingsService.setDay({
+                weekday: 1,
+                branchId: Bun.randomUUIDv7(),
+                opensAt: '10:00',
+                closesAt: '18:00',
+            }),
+        );
+    });
+
+    test('rejects closing before opening', () => {
+        const result = setClinicDayInput.safeParse({
+            weekday: 1,
+            branchId: Bun.randomUUIDv7(),
+            opensAt: '18:00',
+            closesAt: '10:00',
+        });
+
+        expect(result.success).toBe(false);
+    });
+
+    test('rejects a time carrying seconds, which would not survive the round trip', () => {
+        const result = setClinicDayInput.safeParse({
+            weekday: 1,
+            branchId: Bun.randomUUIDv7(),
+            opensAt: '10:00:15',
+            closesAt: '18:00',
+        });
+
+        expect(result.success).toBe(false);
+    });
+
+    test('rejects a weekday outside 0–6', () => {
+        const branchId = Bun.randomUUIDv7();
+        const hours = { opensAt: '10:00', closesAt: '18:00' };
+
+        expect(setClinicDayInput.safeParse({ weekday: 7, branchId, ...hours }).success).toBe(false);
+        expect(setClinicDayInput.safeParse({ weekday: -1, branchId, ...hours }).success).toBe(false);
     });
 });
 
@@ -255,6 +374,29 @@ describe('customQuestion', () => {
         await expectAppError(ERROR_CODE.VALIDATION, () =>
             customQuestionService.validateIntake({ visits_per_year: 'often' }),
         );
+    });
+
+    test('a date answer is a real calendar day, stored as it came in', async () => {
+        await customQuestionService.create({
+            key: 'last_xray',
+            label: 'Last x-ray',
+            kind: 'date',
+            required: false,
+            sortOrder: 0,
+        });
+
+        expect(await customQuestionService.validateIntake({ last_xray: '2026-02-28' })).toEqual({
+            last_xray: '2026-02-28',
+        });
+
+        // A day that does not exist, the wrong shape, and a timestamp — the
+        // stored value is a calendar date, with no time to drift across a
+        // timezone.
+        for (const answer of ['2026-02-31', '28-02-2026', '2026-02-28T10:00:00Z']) {
+            await expectAppError(ERROR_CODE.VALIDATION, () =>
+                customQuestionService.validateIntake({ last_xray: answer }),
+            );
+        }
     });
 
     test('a select answer must be one of its options', async () => {

@@ -21,6 +21,7 @@ import {
     integer,
     jsonb,
     pgTable,
+    smallint,
     text,
     time,
     timestamp,
@@ -46,6 +47,31 @@ export const branches = pgTable('branches', {
     address: text('address'),
     active: boolean('active').notNull().default(true),
 });
+
+/**
+ * MAW-1. The weekly schedule: which branch is open on a weekday, and between
+ * which hours. An absent row means the clinic is closed that day.
+ *
+ * One row per weekday, keyed by the weekday itself, so "in two places on the
+ * same day" is impossible by construction rather than by validation — the
+ * dentist is one person and does not split a day between branches.
+ */
+export const clinicDays = pgTable(
+    'clinic_days',
+    {
+        /** 0 = Sunday … 6 = Saturday, matching `Date#getDay`. */
+        weekday: smallint('weekday').primaryKey(),
+        branchId: uuid('branch_id')
+            .notNull()
+            .references(() => branches.id),
+        opensAt: time('opens_at').notNull(),
+        closesAt: time('closes_at').notNull(),
+    },
+    (t) => [
+        check('clinic_days_weekday_range', sql`${t.weekday} BETWEEN 0 AND 6`),
+        check('clinic_days_opens_before_closes', sql`${t.opensAt} < ${t.closesAt}`),
+    ],
+);
 
 export const patients = pgTable(
     'patients',
@@ -236,6 +262,7 @@ export const settings = pgTable(
 
 export const schema = {
     branches,
+    clinicDays,
     patients,
     procedureTypes,
     appointments,

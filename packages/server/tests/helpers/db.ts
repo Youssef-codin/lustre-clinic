@@ -52,6 +52,7 @@ export async function truncateAll(): Promise<void> {
             appointments,
             patients,
             procedure_types,
+            clinic_days,
             branches,
             custom_questions,
             settings
