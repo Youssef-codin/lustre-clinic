@@ -20,8 +20,9 @@ export const color = {
     muted: '#8b8b92', // labels, eyebrows, placeholders
     inverse: '#ffffff', // text on ink or accent
 
-    // Interactive accent — System A. Buttons, links, FAB, progress fill.
-    // Never used to mean "good", "paid" or "settled".
+    // Interactive accent — System A. FAB, progress fill, links, dashed add
+    // buttons (§3.1). Never used to mean "good", "paid" or "settled", and *not*
+    // the primary button fill — the designs draw those in `ink`, below.
     accent: '#2f5bff',
     accentSoft: '#eaeeff', // derived tint, matches the -soft ramp of the others
     accentText: '#1d3bc7', // derived, for accent text on a soft ground

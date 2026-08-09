@@ -62,6 +62,13 @@ Two distinctions that must not be collapsed.
 button and a green balance are different things and a single token cannot carry
 both.
 
+**Interactive is not the same as primary.** §7.1 summarises the blue as
+"buttons, links, FAB, progress fill", but §3.1 — the inventory it is summarising
+— scopes it to "FAB, progress fill, links, dashed add buttons", and System B
+records `--fg #111114` as "text, *primary fill*". The designs draw solid black
+primary buttons. So `ink` is the primary fill and `accent` is the blue that sits
+*on* a surface; `ui/Button` has both, and `primary` is the black one.
+
 **`due` is money, `danger` is destruction.** §7.1 merged A's `--hot` and B's
 `--due` on the grounds that they were the same orange under two names. They were
 not: in the designs `--due` carries balance strips, the owing ring and patient
@@ -81,7 +88,7 @@ each other in the `App.tsx` smoke test for exactly that reason.
 
 | Token | Value | Means | Source |
 | --- | --- | --- | --- |
-| `accent` | `#2f5bff` | buttons, links, FAB, progress fill | A `--accent` |
+| `accent` | `#2f5bff` | FAB, progress fill, links, dashed add buttons | A `--accent` |
 | `accent-soft` | `#eaeeff` | tinted ground for accent content | **derived** |
 | `accent-text` | `#1d3bc7` | accent text on `accent-soft` | **derived** |
 | `success` | `#12a150` | settled, paid in full | B `--accent` |

@@ -98,6 +98,14 @@ ported. `HomeIndicator` is the device's, not ours.
   edit never reaches the caller, so it never reaches the server.
 - **`PopoverMenu` takes its anchor** rather than measuring the trigger. The
   trigger is a top-bar button at a fixed inset on every screen that has one.
+- **`Button` `primary` is ink, not blue.** §3.1 scopes the blue to the FAB,
+  progress fill, links and dashed add buttons; System B calls `--fg` the "primary
+  fill" and the designs draw black primaries. `accent` is a separate variant for
+  the few genuinely blue-filled buttons.
+- **`Toast` positions against its parent.** Render it as a child of the screen
+  root, never inside scrolling content — nested, it lands wherever that content
+  happens to have scrolled to, which is how it ended up mid-screen over the
+  buttons that raised it.
 - **Placeholders are drawn by us, not by `TextInput`.** Android renders the
   native hint in the system typeface whatever `fontFamily` the input carries — on
   a Samsung the placeholder came out in One UI's face beside a label in

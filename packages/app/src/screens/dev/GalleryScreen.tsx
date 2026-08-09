@@ -50,6 +50,13 @@ import { color, size, space, Text } from '../../theme';
  * cannot drift into being a real screen by accident.
  */
 export function GalleryScreen() {
+    // The toast lives here, not in the section whose buttons raise it. It
+    // positions itself absolutely against its parent, so nested in scrolling
+    // content it lands wherever that content happens to be — mid-screen, over
+    // the very buttons it is reporting on. A screen-level notification has to be
+    // a child of the screen.
+    const [toast, setToast] = useState<string | null>(null);
+
     return (
         <View style={styles.screen}>
             <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -63,9 +70,17 @@ export function GalleryScreen() {
                 <Editors />
                 <Surfaces />
                 <Feedback />
-                <Overlays />
+                <Overlays onToast={setToast} />
                 <Chrome />
             </ScrollView>
+
+            <Toast
+                visible={toast !== null}
+                message={toast ?? ''}
+                actionLabel="Undo"
+                onAction={noop}
+                onDismiss={() => setToast(null)}
+            />
         </View>
     );
 }
@@ -77,6 +92,7 @@ function Buttons() {
         <Section title="Button">
             <Row>
                 <Button label="Primary" onPress={noop} />
+                <Button label="Accent" variant="accent" onPress={noop} />
                 <Button label="Secondary" variant="secondary" onPress={noop} />
             </Row>
             <Row>
@@ -362,14 +378,13 @@ function Feedback() {
     );
 }
 
-function Overlays() {
+function Overlays({ onToast }: { onToast: (message: string) => void }) {
     const [sheet, setSheet] = useState(false);
     const [confirm, setConfirm] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [popover, setPopover] = useState(false);
     const [dropdown, setDropdown] = useState(false);
     const [sort, setSort] = useState<'amount' | 'age'>('amount');
-    const [toast, setToast] = useState(false);
     const [note, setNote] = useState('');
 
     function confirmDeactivate() {
@@ -377,7 +392,7 @@ function Overlays() {
         setTimeout(() => {
             setConfirming(false);
             setConfirm(false);
-            setToast(true);
+            onToast('Procedure deactivated');
         }, 1200);
     }
 
@@ -391,7 +406,7 @@ function Overlays() {
                 <Button label="Confirm" variant="ghost" size="md" onPress={() => setConfirm(true)} />
                 <Button label="Popover" variant="ghost" size="md" onPress={() => setPopover(true)} />
                 <Button label="Dropdown" variant="ghost" size="md" onPress={() => setDropdown(true)} />
-                <Button label="Toast" variant="ghost" size="md" onPress={() => setToast(true)} />
+                <Button label="Toast" variant="ghost" size="md" onPress={() => onToast('Visit deleted')} />
             </Row>
 
             <Sheet
@@ -440,7 +455,12 @@ function Overlays() {
                 items={[
                     { key: 'edit', label: 'Edit visit', onPress: noop },
                     { key: 'move', label: 'Move to another day', onPress: noop },
-                    { key: 'delete', label: 'Delete visit', onPress: () => setToast(true), danger: true },
+                    {
+                        key: 'delete',
+                        label: 'Delete visit',
+                        onPress: () => onToast('Visit deleted'),
+                        danger: true,
+                    },
                 ]}
             />
 
@@ -454,14 +474,6 @@ function Overlays() {
                 ]}
                 value={sort}
                 onChange={setSort}
-            />
-
-            <Toast
-                visible={toast}
-                message="Visit deleted"
-                actionLabel="Undo"
-                onAction={noop}
-                onDismiss={() => setToast(false)}
             />
         </Section>
     );

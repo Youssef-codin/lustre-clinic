@@ -5,7 +5,16 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { TextTone } from '../../theme';
 import { border, color, radius, shadow, size, space, Text } from '../../theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'danger';
+/**
+ * `primary` is an ink fill, not a blue one. Component Inventory §3.1 scopes the
+ * blue to "FAB, progress fill, links, dashed add buttons" and System B records
+ * `--fg #111114` as "text, *primary fill*" — the designs draw solid black
+ * primaries throughout. §7.1's summary widens the blue to "buttons", which is
+ * the one place it overshoots the inventory it is summarising.
+ *
+ * `accent` exists for the handful of places that really are blue-filled.
+ */
+export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'text' | 'danger';
 export type ButtonSize = 'lg' | 'md';
 
 export type ButtonProps = {
@@ -37,6 +46,7 @@ export type ButtonProps = {
 
 const LABEL_TONE: Record<ButtonVariant, TextTone> = {
     primary: 'inverse',
+    accent: 'inverse',
     secondary: 'ink',
     ghost: 'ink',
     text: 'accent',
@@ -45,6 +55,7 @@ const LABEL_TONE: Record<ButtonVariant, TextTone> = {
 
 const SPINNER: Record<ButtonVariant, string> = {
     primary: color.inverse,
+    accent: color.inverse,
     secondary: color.ink,
     ghost: color.ink,
     text: color.accent,
@@ -126,7 +137,8 @@ const styles = StyleSheet.create({
     md: { minHeight: size.row, borderRadius: radius.lg, paddingHorizontal: space[4] },
     block: { alignSelf: 'stretch' },
 
-    primary: { backgroundColor: color.accent },
+    primary: { backgroundColor: color.ink },
+    accent: { backgroundColor: color.accent },
     secondary: { borderWidth: border.thick, borderColor: color.ink, backgroundColor: color.surface },
     ghost: {
         borderWidth: 1,
