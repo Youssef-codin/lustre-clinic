@@ -61,7 +61,7 @@ const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
  * Latin question labels in one list, so the face is chosen per string rather than
  * per screen — an Arabic label gets Noto Naskh even on an English screen.
  */
-function containsArabic(node: React.ReactNode): boolean {
+export function containsArabic(node: React.ReactNode): boolean {
     if (typeof node === 'string') return ARABIC.test(node);
     if (Array.isArray(node)) return node.some(containsArabic);
     return false;

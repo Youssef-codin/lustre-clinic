@@ -96,6 +96,7 @@ each other in the `App.tsx` smoke test for exactly that reason.
 | `danger-text` | `#b21e15` | | **new** |
 | `live` | `#7dff9b` | in-the-chair pulse, active-timer fill | A `--live` |
 | `wa` | `#1f9d54` | WhatsApp actions only | A `--wa` |
+| `scrim` | `rgba(17,17,20,.34)` | ground behind a sheet or popover | B |
 | `canvas` | `#f4f4f6` | page ground, inset panels, total rows | B `--canvas` |
 | `surface` | `#ffffff` | cards, sheets, fields | B `--surface` |
 | `surface-2` | `#f0f0f3` | pressed states, segmented track | B `--surface-2` |

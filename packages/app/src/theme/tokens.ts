@@ -46,6 +46,10 @@ export const color = {
 
     live: '#7dff9b', // in-the-chair pulse, active-timer fill
     wa: '#1f9d54', // WhatsApp actions only
+
+    // The ground behind a sheet, popover or dialog. B `rgba(17,17,20,.34)`;
+    // A's `rgba(14,17,22,.42)` is the same intent one shade heavier.
+    scrim: 'rgba(17,17,20,0.34)',
 } as const;
 
 /**
