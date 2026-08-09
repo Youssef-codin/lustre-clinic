@@ -19,6 +19,8 @@ Clinic management app. React Native client, on-prem server, Tailscale-only netwo
        │  ┌─────────────────┐  │
        │  │ Bun + tRPC      │  │
        │  ├─────────────────┤  │
+       │  │ GlitchTip       │  │
+       │  ├─────────────────┤  │
        │  │ PostgreSQL 17   │  │
        │  └─────────────────┘  │
        │  docker compose       │
@@ -43,6 +45,7 @@ No public ingress, no TLS termination, no reverse proxy. Tailscale is the transp
 | ORM | Drizzle + drizzle-kit, over `postgres.js` |
 | Validation | Zod |
 | Logging | pino |
+| Client error tracking | GlitchTip (self-hosted), via `@sentry/react-native` |
 | Transport | Tailscale + MagicDNS |
 | Host | Debian stable, Docker Compose (`oven/bun` image) |
 | Tests | `bun:test` |
@@ -628,7 +631,7 @@ Both addresses are configured during onboarding.
 
 ## 15. Deployment
 
-Docker Compose on Debian: server + postgres 17.
+Docker Compose on Debian: server + postgres 17 + GlitchTip (web, worker, redis) per §17.
 
 - Systemd, `Restart=always`, for Docker and Tailscale
 - BIOS auto-power-on after outage
@@ -639,6 +642,8 @@ Docker Compose on Debian: server + postgres 17.
 ### Updates
 
 Expo EAS Update for over-the-air JavaScript updates. Native changes require a new APK. APKs can be served from the clinic machine over the tailnet.
+
+Every publish uploads source maps for the new `dist` (§17). An update that skips this ships crash reports nobody can read.
 
 ---
 
@@ -656,14 +661,56 @@ Expo EAS Update for over-the-air JavaScript updates. Native changes require a ne
 
 ## 17. Monitoring
 
-Two channels, covering different failures.
+Three channels, covering different failures. Two watch the server, one watches the client.
 
-**Discord webhook** — the app reporting its own errors: backup failed, database error, unhandled exception. One POST to a webhook URL; no bot to register. One channel per clinic.
+**Discord webhook** — the server reporting its own errors: backup failed, database error, unhandled exception. One POST to a webhook URL; no bot to register. One channel per clinic.
 
-**UptimeRobot heartbeat** — external check that the machine is responding. Catches power cuts, crashes, and network failure, which the app cannot report itself.
+**UptimeRobot heartbeat** — external check that the machine is responding. Catches power cuts, crashes, and network failure, which the server cannot report itself.
 
 - Alerts carry IDs and error codes only, never patient data
 - Deduplicate and rate-limit
+
+### Client errors — GlitchTip
+
+A crash on a phone leaves no trace on the server. The secretary reports "it closed", and there is nothing to read. Client error tracking exists to turn that into a stack trace.
+
+**GlitchTip runs on the clinic PC**, in the same compose stack as everything else. It speaks the Sentry protocol, so the app uses the standard `@sentry/react-native` SDK and its Expo config plugin — no Sentry account, no data leaving the machine, no third party holding crash reports from a medical app. `sentry-expo` is dead; do not install it.
+
+```
+Expo app ──@sentry/react-native──> Tailscale ──> GlitchTip ──> PostgreSQL 17
+```
+
+**Deployment** (§15) — additional compose services: the GlitchTip web process, its worker, and Redis for the queue. It gets its own database on the existing Postgres 17 container, separate from `mawid`; backups (§16) cover `mawid` only, since crash reports are disposable. Published on the Tailscale interface like the API. Open registration is disabled once the first account exists.
+
+**DSN** — points at the **MagicDNS hostname**, never the LAN address. The DSN is baked into the build, so it has to resolve from anywhere on the tailnet; §14's two-address probe applies to the API only. A missing or empty DSN disables reporting and must not crash the app — that is the state every dev machine is in.
+
+**What is reported**
+
+- Unhandled JS exceptions and native crashes
+- Unhandled promise rejections
+- Transport failures and `INTERNAL`-class tRPC errors
+
+**What is not.** Expected domain failures are outcomes, not incidents. A double-booking conflict, a validation rejection, a checkout that fails because the balance moved — those are `ERROR_CODE`s the UI already localizes (§14), and sending them turns the issue feed into noise. Filter on the code, not on the message.
+
+**Never send patient data.** Same rule as pino and Discord alerts, and harder to hold here, because SDKs collect by default:
+
+- `sendDefaultPii: false`
+- No session replay, no screenshots, no view-hierarchy capture
+- `beforeSend` **allow-lists** what leaves the device — procedure name, `ERROR_CODE`, IDs, app version. It does not attempt to strip names, phone numbers, notes, or amounts out of a payload; anything not on the list is dropped
+- Breadcrumbs are limited to navigation events and tRPC procedure names. Console breadcrumbs are off — a stray `console.log` of a patient object would otherwise ship
+- The role preference (§6) is a fine tag. There is no user identity to send; there is no auth (§1)
+
+**Tags** — `ERROR_CODE`, procedure name, role, app version, `release`, `dist`.
+
+**Offline** — GlitchTip is on the machine that goes down during a power cut, so it is unreachable exactly when the API is (§14). The SDK caches envelopes on disk and flushes them when the tailnet returns. Reporting never blocks the UI and never gates a retry.
+
+**This channel cannot report that the clinic PC is down** — the client has nowhere to send that. The heartbeat covers it. The three channels are deliberately not redundant.
+
+**Source maps** — release bundles are minified, and an unmapped React Native stack trace is worthless. `sentry-cli` uploads against GlitchTip's URL. There are two upload points: the EAS build, and **every EAS Update publish** (§15) — an OTA bundle is a new `dist` and needs its own upload, or traces silently degrade to hex offsets while everything still appears to work. Verify source-map handling against the deployed GlitchTip version before depending on it; it has historically lagged Sentry's.
+
+**Sampling** — errors at 100%. This is two phones, not a public app. Tracing stays off: GlitchTip's performance support is thinner than its error support, and latency is not the problem this deployment has.
+
+The server keeps Discord and the heartbeat. Pointing a Bun Sentry SDK at the same GlitchTip instance is possible later; it is not in scope here.
 
 ---
 
@@ -688,11 +735,11 @@ Phase 0 is the fork point. Both agents need the schema and a working `AppRouter`
 
 | # | B — server | # | F — app |
 |---|---|---|---|
-| B1 | Monitoring (§17) — Discord webhook, heartbeat | F1 | App shell — Tailscale + LAN onboarding, connection probing (§14) |
+| B1 | Monitoring (§17) — Discord webhook, heartbeat, GlitchTip compose services | F1 | App shell — Tailscale + LAN onboarding, connection probing (§14) |
 | B2 | Backups (§16) — including a tested restore | F2 | tRPC client wiring, TanStack Query setup |
 | B3 | `settings` module + seed row | F3 | Role selection, navigation, offline banner |
 | B4 | `branch`, `procedure` modules | F4 | Localization scaffold — dictionaries, direction |
-| B5 | `patient`, `customQuestion` modules | | |
+| B5 | `patient`, `customQuestion` modules | F5 | Client error tracking (§17) — Sentry SDK, DSN config, `beforeSend` allow-list |
 | B6 | `appointment` module, including walk-ins | | |
 | B7 | `visit` module — check-in, procedures, pricing, checkout | | |
 | B8 | `balance` module | | |
@@ -726,7 +773,7 @@ F runs against **mocked tRPC responses** until B has shipped the matching module
 |---|---|
 | 3.1 | End-to-end pass on a real device against the real server |
 | 3.2 | Arabic and RTL check across every screen |
-| 3.3 | EAS Update wiring |
+| 3.3 | EAS Update wiring, including source-map upload to GlitchTip (§17) |
 | 3.4 | Deployment (§15) — clinic PC, Docker, Tailscale, systemd, BIOS auto-power-on |
 
 ### Coordination rules
