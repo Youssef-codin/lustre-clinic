@@ -78,6 +78,18 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
     const pendingLoad = loads.get(pending);
     const pendingClosed = isClosed(pending, schedule);
 
+    /**
+     * The pick follows the month. Left behind, the grid highlights nothing, the
+     * summary describes a day that is not on screen, and "Go to this day" goes
+     * back to the day the sheet opened on — which is where the secretary
+     * already was.
+     */
+    function goToMonth(next: string) {
+        setMonth(next);
+        const nextDays = monthDays(next);
+        setPending(nextDays.includes(today) ? today : (nextDays[0] ?? next));
+    }
+
     return (
         <Sheet
             visible={visible}
@@ -100,7 +112,7 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
                     accessibilityLabel="Previous month"
                     icon={<Chevron direction="back" tone="ink" size={9} />}
                     variant="square"
-                    onPress={() => setMonth(addMonths(month, -1))}
+                    onPress={() => goToMonth(addMonths(month, -1))}
                 />
                 <Text variant="headline" weight="semibold">
                     {formatMonth(month)}
@@ -109,7 +121,7 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
                     accessibilityLabel="Next month"
                     icon={<Chevron direction="forward" tone="ink" size={9} />}
                     variant="square"
-                    onPress={() => setMonth(addMonths(month, 1))}
+                    onPress={() => goToMonth(addMonths(month, 1))}
                 />
             </View>
 

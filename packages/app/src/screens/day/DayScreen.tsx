@@ -89,8 +89,18 @@ export function DayScreen() {
 
     // Who the card is about. In the chair beats at the desk beats next up —
     // whoever is physically in the room is the more urgent fact.
+    //
+    // Two patients can be checked in at once: their slots do not overlap, so
+    // nothing stops the eleven o'clock being checked in while the ten o'clock is
+    // still in the chair. The one whose slot contains now is the one in the
+    // room; failing that, the one checked in most recently.
+    const inChair = appointments.filter((row) => row.status === 'checked_in');
     const active =
-        appointments.find((row) => row.status === 'checked_in') ??
+        inChair.find((row) => {
+            const startMinutes = minutesOfDay(row.startsAt);
+            return nowMinutes >= startMinutes && nowMinutes < startMinutes + row.durationMinutes;
+        }) ??
+        [...inChair].sort((a, b) => b.startsAt.localeCompare(a.startsAt))[0] ??
         appointments.find((row) => row.status === 'awaiting_payment') ??
         null;
 
