@@ -66,16 +66,32 @@ export interface VisitPayment {
     paidAt: string;
 }
 
-/** The slice of `visit.byId` the money cluster reads. */
+/**
+ * The slice of `visit.byId` the money cluster reads.
+ *
+ * These are the `visits` table's own columns plus what the service derives —
+ * and nothing else. `ref`, `startsAt` and the patient's name belong to the
+ * appointment and the patient, and `visit.byId` does not join either, so a
+ * screen that wants them takes them from the `balance.byPatient` row it was
+ * reached through. Declaring them here would have made the swap BLOCKED.md #2
+ * promises fail silently: a header falling back to a placeholder and a date
+ * rendering `NaN undefined NaN`. See BLOCKED.md #14.
+ *
+ * `procedures` is omitted deliberately — the money screens do not price a
+ * visit, they only settle it.
+ */
 export interface VisitDetail {
     id: string;
-    ref: string;
-    patientId: string;
-    patientName: string;
-    startsAt: string;
+    appointmentId: string;
+    checkedInAt: string;
+    completedAt: string | null;
+    /** Rule output from the entered procedures (§9). Never edited. */
+    computedTotal: number;
+    /** What the patient owes. The difference from computed is the discount. */
     chargedTotal: number;
     payments: VisitPayment[];
     paidTotal: number;
+    /** Derived, never stored (§10). */
     balance: number;
 }
 
@@ -106,9 +122,15 @@ type StoredPatient = { id: string; name: string; phone: string };
 type StoredVisit = {
     id: string;
     appointmentId: string;
+    /** Not on the `visits` row — held here so the stub can serve the queries
+     * that DO join the appointment, `balance.byPatient` and
+     * `balance.outstanding`. `visit.byId` must not return it. */
     patientId: string;
     ref: string;
     startsAt: string;
+    checkedInAt: string;
+    completedAt: string | null;
+    computedTotal: number;
     chargedTotal: number;
     payments: VisitPayment[];
 };
@@ -134,6 +156,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-1',
         ref: '020526-K7QP',
         startsAt: '2026-05-02T10:30:00.000Z',
+        checkedInAt: '2026-05-02T10:30:00.000Z',
+        completedAt: '2026-05-02T10:30:00.000Z',
+        computedTotal: 400_000,
         chargedTotal: 400_000,
         payments: [
             {
@@ -151,6 +176,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-1',
         ref: '190626-M2XR',
         startsAt: '2026-06-19T12:00:00.000Z',
+        checkedInAt: '2026-06-19T12:00:00.000Z',
+        completedAt: '2026-06-19T12:00:00.000Z',
+        computedTotal: 175_000,
         chargedTotal: 175_000,
         payments: [],
     },
@@ -160,6 +188,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-2',
         ref: '280726-T9WB',
         startsAt: '2026-07-28T09:15:00.000Z',
+        checkedInAt: '2026-07-28T09:15:00.000Z',
+        completedAt: '2026-07-28T09:15:00.000Z',
+        computedTotal: 1_500_000,
         chargedTotal: 1_500_000,
         payments: [
             {
@@ -177,6 +208,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-3',
         ref: '140126-H4KN',
         startsAt: '2026-01-14T16:45:00.000Z',
+        checkedInAt: '2026-01-14T16:45:00.000Z',
+        completedAt: '2026-01-14T16:45:00.000Z',
+        computedTotal: 120_000,
         chargedTotal: 120_000,
         payments: [
             {
@@ -194,6 +228,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-3',
         ref: '220326-R6DS',
         startsAt: '2026-03-22T11:00:00.000Z',
+        checkedInAt: '2026-03-22T11:00:00.000Z',
+        completedAt: '2026-03-22T11:00:00.000Z',
+        computedTotal: 45_000,
         chargedTotal: 45_000,
         payments: [],
     },
@@ -203,6 +240,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-3',
         ref: '090626-B3VC',
         startsAt: '2026-06-09T13:20:00.000Z',
+        checkedInAt: '2026-06-09T13:20:00.000Z',
+        completedAt: '2026-06-09T13:20:00.000Z',
+        computedTotal: 30_000,
         chargedTotal: 30_000,
         payments: [],
     },
@@ -212,6 +252,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-4',
         ref: '040826-N8FJ',
         startsAt: '2026-08-04T09:00:00.000Z',
+        checkedInAt: '2026-08-04T09:00:00.000Z',
+        completedAt: '2026-08-04T09:00:00.000Z',
+        computedTotal: 520_000,
         chargedTotal: 520_000,
         payments: [],
     },
@@ -221,6 +264,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-5',
         ref: '080826-Q5ZT',
         startsAt: '2026-08-08T15:10:00.000Z',
+        checkedInAt: '2026-08-08T15:10:00.000Z',
+        completedAt: '2026-08-08T15:10:00.000Z',
+        computedTotal: 90_000,
         chargedTotal: 90_000,
         payments: [
             {
@@ -239,6 +285,9 @@ const visits: StoredVisit[] = [
         patientId: 'p-6',
         ref: '060826-L2YH',
         startsAt: '2026-08-06T10:00:00.000Z',
+        checkedInAt: '2026-08-06T10:00:00.000Z',
+        completedAt: '2026-08-06T10:00:00.000Z',
+        computedTotal: 260_000,
         chargedTotal: 260_000,
         payments: [
             {
@@ -370,8 +419,19 @@ function balanceOf(visit: StoredVisit): number {
     return visit.chargedTotal - paidTotalOf(visit);
 }
 
-function patientName(patientId: string): string {
-    return patients.find((patient) => patient.id === patientId)?.name ?? 'Unknown';
+/** Exactly what `visit.byId` returns for the fields the money cluster reads. */
+function detailOf(visit: StoredVisit): VisitDetail {
+    return {
+        id: visit.id,
+        appointmentId: visit.appointmentId,
+        checkedInAt: visit.checkedInAt,
+        completedAt: visit.completedAt,
+        computedTotal: visit.computedTotal,
+        chargedTotal: visit.chargedTotal,
+        payments: [...visit.payments].sort((a, b) => b.paidAt.localeCompare(a.paidAt)),
+        paidTotal: paidTotalOf(visit),
+        balance: balanceOf(visit),
+    };
 }
 
 export const moneyApi = {
@@ -426,17 +486,7 @@ export const moneyApi = {
             const visit = visits.find((v) => v.id === visitId);
             if (!visit) throw new StubError(ERROR_CODE.NOT_FOUND);
 
-            return {
-                id: visit.id,
-                ref: visit.ref,
-                patientId: visit.patientId,
-                patientName: patientName(visit.patientId),
-                startsAt: visit.startsAt,
-                chargedTotal: visit.chargedTotal,
-                payments: [...visit.payments].sort((a, b) => b.paidAt.localeCompare(a.paidAt)),
-                paidTotal: paidTotalOf(visit),
-                balance: balanceOf(visit),
-            };
+            return detailOf(visit);
         });
     },
 
@@ -478,17 +528,7 @@ export const moneyApi = {
                 paidAt: new Date().toISOString(),
             });
 
-            return {
-                id: visit.id,
-                ref: visit.ref,
-                patientId: visit.patientId,
-                patientName: patientName(visit.patientId),
-                startsAt: visit.startsAt,
-                chargedTotal: visit.chargedTotal,
-                payments: [...visit.payments].sort((a, b) => b.paidAt.localeCompare(a.paidAt)),
-                paidTotal: paidTotalOf(visit),
-                balance: balanceOf(visit),
-            };
+            return detailOf(visit);
         });
     },
 };

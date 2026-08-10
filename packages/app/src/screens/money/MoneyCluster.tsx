@@ -19,7 +19,16 @@ import { VisitPaymentsScreen } from './VisitPaymentsScreen';
 type Route =
     | { name: 'dashboard' }
     | { name: 'patient'; patientId: string; patientName: string }
-    | { name: 'visit'; visitId: string; patientId: string; patientName: string };
+    | {
+          name: 'visit';
+          visitId: string;
+          // Carried through the route because `visit.byId` returns neither
+          // (BLOCKED.md #14) — the row they came from is one screen back.
+          visitRef: string;
+          startsAt: string;
+          patientId: string;
+          patientName: string;
+      };
 
 export function MoneyCluster() {
     const [route, setRoute] = useState<Route>({ name: 'dashboard' });
@@ -43,10 +52,12 @@ export function MoneyCluster() {
                         patientName={patient.patientName}
                         version={version}
                         onBack={() => setRoute({ name: 'dashboard' })}
-                        onOpenVisit={(visitId) =>
+                        onOpenVisit={(visit) =>
                             setRoute({
                                 name: 'visit',
-                                visitId,
+                                visitId: visit.visitId,
+                                visitRef: visit.ref,
+                                startsAt: visit.startsAt,
                                 patientId: patient.patientId,
                                 patientName: patient.patientName,
                             })
@@ -59,6 +70,9 @@ export function MoneyCluster() {
                 {route.name === 'visit' ? (
                     <VisitPaymentsScreen
                         visitId={route.visitId}
+                        visitRef={route.visitRef}
+                        startsAt={route.startsAt}
+                        patientName={route.patientName}
                         version={version}
                         onBack={() =>
                             setRoute({

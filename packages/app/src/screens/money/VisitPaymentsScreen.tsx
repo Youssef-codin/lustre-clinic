@@ -19,6 +19,18 @@ import { errorMessage, longDate } from './format';
 
 export type VisitPaymentsScreenProps = {
     visitId: string;
+    /**
+     * The appointment's reference and date, and the patient's name.
+     *
+     * Passed in rather than read from `visit.byId`, which returns the visits
+     * row and joins neither the appointment nor the patient — so `ref`,
+     * `startsAt` and the name are not on it (BLOCKED.md #14). They come from the
+     * `balance.byPatient` row this screen was opened from, which already carries
+     * the first two, and from the route, which already carries the third.
+     */
+    visitRef: string;
+    startsAt: string;
+    patientName: string;
     version: number;
     onBack: () => void;
     /** Raised after a payment lands, so every other screen's figures re-read. */
@@ -27,6 +39,9 @@ export type VisitPaymentsScreenProps = {
 
 export function VisitPaymentsScreen({
     visitId,
+    visitRef,
+    startsAt,
+    patientName,
     version,
     onBack,
     onPaymentRecorded,
@@ -50,12 +65,7 @@ export function VisitPaymentsScreen({
 
     return (
         <View style={styles.screen} testID="money-visit-screen">
-            <TopBar
-                title={visit.data?.ref ?? 'Visit'}
-                subtitle={visit.data ? visit.data.patientName : undefined}
-                onBack={onBack}
-                divider
-            />
+            <TopBar title={visitRef} subtitle={patientName} onBack={onBack} divider />
 
             <ScrollView contentContainerStyle={styles.content}>
                 <View style={styles.gutter}>
@@ -73,7 +83,7 @@ export function VisitPaymentsScreen({
                                     paidTotal={visit.data.paidTotal}
                                 />
                                 <Text variant="subhead" tone="muted" style={styles.visitDate}>
-                                    {longDate(visit.data.startsAt)}
+                                    {longDate(startsAt)}
                                 </Text>
                             </>
                         ) : null}

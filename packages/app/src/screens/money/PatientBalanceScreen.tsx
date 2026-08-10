@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Card, EmptyState, SectionLabel, TopBar } from '../../components/ui';
 import { size, space, Text } from '../../theme';
-import { useOutstanding, useVisitsByPatient } from './_LocalMoneyApi';
+import { useOutstanding, useVisitsByPatient, type VisitBalance } from './_LocalMoneyApi';
 import { MoneyValue } from './_LocalMoneyValue';
 import { LoadState, SkeletonCard, SkeletonRows } from './components/LoadState';
 import { VisitBalanceRow } from './components/VisitBalanceRow';
@@ -20,7 +20,12 @@ export type PatientBalanceScreenProps = {
     /** Bumped when a payment lands, so every figure re-reads. */
     version: number;
     onBack: () => void;
-    onOpenVisit: (visitId: string) => void;
+    /**
+     * The whole row, not just the id: `visit.byId` does not join the
+     * appointment, so the reference and the date the next screen shows come
+     * from here (BLOCKED.md #14).
+     */
+    onOpenVisit: (visit: VisitBalance) => void;
 };
 
 export function PatientBalanceScreen({
@@ -86,7 +91,7 @@ export function PatientBalanceScreen({
                                         <VisitBalanceRow
                                             key={visit.visitId}
                                             visit={visit}
-                                            onPress={() => onOpenVisit(visit.visitId)}
+                                            onPress={() => onOpenVisit(visit)}
                                         />
                                     ))}
                                 </Card>

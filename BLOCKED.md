@@ -218,3 +218,26 @@ once on main.
 Both are noted as not-done in `ui/README.md`. The money screens pass text glyphs
 where the designs draw icons — the method rows in `TakingsCard` especially — and
 the payment sheet clears the home indicator with `ui/Sheet`'s fixed padding.
+
+### 14. `visit.byId` does not carry the appointment or the patient
+
+**Needed by:** the payment-history screen's header (the visit reference and the
+patient's name) and its date line.
+
+**Found:** `visit.byId` returns the `visits` row plus `procedures`, `payments`,
+`paidTotal` and `balance`. The `visits` table holds `appointment_id` and the
+totals and nothing else — `ref` and `starts_at` are the appointment's, and the
+name is the patient's, and the service joins neither.
+
+**Worked around:** the screen takes `visitRef`, `startsAt` and `patientName` as
+props. The first two come from the `balance.byPatient` row it was opened from,
+which already carries them; the third from the route, which already had it. The
+mirrored `VisitDetail` now declares only what the procedure actually returns, and
+`money.test.ts` asserts it has not regrown the invented fields — that failure is
+invisible to the type system and would only surface at the swap, as a header
+falling back to a placeholder and a date rendering `NaN undefined NaN`.
+
+**Would prefer:** `visit.byId` joining the appointment for `ref` and `startsAt`
+and the patient for `name`. Every screen that opens a visit wants them, the join
+is one the service already does in `balance.byPatient`, and threading them
+through a route means a deep link to a visit cannot render its own header.

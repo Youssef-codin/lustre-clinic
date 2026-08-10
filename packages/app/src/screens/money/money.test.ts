@@ -233,3 +233,45 @@ describe('a period can collect more than it charged', () => {
         expect(Math.round(collectionRate(14_262_000, 11_880_000) * 100)).toBe(83);
     });
 });
+
+describe('the mirrored contract matches what the server actually returns', () => {
+    // The mirror is hand-written (BLOCKED.md #3), so this is the check that it
+    // has not grown a field `visit.byId` cannot supply. Inventing one is not a
+    // type error anywhere — it fails silently at the swap, as a header falling
+    // back to a placeholder and a date rendering `NaN undefined NaN`.
+    it('exposes no appointment or patient fields on a visit', async () => {
+        const visit = await moneyApi.visit('v-1');
+
+        // `visit.byId` returns the visits row; the visits table joins neither
+        // the appointment nor the patient (schema.ts).
+        expect(visit).not.toHaveProperty('ref');
+        expect(visit).not.toHaveProperty('startsAt');
+        expect(visit).not.toHaveProperty('patientId');
+        expect(visit).not.toHaveProperty('patientName');
+    });
+
+    it('returns the visits-row columns and the derived totals', async () => {
+        const visit = await moneyApi.visit('v-1');
+
+        expect(Object.keys(visit).sort()).toEqual(
+            [
+                'appointmentId',
+                'balance',
+                'chargedTotal',
+                'checkedInAt',
+                'completedAt',
+                'computedTotal',
+                'paidTotal',
+                'payments',
+                'id',
+            ].sort(),
+        );
+    });
+
+    it('still carries the reference and date on a balance row, where they exist', async () => {
+        const [first] = await moneyApi.byPatient('p-1');
+
+        expect(first?.ref).toBe('020526-K7QP');
+        expect(first?.startsAt).toBe('2026-05-02T10:30:00.000Z');
+    });
+});
