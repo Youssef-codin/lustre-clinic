@@ -173,6 +173,15 @@ const schedule: ClinicDay[] = [
 
 // --- inputs -----------------------------------------------------------------
 
+/** `list` and `tree` take an object, not a flag — `listBranchInput` et al. */
+export interface ListInput {
+    includeInactive?: boolean;
+}
+
+export interface ClearClinicDayInput {
+    weekday: number;
+}
+
 export interface CreateBranchInput {
     name: string;
     address: string | null;
@@ -213,6 +222,11 @@ export interface CreateQuestionInput {
     required: boolean;
 }
 
+/** `options` is jsonb on the wire, so it arrives unknown. Mirrors the service. */
+export function optionsOf(question: CustomQuestion): string[] {
+    return Array.isArray(question.options) ? (question.options as string[]) : [];
+}
+
 export interface UpdateQuestionInput {
     id: string;
     label?: string;
@@ -234,8 +248,8 @@ const KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 export const api = {
     branch: {
-        /** `includeInactive` — the settings list shows deactivated branches; pickers do not. */
-        async list(includeInactive = false): Promise<Branch[]> {
+        /** The settings list shows deactivated branches; pickers do not. */
+        async list({ includeInactive }: ListInput = {}): Promise<Branch[]> {
             const rows = [...branches].sort((a, b) => a.name.localeCompare(b.name));
             return settle(includeInactive ? rows : rows.filter((b) => b.active));
         },
@@ -264,7 +278,7 @@ export const api = {
 
     procedure: {
         /** Categories with their leaves nested, exactly as `procedure.tree` returns them. */
-        async tree(includeInactive = false): Promise<ProcedureNode[]> {
+        async tree({ includeInactive }: ListInput = {}): Promise<ProcedureNode[]> {
             const ordered = [...procedures].sort(bySortOrderThenName);
             const visible = includeInactive ? ordered : ordered.filter((p) => p.active);
 
@@ -299,6 +313,11 @@ export const api = {
                 active: true,
                 sortOrder: siblings.length,
             };
+            // Only one procedure holds the checkup flag, on create as well as on
+            // update: two of them and the §9 waiver attaches to whichever
+            // `findCheckup` happens to order first.
+            if (row.isCheckup) clearOtherCheckups(row.id);
+
             procedures.push(row);
             return settle(row);
         },
@@ -331,13 +350,7 @@ export const api = {
             if (input.isCheckup !== undefined) row.isCheckup = input.isCheckup;
             if (input.active !== undefined) row.active = input.active;
 
-            // Only one procedure holds the checkup flag — the waiver in §9 is
-            // written against "the" checkup line, singular.
-            if (input.isCheckup) {
-                for (const other of procedures) {
-                    if (other.id !== row.id) other.isCheckup = false;
-                }
-            }
+            if (input.isCheckup) clearOtherCheckups(row.id);
 
             return settle({ ...row });
         },
@@ -358,7 +371,7 @@ export const api = {
     },
 
     customQuestion: {
-        async list(includeInactive = false): Promise<CustomQuestion[]> {
+        async list({ includeInactive }: ListInput = {}): Promise<CustomQuestion[]> {
             const rows = [...questions].sort(
                 (a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label),
             );
@@ -439,7 +452,7 @@ export const api = {
         },
 
         /** Closing a closed day is a no-op, the same as the service. */
-        async clearDay(weekday: number): Promise<void> {
+        async clearDay({ weekday }: ClearClinicDayInput): Promise<void> {
             const index = schedule.findIndex((d) => d.weekday === weekday);
             if (index >= 0) schedule.splice(index, 1);
             return settle(undefined);
@@ -453,6 +466,13 @@ function bySortOrderThenName(a: Procedure, b: Procedure): number {
 
 function isString(value: string | null): value is string {
     return value !== null;
+}
+
+/** The waiver in §9 is written against "the" checkup line, singular. */
+function clearOtherCheckups(keep: string): void {
+    for (const other of procedures) {
+        if (other.id !== keep) other.isCheckup = false;
+    }
 }
 
 function hasChildren(id: string): boolean {

@@ -43,7 +43,11 @@ const TIMES = Array.from({ length: 31 }, (_, index) => {
 
 export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
     const schedule = useQuery(useCallback(() => api.settings.schedule(), []));
-    const branches = useQuery(useCallback(() => api.branch.list(), []));
+    // Deactivated branches included on purpose. A day keeps pointing at its
+    // branch after that branch leaves the pickers, and an active-only list would
+    // render it as "Unknown branch" with the select looking unset — inviting a
+    // save that quietly moves the day somewhere else.
+    const branches = useQuery(useCallback(() => api.branch.list({ includeInactive: true }), []));
     const [editing, setEditing] = useState<number | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
@@ -172,13 +176,24 @@ type DayEditorProps = {
  */
 function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditorProps) {
     const [open, setOpen] = useState(day !== undefined);
-    const [branchId, setBranchId] = useState(day?.branchId ?? branches[0]?.id ?? null);
+    const [branchId, setBranchId] = useState(day?.branchId ?? branches.find((b) => b.active)?.id ?? null);
+
     const [opensAt, setOpensAt] = useState(day?.opensAt ?? '10:00');
     const [closesAt, setClosesAt] = useState(day?.closesAt ?? '18:00');
 
+    // Active branches, plus this day's own if it has since been deactivated —
+    // otherwise the select has a value that is not one of its options, which
+    // draws as the placeholder and loses the day's branch on the next save.
+    const options = branches
+        .filter((branch) => branch.active || branch.id === day?.branchId)
+        .map((branch) => ({
+            value: branch.id,
+            label: branch.active ? branch.name : `${branch.name} (deactivated)`,
+        }));
+
     const save = useMutation(async () => {
         if (!open) {
-            await api.settings.clearDay(weekday);
+            await api.settings.clearDay({ weekday });
             return 'closed' as const;
         }
         if (!branchId) throw new Error('pick a branch');
@@ -230,7 +245,7 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                     <Select
                         label="Branch"
                         required
-                        options={branches.map((b) => ({ value: b.id, label: b.name }))}
+                        options={options}
                         value={branchId}
                         onChange={setBranchId}
                         placeholder="Pick a branch"

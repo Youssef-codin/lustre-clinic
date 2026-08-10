@@ -21,7 +21,7 @@ import {
     Toast,
 } from '../../components/ui';
 import { color, size, space, Text } from '../../theme';
-import { _LocalMoneyValue, poundsToPiastres } from './components/_LocalMoneyValue';
+import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { api } from './data/_LocalApi';
@@ -46,7 +46,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     // Inactive rows are shown here, dimmed — this is the one screen where a
     // deactivated procedure has to be findable, because it is where it is
     // brought back.
-    const tree = useQuery(useCallback(() => api.procedure.tree(true), []));
+    const tree = useQuery(useCallback(() => api.procedure.tree({ includeInactive: true }), []));
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
     const [reordering, setReordering] = useState(false);
@@ -418,7 +418,7 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                             variant="display"
                             prefix="EGP"
                             value={price}
-                            onChangeText={setPrice}
+                            onChangeText={(next) => setPrice(sanitisePounds(next))}
                             placeholder="0"
                             hint="Visits already recorded keep the price they were charged at."
                         />

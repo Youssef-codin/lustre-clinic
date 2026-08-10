@@ -24,7 +24,7 @@ import {
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
+import { api, optionsOf } from './data/_LocalApi';
 import { errorMessage, useMutation, useQuery } from './data/hooks';
 import type { CustomQuestion } from './data/types';
 
@@ -57,7 +57,7 @@ const KIND_LABEL: Record<QuestionKind, string> = {
 const KINDS: readonly QuestionKind[] = ['boolean', 'select', 'text', 'number', 'date'];
 
 export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
-    const questions = useQuery(useCallback(() => api.customQuestion.list(true), []));
+    const questions = useQuery(useCallback(() => api.customQuestion.list({ includeInactive: true }), []));
     const [editing, setEditing] = useState<CustomQuestion | 'new' | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
@@ -255,7 +255,7 @@ function QuestionRow({
 }: QuestionRowProps) {
     const type =
         question.kind === 'select'
-            ? `${KIND_LABEL.select} · ${question.options?.length ?? 0} options`
+            ? `${KIND_LABEL.select} · ${optionsOf(question).length} options`
             : KIND_LABEL[question.kind];
 
     // The label carries the Arabic face by itself — `Text` detects the script
@@ -320,7 +320,7 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
     const [key, setKey] = useState(question?.key ?? '');
     const [keyEdited, setKeyEdited] = useState(question !== null);
     const [kind, setKind] = useState<QuestionKind>(question?.kind ?? 'boolean');
-    const [options, setOptions] = useState<string[]>(question?.options ?? []);
+    const [options, setOptions] = useState<string[]>(question ? optionsOf(question) : []);
     const [required, setRequired] = useState(question?.required ?? false);
     const [submitted, setSubmitted] = useState(false);
     const [confirming, setConfirming] = useState(false);

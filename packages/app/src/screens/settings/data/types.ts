@@ -55,8 +55,12 @@ export interface CustomQuestion {
     key: string;
     label: string;
     kind: QuestionKind;
-    /** Only meaningful for `select`. */
-    options: string[] | null;
+    /**
+     * Only meaningful for `select` — and `unknown` rather than `string[] | null`
+     * because the column is `jsonb`, so that is what Drizzle infers and what
+     * arrives on the wire. Read it through `optionsOf`, as the service does.
+     */
+    options: unknown;
     required: boolean;
     sortOrder: number;
     active: boolean;

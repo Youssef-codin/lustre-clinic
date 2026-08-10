@@ -33,7 +33,7 @@ import type { Branch } from './data/types';
  * pickers and keeps every appointment that already names it.
  */
 export function BranchesScreen({ onBack }: { onBack: () => void }) {
-    const branches = useQuery(useCallback(() => api.branch.list(true), []));
+    const branches = useQuery(useCallback(() => api.branch.list({ includeInactive: true }), []));
     const [editing, setEditing] = useState<Branch | 'new' | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 

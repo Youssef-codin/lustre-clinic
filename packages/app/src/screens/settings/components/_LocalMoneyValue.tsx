@@ -31,13 +31,35 @@ export function _LocalMoneyValue({ piastres, variant = 'amount', tone, bare = fa
     );
 }
 
-/** Whole pounds, thousands separated. Latin numerals in both languages (§7.11). */
+/**
+ * Whole pounds, thousands separated. Latin numerals in both languages (§7.11).
+ *
+ * A fractional price rounds here, because §7.12 gives the UI nowhere to show
+ * the piastres. Nothing in this cluster can create one — see `sanitisePounds`.
+ */
 export function formatPounds(piastres: number): string {
     return Math.round(piastres / 100).toLocaleString('en-US');
 }
 
+/**
+ * Digits only, applied as the field is typed into.
+ *
+ * `ui/NumericField` is fixed to the `decimal-pad` keyboard, which offers a
+ * separator that §7.12 leaves no room for: the UI shows whole EGP and never
+ * shows piastres, so `4200.50` would be stored, displayed back as `4,200`, and
+ * silently rewritten on the next save. Worse, stripping the point rather than
+ * the fraction reads `4200.50` as 420,050 pounds — a hundredfold price, visible
+ * to nobody until it is charged.
+ *
+ * So the separator never reaches the value. The constraint is applied where the
+ * user can see it happening, not at save time.
+ */
+export function sanitisePounds(text: string): string {
+    return text.replace(/[^0-9]/g, '');
+}
+
 /** The other edge: pounds typed into a field become the piastres we store. */
 export function poundsToPiastres(pounds: string): number {
-    const digits = pounds.replace(/[^0-9]/g, '');
+    const digits = sanitisePounds(pounds);
     return digits ? Number(digits) * 100 : 0;
 }

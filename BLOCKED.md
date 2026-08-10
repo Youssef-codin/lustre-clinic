@@ -31,10 +31,16 @@ Everything is async with a ~420ms delay, and validation throws the real
 `ERROR_CODE`s, so the pending and failure states on screen are the ones the
 device will show.
 
-**Prop shape expected of the real thing:** none — this is a swap of import.
-`data/types.ts` mirrors the server service return types field for field, and
-each screen calls `api.<module>.<procedure>(input)`. Deleting `_LocalApi.ts` and
-pointing `api` at the tRPC client should not touch a screen.
+**Prop shape expected of the real thing:** none. `data/types.ts` mirrors the
+server service return types field for field — including `CustomQuestion.options`
+being `unknown`, because the column is `jsonb` and that is what arrives; read it
+through `optionsOf`, as the service does. Inputs take the routers' own shapes
+(`list({ includeInactive })`, `clearDay({ weekday })`), not flags. So pointing
+`api` at the tRPC client should not change a call site.
+
+It is still a hand-written contract, which CLAUDE.MD forbids and which nothing
+enforces: these types cannot drift *loudly*. The check is by eye until the
+inferred `AppRouter` replaces them.
 
 `data/hooks.ts` (`useQuery` / `useMutation`) is a stand-in for the TanStack
 bindings with the same three states and no cache. A write reloads the query it
