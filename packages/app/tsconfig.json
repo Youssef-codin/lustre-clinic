@@ -2,11 +2,6 @@
     "extends": "expo/tsconfig.base",
     "compilerOptions": {
         "strict": true,
-        // `@mawid/shared` imports its own modules with explicit `.ts`
-        // extensions, which is what `tsconfig.base.json` allows and what the
-        // server already compiles under. The app extends `expo/tsconfig.base`
-        // instead, so it needs the same flag or every import of the shared
-        // contract fails to compile. See BLOCKED.md #13.
         "allowImportingTsExtensions": true,
         "noUncheckedIndexedAccess": true,
         "noImplicitOverride": true,

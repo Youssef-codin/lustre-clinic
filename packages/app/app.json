@@ -20,6 +20,12 @@
             "predictiveBackGestureEnabled": false,
             "softwareKeyboardLayoutMode": "resize"
         },
-        "plugins": ["expo-font"]
+        "plugins": ["expo-font"],
+        "extra": {
+            "server": {
+                "lan": null,
+                "tailscale": null
+            }
+        }
     }
 }
