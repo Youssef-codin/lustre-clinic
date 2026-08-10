@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, StyleSheet } from 'react-native';
+import { ApiProvider } from './src/api';
 import { GalleryScreen } from './src/screens/dev/GalleryScreen';
 import { color, useAppFonts } from './src/theme';
 
@@ -11,10 +12,12 @@ export default function App() {
     if (!fontsLoaded) return <SafeAreaView style={styles.screen} />;
 
     return (
-        <SafeAreaView style={styles.screen}>
-            <GalleryScreen />
-            <StatusBar style="dark" />
-        </SafeAreaView>
+        <ApiProvider>
+            <SafeAreaView style={styles.screen}>
+                <GalleryScreen />
+                <StatusBar style="dark" />
+            </SafeAreaView>
+        </ApiProvider>
     );
 }
 

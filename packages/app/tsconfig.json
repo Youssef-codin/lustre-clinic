@@ -2,6 +2,11 @@
     "extends": "expo/tsconfig.base",
     "compilerOptions": {
         "strict": true,
+        // The `AppRouter` type is imported from `packages/server`, whose own
+        // sources import each other with explicit `.ts` extensions (Bun's
+        // convention). Type-checking it here means accepting them; the imports
+        // are type-only and never reach Metro.
+        "allowImportingTsExtensions": true,
         "noUncheckedIndexedAccess": true,
         "noImplicitOverride": true,
         "noFallthroughCasesInSwitch": true,
