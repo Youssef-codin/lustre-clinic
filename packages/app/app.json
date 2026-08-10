@@ -23,7 +23,7 @@
         "plugins": ["expo-font"],
         "extra": {
             "server": {
-                "lan": null,
+                "lan": "http://localhost:3002",
                 "tailscale": null
             }
         }

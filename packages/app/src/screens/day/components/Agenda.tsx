@@ -149,6 +149,8 @@ export type CheckInButtonProps = {
     loading: boolean;
     /** Somebody is in the chair, so the next patient cannot go in yet. */
     chairBusy: boolean;
+    /** Tapped while the chair is busy — the screen says why. */
+    onBlocked: (appointment: Appointment) => void;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
 };
@@ -175,7 +177,14 @@ const SHORT: Partial<Record<AppointmentStatus, string>> = {
  * checked-in row's next move is checking out, and a dead control in the place
  * the finger already goes is worse than no control.
  */
-export function CheckInButton({ appointment, loading, chairBusy, onCheckIn, onOpen }: CheckInButtonProps) {
+export function CheckInButton({
+    appointment,
+    loading,
+    chairBusy,
+    onCheckIn,
+    onBlocked,
+    onOpen,
+}: CheckInButtonProps) {
     const inside = appointment.status !== 'booked';
 
     return (
@@ -184,10 +193,14 @@ export function CheckInButton({ appointment, loading, chairBusy, onCheckIn, onOp
             variant={inside ? 'accentSoft' : 'secondary'}
             size="md"
             loading={loading}
-            disabled={!inside && chairBusy}
             icon={inside ? undefined : <CheckIcon size={13} stroke={color.ink} />}
             style={styles.pill}
-            onPress={() => (inside ? onOpen(appointment) : onCheckIn(appointment))}
+            // Not `disabled`: a washed-out pill on every row is most of the
+            // list greyed out, and the reason it cannot be pressed is not on
+            // screen. It stays legible and says why when it is tapped.
+            onPress={() =>
+                inside ? onOpen(appointment) : chairBusy ? onBlocked(appointment) : onCheckIn(appointment)
+            }
         />
     );
 }
@@ -203,6 +216,7 @@ export type UpNextProps = {
     onSelect: (appointment: Appointment) => void;
     onCheckIn: (appointment: Appointment) => void;
     onNoShow: (appointment: Appointment) => void;
+    onBlocked: (appointment: Appointment) => void;
 };
 
 export function UpNext({
@@ -214,6 +228,7 @@ export function UpNext({
     onSelect,
     onCheckIn,
     onNoShow,
+    onBlocked,
 }: UpNextProps) {
     if (appointments.length === 0) return null;
 
@@ -238,6 +253,7 @@ export function UpNext({
                             appointment={appointment}
                             loading={checkingInId === appointment.id}
                             chairBusy={chairBusy}
+                            onBlocked={onBlocked}
                             onCheckIn={onCheckIn}
                             onOpen={onSelect}
                         />

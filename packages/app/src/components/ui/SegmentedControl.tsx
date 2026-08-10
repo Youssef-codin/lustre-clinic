@@ -51,7 +51,7 @@ export function SegmentedControl<T extends string>({
                         <Text
                             variant="callout"
                             weight={selected ? 'semibold' : 'medium'}
-                            tone={selected ? 'ink' : 'muted'}
+                            tone={selected ? 'ink' : 'ink2'}
                         >
                             {segment.label}
                         </Text>

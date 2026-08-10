@@ -1,7 +1,7 @@
-import { ERROR_CODE, type PaymentMethod } from '@mawid/shared';
+import type { PaymentMethod } from '@mawid/shared';
+import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 import { offsetForDate } from '../time';
-import { asRequestError, httpTransport, SERVER_URL, type Transport } from './client';
-import { fixtureTransport } from './fixtures';
+import { RequestError } from './client';
 import type {
     Appointment,
     AppointmentRow,
@@ -17,33 +17,47 @@ import type {
 } from './types';
 
 /**
- * Every call the day view makes, in one file.
+ * Every call the day view makes, in one file, over the real tRPC client.
  *
- * This is the seam. When the real tRPC client lands (BLOCKED.md) the bodies
- * below become `trpc.appointment.byDate.useQuery(…)` and the casts go with
- * them; nothing above this file knows which it is talking to.
+ * The client is typed from `AppRouter`, so a procedure that moves or an input
+ * that changes shape fails here at compile time rather than at the clinic.
+ *
+ * Two things it still has to do by hand. Dates arrive as strings — the server
+ * returns `Date` and there is no transformer either side, so the inferred types
+ * say `Date` while the wire carries ISO strings (`api/types.ts`). And the
+ * screens read `RequestError`, which carries the `ERROR_CODE` they localize
+ * from; `wrap` is where a tRPC failure becomes one.
  */
 
-const transport: Transport = SERVER_URL ? httpTransport(SERVER_URL) : fixtureTransport();
-
-/** Running without a clinic to talk to. The screen says so rather than lying. */
-export const usingFixtures = SERVER_URL === undefined;
-
 /**
- * The cast the missing client would have made for us. It is unchecked, and
- * deliberately in one place: a shape that drifts breaks here, not in a screen.
+ * The Date/string gap, in one place. Everything above this file reads the local
+ * interfaces in `types.ts`, which say `string` because that is what arrives.
+ * When a transformer lands on the server these casts come out and the inferred
+ * types are used directly.
  */
 function shaped<T>(value: unknown): T {
     return value as T;
 }
 
+/** A tRPC failure, in the terms `errors.ts` switches on. */
+async function wrap<T>(run: () => Promise<unknown>): Promise<T> {
+    try {
+        return shaped<T>(await run());
+    } catch (err) {
+        if (err instanceof RequestError) throw err;
+        throw new RequestError(errorCodeOf(err), err instanceof Error ? err.message : 'request failed', {
+            offline: isOffline(err),
+            cause: err,
+        });
+    }
+}
+
 export const api = {
-    schedule: async (): Promise<ClinicDay[]> => shaped(await transport.query('settings.schedule')),
+    schedule: (): Promise<ClinicDay[]> => wrap(() => trpcClient.settings.schedule.query()),
 
-    settings: async (): Promise<ClinicSettings> => shaped(await transport.query('settings.get')),
+    settings: (): Promise<ClinicSettings> => wrap(() => trpcClient.settings.get.query()),
 
-    branches: async (): Promise<Branch[]> =>
-        shaped(await transport.query('branch.list', { includeInactive: false })),
+    branches: (): Promise<Branch[]> => wrap(() => trpcClient.branch.list.query({ includeInactive: false })),
 
     /**
      * The offset is taken from the date itself rather than from the caller —
@@ -51,87 +65,94 @@ export const api = {
      * offset that was in force on it, and no screen should have to remember
      * that.
      */
-    byDate: async (date: string, branchId?: string): Promise<Appointment[]> =>
-        shaped(
-            await transport.query('appointment.byDate', {
+    byDate: (date: string, branchId?: string): Promise<Appointment[]> =>
+        wrap(() =>
+            trpcClient.appointment.byDate.query({
                 date,
                 offsetMinutes: offsetForDate(date),
                 branchId,
             }),
         ),
 
-    /** A month in one request — see `Transport.queryMany`. */
-    byDates: async (dates: readonly string[]): Promise<Appointment[][]> =>
-        shaped(
-            await transport.queryMany(
-                'appointment.byDate',
-                dates.map((date) => ({ date, offsetMinutes: offsetForDate(date) })),
+    /**
+     * A month in one request. These are separate calls, but `httpBatchLink`
+     * collects them into a single POST — thirty-one round trips over Tailscale
+     * is a visibly slow sheet and one is not.
+     */
+    byDates: (dates: readonly string[]): Promise<Appointment[][]> =>
+        wrap(() =>
+            Promise.all(
+                dates.map((date) =>
+                    trpcClient.appointment.byDate.query({
+                        date,
+                        offsetMinutes: offsetForDate(date),
+                    }),
+                ),
             ),
         ),
 
     /** The selectable procedures, for the name behind an appointment's `typeId`. */
-    procedures: async (): Promise<ProcedureType[]> => shaped(await transport.query('procedure.list')),
+    procedures: (): Promise<ProcedureType[]> => wrap(() => trpcClient.procedure.list.query()),
 
     /**
      * §11 — what is owed a message. `dueOnly` is the server's default and the
      * one the screen wants: a reminder that is not due yet is not work.
      */
-    pendingReminders: async (date: string): Promise<PendingReminder[]> =>
-        shaped(
-            await transport.query('reminder.pending', {
+    pendingReminders: (date: string): Promise<PendingReminder[]> =>
+        wrap(() =>
+            trpcClient.reminder.pending.query({
                 dueOnly: true,
                 limit: 100,
                 offsetMinutes: offsetForDate(date),
             }),
         ),
 
-    markReminderSent: async (id: string): Promise<unknown> => transport.mutate('reminder.markSent', { id }),
+    markReminderSent: (id: string): Promise<unknown> =>
+        wrap(() => trpcClient.reminder.markSent.mutate({ id })),
 
-    markReminderSkipped: async (id: string): Promise<unknown> =>
-        transport.mutate('reminder.markSkipped', { id }),
+    markReminderSkipped: (id: string): Promise<unknown> =>
+        wrap(() => trpcClient.reminder.markSkipped.mutate({ id })),
 
-    searchPatients: async (q: string): Promise<Patient[]> =>
-        shaped(await transport.query('patient.search', { q, limit: 8 })),
+    searchPatients: (q: string): Promise<Patient[]> =>
+        wrap(() => trpcClient.patient.search.query({ q, limit: 8 })),
 
-    checkIn: async (appointmentId: string): Promise<VisitRow> =>
-        shaped(await transport.mutate('visit.checkIn', { appointmentId })),
+    checkIn: (appointmentId: string): Promise<VisitRow> =>
+        wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId })),
 
-    walkIn: async (input: {
+    walkIn: (input: {
         patient: { kind: 'existing'; patientId: string } | { kind: 'new'; name: string; phone: string };
         branchId: string;
         durationMinutes?: number;
         offsetMinutes: number;
-    }): Promise<WalkInResult> => shaped(await transport.mutate('appointment.walkIn', input)),
+    }): Promise<WalkInResult> => wrap(() => trpcClient.appointment.walkIn.mutate(input)),
 
-    cancel: async (id: string): Promise<AppointmentRow> =>
-        shaped(await transport.mutate('appointment.cancel', { id })),
+    cancel: (id: string): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.cancel.mutate({ id })),
 
-    markNoShow: async (id: string): Promise<AppointmentRow> =>
-        shaped(await transport.mutate('appointment.update', { id, status: 'no_show' })),
+    markNoShow: (id: string): Promise<AppointmentRow> =>
+        wrap(() => trpcClient.appointment.update.mutate({ id, status: 'no_show' })),
 
-    awaitPayment: async (id: string): Promise<AppointmentRow> =>
-        shaped(await transport.mutate('appointment.awaitPayment', { id })),
+    awaitPayment: (id: string): Promise<AppointmentRow> =>
+        wrap(() => trpcClient.appointment.awaitPayment.mutate({ id })),
 
-    checkOut: async (input: {
+    checkOut: (input: {
         visitId: string;
         chargedTotal: number;
         paidTotal: number;
         method: PaymentMethod;
         methodNote?: string | null;
-    }): Promise<Visit> => shaped(await transport.mutate('visit.checkOut', input)),
+    }): Promise<Visit> => wrap(() => trpcClient.visit.checkOut.mutate(input)),
 
-    visitById: async (id: string): Promise<Visit> => shaped(await transport.query('visit.byId', { id })),
+    visitById: (id: string): Promise<Visit> => wrap(() => trpcClient.visit.byId.query({ id })),
 };
 
 /**
  * The visit behind an appointment.
  *
- * `appointments` carries no `visit_id` and `visit.byAppointment` is not on the
- * router (BLOCKED.md), so the only ids the client is ever handed come back from
- * `visit.checkIn` and `appointment.walkIn`. They are remembered here for the
- * session, and the server is asked only when this does not know — which
- * succeeds against the fixtures and fails against a real server until that one
- * procedure exists.
+ * `appointments` carries no `visit_id`, so the id has to be asked for. The ids
+ * this session already has are kept — a check-in hands one back, and asking
+ * again for what we just created is a round trip over Tailscale for nothing —
+ * but a patient checked in on another phone, or yesterday, or before the app
+ * was last opened, is now reachable too.
  */
 const visitIds = new Map<string, string>();
 
@@ -143,24 +164,7 @@ export async function visitForAppointment(appointmentId: string): Promise<Visit 
     const known = visitIds.get(appointmentId);
     if (known) return api.visitById(known);
 
-    let raw: unknown;
-    try {
-        raw = await transport.query('visit.byAppointment', { appointmentId });
-    } catch (err) {
-        // Only "there is no such procedure" is an answer. The router does not
-        // carry `visit.byAppointment` yet, and tRPC reports an unknown path as
-        // NOT_FOUND — that is the case this call is expected to lose, and it
-        // means "cannot look it up", not "no visit".
-        //
-        // Anything else — the clinic PC down, a timeout, a 500 — is a failure,
-        // and swallowing it would show "checked in before the app was opened"
-        // for a server that is simply unreachable, with no error and no retry.
-        const failure = asRequestError(err);
-        if (failure.offline || failure.code !== ERROR_CODE.NOT_FOUND) throw failure;
-        return null;
-    }
-
-    const visit = shaped<Visit | null>(raw);
+    const visit = await wrap<Visit | null>(() => trpcClient.visit.byAppointment.query({ appointmentId }));
     if (visit) visitIds.set(appointmentId, visit.id);
     return visit;
 }

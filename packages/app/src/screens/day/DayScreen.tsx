@@ -170,14 +170,14 @@ export function DayScreen() {
                                 value: 'day',
                                 label: `Today · ${appointments.length}`,
                                 icon: (selected) => (
-                                    <ClockIcon size={15} stroke={selected ? color.ink : color.muted} />
+                                    <ClockIcon size={15} stroke={selected ? color.ink : color.ink2} />
                                 ),
                             },
                             {
                                 value: 'reminders',
                                 label: `Reminders · ${reminderCount}`,
                                 icon: (selected) => (
-                                    <ChatIcon size={15} stroke={selected ? color.ink : color.muted} />
+                                    <ChatIcon size={15} stroke={selected ? color.ink : color.ink2} />
                                 ),
                             },
                         ]}
@@ -261,6 +261,9 @@ export function DayScreen() {
                             onSelect={openDetail}
                             onCheckIn={checkInFrom}
                             onNoShow={markNoShow}
+                            onBlocked={() =>
+                                setToast('Finish the visit in the chair before checking anyone else in')
+                            }
                         />
                     </ScrollView>
                 )}

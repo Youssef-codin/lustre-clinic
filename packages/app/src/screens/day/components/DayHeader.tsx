@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
+import { Dimensions, I18nManager, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, DropdownMenu, type MenuAnchor } from '../../../components/ui';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import type { Branch } from '../data';
@@ -34,11 +34,16 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
     const switchable = branches.length > 1;
 
     function openBranches() {
-        // The menu hangs under the pill. `MenuAnchor` measures from the inline
-        // end so that it mirrors in Arabic, hence the window width less the
-        // pill's far edge.
+        // The pill sits in the start gutter, so the menu hangs from its start
+        // edge. `x` is a physical left, which is the inline start only in a
+        // left-to-right layout; in Arabic the window width less the pill's far
+        // edge is the same distance measured the other way.
         pill.current?.measureInWindow((x, y, width, height) => {
-            setAnchor({ top: y + height + space[1], end: Dimensions.get('window').width - (x + width) });
+            const rtl = I18nManager.isRTL;
+            setAnchor({
+                top: y + height + space[1],
+                start: rtl ? Dimensions.get('window').width - (x + width) : x,
+            });
             setMenu(true);
         });
     }

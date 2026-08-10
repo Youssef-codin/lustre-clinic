@@ -11,6 +11,12 @@ export type MenuAnchor = {
     top: number;
     /** Distance from the inline end of the window — mirrors in Arabic. */
     end?: number;
+    /**
+     * Distance from the inline start instead. For a trigger in the start
+     * gutter: anchored by its end, the menu is pushed most of a screen width
+     * past the edge and its rows are clipped away.
+     */
+    start?: number;
 };
 
 export type MenuItem = {
@@ -123,7 +129,10 @@ export function MenuSurface({
     if (!mounted) return null;
 
     const top = anchor?.top ?? space[12];
-    const end = anchor?.end ?? size.gutter;
+    // One edge or the other, never both — two would stretch the surface across
+    // the window rather than sit it under its trigger.
+    const inline =
+        anchor?.start !== undefined ? { start: anchor.start } : { end: anchor?.end ?? size.gutter };
 
     return (
         <Modal visible transparent animationType="none" onRequestClose={onClose} testID={testID}>
@@ -133,7 +142,7 @@ export function MenuSurface({
                 accessibilityLabel={accessibilityLabel}
                 style={[
                     styles.surface,
-                    { top, end },
+                    { top, ...inline },
                     {
                         opacity: progress,
                         transform: [

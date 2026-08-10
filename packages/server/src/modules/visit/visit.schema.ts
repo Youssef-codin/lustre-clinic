@@ -9,6 +9,12 @@ export const checkInInput = z.object({ appointmentId: z.uuid() });
 
 export const visitByIdInput = z.object({ id: z.uuid() });
 
+/**
+ * The day view holds an `appointmentId` and needs the visit to check the
+ * patient out; `appointments` carries no `visit_id`.
+ */
+export const visitByAppointmentInput = z.object({ appointmentId: z.uuid() });
+
 /** Replaces the whole list; it does not patch individual lines (§13). */
 export const setProceduresInput = z.object({
     visitId: z.uuid(),
