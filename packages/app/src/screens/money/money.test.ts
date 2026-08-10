@@ -6,6 +6,7 @@ import {
     clampToBalance,
     collectedAhead,
     collectionRate,
+    currencyLeads,
     formatEgp,
     isWholePounds,
     toEgp,
@@ -273,5 +274,25 @@ describe('the mirrored contract matches what the server actually returns', () =>
 
         expect(first?.ref).toBe('020526-K7QP');
         expect(first?.startsAt).toBe('2026-05-02T10:30:00.000Z');
+    });
+});
+
+describe('currency position (§7.13)', () => {
+    it('leads in English and trails in Arabic', () => {
+        expect(currencyLeads('en')).toBe(true);
+        expect(currencyLeads('ar')).toBe(false);
+    });
+
+    it('agrees with the single-string form, which is the reference order', () => {
+        // `MoneyValue` splits the figure and the currency into two Texts so the
+        // figure can stay mono; the split must not change the order the string
+        // form produces.
+        for (const locale of ['en', 'ar'] as const) {
+            const whole = formatEgp(260_000, { locale });
+            const figure = formatEgp(260_000, { locale, showCurrency: false });
+            const currency = locale === 'ar' ? 'ج.م' : 'EGP';
+
+            expect(whole).toBe(currencyLeads(locale) ? `${currency} ${figure}` : `${figure} ${currency}`);
+        }
     });
 });

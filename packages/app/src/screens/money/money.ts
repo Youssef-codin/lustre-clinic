@@ -151,3 +151,16 @@ export function amountStillDue(difference: number): number {
 export function collectedAhead(difference: number): number {
     return Math.max(0, -difference);
 }
+
+/**
+ * Whether the currency is read before the figure — `EGP 2,600` in English,
+ * against `2,600 ج.م` in Arabic (§7.13).
+ *
+ * Reading order, not layout order. `MoneyValue` pins its flex direction so that
+ * the two are the same thing; relying on RTL to mirror a fixed child order gets
+ * this exactly backwards, because the first child of an RTL row sits at the
+ * right edge and is therefore read *first*.
+ */
+export function currencyLeads(locale: MoneyLocale): boolean {
+    return locale !== 'ar';
+}

@@ -50,10 +50,14 @@ formats money itself.
 | Numerals | Latin in both languages (§7.11), always DM Mono, so amount columns align. |
 | Overpayment | does not exist (§7.6). Clamped to the amount due, and the clamp is announced. |
 
-`MoneyValue` renders the figure and the currency as two `Text`s in one logical
-row — the figure has to be mono for the tabular numerals, and `ج.م` has no
-coverage in DM Mono. The children are always currency-then-figure and RTL
-mirrors them, so there is no per-locale branch.
+`MoneyValue` renders the figure and the currency as two `Text`s — the figure has
+to be mono for the tabular numerals, and `ج.م` has no coverage in DM Mono. The
+order is decided by locale, not by RTL mirroring, which does the opposite of what
+it looks like it does: the first child of an RTL row sits at the right edge and
+is therefore read *first*, so a fixed currency-then-figure order would give
+Arabic readers the English word order. The flex direction is pinned against the
+layout direction instead, which also keeps it correct before
+`I18nManager.allowRTL` is ever called.
 
 ## States
 

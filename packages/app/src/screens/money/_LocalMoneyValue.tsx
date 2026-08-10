@@ -1,8 +1,8 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, View } from 'react-native';
+import { I18nManager, StyleSheet, View } from 'react-native';
 import type { TextTone, TextVariant, TextWeight } from '../../theme';
 import { space, Text } from '../../theme';
-import { currencyOf, formatEgp, type MoneyLocale } from './money';
+import { currencyLeads, currencyOf, formatEgp, type MoneyLocale } from './money';
 
 // `domain/MoneyValue` (Inventory §5, §10) does not exist — `components/domain/`
 // has not been created. Built local per the §10 rule; see BLOCKED.md #1. When it
@@ -35,11 +35,16 @@ export type MoneyValueProps = {
  * for exactly this reason). The currency takes the ambient face, because
  * `ج.م` has no coverage in DM Mono and would render as boxes.
  *
- * The children are always in the order currency-then-figure, and the row is
- * logical, so RTL mirrors it into figure-then-`ج.م` — §7.13's Arabic order — with
- * no per-locale branch. That mirroring needs `I18nManager.allowRTL`, which lands
- * with the localisation scaffold; see BLOCKED.md #10. Nothing passes `locale`
- * yet, so the Arabic order is written but not yet seen.
+ * The order is decided here rather than left to RTL mirroring, which does the
+ * opposite of what it looks like it does: in an RTL row the *first* child sits
+ * at the right edge, so currency-then-figure mirrors into a reader meeting
+ * `ج.م` first — the English order, not §7.13's `2,600 ج.م`.
+ *
+ * So the flex direction is pinned against the layout direction, making JSX order
+ * the visual order in both, and the children are then ordered by locale. That
+ * also makes this correct before `I18nManager.allowRTL` is ever called, which
+ * matters because the localisation scaffold has not landed and an Arabic amount
+ * today would render inside an LTR layout (BLOCKED.md #10).
  */
 export function MoneyValue({
     amount,
@@ -65,24 +70,41 @@ export function MoneyValue({
         return figureText;
     }
 
+    const currencyText = (
+        <Text variant={currencyVariant ?? variant} tone={tone} weight={weight}>
+            {currencyOf(locale)}
+        </Text>
+    );
+
     return (
         <View
-            style={[styles.row, style]}
+            style={[I18nManager.isRTL ? styles.rowPinned : styles.row, style]}
             testID={testID}
             accessible
             // A screen reader gets the whole number even when the figure is
             // compact — `142.6k` is the one rendering where it is the wrong
-            // answer — and gets it as one phrase rather than two fragments.
+            // answer — and gets it as one phrase rather than two fragments. It
+            // also gets the parts in reading order whatever the layout does.
             accessibilityLabel={formatEgp(amount, { locale })}
         >
-            <Text variant={currencyVariant ?? variant} tone={tone} weight={weight}>
-                {currencyOf(locale)}
-            </Text>
-            {figureText}
+            {currencyLeads(locale) ? (
+                <>
+                    {currencyText}
+                    {figureText}
+                </>
+            ) : (
+                <>
+                    {figureText}
+                    {currencyText}
+                </>
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'baseline', gap: space[1] },
+    // `row-reverse` under RTL cancels the automatic mirroring, so JSX order is
+    // the visual order in both directions and the locale decides it alone.
+    rowPinned: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space[1] },
 });
