@@ -62,19 +62,28 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
     const alreadyPaid = visit?.paidTotal ?? 0;
     const due = amountDue(chargedPiastres, alreadyPaid);
 
-    const paidPiastres = Math.min(toPiastres(paid), due);
+    const paidPiastres = toPiastres(paid);
     const remaining = due - paidPiastres;
     const noteMissing = paidPiastres > 0 && method === 'other' && methodNote.trim() === '';
 
-    function setChargedEntry(next: string) {
-        setCharged(poundsEntry(next));
-        setClamped(false);
-    }
+    /**
+     * Charging less than the visit has already taken would check out with the
+     * patient in credit, and there is no refund workflow to settle it (§7.6).
+     * The entry is not rewritten under the finger — a floor applied mid-type
+     * fights someone clearing the field to retype it — so the checkout is
+     * refused instead, and says why.
+     */
+    const chargedTooLow = chargedPiastres < alreadyPaid;
 
-    function setPaidClamped(next: string) {
-        const digits = poundsEntry(next);
-        if (toPiastres(digits) > due) {
-            setPaid(toPounds(due));
+    /**
+     * Both fields go through here, because the amount due moves with the charge:
+     * lowering it after a payment is entered has to walk that payment down with
+     * it, or the field says 1,600 while the visit records 1,000.
+     */
+    function clampPaidTo(nextDue: number, entry: string): void {
+        const digits = poundsEntry(entry);
+        if (toPiastres(digits) > nextDue) {
+            setPaid(toPounds(nextDue));
             setClamped(true);
             return;
         }
@@ -82,8 +91,18 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
         setPaid(digits);
     }
 
+    function setChargedEntry(next: string) {
+        const digits = poundsEntry(next);
+        setCharged(digits);
+        clampPaidTo(amountDue(toPiastres(digits), alreadyPaid), paid);
+    }
+
+    function setPaidClamped(next: string) {
+        clampPaidTo(due, next);
+    }
+
     function submit() {
-        if (!visit) return;
+        if (!visit || chargedTooLow) return;
         checkOut.mutate(
             {
                 visitId: visit.id,
@@ -118,7 +137,7 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
                     label={remaining > 0 ? `Check out · ${formatMoney(remaining)} left` : 'Check out'}
                     block
                     loading={checkOut.pending}
-                    disabled={!visit || noteMissing}
+                    disabled={!visit || noteMissing || chargedTooLow}
                     onPress={submit}
                 />
             }
@@ -142,6 +161,11 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
                 value={charged}
                 onChangeText={setChargedEntry}
                 hint="The total for the visit. Lower it to give a discount."
+                error={
+                    chargedTooLow
+                        ? `They have already paid ${formatMoney(alreadyPaid)} on this visit. The total cannot be less than that.`
+                        : undefined
+                }
             />
 
             <View style={styles.section}>
