@@ -2,6 +2,14 @@
 
 The docs live on Notion: https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc
 
+Two of them are needed before touching `packages/app`:
+
+- **Where the designs live** — https://app.notion.com/p/3b8541c6b441819f9a81f70c0432d313
+  The screens are runnable HTML mockups in a local Open Design folder, not in
+  Figma. Read the design before building a screen or a shared component.
+- **Testing on a real Android phone** — https://app.notion.com/p/3b7541c6b44181508d22e598bab63842
+  `bun app` for a cable-attached phone, plus the emulator setup and the ABI trap.
+
 ## Task completion Requirements
 
 - Always run `bun lint`, `bun typecheck`, `bun test` and `bun format` and make sure they pass before considering a task complete.
