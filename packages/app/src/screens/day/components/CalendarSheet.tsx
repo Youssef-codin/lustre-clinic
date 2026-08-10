@@ -6,7 +6,7 @@ import { border, color, radius, size, space, Text } from '../../../theme';
 import { type Appointment, api, type ClinicDay, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed, openMinutes } from '../hours';
-import { addMonths, formatMonth, localOffsetMinutes, monthDays, parseKey, todayKey } from '../time';
+import { addMonths, formatMonth, monthDays, parseKey, todayKey } from '../time';
 
 /**
  * A month, with how full each day is.
@@ -64,7 +64,7 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
     const [pending, setPending] = useState(selected);
 
     const days = monthDays(month);
-    const query = useLocalQuery(`month:${month}`, () => api.byDates(days, localOffsetMinutes()), {
+    const query = useLocalQuery(`month:${month}`, () => api.byDates(days), {
         enabled: visible,
     });
 

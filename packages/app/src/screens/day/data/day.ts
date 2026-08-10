@@ -1,5 +1,6 @@
-import type { PaymentMethod } from '@mawid/shared';
-import { httpTransport, SERVER_URL, type Transport } from './client';
+import { ERROR_CODE, type PaymentMethod } from '@mawid/shared';
+import { offsetForDate } from '../time';
+import { asRequestError, httpTransport, SERVER_URL, type Transport } from './client';
 import { fixtureTransport } from './fixtures';
 import type {
     Appointment,
@@ -42,15 +43,27 @@ export const api = {
     branches: async (): Promise<Branch[]> =>
         shaped(await transport.query('branch.list', { includeInactive: false })),
 
-    byDate: async (date: string, offsetMinutes: number, branchId?: string): Promise<Appointment[]> =>
-        shaped(await transport.query('appointment.byDate', { date, offsetMinutes, branchId })),
+    /**
+     * The offset is taken from the date itself rather than from the caller —
+     * see `offsetForDate`. A day on the far side of a DST changeover needs the
+     * offset that was in force on it, and no screen should have to remember
+     * that.
+     */
+    byDate: async (date: string, branchId?: string): Promise<Appointment[]> =>
+        shaped(
+            await transport.query('appointment.byDate', {
+                date,
+                offsetMinutes: offsetForDate(date),
+                branchId,
+            }),
+        ),
 
     /** A month in one request — see `Transport.queryMany`. */
-    byDates: async (dates: readonly string[], offsetMinutes: number): Promise<Appointment[][]> =>
+    byDates: async (dates: readonly string[]): Promise<Appointment[][]> =>
         shaped(
             await transport.queryMany(
                 'appointment.byDate',
-                dates.map((date) => ({ date, offsetMinutes })),
+                dates.map((date) => ({ date, offsetMinutes: offsetForDate(date) })),
             ),
         ),
 
@@ -111,9 +124,24 @@ export async function visitForAppointment(appointmentId: string): Promise<Visit 
     const known = visitIds.get(appointmentId);
     if (known) return api.visitById(known);
 
-    const visit = shaped<Visit | null>(
-        await transport.query('visit.byAppointment', { appointmentId }).catch(() => null),
-    );
+    let raw: unknown;
+    try {
+        raw = await transport.query('visit.byAppointment', { appointmentId });
+    } catch (err) {
+        // Only "there is no such procedure" is an answer. The router does not
+        // carry `visit.byAppointment` yet, and tRPC reports an unknown path as
+        // NOT_FOUND — that is the case this call is expected to lose, and it
+        // means "cannot look it up", not "no visit".
+        //
+        // Anything else — the clinic PC down, a timeout, a 500 — is a failure,
+        // and swallowing it would show "checked in before the app was opened"
+        // for a server that is simply unreachable, with no error and no retry.
+        const failure = asRequestError(err);
+        if (failure.offline || failure.code !== ERROR_CODE.NOT_FOUND) throw failure;
+        return null;
+    }
+
+    const visit = shaped<Visit | null>(raw);
     if (visit) visitIds.set(appointmentId, visit.id);
     return visit;
 }

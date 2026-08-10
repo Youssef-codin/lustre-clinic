@@ -17,6 +17,20 @@ export function localOffsetMinutes(now: Date = new Date()): number {
     return -now.getTimezoneOffset();
 }
 
+/**
+ * The offset **of the day being asked about**, which is not always today's.
+ *
+ * The server turns `{ date, offsetMinutes }` into a range of instants, so the
+ * offset has to be the one in force on that date. Egypt keeps DST, and today's
+ * offset applied to a day the other side of the changeover moves the range by an
+ * hour — enough to drop a late appointment off the end of its day and hang it on
+ * the next one. `getTimezoneOffset` is per-instant, so asking the date itself is
+ * the whole fix.
+ */
+export function offsetForDate(key: string): number {
+    return localOffsetMinutes(parseKey(key));
+}
+
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
 }

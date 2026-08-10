@@ -1,7 +1,7 @@
 import { SLOT_HOLDING_STATUSES } from '@mawid/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Banner, Toast } from '../../components/ui';
+import { Banner, Button, Toast } from '../../components/ui';
 import { color, space } from '../../theme';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { CalendarSheet } from './components/CalendarSheet';
@@ -24,7 +24,7 @@ import {
 } from './data';
 import { describeError } from './errors';
 import { isClosed, timelineBounds } from './hours';
-import { addDays, localOffsetMinutes, minutesOfDay, todayKey } from './time';
+import { addDays, minutesOfDay, todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 /**
@@ -61,12 +61,11 @@ export function DayScreen() {
     const [toast, setToast] = useState<string | null>(null);
 
     const nowMinutes = useNowMinutes();
-    const offsetMinutes = localOffsetMinutes();
 
     const schedule = useLocalQuery('schedule', api.schedule);
     const settings = useLocalQuery('settings', api.settings);
     const branches = useLocalQuery('branches', api.branches);
-    const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey, offsetMinutes));
+    const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
 
     const checkIn = useLocalMutation(api.checkIn);
 
@@ -142,6 +141,25 @@ export function DayScreen() {
                     tone="offline"
                     live
                     message={`${describeError(day.error, 'day').title} — showing the day as it was.`}
+                />
+            ) : null}
+            {/* An unloaded schedule and an unconfigured one produce the same
+                default hours, and they are not the same fact: the second is the
+                clinic's own guess, the first is this screen's. Unsaid, a Friday
+                the clinic is shut renders as a working day nobody questions. */}
+            {schedule.status === 'error' ? (
+                <Banner
+                    tone="warning"
+                    message="Opening hours could not be loaded — showing the usual hours."
+                    action={
+                        <Button
+                            label="Try again"
+                            variant="text"
+                            size="md"
+                            onPress={schedule.refetch}
+                            loading={schedule.refreshing}
+                        />
+                    }
                 />
             ) : null}
             {checkIn.error ? (

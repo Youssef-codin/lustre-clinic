@@ -50,6 +50,10 @@ only when it does not know. A patient checked in before the app was opened
 therefore cannot be checked out from the day view yet — the sheet says so rather
 than showing a button that fails.
 
+Only `NOT_FOUND` is read as "no such procedure"; an unreachable server or a 500
+is raised, so a clinic PC that is down does not masquerade as a visit that
+cannot be looked up.
+
 **Note.** This is a server-side gap, not a design one. One procedure on an
 existing service.
 
