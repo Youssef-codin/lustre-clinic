@@ -4,7 +4,7 @@ import { RequestError } from './data/client';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes, timelineBounds } from './hours';
 import { assignLanes, freeGaps } from './layout';
-import { formatMoney } from './money';
+import { amountDue, formatMoney, poundsEntry } from './money';
 import { addDays, clockToMinutes, dateKey, minutesToClock, relativeDayLabel } from './time';
 
 // There is no renderer under `bun test`, so what is tested here is the part of
@@ -101,6 +101,24 @@ describe('money', () => {
         expect(formatMoney(260_000)).toBe('EGP 2,600');
         expect(formatMoney(260_000, 'trail')).toBe('2,600 EGP');
         expect(formatMoney(0)).toBe('EGP 0');
+    });
+
+    it('takes what has already been paid off the amount due', () => {
+        // A visit part-paid before checkout: `Full` must offer the remainder,
+        // not the whole charge, or the patient pays that part twice and the
+        // balance goes negative (§7.6).
+        expect(amountDue(260_000, 100_000)).toBe(160_000);
+        expect(amountDue(260_000, 0)).toBe(260_000);
+        // A discount below what is already paid settles it; it never refunds.
+        expect(amountDue(50_000, 100_000)).toBe(0);
+    });
+
+    it('strips an amount where it is typed, not where it is parsed', () => {
+        // `decimal-pad` shows a `.` key. Stripping it only on parse would read
+        // a typed 12.5 as 125 with the field still saying 12.5; running the
+        // entry through this on the way in makes the two say the same thing.
+        expect(poundsEntry('12.5')).toBe('125');
+        expect(poundsEntry('1,200')).toBe('1200');
     });
 });
 

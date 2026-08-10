@@ -50,8 +50,18 @@ export function useLocalQuery<T>(
     const load = useCallback(async (isRefresh: boolean) => {
         attempt.current += 1;
         const current = attempt.current;
-        if (isRefresh) setRefreshing(true);
-        else setStatus('loading');
+        if (isRefresh) {
+            setRefreshing(true);
+        } else {
+            // Not a refresh means the key changed, and data from the old key
+            // belongs to a different question. Held on to, the calendar pairs
+            // this month's days with last month's counts and the card shows
+            // yesterday's patients while today loads. Cleared here rather than
+            // on error, so a *failed refresh* still keeps the day on screen
+            // behind its stale-data banner — same key, still true, just old.
+            setData(undefined);
+            setStatus('loading');
+        }
 
         try {
             const result = await runRef.current();

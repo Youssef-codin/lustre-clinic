@@ -5,7 +5,7 @@ import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../
 import { color, radius, space, Text } from '../../../theme';
 import { type Appointment, api, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
-import { formatMoney } from '../money';
+import { amountDue, formatMoney, poundsEntry } from '../money';
 import { _LocalMoneyValue } from './_LocalMoneyValue';
 
 /**
@@ -39,7 +39,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 
 /** Whole pounds in, integer piastres out. Piastres are never typed (§7.12). */
 function toPiastres(pounds: string): number {
-    const digits = pounds.replace(/[^\d]/g, '');
+    const digits = poundsEntry(pounds);
     return digits ? Number(digits) * PIASTRES_PER_POUND : 0;
 }
 
@@ -48,8 +48,6 @@ function toPounds(piastres: number): string {
 }
 
 export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: CheckoutSheetProps) {
-    const due = visit?.balance ?? visit?.chargedTotal ?? 0;
-
     const [charged, setCharged] = useState(() => toPounds(visit?.chargedTotal ?? 0));
     const [paid, setPaid] = useState('');
     const [method, setMethod] = useState<PaymentMethod>('cash');
@@ -59,19 +57,29 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
     const checkOut = useLocalMutation(api.checkOut);
 
     const chargedPiastres = toPiastres(charged);
-    const paidPiastres = Math.min(toPiastres(paid), chargedPiastres);
-    const remaining = chargedPiastres - paidPiastres;
+
+    // What is left to pay, not what the visit costs — see `amountDue`.
+    const alreadyPaid = visit?.paidTotal ?? 0;
+    const due = amountDue(chargedPiastres, alreadyPaid);
+
+    const paidPiastres = Math.min(toPiastres(paid), due);
+    const remaining = due - paidPiastres;
     const noteMissing = paidPiastres > 0 && method === 'other' && methodNote.trim() === '';
 
+    function setChargedEntry(next: string) {
+        setCharged(poundsEntry(next));
+        setClamped(false);
+    }
+
     function setPaidClamped(next: string) {
-        const wanted = toPiastres(next);
-        if (wanted > chargedPiastres) {
-            setPaid(toPounds(chargedPiastres));
+        const digits = poundsEntry(next);
+        if (toPiastres(digits) > due) {
+            setPaid(toPounds(due));
             setClamped(true);
             return;
         }
         setClamped(false);
-        setPaid(next);
+        setPaid(digits);
     }
 
     function submit() {
@@ -120,6 +128,11 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
                     AMOUNT DUE
                 </Text>
                 <_LocalMoneyValue piastres={due} variant="figure" />
+                {alreadyPaid > 0 ? (
+                    <Text variant="caption" tone="muted">
+                        {formatMoney(alreadyPaid)} already paid on this visit
+                    </Text>
+                ) : null}
             </View>
 
             <NumericField
@@ -127,7 +140,7 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
                 variant="end"
                 prefix="EGP"
                 value={charged}
-                onChangeText={setCharged}
+                onChangeText={setChargedEntry}
                 hint="The total for the visit. Lower it to give a discount."
             />
 
@@ -145,14 +158,10 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
                     <Chip
                         label="Full"
                         grow
-                        selected={paidPiastres === chargedPiastres && paidPiastres > 0}
-                        onPress={() => setPaidClamped(toPounds(chargedPiastres))}
+                        selected={paidPiastres === due && paidPiastres > 0}
+                        onPress={() => setPaidClamped(toPounds(due))}
                     />
-                    <Chip
-                        label="Half"
-                        grow
-                        onPress={() => setPaidClamped(toPounds(Math.round(chargedPiastres / 2)))}
-                    />
+                    <Chip label="Half" grow onPress={() => setPaidClamped(toPounds(Math.round(due / 2)))} />
                     <Chip
                         label="Nothing"
                         grow

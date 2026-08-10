@@ -50,8 +50,14 @@ export function DayScreen() {
     // sheet, and it holds still on close, so the exit still animates.
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
     const [walkIn, setWalkIn] = useState({ open: false, seq: 0 });
-    const [selected, setSelected] = useState<Appointment | null>(null);
-    const [checkout, setCheckout] = useState<{ appointment: Appointment; visit: Visit } | null>(null);
+    const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
+        appointment: null,
+        open: false,
+    });
+    const [checkout, setCheckout] = useState<{
+        target: { appointment: Appointment; visit: Visit } | null;
+        open: boolean;
+    }>({ target: null, open: false });
     const [toast, setToast] = useState<string | null>(null);
 
     const nowMinutes = useNowMinutes();
@@ -94,6 +100,7 @@ export function DayScreen() {
             .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null;
 
     const openWalkIn = () => setWalkIn((current) => ({ open: true, seq: current.seq + 1 }));
+    const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
 
     function checkInFrom(appointment: Appointment) {
         checkIn.mutate(appointment.id, {
@@ -138,7 +145,7 @@ export function DayScreen() {
                     nowMinutes={nowMinutes}
                     checkingInId={checkIn.pending ? (next?.id ?? null) : null}
                     onCheckIn={checkInFrom}
-                    onOpen={setSelected}
+                    onOpen={openDetail}
                 />
             ) : null}
 
@@ -148,7 +155,7 @@ export function DayScreen() {
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
                     <DayError error={day.error} onRetry={day.refetch} retrying={day.refreshing} />
                 ) : closed ? (
-                    <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={setSelected} />
+                    <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
                 ) : appointments.length === 0 ? (
                     <DayEmpty past={dateKey < todayKey()} onWalkIn={openWalkIn} />
                 ) : (
@@ -156,7 +163,7 @@ export function DayScreen() {
                         appointments={appointments}
                         bounds={bounds}
                         nowMinutes={isToday ? nowMinutes : null}
-                        onSelect={setSelected}
+                        onSelect={openDetail}
                     />
                 )}
             </View>
@@ -186,23 +193,28 @@ export function DayScreen() {
                 }}
             />
 
+            {/* Keyed by the appointment, so a half-finished confirm or a failed
+                write belongs to the patient it was about and cannot be inherited
+                by the next one opened. The row is held through the close so the
+                sheet animates out with its content, rather than emptying first. */}
             <AppointmentDetailSheet
-                visible={selected !== null}
-                appointment={selected}
-                onClose={() => setSelected(null)}
+                key={`detail:${selected.appointment?.id ?? 'none'}`}
+                visible={selected.open}
+                appointment={selected.appointment}
+                onClose={() => setSelected((current) => ({ ...current, open: false }))}
                 onChanged={day.refetch}
                 onCheckOut={(appointment, visit) => {
-                    setSelected(null);
-                    setCheckout({ appointment, visit });
+                    setSelected((current) => ({ ...current, open: false }));
+                    setCheckout({ target: { appointment, visit }, open: true });
                 }}
             />
 
             <CheckoutSheet
-                key={`checkout:${checkout?.visit.id ?? 'none'}`}
-                visible={checkout !== null}
-                appointment={checkout?.appointment ?? null}
-                visit={checkout?.visit ?? null}
-                onClose={() => setCheckout(null)}
+                key={`checkout:${checkout.target?.visit.id ?? 'none'}`}
+                visible={checkout.open}
+                appointment={checkout.target?.appointment ?? null}
+                visit={checkout.target?.visit ?? null}
+                onClose={() => setCheckout((current) => ({ ...current, open: false }))}
                 onDone={(message) => {
                     setToast(message);
                     day.refetch();
