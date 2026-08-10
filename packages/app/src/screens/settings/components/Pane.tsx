@@ -44,8 +44,7 @@ export function Pane({ title, subtitle, onBack, trailing, children, footer, over
 }
 
 const styles = StyleSheet.create({
-    // Reserves the shell's tab bar, which is drawn over every cluster.
-    pane: { flex: 1, backgroundColor: color.canvas, paddingBottom: size.nav },
+    pane: { flex: 1, backgroundColor: color.canvas },
     scroll: { flex: 1 },
-    content: { padding: size.gutter, gap: space[4], paddingBottom: space[6] },
+    content: { padding: size.gutter, gap: space[4], paddingBottom: space[12] },
 });

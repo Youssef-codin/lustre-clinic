@@ -290,8 +290,10 @@ shared. Promote if a second cluster wants one:
 ### 11. Not built, and why
 
 - **`domain/BottomTabBar`** — **now built** (F3), in
-  `components/domain/BottomTabBar.tsx`, and drawn by the shell over every
-  cluster including settings.
+  `components/domain/BottomTabBar.tsx`, against the nav in
+  `doctor-day-view.html`: Day / Patients / Money / the role. It sits in flow at
+  the bottom of the shell and carries the bottom safe-area inset, so Android's
+  gesture bar does not land on the labels.
 - **`domain/BrandWordmark`** — also cross-cluster (day view). The settings header
   renders "MAWID" as an eyebrow `Text` rather than claiming the name.
 - **`domain/ConnectionStatus`** — needs the connection hook, which §10 freezes

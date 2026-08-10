@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { color, radius, shadow, size, Text } from '../../../theme';
+import { color, radius, shadow, size, space, Text } from '../../../theme';
 
 /**
  * The one thing created from this screen (§7). `domain/BookFab` in the
@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     fab: {
         position: 'absolute',
         end: size.gutter,
-        bottom: size.nav + size.dock,
+        bottom: space[6],
         width: FAB,
         height: FAB,
         alignItems: 'center',

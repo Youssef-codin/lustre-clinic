@@ -39,23 +39,25 @@ export function AppShell() {
 
     return (
         <View style={styles.root}>
-            <Pane visible={tab === 'day'} mounted={visited.includes('day')}>
-                <DayScreen />
-            </Pane>
+            <View style={styles.body}>
+                <Pane visible={tab === 'day'} mounted={visited.includes('day')}>
+                    <DayScreen />
+                </Pane>
 
-            <Pane visible={tab === 'patients'} mounted={visited.includes('patients')}>
-                <PatientsCluster />
-            </Pane>
+                <Pane visible={tab === 'patients'} mounted={visited.includes('patients')}>
+                    <PatientsCluster />
+                </Pane>
 
-            <Pane visible={tab === 'money'} mounted={visited.includes('money')}>
-                <MoneyCluster />
-            </Pane>
+                <Pane visible={tab === 'money'} mounted={visited.includes('money')}>
+                    <MoneyCluster />
+                </Pane>
 
-            <Pane visible={tab === 'settings'} mounted={visited.includes('settings')}>
-                <SettingsScreen role={role} onChangeRole={setRole} />
-            </Pane>
+                <Pane visible={tab === 'role'} mounted={visited.includes('role')}>
+                    <SettingsScreen role={role} onChangeRole={setRole} />
+                </Pane>
+            </View>
 
-            <BottomTabBar active={tab} onChange={open} />
+            <BottomTabBar active={tab} role={role} onChange={open} />
         </View>
     );
 }
@@ -84,6 +86,7 @@ function Pane({
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: color.canvas },
+    body: { flex: 1 },
     pane: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0 },
     hidden: { display: 'none' },
 });

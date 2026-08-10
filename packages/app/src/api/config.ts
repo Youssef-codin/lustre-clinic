@@ -32,9 +32,18 @@ interface ServerExtra {
     server?: Partial<ServerAddresses>;
 }
 
-/** No trailing slash, so `${base}${TRPC_ENDPOINT}` is always well formed. */
-function normalize(address: string | null | undefined): string | null {
-    const trimmed = address?.trim().replace(/\/+$/, '');
+/**
+ * No trailing slash, so `${base}${TRPC_ENDPOINT}` is always well formed.
+ *
+ * Takes `unknown` on purpose. `app.json` writes an unconfigured address as
+ * JSON `null`, and the manifest the dev client reads hands that back as `{}` —
+ * so a declared `string | null` is not one at runtime, and `.trim()` on it took
+ * the whole app down at import time. Anything that is not a string is "not
+ * configured".
+ */
+function normalize(address: unknown): string | null {
+    if (typeof address !== 'string') return null;
+    const trimmed = address.trim().replace(/\/+$/, '');
     return trimmed ? trimmed : null;
 }
 

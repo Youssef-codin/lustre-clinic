@@ -155,7 +155,7 @@ export function VisitPaymentsScreen({
 
 const styles = StyleSheet.create({
     screen: { flex: 1 },
-    content: { gap: space[4], paddingTop: space[4], paddingBottom: size.nav + space[6] },
+    content: { gap: space[4], paddingTop: space[4], paddingBottom: space[12] },
     gutter: { paddingHorizontal: size.gutter },
     section: { gap: space[2] },
     visitDate: { paddingTop: space[2] },

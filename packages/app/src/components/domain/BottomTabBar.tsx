@@ -1,37 +1,83 @@
+import type { ClientRole } from '@mawid/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { border, color, radius, size, space, Text } from '../../theme';
 
 /**
- * The app's one piece of global navigation (Component Inventory §5 —
- * `domain/BottomTabBar`). Four clusters, always all four: the role is a device
- * preference and not a permission (§1, §6), so hiding a tab from the secretary
- * would only teach the phone a boundary the server does not have.
+ * The app's global navigation, drawn from `doctor-day-view.html`: four items,
+ * 22px stroked icons over an 11px label, the active one in `ink` and the rest
+ * in `muted`. No pill, no fill, no accent — the design gives the active tab
+ * weight and colour and nothing else.
  *
- * Glyph plus label, both in the same tone, because the glyphs are typographic
- * rather than drawn and a glyph alone would not be readable as "Money". The
- * active tab is `ink` on a `surface2` pill; the rest are `muted`. No accent —
- * §3.1 scopes the blue to the FAB.
+ * The fourth tab is the role, not a gear: it reads "Doctor" or "Secretary"
+ * depending on what this phone is set to, which is also what its screen is for
+ * (§6, §7.10). The device is the account, so the tab says which one it is.
+ *
+ * The bar sits *in flow* at the bottom of the shell rather than over the
+ * screens, and carries the bottom safe-area inset itself. Android draws its own
+ * gesture bar in that strip: an absolutely positioned bar puts the labels
+ * underneath it.
  */
 
-export type TabKey = 'day' | 'patients' | 'money' | 'settings';
+export type TabKey = 'day' | 'patients' | 'money' | 'role';
 
 export type BottomTabBarProps = {
     active: TabKey;
+    role: ClientRole;
     onChange: (tab: TabKey) => void;
 };
 
-const TABS: { key: TabKey; glyph: string; label: string }[] = [
-    { key: 'day', glyph: '◷', label: 'Day' },
-    { key: 'patients', glyph: '☺', label: 'Patients' },
-    { key: 'money', glyph: '◈', label: 'Money' },
-    { key: 'settings', glyph: '⚙', label: 'Settings' },
-];
+/** 24×24 line icons, traced from the design's SVGs. */
+const ICONS: Record<TabKey, (stroke: string) => React.ReactNode> = {
+    day: (stroke) => (
+        <>
+            <Rect x={3} y={5} width={18} height={16} rx={3} stroke={stroke} />
+            <Path d="M3 10h18M8 3v4M16 3v4" stroke={stroke} />
+        </>
+    ),
+    patients: (stroke) => (
+        <>
+            <Circle cx={9} cy={8} r={3.4} stroke={stroke} />
+            <Path d="M3.5 19c.6-3 2.9-4.6 5.5-4.6S13.9 16 14.5 19" stroke={stroke} />
+            <Path d="M16 8.2a3 3 0 0 1 0 5.6M18.5 19c-.3-1.8-1-3.1-2-4" stroke={stroke} />
+        </>
+    ),
+    money: (stroke) => (
+        <>
+            <Rect x={3} y={6} width={18} height={13} rx={3} stroke={stroke} />
+            <Path d="M3 11h18" stroke={stroke} />
+            <Circle cx={17} cy={15} r={1.3} stroke={stroke} />
+        </>
+    ),
+    // A tooth. The clinic's own mark for "whose phone is this".
+    role: (stroke) => (
+        <>
+            <Path
+                d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"
+                stroke={stroke}
+            />
+            <Path d="M8 15v1a6 6 0 0 0 6 6a6 6 0 0 0 6-6v-4" stroke={stroke} />
+            <Circle cx={20} cy={10} r={2} stroke={stroke} />
+        </>
+    ),
+};
 
-export function BottomTabBar({ active, onChange }: BottomTabBarProps) {
+export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
+    const insets = useSafeAreaInsets();
+
+    const tabs: { key: TabKey; label: string }[] = [
+        { key: 'day', label: 'Day' },
+        { key: 'patients', label: 'Patients' },
+        { key: 'money', label: 'Money' },
+        { key: 'role', label: role === 'doctor' ? 'Doctor' : 'Secretary' },
+    ];
+
     return (
-        <View style={styles.bar} testID="tab-bar">
-            {TABS.map((tab) => {
+        <View style={[styles.bar, { paddingBottom: space[3] + insets.bottom }]} testID="tab-bar">
+            {tabs.map((tab) => {
                 const selected = tab.key === active;
+                const stroke = selected ? color.ink : color.muted;
                 return (
                     <Pressable
                         key={tab.key}
@@ -39,17 +85,25 @@ export function BottomTabBar({ active, onChange }: BottomTabBarProps) {
                         accessibilityState={{ selected }}
                         accessibilityLabel={tab.label}
                         onPress={() => onChange(tab.key)}
-                        style={({ pressed }) => [
-                            styles.tab,
-                            selected && styles.tabActive,
-                            pressed && !selected && styles.tabPressed,
-                        ]}
+                        style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
                         testID={`tab-${tab.key}`}
                     >
-                        <Text variant="headline" tone={selected ? 'ink' : 'muted'}>
-                            {tab.glyph}
-                        </Text>
-                        <Text variant="caption" tone={selected ? 'ink' : 'muted'}>
+                        <Svg
+                            width={22}
+                            height={22}
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            {ICONS[tab.key](stroke)}
+                        </Svg>
+                        <Text
+                            variant="caption"
+                            weight={selected ? 'semibold' : 'medium'}
+                            tone={selected ? 'ink' : 'muted'}
+                        >
                             {tab.label}
                         </Text>
                     </Pressable>
@@ -61,17 +115,10 @@ export function BottomTabBar({ active, onChange }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
     bar: {
-        position: 'absolute',
-        start: 0,
-        end: 0,
-        bottom: 0,
-        height: size.nav,
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[1],
-        paddingHorizontal: space[3],
-        paddingBottom: space[3],
-        backgroundColor: color.surface,
+        alignItems: 'stretch',
+        paddingTop: space[2.5],
+        backgroundColor: color.canvas,
         borderTopWidth: border.hair,
         borderTopColor: color.line,
     },
@@ -80,10 +127,9 @@ const styles = StyleSheet.create({
         minHeight: size.row,
         alignItems: 'center',
         justifyContent: 'center',
-        gap: space[0.5],
-        paddingVertical: space[1.5],
-        borderRadius: radius.xl,
+        gap: space[1.5],
+        paddingVertical: space[1],
+        borderRadius: radius.md,
     },
-    tabActive: { backgroundColor: color.surface2 },
-    tabPressed: { opacity: 0.6 },
+    pressed: { backgroundColor: color.surface2 },
 });

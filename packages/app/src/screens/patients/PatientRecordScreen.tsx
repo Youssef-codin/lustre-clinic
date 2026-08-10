@@ -342,7 +342,7 @@ function DetailRow({ label, value, mono = false }: { label: string; value: strin
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
-    content: { paddingBottom: size.nav + space[6], gap: space[4] },
+    content: { paddingBottom: space[12], gap: space[4] },
     tabs: { paddingHorizontal: size.gutter, paddingTop: space[3] },
     section: { gap: space[2] },
     group: { gap: space[1] },
