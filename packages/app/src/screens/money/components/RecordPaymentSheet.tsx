@@ -155,18 +155,21 @@ export function RecordPaymentSheet({
                 </View>
             ) : null}
 
+            {/* Through `changeAmount`, never `setAmount`: it is the only thing
+                that clears the notice, and a "capped at EGP 2,600" left standing
+                over a field reading 1,300 is a wrong number by another route. */}
             <View style={styles.quick}>
                 <Chip
                     label="Full"
                     selected={enteredEgp === dueEgp && dueEgp > 0}
-                    onPress={() => setAmount(String(dueEgp))}
+                    onPress={() => changeAmount(String(dueEgp))}
                     disabled={isPending}
                     grow
                 />
                 <Chip
                     label="Half"
                     selected={enteredEgp > 0 && enteredEgp === Math.floor(dueEgp / 2)}
-                    onPress={() => setAmount(String(Math.floor(dueEgp / 2)))}
+                    onPress={() => changeAmount(String(Math.floor(dueEgp / 2)))}
                     disabled={isPending}
                     grow
                 />
