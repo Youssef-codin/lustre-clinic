@@ -2,10 +2,12 @@
     "extends": "expo/tsconfig.base",
     "compilerOptions": {
         "strict": true,
-        // The `AppRouter` type is imported from `packages/server`, whose own
-        // sources import each other with explicit `.ts` extensions (Bun's
-        // convention). Type-checking it here means accepting them; the imports
-        // are type-only and never reach Metro.
+        // Both source packages this one imports — `@mawid/shared` for
+        // `ERROR_CODE` and the domain enums, `@mawid/server` for the `AppRouter`
+        // type — import their own siblings with an explicit `.ts`, which Bun and
+        // Metro both resolve and which the repo's base config already allows.
+        // Type-checking them here means accepting it. Nothing in the bundle
+        // depends on it: the server import is type-only and erases.
         "allowImportingTsExtensions": true,
         "noUncheckedIndexedAccess": true,
         "noImplicitOverride": true,
