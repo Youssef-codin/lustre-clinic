@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'bun:test';
-import { ERROR_CODE } from '@mawid/shared';
+import { type AppointmentStatus, ERROR_CODE } from '@mawid/shared';
+import { splitDay } from './agenda';
 import { RequestError } from './data/client';
+import type { Appointment } from './data/types';
 import { describeError } from './errors';
-import { hoursFor, isClosed, openMinutes, timelineBounds } from './hours';
-import { assignLanes } from './layout';
+import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatMoney, poundsEntry } from './money';
-import { addDays, clockToMinutes, dateKey, minutesToClock, relativeDayLabel } from './time';
+import {
+    addDays,
+    clock12,
+    clockToMinutes,
+    dateKey,
+    formatDatePill,
+    minutesToClock,
+    relativeDayLabel,
+} from './time';
 
 // There is no renderer under `bun test`, so what is tested here is the part of
 // the screen that is not React: which day is closed, where a block lands, and —
@@ -33,38 +42,46 @@ describe('clinic hours', () => {
         // Saturday has no row in this schedule, so the clinic is shut.
         expect(isClosed(SATURDAY, schedule)).toBe(true);
     });
-
-    it('grows the timeline around an appointment booked outside opening hours', () => {
-        const bounds = timelineBounds(SATURDAY, undefined, [
-            { startMinutes: 8 * 60 + 30, endMinutes: 9 * 60 },
-        ]);
-        expect(bounds.opens).toBe(8 * 60);
-        expect(bounds.closes).toBe(22 * 60);
-    });
 });
 
-describe('timeline layout', () => {
-    it('keeps consecutive appointments in one lane', () => {
-        const lanes = assignLanes([
-            { startMinutes: 600, endMinutes: 630 },
-            { startMinutes: 630, endMinutes: 660 },
-        ]);
-        expect(lanes).toEqual([
-            { lane: 0, lanes: 1 },
-            { lane: 0, lanes: 1 },
-        ]);
+describe('the agenda', () => {
+    const at = (id: string, time: string, status: AppointmentStatus): Appointment =>
+        ({
+            id,
+            startsAt: `2026-08-10T${time}:00+03:00`,
+            status,
+            durationMinutes: 30,
+            patient: { id: `p-${id}`, name: id, phone: '' },
+        }) as Appointment;
+
+    it('folds away what is settled and keeps what still needs doing', () => {
+        const { past, upcoming } = splitDay(
+            [
+                at('done', '09:30', 'done'),
+                at('missed', '10:00', 'no_show'),
+                // Its slot is long gone, and nobody has said what happened. That
+                // is a decision waiting to be made, not history.
+                at('stale', '10:45', 'booked'),
+                at('later', '13:00', 'booked'),
+            ],
+            null,
+        );
+
+        expect(past.map((row) => row.id)).toEqual(['done', 'missed']);
+        expect(upcoming.map((row) => row.id)).toEqual(['stale', 'later']);
     });
 
-    it('splits overlapping ones, and only within their own cluster', () => {
-        const lanes = assignLanes([
-            { startMinutes: 600, endMinutes: 660 }, // overlaps the next
-            { startMinutes: 630, endMinutes: 690 },
-            { startMinutes: 900, endMinutes: 930 }, // alone, later
-        ]);
+    it('does not draw the patient in the chair twice', () => {
+        const { upcoming } = splitDay(
+            [at('chair', '11:00', 'checked_in'), at('next', '11:30', 'booked')],
+            'chair',
+        );
+        expect(upcoming.map((row) => row.id)).toEqual(['next']);
+    });
 
-        expect(lanes[0]).toEqual({ lane: 0, lanes: 2 });
-        expect(lanes[1]).toEqual({ lane: 1, lanes: 2 });
-        expect(lanes[2]).toEqual({ lane: 0, lanes: 1 });
+    it('puts the day in order whatever order it arrived in', () => {
+        const { upcoming } = splitDay([at('b', '13:00', 'booked'), at('a', '09:00', 'booked')], null);
+        expect(upcoming.map((row) => row.id)).toEqual(['a', 'b']);
     });
 });
 
@@ -123,5 +140,20 @@ describe('dates', () => {
     it('round-trips a clock through minutes', () => {
         expect(clockToMinutes('09:05')).toBe(545);
         expect(minutesToClock(545)).toBe('09:05');
+    });
+
+    it('splits the twelve-hour clock from its meridiem, and never says 0:15', () => {
+        expect(clock12(11 * 60 + 35)).toEqual({ time: '11:35', meridiem: 'AM' });
+        expect(clock12(13 * 60)).toEqual({ time: '1:00', meridiem: 'PM' });
+        expect(clock12(0)).toEqual({ time: '12:00', meridiem: 'AM' });
+        expect(clock12(12 * 60)).toEqual({ time: '12:00', meridiem: 'PM' });
+    });
+
+    it('names the weekday in the header pill only when the day is not today', () => {
+        const today = dateKey(new Date());
+        // `4 AUG` on today, `WED 5 AUG` off it — and uppercase either way.
+        expect(formatDatePill(today, today).split(' ')).toHaveLength(2);
+        expect(formatDatePill(addDays(today, 2), today).split(' ')).toHaveLength(3);
+        expect(formatDatePill(today, today)).toBe(formatDatePill(today, today).toUpperCase());
     });
 });

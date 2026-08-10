@@ -13,6 +13,7 @@ export const color = {
     surface2: '#f0f0f3', // pressed states, segmented track, variant chips
     hair: '#f1f1f4', // dividers inside a card
     line: '#ececef', // card + control borders
+    outline: 'rgba(17,17,20,0.14)', // outline buttons — every design draws this one
 
     // Text — System B.
     ink: '#111114', // primary text, primary fill, black cards
@@ -94,6 +95,7 @@ export const radius = {
     lg: 14, // buttons, fields, toasts
     xl: 16, // cards
     xl2: 18, // group cards, due card
+    xl3: 24, // the chair card — `day-view-schedule.html`, the one card at this size
     sheet: 26, // bottom sheets (top corners)
     full: 999, // pills, primary buttons, dots
 } as const;

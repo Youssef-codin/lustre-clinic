@@ -31,6 +31,11 @@ push it, open the PR from there against `main`.
 
 ## Key Conventions
 
+- **Comment sparingly.** Do not narrate what the code already says, do not
+  justify every decision in prose, and do not open a file with an essay. A
+  comment earns its place when it records something the code cannot: a
+  non-obvious constraint, a spec reference, or why an obvious approach was
+  rejected. Default to none.
 - DO NOT use useEffect unless strictly needed to.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)

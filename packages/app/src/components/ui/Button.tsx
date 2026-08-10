@@ -12,9 +12,22 @@ import { border, color, radius, shadow, size, space, Text } from '../../theme';
  * primaries throughout. §7.1's summary widens the blue to "buttons", which is
  * the one place it overshoots the inventory it is summarising.
  *
- * `accent` exists for the handful of places that really are blue-filled.
+ * `accent` exists for the handful of places that really are blue-filled, and
+ * `inverse` for the one that is the other way round: a white fill on the black
+ * chair card, where an ink primary would be invisible.
  */
-export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'text' | 'danger';
+export type ButtonVariant =
+    | 'primary'
+    | 'accent'
+    /** A tint of the accent, for a status that sits in a button's place. */
+    | 'accentSoft'
+    | 'inverse'
+    | 'secondary'
+    | 'ghost'
+    | 'text'
+    | 'danger'
+    /** WhatsApp's own green, and only ever for opening WhatsApp (§11). */
+    | 'whatsapp';
 export type ButtonSize = 'lg' | 'md';
 
 export type ButtonProps = {
@@ -47,19 +60,25 @@ export type ButtonProps = {
 const LABEL_TONE: Record<ButtonVariant, TextTone> = {
     primary: 'inverse',
     accent: 'inverse',
+    accentSoft: 'accent',
+    inverse: 'ink',
     secondary: 'ink',
     ghost: 'ink',
     text: 'accent',
     danger: 'danger',
+    whatsapp: 'inverse',
 };
 
 const SPINNER: Record<ButtonVariant, string> = {
     primary: color.inverse,
     accent: color.inverse,
+    accentSoft: color.accent,
+    inverse: color.ink,
     secondary: color.ink,
     ghost: color.ink,
     text: color.accent,
     danger: color.danger,
+    whatsapp: color.inverse,
 };
 
 export function Button({
@@ -139,7 +158,9 @@ const styles = StyleSheet.create({
 
     primary: { backgroundColor: color.ink },
     accent: { backgroundColor: color.accent },
-    secondary: { borderWidth: border.thick, borderColor: color.ink, backgroundColor: color.surface },
+    accentSoft: { backgroundColor: color.accentSoft },
+    inverse: { backgroundColor: color.surface },
+    secondary: { borderWidth: border.thick, borderColor: color.outline },
     ghost: {
         borderWidth: 1,
         borderColor: color.line,
@@ -148,6 +169,7 @@ const styles = StyleSheet.create({
     },
     text: { paddingHorizontal: space[2], minHeight: size.row },
     danger: { borderWidth: border.thick, borderColor: color.danger, backgroundColor: color.surface },
+    whatsapp: { backgroundColor: color.wa },
 
     content: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     hidden: { opacity: 0 },

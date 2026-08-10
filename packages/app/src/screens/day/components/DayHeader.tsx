@@ -1,71 +1,101 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Chevron, IconButton } from '../../../components/ui';
-import { color, radius, size, space, Text } from '../../../theme';
-import { formatDate, relativeDayLabel, todayKey } from '../time';
+import { useRef, useState } from 'react';
+import { Dimensions, Pressable, StyleSheet, View } from 'react-native';
+import { Chevron, DropdownMenu, type MenuAnchor } from '../../../components/ui';
+import { border, color, radius, shadow, size, space, Text } from '../../../theme';
+import type { Branch } from '../data';
+import { formatDate, formatDatePill, relativeDayLabel } from '../time';
+import { CalendarIcon, PinIcon } from './icons';
 
 /**
- * The date, and the two arrows the secretary lives on.
+ * The header from `day-view-schedule.html`: a branch pill, the wordmark, a date
+ * pill. Three small things on one line, none of them a title.
  *
- * The date itself is the calendar trigger. It is the biggest thing on the
- * screen and it is already where the eye goes when the question is "what day am
- * I looking at" — a separate calendar icon would be a second answer to the same
- * question.
+ * It replaces a centred `Today` between two arrow buttons. The design has no
+ * arrows — the date pill is the only way off today, and it opens the calendar,
+ * which is the control that can answer "which Thursday" as well as "tomorrow".
+ * The pill carries the weekday whenever the screen is not on today, so the fact
+ * the arrows used to make obvious is still written down.
  */
 
 export type DayHeaderProps = {
     dateKey: string;
-    /** Below the date: what is on that day, or why it is empty. */
-    summary: string;
-    onPrevious: () => void;
-    onNext: () => void;
-    onToday: () => void;
+    branches: readonly Branch[];
+    branchId: string | null;
+    onPickBranch: (branchId: string) => void;
     onOpenCalendar: () => void;
 };
 
-export function DayHeader({ dateKey, summary, onPrevious, onNext, onToday, onOpenCalendar }: DayHeaderProps) {
-    const isToday = dateKey === todayKey();
-    const label = relativeDayLabel(dateKey);
+export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCalendar }: DayHeaderProps) {
+    const [menu, setMenu] = useState(false);
+    const [anchor, setAnchor] = useState<MenuAnchor | undefined>(undefined);
+    const pill = useRef<View>(null);
+
+    const branch = branches.find((row) => row.id === branchId) ?? branches[0];
+    const switchable = branches.length > 1;
+
+    function openBranches() {
+        // The menu hangs under the pill. `MenuAnchor` measures from the inline
+        // end so that it mirrors in Arabic, hence the window width less the
+        // pill's far edge.
+        pill.current?.measureInWindow((x, y, width, height) => {
+            setAnchor({ top: y + height + space[1], end: Dimensions.get('window').width - (x + width) });
+            setMenu(true);
+        });
+    }
 
     return (
         <View style={styles.header}>
             <View style={styles.row}>
-                <IconButton
-                    accessibilityLabel="Previous day"
-                    icon={<Chevron direction="back" tone="ink" size={9} />}
-                    variant="square"
-                    onPress={onPrevious}
-                />
+                <View ref={pill} collapsable={false}>
+                    <Pressable
+                        accessibilityRole={switchable ? 'button' : 'text'}
+                        accessibilityLabel={
+                            switchable ? `Branch: ${branch?.name ?? 'none'}. Change branch` : branch?.name
+                        }
+                        disabled={!switchable}
+                        onPress={openBranches}
+                        style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+                    >
+                        <PinIcon stroke={color.ink} />
+                        <Text variant="callout" weight="semibold" numberOfLines={1} style={styles.branch}>
+                            {branch?.name ?? 'Clinic'}
+                        </Text>
+                        {switchable ? <Chevron direction="down" size={7} /> : null}
+                    </Pressable>
+                </View>
+
+                {/* Centred on the header, not between the pills — the two are
+                    different widths and the wordmark has to sit on the axis. */}
+                <View style={styles.markSlot} pointerEvents="none">
+                    <Text variant="body" weight="semibold" style={styles.mark}>
+                        MAWID
+                    </Text>
+                </View>
 
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${label}, ${formatDate(dateKey)}. Open the calendar`}
+                    accessibilityLabel={`${relativeDayLabel(dateKey)}, ${formatDate(dateKey)}. Open the calendar`}
                     onPress={onOpenCalendar}
-                    style={styles.date}
+                    style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+                    testID="day-date-pill"
                 >
-                    <Text variant="title2" weight="semibold">
-                        {label}
+                    <CalendarIcon />
+                    <Text variant="footnote" script="mono" weight="medium" tone="ink2">
+                        {formatDatePill(dateKey)}
                     </Text>
-                    <Text variant="subhead" tone="muted">
-                        {/* The relative label hides the date, so it goes back underneath. */}
-                        {label === formatDate(dateKey) ? summary : `${formatDate(dateKey)} · ${summary}`}
-                    </Text>
+                    <Chevron direction="down" size={7} />
                 </Pressable>
-
-                <IconButton
-                    accessibilityLabel="Next day"
-                    icon={<Chevron direction="forward" tone="ink" size={9} />}
-                    variant="square"
-                    onPress={onNext}
-                />
             </View>
 
-            {/* One tap back from wherever she wandered to. Absent on today, where
-                it would be a button that does nothing. */}
-            {isToday ? null : (
-                <View style={styles.back}>
-                    <Button label="Back to today" variant="text" size="md" onPress={onToday} />
-                </View>
-            )}
+            <DropdownMenu
+                visible={menu}
+                onClose={() => setMenu(false)}
+                anchor={anchor}
+                accessibilityLabel="Branches"
+                options={branches.map((row) => ({ value: row.id, label: row.name }))}
+                value={branch?.id ?? ''}
+                onChange={onPickBranch}
+            />
         </View>
     );
 }
@@ -75,17 +105,27 @@ const styles = StyleSheet.create({
         paddingHorizontal: size.gutter,
         paddingTop: space[2],
         paddingBottom: space[3],
-        backgroundColor: color.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: color.line,
     },
-    row: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
-    date: {
-        flex: 1,
+    row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    pill: {
+        flexDirection: 'row',
         alignItems: 'center',
-        minHeight: size.row,
-        justifyContent: 'center',
-        borderRadius: radius.md,
+        gap: space[1.5],
+        paddingVertical: space[1.5],
+        paddingHorizontal: space[3],
+        minHeight: space[8],
+        backgroundColor: color.surface,
+        borderRadius: radius.full,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        boxShadow: shadow.pill,
     },
-    back: { alignItems: 'center', marginTop: space[1] },
+    pressed: { backgroundColor: color.surface2 },
+    // A long branch name shortens rather than pushing the date pill off-screen.
+    branch: { maxWidth: 120 },
+    markSlot: { position: 'absolute', start: 0, end: 0, alignItems: 'center' },
+    // 0.28em at 15px. React Native has no em, so it is written out. The spacing
+    // also lands after the final D, which pulls the glyphs half a step left of
+    // the box; the padding is that half, not the whole.
+    mark: { letterSpacing: 4.2, paddingStart: 2.1 },
 });

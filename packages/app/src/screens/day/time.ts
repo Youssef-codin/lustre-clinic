@@ -89,6 +89,27 @@ export function formatTime(iso: string): string {
 }
 
 /**
+ * The same minute the way `day-view-schedule.html` writes it: `11:35` in mono at
+ * the row's size, `AM` beside it at two thirds of it. The meridiem comes back
+ * separately because it is set separately — one string would force one size.
+ *
+ * The 24-hour `formatTime` above stays for the places that are a clock rather
+ * than a row: the ruler in the calendar sheet, and every label read aloud.
+ */
+export function clock12(minutes: number): { time: string; meridiem: 'AM' | 'PM' } {
+    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
+    const hours = Math.floor(wrapped / 60);
+    return {
+        time: `${hours % 12 === 0 ? 12 : hours % 12}:${pad(wrapped % 60)}`,
+        meridiem: hours < 12 ? 'AM' : 'PM',
+    };
+}
+
+export function time12(iso: string): { time: string; meridiem: 'AM' | 'PM' } {
+    return clock12(minutesOfDay(iso));
+}
+
+/**
  * A local-midnight ISO string with the offset the server expects, for writes
  * that name a time — booking into a gap, moving an appointment.
  */
@@ -131,6 +152,19 @@ export function weekdayName(weekday: number): string {
 export function formatDate(key: string): string {
     const date = parseKey(key);
     return `${WEEKDAYS_SHORT[date.getDay()]} ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
+}
+
+/**
+ * What the header pill says: `4 AUG`, as in the design.
+ *
+ * Off today it gains the weekday — `WED 5 AUG`. The design only ever draws
+ * today, and the weekday is the fact that changes when the secretary has
+ * wandered: a bare date does not say whether Thursday is the day she meant.
+ */
+export function formatDatePill(key: string, today: string = todayKey()): string {
+    const date = parseKey(key);
+    const stamp = `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`.toUpperCase();
+    return key === today ? stamp : `${WEEKDAYS_SHORT[date.getDay()]?.toUpperCase()} ${stamp}`;
 }
 
 export function formatMonth(key: string): string {

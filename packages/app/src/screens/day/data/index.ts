@@ -14,6 +14,8 @@ export type {
     ClinicSettings,
     EmbeddedPatient,
     Patient,
+    PendingReminder,
+    ProcedureType,
     Visit,
     VisitLine,
     VisitPayment,

@@ -1,17 +1,18 @@
 import { StyleSheet, View } from 'react-native';
-import { Button, Dot } from '../../../components/ui';
+import { Button, Dot, ProgressBar } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
-import { formatTime, minutesOfDay, minutesToClock } from '../time';
+import { formatTime, minutesOfDay, minutesToClock, time12 } from '../time';
+import { CheckIcon, ClockIcon } from './icons';
 
 /**
- * The chair, at the top of the screen.
+ * The chair, at the top of the screen — the black card from
+ * `day-view-schedule.html`.
  *
- * The timeline answers "what does today look like"; this answers "what is
- * happening right now", which is the question the secretary actually has all
- * day. It is the black card from the designs, and it has four states because
- * the clinic has four: someone in the chair, someone at the desk paying,
- * someone due next, and nobody.
+ * The list answers "what does today look like"; this answers "what is happening
+ * right now", which is the question the secretary actually has all day. It has
+ * three states because the clinic has three: someone in the chair or at the
+ * desk, someone due next, and nobody.
  */
 
 export type NowCardProps = {
@@ -20,91 +21,158 @@ export type NowCardProps = {
     /** The next appointment still to arrive, if any. */
     next: Appointment | null;
     nowMinutes: number;
-    /** Null while the id of the visit behind `active` is not known. */
+    /** The procedure behind the active row's `typeId`, when it is known. */
+    procedure?: string;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
     checkingInId: string | null;
 };
 
 /**
- * The slot, and whether it has run past its end.
+ * How far into the slot the clinic is.
  *
- * Not "since 11:00" and not an elapsed time: the row says when the appointment
- * was *booked* for, and `checked_in` says nothing about when they actually sat
- * down — `checked_in_at` is on the visit, which this card does not hold. A
- * number presented as how long they have been in the chair, that is really how
- * long since their slot began, is a fact the secretary would act on and it
- * would be wrong.
+ * Against the *slot*, not against the patient: `checked_in` says nothing about
+ * when they actually sat down (`checked_in_at` is on the visit, which this card
+ * does not hold), so a bar presented as time in the chair would be a number the
+ * secretary acts on and it would be wrong. Both halves of the label name the
+ * slot, and past its end the bar stops filling and says so.
  */
-function slotLine(appointment: Appointment, nowMinutes: number): string {
+function slotProgress(appointment: Appointment, nowMinutes: number) {
     const start = minutesOfDay(appointment.startsAt);
-    const end = start + appointment.durationMinutes;
-    const window = `${formatTime(appointment.startsAt)} – ${minutesToClock(end)}`;
+    const elapsed = nowMinutes - start;
+    const duration = appointment.durationMinutes;
+    const over = elapsed - duration;
 
-    const over = nowMinutes - end;
-    if (over <= 0) return window;
-    if (over < 60) return `${window} · ${over} min over`;
-    return `${window} · ${Math.floor(over / 60)}h ${over % 60}m over`;
+    return {
+        value: duration > 0 ? elapsed / duration : 0,
+        over: over > 0,
+        label: over > 0 ? overLabel(over) : `${Math.max(elapsed, 0)} / ${duration} min`,
+        window: `${formatTime(appointment.startsAt)} – ${minutesToClock(start + duration)}`,
+    };
 }
 
-export function NowCard({ active, next, nowMinutes, onCheckIn, onOpen, checkingInId }: NowCardProps) {
+function overLabel(over: number): string {
+    return over < 60 ? `${over} min over` : `${Math.floor(over / 60)}h ${over % 60}m over`;
+}
+
+/** The eyebrow's right-hand end: when the slot began. */
+function StartedAt({ appointment }: { appointment: Appointment }) {
+    const { time, meridiem } = time12(appointment.startsAt);
+    return (
+        <Text variant="eyebrow" tone="muted" style={styles.startedAt}>
+            {`${time} ${meridiem}`}
+        </Text>
+    );
+}
+
+export function NowCard({
+    active,
+    next,
+    nowMinutes,
+    procedure,
+    onCheckIn,
+    onOpen,
+    checkingInId,
+}: NowCardProps) {
     if (active) {
         const inChair = active.status === 'checked_in';
+        const progress = slotProgress(active, nowMinutes);
 
         return (
             <View style={styles.card}>
                 <View style={styles.eyebrowRow}>
-                    <Dot tone={inChair ? 'live' : 'due'} pulse={inChair} />
-                    <Text variant="eyebrow" tone="inverse">
+                    <Dot tone={inChair ? 'live' : 'due'} size={7} pulse={inChair} />
+                    <Text variant="eyebrow" tone={inChair ? 'live' : 'due'}>
                         {inChair ? 'IN THE CHAIR' : 'AT THE DESK'}
+                    </Text>
+                    <StartedAt appointment={active} />
+                </View>
+
+                <Text variant="title" weight="semibold" tone="inverse" numberOfLines={1} style={styles.name}>
+                    {active.patient.name}
+                </Text>
+
+                <View style={styles.detail}>
+                    <ClockIcon />
+                    <Text variant="callout" tone="muted" numberOfLines={1} style={styles.detailText}>
+                        {/* What is being done, which is what the design puts
+                            here. The note is the more specific answer when
+                            somebody wrote one; the slot window is the fallback
+                            for an appointment booked without a type. */}
+                        {active.note ?? procedure ?? progress.window}
                     </Text>
                 </View>
 
-                <Text variant="title3" weight="semibold" tone="inverse" numberOfLines={1}>
-                    {active.patient.name}
-                </Text>
-                <Text variant="subhead" tone="muted">
-                    {inChair ? slotLine(active, nowMinutes) : 'Waiting to settle up'}
-                </Text>
+                {inChair ? (
+                    <View style={styles.progress}>
+                        {/* The bar stretches to its own container: `ProgressBar`
+                            sizes itself with `alignSelf`, which in a row means
+                            nothing at all. */}
+                        <View style={styles.track}>
+                            <ProgressBar
+                                value={progress.value}
+                                tone={progress.over ? 'due' : 'live'}
+                                height={5}
+                                onDark
+                                accessibilityLabel="Time into the slot"
+                            />
+                        </View>
+                        <Text variant="footnote" script="mono" weight="medium" tone="muted">
+                            {progress.label}
+                        </Text>
+                    </View>
+                ) : null}
 
-                <View style={styles.actions}>
-                    <Button label="Open" variant="accent" size="md" onPress={() => onOpen(active)} block />
-                </View>
+                <Button
+                    label={inChair ? 'Finish visit' : 'Take payment'}
+                    variant="inverse"
+                    size="md"
+                    block
+                    icon={<CheckIcon size={17} stroke={color.ink} />}
+                    style={styles.action}
+                    onPress={() => onOpen(active)}
+                />
             </View>
         );
     }
 
     if (next) {
         const until = minutesOfDay(next.startsAt) - nowMinutes;
+        const { time, meridiem } = time12(next.startsAt);
 
         return (
             <View style={styles.card}>
                 <View style={styles.eyebrowRow}>
-                    <Dot tone="accent" />
-                    <Text variant="eyebrow" tone="inverse">
+                    <Dot tone="accent" size={7} />
+                    <Text variant="eyebrow" tone="muted">
                         NEXT UP
+                    </Text>
+                    <StartedAt appointment={next} />
+                </View>
+
+                <Text variant="title" weight="semibold" tone="inverse" numberOfLines={1} style={styles.name}>
+                    {next.patient.name}
+                </Text>
+
+                <View style={styles.detail}>
+                    <ClockIcon />
+                    <Text variant="callout" tone="muted" style={styles.detailText}>
+                        {until > 0
+                            ? `${time} ${meridiem} · in ${until} min`
+                            : `${time} ${meridiem} · ${Math.abs(until)} min late`}
                     </Text>
                 </View>
 
-                <Text variant="title3" weight="semibold" tone="inverse" numberOfLines={1}>
-                    {next.patient.name}
-                </Text>
-                <Text variant="subhead" tone="muted">
-                    {until > 0
-                        ? `${formatTime(next.startsAt)} · in ${until} min`
-                        : `${formatTime(next.startsAt)} · ${Math.abs(until)} min late`}
-                </Text>
-
-                <View style={styles.actions}>
-                    <Button
-                        label="Check in"
-                        variant="accent"
-                        size="md"
-                        block
-                        loading={checkingInId === next.id}
-                        onPress={() => onCheckIn(next)}
-                    />
-                </View>
+                <Button
+                    label="Check in"
+                    variant="inverse"
+                    size="md"
+                    block
+                    icon={<CheckIcon size={17} stroke={color.ink} />}
+                    style={styles.action}
+                    loading={checkingInId === next.id}
+                    onPress={() => onCheckIn(next)}
+                />
             </View>
         );
     }
@@ -126,14 +194,18 @@ export function NowCard({ active, next, nowMinutes, onCheckIn, onOpen, checkingI
 
 const styles = StyleSheet.create({
     card: {
-        marginHorizontal: size.gutter,
-        marginTop: space[3],
-        padding: space[4],
-        gap: space[1],
+        marginHorizontal: size.bleed,
+        padding: space[5],
         backgroundColor: color.ink,
-        borderRadius: radius.xl2,
+        borderRadius: radius.xl3,
     },
-    empty: { gap: space[0.5] },
-    eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginBottom: space[1] },
-    actions: { marginTop: space[3] },
+    empty: { gap: space[1], padding: space[5] },
+    eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+    startedAt: { marginStart: 'auto' },
+    name: { marginTop: space[3.5] },
+    detail: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1.5] },
+    detailText: { flex: 1 },
+    progress: { flexDirection: 'row', alignItems: 'center', gap: space[2.5], marginTop: space[4] },
+    track: { flex: 1 },
+    action: { marginTop: space[4] },
 });

@@ -117,6 +117,35 @@ export interface Patient {
     phone: string;
 }
 
+/**
+ * `procedure.list` — the selectable rows only, categories already filtered out.
+ * The day view wants one field of it: the name behind an appointment's
+ * `typeId`, so a row can read "Check-up · 20 min" the way the design draws it.
+ */
+export interface ProcedureType {
+    id: string;
+    name: string;
+    defaultPrice: number;
+}
+
+/**
+ * `reminder.pending` — SPEC §11. Nothing sends itself: the row carries the
+ * rendered message and a `wa.me` URL, and the user marks it sent or skipped
+ * after WhatsApp has been opened, because delivery cannot be confirmed.
+ */
+export interface PendingReminder {
+    id: string;
+    appointmentId: string;
+    /** ISO 8601. */
+    dueAt: string;
+    /** ISO 8601 — the appointment the message is about. */
+    startsAt: string;
+    ref: string;
+    patient: EmbeddedPatient;
+    whatsAppUrl: string;
+    message: string;
+}
+
 export interface ClinicSettings {
     clinicName: string;
     durationOptions: number[];

@@ -9,6 +9,8 @@ import type {
     ClinicDay,
     ClinicSettings,
     Patient,
+    PendingReminder,
+    ProcedureType,
     Visit,
     VisitRow,
     WalkInResult,
@@ -66,6 +68,27 @@ export const api = {
                 dates.map((date) => ({ date, offsetMinutes: offsetForDate(date) })),
             ),
         ),
+
+    /** The selectable procedures, for the name behind an appointment's `typeId`. */
+    procedures: async (): Promise<ProcedureType[]> => shaped(await transport.query('procedure.list')),
+
+    /**
+     * §11 — what is owed a message. `dueOnly` is the server's default and the
+     * one the screen wants: a reminder that is not due yet is not work.
+     */
+    pendingReminders: async (date: string): Promise<PendingReminder[]> =>
+        shaped(
+            await transport.query('reminder.pending', {
+                dueOnly: true,
+                limit: 100,
+                offsetMinutes: offsetForDate(date),
+            }),
+        ),
+
+    markReminderSent: async (id: string): Promise<unknown> => transport.mutate('reminder.markSent', { id }),
+
+    markReminderSkipped: async (id: string): Promise<unknown> =>
+        transport.mutate('reminder.markSkipped', { id }),
 
     searchPatients: async (q: string): Promise<Patient[]> =>
         shaped(await transport.query('patient.search', { q, limit: 8 })),

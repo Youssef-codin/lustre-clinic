@@ -10,7 +10,18 @@ export type TextVariant = keyof typeof type;
 
 export type TextWeight = keyof typeof font.sans;
 
-export type TextTone = 'ink' | 'ink2' | 'muted' | 'accent' | 'success' | 'due' | 'danger' | 'wa' | 'inverse';
+export type TextTone =
+    | 'ink'
+    | 'ink2'
+    | 'muted'
+    | 'accent'
+    | 'success'
+    | 'due'
+    | 'danger'
+    | 'wa'
+    | 'inverse'
+    /** The chair card's green. Legible on `ink` only — never on a white ground. */
+    | 'live';
 
 type Script = keyof typeof font;
 
@@ -48,6 +59,7 @@ const TONE: Record<TextTone, string> = {
     danger: color.danger,
     wa: color.wa,
     inverse: color.inverse,
+    live: color.live,
 };
 
 const styles = StyleSheet.create({

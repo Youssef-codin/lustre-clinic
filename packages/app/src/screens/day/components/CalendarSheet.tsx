@@ -1,12 +1,12 @@
 import { SLOT_HOLDING_STATUSES } from '@mawid/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Chevron, IconButton, ProgressBar, Sheet } from '../../../components/ui';
-import { border, color, radius, size, space, Text } from '../../../theme';
+import { Button, Chevron, IconButton, Sheet } from '../../../components/ui';
+import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import { type Appointment, api, type ClinicDay, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed, openMinutes } from '../hours';
-import { addMonths, formatMonth, monthDays, parseKey, todayKey } from '../time';
+import { addMonths, formatDate, formatMonth, monthDays, parseKey, time12, todayKey } from '../time';
 
 /**
  * A month, with how full each day is.
@@ -24,6 +24,8 @@ export type CalendarSheetProps = {
     /** The day the screen is on, which is where the grid opens. */
     selected: string;
     schedule: readonly ClinicDay[] | undefined;
+    /** Named in the legend — the load shown is this branch's, not the clinic's. */
+    branchName: string | undefined;
     onPick: (dateKey: string) => void;
     onClose: () => void;
 };
@@ -32,6 +34,8 @@ interface DayLoad {
     count: number;
     /** 0–1 of the clinic's open minutes. Over 0.9 reads as full. */
     fill: number;
+    /** ISO start of the first slot-holding appointment, for the summary. */
+    firstAt: string | null;
 }
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
@@ -53,13 +57,25 @@ function loadsFrom(
         );
         const booked = holding.reduce((total, row) => total + row.durationMinutes, 0);
         const open = openMinutes(day, schedule);
-        loads.set(day, { count: holding.length, fill: open > 0 ? Math.min(booked / open, 1) : 0 });
+        const firstAt = holding.map((row) => row.startsAt).sort((a, b) => a.localeCompare(b))[0];
+        loads.set(day, {
+            count: holding.length,
+            fill: open > 0 ? Math.min(booked / open, 1) : 0,
+            firstAt: firstAt ?? null,
+        });
     });
 
     return loads;
 }
 
-export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: CalendarSheetProps) {
+export function CalendarSheet({
+    visible,
+    selected,
+    schedule,
+    branchName,
+    onPick,
+    onClose,
+}: CalendarSheetProps) {
     const [month, setMonth] = useState(selected);
     const [pending, setPending] = useState(selected);
 
@@ -94,7 +110,6 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
         <Sheet
             visible={visible}
             onClose={onClose}
-            title="Pick a day"
             testID="calendar-sheet"
             footer={
                 <Button
@@ -108,21 +123,23 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
             }
         >
             <View style={styles.monthBar}>
-                <IconButton
-                    accessibilityLabel="Previous month"
-                    icon={<Chevron direction="back" tone="ink" size={9} />}
-                    variant="square"
-                    onPress={() => goToMonth(addMonths(month, -1))}
-                />
-                <Text variant="headline" weight="semibold">
+                <Text variant="title3" weight="semibold">
                     {formatMonth(month)}
                 </Text>
-                <IconButton
-                    accessibilityLabel="Next month"
-                    icon={<Chevron direction="forward" tone="ink" size={9} />}
-                    variant="square"
-                    onPress={() => goToMonth(addMonths(month, 1))}
-                />
+                <View style={styles.monthNav}>
+                    <IconButton
+                        accessibilityLabel="Previous month"
+                        icon={<Chevron direction="back" tone="ink" size={9} />}
+                        variant="square"
+                        onPress={() => goToMonth(addMonths(month, -1))}
+                    />
+                    <IconButton
+                        accessibilityLabel="Next month"
+                        icon={<Chevron direction="forward" tone="ink" size={9} />}
+                        variant="square"
+                        onPress={() => goToMonth(addMonths(month, 1))}
+                    />
+                </View>
             </View>
 
             <View style={styles.weekdays}>
@@ -174,18 +191,24 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
                                     {parseKey(day).getDate()}
                                 </Text>
 
-                                {/* The bar is the load, not a decoration: an empty
-                                    track is a free day, a full one is a full day. */}
-                                <View style={styles.loadTrack}>
-                                    {load && !closed ? (
-                                        <ProgressBar
-                                            value={load.fill}
-                                            tone={full ? 'due' : 'accent'}
-                                            height={3}
-                                            onDark={day === pending}
-                                        />
-                                    ) : null}
-                                </View>
+                                {/* A stub whose length is the count, not a track
+                                    that fills: four bookings and forty read the
+                                    same on a 40px cell, and the design sizes it
+                                    off the number rather than the minutes. */}
+                                <View
+                                    style={[
+                                        styles.load,
+                                        {
+                                            width: Math.min(load?.count ?? 0, 4) * 4,
+                                            backgroundColor:
+                                                !load || closed || load.count === 0
+                                                    ? 'transparent'
+                                                    : full
+                                                      ? color.due
+                                                      : color.accent,
+                                        },
+                                    ]}
+                                />
                             </View>
                         </Pressable>
                     );
@@ -193,35 +216,49 @@ export function CalendarSheet({ visible, selected, schedule, onPick, onClose }: 
             </View>
 
             <View style={styles.legend}>
-                <Legend tone={color.accent} label="Booked" />
-                <Legend tone={color.due} label="Full" />
-                <Legend tone={color.line} label="Closed" />
+                <Legend tone={color.accent} label="booked load" />
+                <Legend tone={color.due} label="fully booked" />
+                {branchName ? (
+                    <Text variant="caption" tone="muted" style={styles.legendBranch}>
+                        {branchName}
+                    </Text>
+                ) : null}
             </View>
 
             <View style={styles.summary}>
+                <Text variant="subhead" weight="semibold">
+                    {formatDate(pending)}
+                </Text>
                 {query.status === 'loading' ? (
-                    <Text variant="subhead" tone="muted">
+                    <Text variant="footnote" tone="muted">
                         Counting the month…
                     </Text>
                 ) : query.status === 'error' && query.error ? (
                     <View style={styles.summaryError}>
-                        <Text variant="subhead" tone="due">
+                        <Text variant="footnote" tone="due">
                             {describeError(query.error, 'day').title}
                         </Text>
                         <Button label="Try again" variant="text" size="md" onPress={query.refetch} />
                     </View>
                 ) : (
-                    <Text variant="subhead" tone="muted">
+                    <Text variant="footnote" tone="muted">
                         {pendingClosed
                             ? 'Closed that day.'
                             : pendingLoad && pendingLoad.count > 0
-                              ? `${pendingLoad.count} booked · ${Math.round(pendingLoad.fill * 100)}% of the day`
+                              ? `${pendingLoad.count} booked · ${Math.round(pendingLoad.fill * 100)}% of the day${
+                                    pendingLoad.firstAt ? ` · first ${firstLabel(pendingLoad.firstAt)}` : ''
+                                }`
                               : 'Nothing booked yet.'}
                     </Text>
                 )}
             </View>
         </Sheet>
     );
+}
+
+function firstLabel(iso: string): string {
+    const { time, meridiem } = time12(iso);
+    return `${time} ${meridiem}`;
 }
 
 function Legend({ tone, label }: { tone: string; label: string }) {
@@ -244,6 +281,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: space[3],
     },
+    monthNav: { flexDirection: 'row', gap: space[1.5] },
     weekdays: { flexDirection: 'row' },
     weekday: { width: `${100 / 7}%`, textAlign: 'center' },
     grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space[1] },
@@ -264,11 +302,23 @@ const styles = StyleSheet.create({
     },
     full: { backgroundColor: color.dueSoft },
     today: { borderWidth: border.thick, borderColor: color.ink },
-    picked: { backgroundColor: color.ink, borderColor: color.ink },
-    loadTrack: { alignSelf: 'stretch', height: 3 },
+    // The border width matches `today`'s: Android squares off the background of
+    // a rounded box that carries a border colour without one.
+    picked: { backgroundColor: color.ink, borderWidth: border.thick, borderColor: color.ink },
+    load: { height: 3, borderRadius: radius.full },
     legend: { flexDirection: 'row', gap: space[4], marginTop: space[4] },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-    legendSwatch: { width: space[2], height: space[2], borderRadius: radius.full },
-    summary: { marginTop: space[3], minHeight: size.row, justifyContent: 'center' },
+    legendSwatch: { width: space[4], height: 3, borderRadius: radius.full },
+    legendBranch: { marginStart: 'auto' },
+    summary: {
+        marginTop: space[3.5],
+        gap: space[1],
+        padding: space[3.5],
+        backgroundColor: color.surface,
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        boxShadow: shadow.card,
+    },
     summaryError: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
 });

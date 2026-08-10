@@ -11,6 +11,10 @@
         "device:start": "bash scripts/device.sh --start",
         "device:logs": "adb logcat -s ReactNativeJS:V ReactNative:V",
         "device:stop": "cd android && ./gradlew --stop",
+        "emu": "bash scripts/emulator.sh",
+        "emu:build": "bash scripts/emulator.sh --build",
+        "emu:start": "bash scripts/emulator.sh --start",
+        "emu:shot": "bash scripts/emulator.sh --shot",
         "ios": "expo run:ios",
         "typecheck": "tsc --noEmit"
     },
@@ -18,6 +22,7 @@
         "@expo-google-fonts/dm-mono": "^0.4.2",
         "@expo-google-fonts/instrument-sans": "^0.4.2",
         "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
+        "@expo/vector-icons": "^15.1.1",
         "@mawid/shared": "workspace:*",
         "@tanstack/react-query": "^5.101.4",
         "@trpc/client": "11.18.0",

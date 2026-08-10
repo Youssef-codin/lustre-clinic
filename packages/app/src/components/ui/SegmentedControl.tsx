@@ -1,7 +1,15 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { color, radius, space, Text } from '../../theme';
+import { border, color, radius, shadow, space, Text } from '../../theme';
 
-export type Segment<T extends string> = { value: T; label: string };
+export type Segment<T extends string> = {
+    value: T;
+    label: string;
+    /**
+     * Drawn before the label. The designs that use icons here draw them in
+     * `currentColor`, so the caller decides the colour from `selected`.
+     */
+    icon?: (selected: boolean) => React.ReactNode;
+};
 
 export type SegmentedControlProps<T extends string> = {
     segments: readonly Segment<T>[];
@@ -39,6 +47,7 @@ export function SegmentedControl<T extends string>({
                         onPress={() => onChange(segment.value)}
                         style={[styles.segment, selected && styles.selected]}
                     >
+                        {segment.icon?.(selected)}
                         <Text
                             variant="callout"
                             weight={selected ? 'semibold' : 'medium'}
@@ -59,15 +68,27 @@ const styles = StyleSheet.create({
         alignSelf: 'stretch',
         padding: 3,
         borderRadius: radius.full,
+        borderWidth: border.hair,
+        borderColor: color.line,
         backgroundColor: color.surface2,
     },
     segment: {
         flex: 1,
+        flexDirection: 'row',
+        gap: space[1.5],
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: 38,
         paddingHorizontal: space[3],
         borderRadius: radius.full,
     },
-    selected: { backgroundColor: color.surface },
+    // Outlined, like the header pills: on a track this pale the fill alone is a
+    // faint difference, and the border is what makes the selected half read as
+    // a thing sitting on top rather than a lighter patch of the same surface.
+    selected: {
+        backgroundColor: color.surface,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        boxShadow: shadow.pill,
+    },
 });

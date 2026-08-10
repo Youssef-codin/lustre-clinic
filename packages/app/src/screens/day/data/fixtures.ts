@@ -1,7 +1,13 @@
-import { ERROR_CODE, PAYMENT_METHODS, type PaymentMethod, SLOT_HOLDING_STATUSES } from '@mawid/shared';
-import { addDays, dateKey, isoAt, minutesOfDay, todayKey } from '../time';
+import {
+    DEFAULT_REMINDER_LEAD_HOURS,
+    ERROR_CODE,
+    PAYMENT_METHODS,
+    type PaymentMethod,
+    SLOT_HOLDING_STATUSES,
+} from '@mawid/shared';
+import { addDays, clock12, dateKey, isoAt, minutesOfDay, todayKey } from '../time';
 import { RequestError, type Transport } from './client';
-import type { Appointment, ClinicDay, Visit, VisitRow } from './types';
+import type { Appointment, ClinicDay, PendingReminder, ProcedureType, Visit, VisitRow } from './types';
 
 /**
  * The in-memory clinic — BLOCKED.md.
@@ -18,6 +24,7 @@ import type { Appointment, ClinicDay, Visit, VisitRow } from './types';
  */
 
 const BRANCH_ID = '0192f3a0-0000-7000-8000-00000000b1a1';
+const BRANCH_ID_2 = '0192f3a0-0000-7000-8000-00000000b1a2';
 
 let sequence = 0;
 function id(prefix: string): string {
@@ -42,6 +49,20 @@ const patients: StoredPatient[] = [
 const appointments: Appointment[] = [];
 const visits: Visit[] = [];
 
+/** `procedure.list` — what the day rows name, and what a walk-in defaults to. */
+const procedureTypes: ProcedureType[] = [
+    { id: id('9999'), name: 'Check-up', defaultPrice: 30_000 },
+    { id: id('9999'), name: 'Cleaning', defaultPrice: 60_000 },
+    { id: id('9999'), name: 'Composite filling', defaultPrice: 90_000 },
+    { id: id('9999'), name: 'Root canal', defaultPrice: 240_000 },
+    { id: id('9999'), name: 'Crown fitting', defaultPrice: 350_000 },
+    { id: id('9999'), name: 'Extraction', defaultPrice: 110_000 },
+];
+
+function procedureId(index: number): string | null {
+    return procedureTypes[index % procedureTypes.length]?.id ?? null;
+}
+
 function seedAppointment(
     dayKey: string,
     minutes: number,
@@ -49,6 +70,8 @@ function seedAppointment(
     patientIndex: number,
     status: Appointment['status'],
     channel: Appointment['channel'] = 'desk',
+    typeIndex: number | null = null,
+    branchId: string = BRANCH_ID,
 ): Appointment {
     const patient = patients[patientIndex % patients.length];
     if (!patient) throw new Error('fixture patient missing');
@@ -57,10 +80,10 @@ function seedAppointment(
         id: id('bbbb'),
         ref: `${dayKey.slice(8, 10)}${dayKey.slice(5, 7)}${dayKey.slice(2, 4)}-${String(sequence).padStart(4, '0').slice(-4).toUpperCase()}`,
         patientId: patient.id,
-        branchId: BRANCH_ID,
+        branchId,
         startsAt: isoAt(dayKey, minutes),
         durationMinutes,
-        typeId: null,
+        typeId: typeIndex === null ? null : procedureId(typeIndex),
         note: null,
         status,
         channel,
@@ -105,16 +128,53 @@ function seedVisit(appointmentId: string, chargedTotal: number, paid: number): V
 
 const today = todayKey();
 
-seedAppointment(today, 10 * 60, 30, 0, 'done');
-const inChair = seedAppointment(today, 11 * 60, 45, 1, 'checked_in');
+seedAppointment(today, 10 * 60, 30, 0, 'done', 'desk', 1);
+const inChair = seedAppointment(today, 11 * 60, 45, 1, 'checked_in', 'desk', 2);
 seedVisit(inChair.id, 30_000, 0);
-seedAppointment(today, 12 * 60 + 30, 30, 2, 'booked');
-seedAppointment(today, 14 * 60, 20, 3, 'no_show');
-seedAppointment(today, 17 * 60, 45, 4, 'booked');
-seedAppointment(today, 18 * 60, 30, 1, 'cancelled');
-seedAppointment(addDays(today, 1), 11 * 60, 30, 2, 'booked');
-seedAppointment(addDays(today, 1), 15 * 60, 45, 0, 'booked');
-seedAppointment(addDays(today, 2), 13 * 60, 30, 4, 'booked');
+seedAppointment(today, 12 * 60 + 30, 30, 2, 'booked', 'desk', 0);
+seedAppointment(today, 14 * 60, 20, 3, 'no_show', 'desk', 5);
+seedAppointment(today, 17 * 60, 45, 4, 'booked', 'desk', 4);
+seedAppointment(today, 18 * 60, 30, 1, 'cancelled', 'desk', 3);
+const tomorrow = [
+    seedAppointment(addDays(today, 1), 11 * 60, 30, 2, 'booked', 'desk', 1),
+    seedAppointment(addDays(today, 1), 15 * 60, 45, 0, 'booked', 'desk', 4),
+];
+const dayAfter = seedAppointment(addDays(today, 2), 13 * 60, 30, 4, 'booked', 'desk', 0);
+
+seedAppointment(today, 13 * 60 + 30, 30, 3, 'booked', 'desk', 1, BRANCH_ID_2);
+seedAppointment(today, 16 * 60, 45, 0, 'booked', 'desk', 5, BRANCH_ID_2);
+
+/**
+ * §11 — a reminder row exists from the moment an appointment is booked, and
+ * falls due `reminder_lead_hours` before it. The seeded ones are due now, which
+ * is the only state the screen has anything to draw: tomorrow's list, waiting
+ * to be sent.
+ */
+interface StoredReminder extends PendingReminder {
+    status: 'pending' | 'sent' | 'skipped';
+}
+
+const reminders: StoredReminder[] = [...tomorrow, dayAfter].map((appointment) => {
+    const local = new Date(appointment.startsAt);
+    const { time, meridiem } = clock12(minutesOfDay(appointment.startsAt));
+    const message =
+        `Hello ${appointment.patient.name}, this is a reminder of your appointment at ` +
+        `Nile Dental on ${dateKey(local)} at ${time} ${meridiem}.`;
+
+    return {
+        id: id('7777'),
+        appointmentId: appointment.id,
+        dueAt: new Date(local.getTime() - DEFAULT_REMINDER_LEAD_HOURS * 3_600_000).toISOString(),
+        startsAt: appointment.startsAt,
+        ref: appointment.ref,
+        patient: appointment.patient,
+        // `toWhatsAppNumber` is the server's; the fixture phones are already in
+        // the form it produces, less the leading plus.
+        whatsAppUrl: `https://wa.me/${appointment.patient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`,
+        message,
+        status: 'pending',
+    };
+});
 
 const schedule: ClinicDay[] = [0, 1, 2, 3, 4, 6].map((weekday) => ({
     weekday,
@@ -190,8 +250,46 @@ function call(path: string, input: unknown): Promise<unknown> {
                 defaultDuration: 30,
             });
 
+        case 'procedure.list':
+            return delay(procedureTypes);
+
+        case 'reminder.pending': {
+            const dueOnly = field(input, 'dueOnly') !== false;
+            const now = Date.now();
+            return delay(
+                reminders
+                    .filter((row) => row.status === 'pending')
+                    .filter((row) => !dueOnly || new Date(row.dueAt).getTime() <= now)
+                    .filter((row) => {
+                        // The server joins `appointments` and takes booked rows
+                        // only — a cancelled appointment owes no message.
+                        const appointment = appointments.find((a) => a.id === row.appointmentId);
+                        return appointment?.status === 'booked';
+                    })
+                    .sort((a, b) => a.dueAt.localeCompare(b.dueAt)),
+            );
+        }
+
+        case 'reminder.markSent':
+        case 'reminder.markSkipped': {
+            const reminderId = stringField(input, 'id');
+            const row = reminders.find((r) => r.id === reminderId);
+            if (!row) throw new RequestError(ERROR_CODE.NOT_FOUND, 'reminder not found');
+            row.status = path === 'reminder.markSent' ? 'sent' : 'skipped';
+            return delay(row);
+        }
+
+        // §11 — this silences the repeating notification for the rest of the
+        // day. It does not touch the rows; "Skip all" is `markSkipped` over
+        // each of them, and the two must not be confused.
+        case 'reminder.dismissToday':
+            return delay({ remindersDismissedOn: stringField(input, 'date') });
+
         case 'branch.list':
-            return delay([{ id: BRANCH_ID, name: 'Maadi', address: null, active: true }]);
+            return delay([
+                { id: BRANCH_ID, name: 'Maadi', address: null, active: true },
+                { id: BRANCH_ID_2, name: 'Nasr City', address: null, active: true },
+            ]);
 
         case 'patient.search': {
             const term = String(field(input, 'q') ?? '').toLowerCase();
@@ -205,9 +303,11 @@ function call(path: string, input: unknown): Promise<unknown> {
 
         case 'appointment.byDate': {
             const key = stringField(input, 'date');
+            const branchId = field(input, 'branchId');
             return delay(
                 appointments
                     .filter((row) => dateKey(new Date(row.startsAt)) === key)
+                    .filter((row) => typeof branchId !== 'string' || row.branchId === branchId)
                     .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
             );
         }

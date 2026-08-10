@@ -4,9 +4,9 @@ import { clockToMinutes, weekdayOf } from './time';
 /**
  * Opening and closing hours. One module, on purpose.
  *
- * Nothing else in the cluster may assume a clinic hour: the timeline's bounds,
- * the calendar's load bars, the walk-in sheet's default time and the "closed"
- * verdict all come from here. When the clinic's real schedule replaces the
+ * Nothing else in the cluster may assume a clinic hour: the calendar's load
+ * bars, the walk-in sheet's default time and the "closed" verdict all come from
+ * here. When the clinic's real schedule replaces the
  * defaults below, that is a change to `DEFAULTS` and nothing else.
  *
  * MAW-1 has since landed `clinic_days` and `settings.schedule`, so the server
@@ -64,29 +64,4 @@ export function isClosed(dateKey: string, schedule: readonly ClinicDay[] | undef
 export function openMinutes(dateKey: string, schedule: readonly ClinicDay[] | undefined): number {
     const hours = hoursFor(dateKey, schedule);
     return hours ? hours.closes - hours.opens : 0;
-}
-
-/**
- * The bounds the timeline actually draws, given what is booked.
- *
- * Booking outside opening hours is the secretary's call and the server does not
- * stop her, so an appointment before the clinic opens has to be *on* the
- * timeline. The grid grows to hold it rather than clipping it out of sight.
- */
-export function timelineBounds(
-    dateKey: string,
-    schedule: readonly ClinicDay[] | undefined,
-    booked: readonly { startMinutes: number; endMinutes: number }[],
-): DayHours {
-    const hours = hoursFor(dateKey, schedule);
-    let opens = hours?.opens ?? 9 * 60;
-    let closes = hours?.closes ?? 18 * 60;
-
-    for (const slot of booked) {
-        opens = Math.min(opens, slot.startMinutes);
-        closes = Math.max(closes, slot.endMinutes);
-    }
-
-    // Round out to the hour so the ruler starts and ends on a labelled line.
-    return { opens: Math.floor(opens / 60) * 60, closes: Math.ceil(closes / 60) * 60 };
 }

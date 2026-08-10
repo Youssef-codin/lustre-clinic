@@ -163,6 +163,7 @@ close enough that only the pill differs meaningfully; B's is used.
 | `radius.lg` | 14 | buttons, fields, toasts |
 | `radius.xl` | 16 | cards |
 | `radius.xl2` | 18 | group cards, due card |
+| `radius.xl3` | 24 | the chair card, `day-view-schedule.html` |
 | `radius.sheet` | 26 | bottom sheets (top corners) |
 | `radius.full` | 999 | pills, primary buttons, dots |
 
