@@ -1,3 +1,7 @@
+// One debtor row on the money dashboard. The amount is the standing balance
+// across every visit, as `balance.outstanding` derived it — the row never adds
+// anything up. Entry animates only on mount: re-running on a filter change
+// would restage the whole list on every search keystroke.
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';
@@ -6,19 +10,11 @@ import type { PatientBalance } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { outstandingAge } from '../format';
 
-// Inventory §5 `domain/DebtorRow` — name, "Outstanding <age>", the amount, a
-// chevron, staggered entry. §7.16 dropped avatars, so there is no initials tile.
-//
-// The amount is the standing balance for that patient across every visit, as
-// `balance.outstanding` derived it (§10). The row does not add anything up.
-
-/** Capped so a long list does not spend two seconds arriving. */
 const MAX_STAGGER_STEPS = 8;
 const STAGGER_MS = 40;
 
 export type DebtorRowProps = {
     patient: PatientBalance;
-    /** Position in the list, for the entry stagger. */
     index: number;
     onPress: () => void;
 };
@@ -38,8 +34,6 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
 
         animation.start();
         return () => animation.stop();
-        // Only on mount: re-running on filter would restage the whole list on
-        // every keystroke of the search field.
     }, [entry, reducedMotion, index]);
 
     return (

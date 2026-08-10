@@ -36,6 +36,10 @@ push it, open the PR from there against `main`.
   comment earns its place when it records something the code cannot: a
   non-obvious constraint, a spec reference, or why an obvious approach was
   rejected. Default to none.
+- **In `packages/app`, no inline comments.** Nothing between the lines of a
+  function, nothing above a JSX block, nothing beside a style. If something is
+  genuinely important enough to write down, it goes in one short block at the
+  top of the file and nowhere else.
 - DO NOT use useEffect unless strictly needed to.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)

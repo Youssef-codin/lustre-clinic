@@ -4,14 +4,11 @@ import { size, space, Text } from '../../theme';
 
 export type ScreenHeaderProps = {
     title: string;
-    /** Eyebrow above the title — the period, the date, the branch. */
     eyebrow?: string;
     subtitle?: string;
-    /** Overflow IconButton, usually. */
     trailing?: ReactNode;
 };
 
-/** The large `h1` on a root screen. Sub-screens get a TopBar instead. */
 export function ScreenHeader({ title, eyebrow, subtitle, trailing }: ScreenHeaderProps) {
     return (
         <View style={styles.header}>

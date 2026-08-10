@@ -5,15 +5,11 @@ import { ApiProvider } from './src/api';
 import { AppShell } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
-// The entry point is the shell (F3): the bottom tab bar and the four clusters
-// under it. Each cluster still owns its internal navigation. The component
-// gallery is still there, at `src/screens/dev/GalleryScreen`, and is what to
-// mount in place of `<AppShell />` when a primitive needs poking at on a device.
-//
-// `ApiProvider` wraps the whole shell rather than a screen, because the query
-// cache and the connection state outlive any one tab. The day view still talks
-// to the server through its own `data/` client (BLOCKED.md) and does not use it
-// yet.
+// The entry point mounts the shell (F3): the bottom tab bar and four clusters,
+// each with its own internal navigation. The component gallery lives at
+// `src/screens/dev/GalleryScreen` — mount it in place of `<AppShell />` when
+// poking at a primitive on a device. `ApiProvider` wraps the whole shell
+// because the query cache and connection state outlive any one tab.
 export default function App() {
     const fontsLoaded = useAppFonts();
     if (!fontsLoaded) return <View style={styles.screen} />;

@@ -1,3 +1,13 @@
+// `visit.recordPayment` — a post-checkout payment against a balance. §7.6:
+// overpayment does not exist — the entered amount is clamped to the amount due
+// and the clamp announced. §7.12: the field takes whole pounds only, and the
+// piastre clamp is repeated on submit because the field's own clamp rounds
+// against a pound figure and can round upward past the balance. The clamp is a
+// courtesy, not an invariant: the server takes any positive amount (BLOCKED.md
+// #7). The notice lives inside the sheet because `ui/Sheet` is a native Modal
+// and a screen-level toast would render beneath it; the sheet is not
+// dismissable mid-write because the write crosses Tailscale and a closed sheet
+// would leave the outcome unknowable.
 import { PAYMENT_METHODS, type PaymentMethod } from '@mawid/shared';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -8,28 +18,9 @@ import { MoneyValue } from '../_LocalMoneyValue';
 import { methodLabel } from '../format';
 import { clampToBalance, formatEgp, isWholePounds, toEgp } from '../money';
 
-// `visit.recordPayment` (§13) — a payment made after checkout, against a
-// balance. Inventory §5's `domain/MethodTiles` is the 2×2 grid on the checkout
-// screen; this is the same choice as a chip row, because here it sits under a
-// keyboard rather than filling a screen.
-//
-// Two rules this screen exists to hold:
-//
-//   §7.6 — OVERPAYMENT DOES NOT EXIST. The entered amount is clamped to the
-//   amount due and the clamp is announced, exactly as `visit-payment.html` does.
-//   There is no refund state anywhere in the system to fall into.
-//
-//   §7.12 — the field takes whole pounds and nothing else. Piastres are never
-//   shown and never typed; the multiply happens once, here, on submit.
-//
-// The clamp is a courtesy, not an invariant: the server takes any positive
-// amount, and two phones on one tailnet can both clamp against a figure that has
-// already moved. See BLOCKED.md #7.
-
 export type RecordPaymentSheetProps = {
     visible: boolean;
     onClose: () => void;
-    /** The balance to clamp against, in piastres, as the server derived it. */
     balance: number;
     visitId: string;
     isPending: boolean;
@@ -52,16 +43,8 @@ export function RecordPaymentSheet({
     const [method, setMethod] = useState<PaymentMethod>('cash');
     const [note, setNote] = useState('');
 
-    // Why the field did not take what was typed. It lives inside the sheet, not
-    // on the screen behind it: `ui/Sheet` is a native `Modal`, so a `Toast` in
-    // the screen root renders beneath the modal window and its scrim and is
-    // excluded from the accessibility tree by `accessibilityViewIsModal`. §7.6
-    // requires the clamp to be announced, and an announcement nobody can see
-    // does not meet it.
     const [notice, setNotice] = useState<string | null>(null);
 
-    // A fresh sheet each time it opens. A leftover amount from a previous visit
-    // is the sort of thing that gets confirmed without being read.
     useEffect(() => {
         if (visible) {
             setAmount('');
@@ -98,9 +81,6 @@ export function RecordPaymentSheet({
 
         onSubmit({
             visitId,
-            // Clamped a second time, and in piastres — the field's own clamp is
-            // against a rounded pound figure and can round upward past the
-            // balance. `clampToBalance` is the one that decides.
             amount: clampToBalance(enteredEgp, balance),
             method,
             methodNote: method === 'other' ? note.trim() : null,
@@ -112,8 +92,6 @@ export function RecordPaymentSheet({
             visible={visible}
             onClose={onClose}
             title="Record a payment"
-            // §14 — the write crosses Tailscale. Closing the sheet mid-write
-            // would leave the caller unable to say whether it landed.
             dismissable={!isPending}
             testID="money-record-payment"
             footer={
@@ -155,9 +133,6 @@ export function RecordPaymentSheet({
                 </View>
             ) : null}
 
-            {/* Through `changeAmount`, never `setAmount`: it is the only thing
-                that clears the notice, and a "capped at EGP 2,600" left standing
-                over a field reading 1,300 is a wrong number by another route. */}
             <View style={styles.quick}>
                 <Chip
                     label="Full"

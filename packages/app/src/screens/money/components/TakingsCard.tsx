@@ -1,3 +1,9 @@
+// A collected total and one row per payment method. The endpoint behind this
+// does not exist yet (BLOCKED.md #5); the stub serves the shape. Amounts are
+// full, never compact (§7.12). Each row's share is a ratio, not money — nothing
+// is summed here. The width bar is a layout property, so it animates on the JS
+// thread (`useNativeDriver: false`). There is no icon set, so rows lead with
+// the label and the bar carries the comparison.
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Card, CardDivider, duration, easing, useReducedMotion } from '../../../components/ui';
@@ -5,17 +11,6 @@ import { color, radius, space, Text } from '../../../theme';
 import type { MethodTaking, TakingsReport } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { methodLabel } from '../format';
-
-// Inventory §5 `domain/TakingsCard` — a total, then one row per payment method
-// with a bar, a percentage and an amount.
-//
-// The endpoint behind this does not exist yet (BLOCKED.md #5); the card is real
-// and the stub serves the shape it needs. Amounts are full here, never compact:
-// §7.12 allows compact in the hero and the stat cards only.
-//
-// The designs draw an icon per method. There is no icon set (ui/README.md), and
-// a made-up glyph per payment method would be worse than none, so the row leads
-// with its label and the bar carries the comparison.
 
 const BAR_HEIGHT = 4;
 
@@ -54,7 +49,6 @@ export function TakingsCard({ takings }: TakingsCardProps) {
 }
 
 function MethodRow({ row, total }: { row: MethodTaking; total: number }) {
-    // A share of a total, not an amount — no money is computed here.
     const share = total > 0 ? row.amount / total : 0;
     const percent = Math.round(share * 100);
 
@@ -66,8 +60,6 @@ function MethodRow({ row, total }: { row: MethodTaking; total: number }) {
             toValue: share,
             duration: reducedMotion ? 0 : duration.fadeup,
             easing: easing.standard,
-            // Width is a layout property, so this cannot run on the native
-            // thread. Four rows, once per period change.
             useNativeDriver: false,
         });
 
@@ -134,6 +126,5 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface2,
     },
     fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.ink },
-    // Fixed, so the bars all end at the same x and the percentages form a column.
     percent: { minWidth: 30, textAlign: 'center' },
 });

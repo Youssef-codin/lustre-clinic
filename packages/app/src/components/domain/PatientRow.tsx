@@ -1,17 +1,14 @@
+/**
+ * One patient in a list (Component Inventory §5) — the patients list, search
+ * results, and the debtors list on the money screen. The shape is the server's:
+ * `patient.search` returns it, and `Partial` on the derived fields is what lets
+ * a balance row, which only knows a name and a phone, use the same component.
+ */
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { RouterOutput } from '../../api';
 import { color, size, space, Text } from '../../theme';
 import { Chevron, Dot } from '../ui';
 import { MoneyValue } from './MoneyValue';
-
-/**
- * One patient in a list (Component Inventory §5) — the patients list, search
- * results, and the debtors list on the money screen.
- *
- * The shape is the server's: `patient.search` returns it, and `Partial` on the
- * derived fields is what lets a balance row, which only knows a name and a
- * phone, use the same component.
- */
 
 type SearchedPatient = RouterOutput['patient']['search'][number];
 
@@ -20,10 +17,6 @@ export type PatientSummary = Pick<SearchedPatient, 'name' | 'phone'> &
 
 export type PatientRowProps = {
     patient: PatientSummary;
-    /**
-     * Outstanding balance in piastres, when the caller knows it. Shown in `due`
-     * with a dot — never as a failure state: partial payment is normal here.
-     */
     balance?: number;
     onPress?: () => void;
     testID?: string;
@@ -46,8 +39,6 @@ export function PatientRow({ patient, balance, onPress, testID }: PatientRowProp
                     {name}
                 </Text>
                 <View style={styles.meta}>
-                    {/* Phone and age are numerals: mono, so rows align down the
-                        list, and Latin in both languages (§7.11). */}
                     <Text variant="subhead" tone="muted" script="mono">
                         {age === null || age === undefined ? phone : `${phone} · ${age}`}
                     </Text>
@@ -82,7 +73,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     pressed: { backgroundColor: color.surface2 },
-    // Takes the slack so the balance and the chevron stay pinned to the end.
     identity: { flex: 1, gap: space[0.5] },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
     balance: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },

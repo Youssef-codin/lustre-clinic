@@ -1,3 +1,16 @@
+/**
+ * The reminders tab of `day-view-schedule.html` — SPEC §11. Nothing here sends
+ * anything: WhatsApp Business cannot be driven from another app, so the button
+ * opens a prefilled chat and the row then asks what happened. "Sent" is a claim
+ * the user makes rather than a fact the app observes, and skipping is a
+ * first-class action next to it. Rows are marked one at a time, optimistically,
+ * and outside `useLocalMutation` (which holds one in-flight write and one error
+ * for the whole component) — a failure puts the row back and says so. Rows are
+ * marked sent on the way out, not the way back: nothing tells whether the
+ * message was actually typed, and a row left pending gets sent twice by the
+ * next person. The list spans days — a reminder falls due a lead time before
+ * its appointment — so each row names its day.
+ */
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -9,27 +22,11 @@ import { dateKey, relativeDayLabel, time12 } from '../time';
 import { DaySkeleton } from './DayStates';
 import { CloseIcon } from './icons';
 
-/**
- * The reminders tab of `day-view-schedule.html` — SPEC §11.
- *
- * Nothing here sends anything. WhatsApp Business is the channel and it cannot be
- * driven from another app, so the button opens a prefilled chat and the row then
- * asks what happened. That is why "Sent" is a claim the user makes rather than a
- * fact the app observes, and why skipping is a first-class action next to it: a
- * patient who was reached by phone still owes no message.
- *
- * The rows are marked one at a time and optimistically. A list that only settled
- * after the server answered would sit under the finger for as long as Tailscale
- * takes, across a dozen taps in a row; a failure puts the row back and says so.
- */
-
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
 };
 
 export function Reminders({ query }: RemindersProps) {
-    // What this session has already dealt with. The server is the record; this
-    // is what keeps the list moving while it catches up.
     const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
     const [failed, setFailed] = useState<string | null>(null);
 
@@ -43,11 +40,6 @@ export function Reminders({ query }: RemindersProps) {
         });
     }
 
-    /**
-     * Marked here rather than through `useLocalMutation`: that hook holds one
-     * in-flight write and one error for the whole component, and this list marks
-     * rows independently and often several before the first answer lands.
-     */
     async function settle(reminder: PendingReminder, how: 'sent' | 'skipped') {
         setSettled((current) => new Set(current).add(reminder.id));
         setFailed(null);
@@ -59,18 +51,12 @@ export function Reminders({ query }: RemindersProps) {
                 await api.markReminderSkipped(reminder.id);
             }
         } catch {
-            // A row that failed to settle comes back. The alternative is a
-            // patient silently dropped off a list whose whole job is that
-            // nobody is.
             forget(reminder.id);
             setFailed(reminder.patient.name);
         }
     }
 
     async function open(reminder: PendingReminder) {
-        // Marked sent on the way out, not on the way back: nothing tells us
-        // whether the message was actually typed, and a row left pending after
-        // WhatsApp opened gets sent twice by the next person down the list.
         await Linking.openURL(reminder.whatsAppUrl).then(
             () => settle(reminder, 'sent'),
             () => setFailed(reminder.patient.name),
@@ -155,9 +141,6 @@ function ReminderRow({
     onSkip: () => void;
 }) {
     const { time, meridiem } = time12(reminder.startsAt);
-    // Which day, because a reminder list is not one day's: a row falls due a
-    // lead time before its appointment, so tomorrow's and Thursday's sit
-    // together and the time alone would not say which is which.
     const day = relativeDayLabel(dateKey(new Date(reminder.startsAt)));
 
     return (

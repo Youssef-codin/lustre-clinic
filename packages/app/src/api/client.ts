@@ -6,27 +6,17 @@ import { timing } from './config';
 import { markOffline, markOnline, resolveBaseUrl } from './connection';
 import { queryClient } from './queryClient';
 
-/**
- * The tRPC client, typed off the server's `AppRouter` (SPEC §3). No request or
- * response type is written anywhere in this package — they are all inferred
- * from that one import, which is a type-only import and disappears at build.
- *
- * Batching is on, matching the server adapter (§4).
- */
-
-/**
- * The link needs a URL at construction time and the real one is not known until
- * a probe has run, so it is given an unroutable placeholder and the fetch below
- * rewrites the origin per request. That is also the hook that keeps the
- * connection state honest: every call reports whether the server answered.
- */
+// The link needs a URL at construction time, but the real origin is only known
+// after a probe has run, so it is given an unroutable placeholder and
+// `serverFetch` rewrites the origin per request — the same hook keeps the
+// connection state honest. A 4xx/5xx still counts as the server answering
+// (markOnline); only a request that never reaches it is offline.
 const PLACEHOLDER_ORIGIN = 'http://server.invalid';
 
 function withTimeout(init: RequestInit | undefined, timeoutMs: number) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    // React Query aborts on unmount; that has to reach the socket too.
     const caller = init?.signal;
     const forward = () => controller.abort();
     caller?.addEventListener('abort', forward);
@@ -41,8 +31,6 @@ function withTimeout(init: RequestInit | undefined, timeoutMs: number) {
 }
 
 async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    // Throws `ServerUnreachableError` when neither address answers, which
-    // `classifyError` reports as `offline`.
     const base = await resolveBaseUrl();
 
     const requested = new URL(input instanceof Request ? input.url : String(input));
@@ -55,8 +43,6 @@ async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promis
             input instanceof Request
                 ? await fetch(new Request(target, input), { signal })
                 : await fetch(target, { ...init, signal });
-        // A 4xx or a 5xx is still the server answering: the connection is fine
-        // and the failure belongs to the procedure.
         markOnline();
         return response;
     } catch (error) {
@@ -76,9 +62,4 @@ export const trpcClient = createTRPCClient<AppRouter>({
     ],
 });
 
-/**
- * The same options proxy `useTRPC()` returns, outside React. Used for query
- * keys and invalidation from places that are not components — the websocket
- * listener, mostly. Screens use `useTRPC()`.
- */
 export const api = createTRPCOptionsProxy<AppRouter>({ client: trpcClient, queryClient });

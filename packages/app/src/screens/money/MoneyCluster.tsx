@@ -1,3 +1,10 @@
+// Money → patient balances → payment history, three panes on `ui/PushView`
+// because there is no navigator yet (BLOCKED.md #4); each screen takes its ids
+// and `onBack` as props, so they drop onto a real stack unchanged. `version` is
+// the cluster's cache invalidation — a payment three panes deep changes the
+// dashboard's figures, and the honest fix is to ask the server again. The visit
+// route carries `visitRef`/`startsAt` because `visit.byId` returns neither
+// (BLOCKED.md #14).
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PushView } from '../../components/ui';
@@ -6,24 +13,12 @@ import { MoneyScreen } from './MoneyScreen';
 import { PatientBalanceScreen } from './PatientBalanceScreen';
 import { VisitPaymentsScreen } from './VisitPaymentsScreen';
 
-// Money → patient balances → payment history. Three panes on `ui/PushView`,
-// because there is no navigator yet (BLOCKED.md #4). Each screen already takes
-// its ids and its `onBack` as props, so they drop onto a real stack unchanged
-// when F3 lands.
-//
-// `version` is the cluster's cache invalidation. A payment recorded three panes
-// deep changes the dashboard's collection rate, its takings and its outstanding
-// total, and the honest way to reflect that is to ask the server again — not to
-// adjust a figure on the way back up.
-
 type Route =
     | { name: 'dashboard' }
     | { name: 'patient'; patientId: string; patientName: string }
     | {
           name: 'visit';
           visitId: string;
-          // Carried through the route because `visit.byId` returns neither
-          // (BLOCKED.md #14) — the row they came from is one screen back.
           visitRef: string;
           startsAt: string;
           patientId: string;

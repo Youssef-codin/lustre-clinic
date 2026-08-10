@@ -1,3 +1,8 @@
+/**
+ * The numbered option list behind a dropdown patient field. Rows use their
+ * index as the React key because options are reorderable and duplicable — the
+ * value is not a stable identity.
+ */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { color, radius, size, space, Text } from '../../theme';
@@ -10,17 +15,11 @@ export type ListEditorProps = {
     onChange: (items: string[]) => void;
     placeholder?: string;
     addLabel?: string;
-    /** Below this the hint shows; the caller still owns whether Save is allowed. */
     minItems?: number;
     minItemsHint?: string;
     testID?: string;
 };
 
-/**
- * The numbered option list behind a dropdown patient field: an editable row per
- * option, a draft row with Add, and a hint while the list is too short to be a
- * dropdown at all.
- */
 export function ListEditor({
     items,
     onChange,
@@ -50,8 +49,6 @@ export function ListEditor({
     return (
         <View style={styles.list} testID={testID}>
             {items.map((item, index) => (
-                // Options are reorderable and duplicable, so the value cannot be
-                // the key; position is what identifies a row here.
                 // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity
                 <View key={index} style={styles.row}>
                     <View style={styles.ordinal}>

@@ -1,22 +1,13 @@
+// `_Local` per §10: `domain/VisitRow` does not exist yet. A date stamp, what
+// was charged, and the balance underneath when there is one. Not tappable — the
+// visit screens are another cluster's, so there is nowhere to go yet. There is
+// no status pill: `patient.byId` returns visits, not appointments, so the only
+// state a record can show is settled/outstanding, derived from the balance.
 import { StyleSheet, View } from 'react-native';
 import { Tag } from '../../../components/ui';
 import { size, space, Text } from '../../../theme';
 import type { PatientVisit } from '../data/types';
 import { _LocalMoneyValue } from './_LocalMoneyValue';
-
-/**
- * `_Local` per §10 — `domain/VisitRow` is a patient-record component and
- * `domain/` does not exist yet. Noted in `BLOCKED.md`.
- *
- * Component Inventory §5: a date stamp, what was charged, and the balance
- * underneath when there is one. The row is not tappable: the visit screens are
- * another cluster's, so there is nowhere to go yet — noted in `BLOCKED.md`
- * rather than wired to a dead handler.
- *
- * There is no status pill. `patient.byId` returns visits, not appointments, so
- * the payload carries no `status` — what a record can say about a visit is
- * whether it is settled, which is derived from the balance (§10).
- */
 
 export type _LocalVisitRowProps = {
     visit: PatientVisit;

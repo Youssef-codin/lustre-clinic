@@ -1,7 +1,3 @@
-import { join } from 'node:path';
-import postgres from 'postgres';
-import { config } from '../config.ts';
-
 /**
  * SPEC §16 — `pg_dump` on a schedule, and every dump verified by restoring it
  * into a scratch database. A dump that has never been restored is not a backup.
@@ -11,7 +7,16 @@ import { config } from '../config.ts';
  * compose.yaml); `PG_BIN_DIR` covers a host where they are not on PATH.
  *
  * Custom format (`-Fc`) because it restores selectively and compresses.
+ *
+ * Errors never include the command line — it can carry the database password.
+ * Database names in `recreateDatabase`/`withScratchDatabase` are generated or
+ * operator-supplied, never request input, but are still quoted. `CREATE
+ * DATABASE` cannot run inside a transaction, so those helpers use a dedicated
+ * connection to the `postgres` database.
  */
+import { join } from 'node:path';
+import postgres from 'postgres';
+import { config } from '../config.ts';
 
 function bin(name: string): string {
     return config.PG_BIN_DIR ? join(config.PG_BIN_DIR, name) : name;
@@ -22,8 +27,6 @@ async function run(cmd: string[]): Promise<void> {
     const [exitCode, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
 
     if (exitCode !== 0) {
-        // The command line can carry the database password, so it is not
-        // included in the error — only the program name and what it printed.
         throw new Error(`${cmd[0]} exited ${exitCode}: ${stderr.trim().slice(0, 500)}`);
     }
 }
@@ -44,7 +47,6 @@ export async function pgRestore(databaseUrl: string, dumpFile: string): Promise<
     await run([bin('pg_restore'), '--no-owner', '--no-privileges', '--dbname', databaseUrl, dumpFile]);
 }
 
-/** The same server, a different database name. */
 export function withDatabase(databaseUrl: string, database: string): string {
     const url = new URL(databaseUrl);
     url.pathname = `/${database}`;
@@ -55,12 +57,9 @@ export function databaseName(databaseUrl: string): string {
     return new URL(databaseUrl).pathname.replace(/^\//, '');
 }
 
-/** Creates an empty database, replacing any existing one of that name. */
 export async function recreateDatabase(databaseUrl: string, name: string): Promise<string> {
     const admin = postgres(withDatabase(databaseUrl, 'postgres'), { max: 1, onnotice: () => {} });
     try {
-        // `name` is generated or operator-supplied, never request input, but it
-        // is still quoted.
         await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
         await admin.unsafe(`CREATE DATABASE "${name}"`);
     } finally {
@@ -78,11 +77,6 @@ export async function dropDatabase(databaseUrl: string, name: string): Promise<v
     }
 }
 
-/**
- * Runs `fn` against a freshly created, empty database and drops it afterwards
- * whether or not `fn` succeeded. `CREATE DATABASE` cannot run inside a
- * transaction, so this uses a dedicated connection to `postgres`.
- */
 export async function withScratchDatabase<T>(
     databaseUrl: string,
     name: string,
@@ -91,7 +85,6 @@ export async function withScratchDatabase<T>(
     const admin = postgres(withDatabase(databaseUrl, 'postgres'), { max: 1, onnotice: () => {} });
 
     try {
-        // `name` is generated here, never user input, but it is still quoted.
         await admin.unsafe(`DROP DATABASE IF EXISTS "${name}"`);
         await admin.unsafe(`CREATE DATABASE "${name}"`);
 

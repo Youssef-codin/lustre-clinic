@@ -6,12 +6,6 @@ export type AddButtonVariant = 'full' | 'row' | 'footer' | 'compact';
 export type AddButtonProps = {
     label: string;
     onPress?: () => void;
-    /**
-     * `full` — dashed accent block (add an option)
-     * `row` — inset dashed row inside a list
-     * `footer` — in-card footer ("Add to UL6")
-     * `compact` — filled ink pill in an editor toolbar
-     */
     variant?: AddButtonVariant;
     disabled?: boolean;
     testID?: string;

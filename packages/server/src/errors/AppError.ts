@@ -1,12 +1,15 @@
-import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
-
 /**
  * SPEC §4. Services throw `AppError`; the tRPC `errorFormatter` maps it onto a
  * `TRPCError` and carries `code` through as `shape.data.appCode`.
  *
  * `message` stays English — it is for logs. The client localizes from `code`
- * and never parses the message.
+ * and never parses the message. `pgErrorCode` walks the `cause` chain because
+ * Drizzle wraps driver errors in a `DrizzleQueryError` and hangs the original
+ * off `cause`, so the SQLSTATE services switch on is usually a level or two
+ * down.
  */
+import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
+
 export class AppError extends Error {
     readonly code: ErrorCode;
     readonly httpStatus: number;
@@ -31,7 +34,6 @@ export function isAppError(err: unknown): err is AppError {
     return err instanceof AppError;
 }
 
-/** Postgres SQLSTATE codes the services care about. */
 export const PG_ERROR = {
     UNIQUE_VIOLATION: '23505',
     EXCLUSION_VIOLATION: '23P01',
@@ -39,11 +41,6 @@ export const PG_ERROR = {
     FOREIGN_KEY_VIOLATION: '23503',
 } as const;
 
-/**
- * The SQLSTATE, wherever it is. Drizzle wraps driver errors in a
- * `DrizzleQueryError` and hangs the original off `cause`, so the code services
- * switch on is usually a level or two down.
- */
 export function pgErrorCode(err: unknown): string | undefined {
     let current: unknown = err;
 

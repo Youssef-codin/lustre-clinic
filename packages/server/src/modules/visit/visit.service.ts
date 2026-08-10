@@ -1,3 +1,21 @@
+/**
+ * SPEC §8, §9. A visit is what happened, as opposed to what was scheduled.
+ *
+ * Check-in creates it and seeds the checkup line, so the default total is the
+ * checkup price. Pricing is not a prerequisite for checkout: `setProcedures`
+ * and `setPrice` are optional, may be called in any order, and procedure detail
+ * is often entered after the patient has left.
+ *
+ * Procedure uniqueness is per tooth, not per procedure — an extraction on UL6
+ * and one on UR3 are two real lines; tooth-less lines share one empty-string
+ * key, keeping the old once-per-visit rule for them. `is_tooth_specific`
+ * decides whether a tooth belongs on the line at all. The charged total tracks
+ * the computed one until someone edits it, and `priced_at` records that they
+ * did; both are frozen at checkout, when the balance the patient owes is
+ * settled. Checkout closes either `checked_in` (the chair) or
+ * `awaiting_payment` (the desk), and zero paid is a valid checkout — the
+ * balance is derived (§10).
+ */
 import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
 import { eq } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
@@ -14,15 +32,6 @@ import type {
     SetProceduresInput,
 } from './visit.schema.ts';
 
-/**
- * SPEC §8, §9. A visit is what happened, as opposed to what was scheduled.
- *
- * Check-in creates it and seeds the checkup line, so the default total is the
- * checkup price. Pricing is not a prerequisite for checkout: `setProcedures`
- * and `setPrice` are optional, may be called in any order, and procedure detail
- * is often entered after the patient has left.
- */
-
 export type VisitRow = typeof visits.$inferSelect;
 
 export interface VisitLine {
@@ -32,10 +41,8 @@ export interface VisitLine {
     quantity: number;
     unitPrice: number;
     isCheckup: boolean;
-    /** Palmer notation, e.g. `UL6`. Null when the procedure is not tooth-specific (§5). */
     tooth: Tooth | null;
     note: string | null;
-    /** `unit_price × quantity`, before the checkup waiver (§9). */
     lineTotal: number;
 }
 
@@ -51,7 +58,6 @@ export interface Visit extends VisitRow {
     procedures: VisitLine[];
     payments: VisitPayment[];
     paidTotal: number;
-    /** Derived, never stored (§10). */
     balance: number;
 }
 
@@ -61,7 +67,6 @@ async function requireVisit(executor: Executor, id: string): Promise<VisitRow> {
     return row;
 }
 
-/** Recomputes `computed_total` from the lines currently on the visit (§9). */
 async function recompute(executor: Executor, visitId: string): Promise<number> {
     const lines = await executor
         .select({
@@ -79,11 +84,6 @@ async function recompute(executor: Executor, visitId: string): Promise<number> {
 }
 
 export const visitService = {
-    /**
-     * §8 — the patient has arrived. Transitions the appointment, creates the
-     * visit, and seeds the checkup line so the default total is the checkup
-     * price even if nothing else is ever entered.
-     */
     async checkIn(input: CheckInInput, executor?: Executor): Promise<VisitRow> {
         const run = async (tx: Executor): Promise<VisitRow> => {
             const [appointment] = await tx
@@ -129,7 +129,6 @@ export const visitService = {
                 .set({ status: 'checked_in', updatedAt: now })
                 .where(eq(appointments.id, appointment.id));
 
-            // §8 — the checkup line is seeded here, not at checkout.
             const checkup = await procedureService.findCheckup();
             if (checkup) {
                 await tx.insert(visitProcedures).values({
@@ -142,7 +141,6 @@ export const visitService = {
             }
 
             const computedTotal = await recompute(tx, visit.id);
-            // The charged total starts at the computed one and stays editable.
             const [priced] = await tx
                 .update(visits)
                 .set({ chargedTotal: computedTotal })
@@ -199,27 +197,14 @@ export const visitService = {
         };
     },
 
-    /**
-     * §13 — replaces the whole list. Prices are snapshotted at write time (§5),
-     * so a later price change never rewrites history.
-     */
     async setProcedures(input: SetProceduresInput): Promise<Visit> {
-        // §5 — uniqueness is per tooth, not per procedure: an extraction on UL6
-        // and one on UR3 are two real lines. Lines with no tooth share the
-        // single empty-string key, so the old once-per-visit rule still holds
-        // for procedures that are not tooth-specific.
         const seen = new Set<string>();
 
-        // Resolved before the transaction: these are reads against reference
-        // data, and the checks are about the request, not about the visit.
         const resolved = await Promise.all(
             input.procedures.map(async (line) => {
                 const procedure = await procedureService.requireSelectable(line.procedureId);
                 const tooth = line.tooth ?? null;
 
-                // §5 — `is_tooth_specific` decides whether a tooth belongs on
-                // the line at all, so an extraction cannot be filed against no
-                // tooth and a consultation cannot be filed against UL6.
                 if (procedure.isToothSpecific && !tooth) {
                     throw new AppError(
                         ERROR_CODE.TOOTH_REQUIRED,
@@ -290,8 +275,6 @@ export const visitService = {
 
             const computedTotal = await recompute(tx, visit.id);
 
-            // The charged total tracks the computed one until someone edits it
-            // (§9); `priced_at` is what records that they did.
             if (!visit.pricedAt) {
                 await tx.update(visits).set({ chargedTotal: computedTotal }).where(eq(visits.id, visit.id));
             }
@@ -301,14 +284,6 @@ export const visitService = {
         return this.byId(input.visitId);
     },
 
-    /**
-     * §9 — the discount is the difference from `computed_total`.
-     *
-     * Refused once the visit is checked out, for the same reason
-     * `setProcedures` is: what the patient owes is settled at checkout, and a
-     * later edit would silently move a balance someone has already been told
-     * about. A payment against that balance is a separate call (§10).
-     */
     async setPrice(input: SetPriceInput): Promise<Visit> {
         const row = await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
@@ -335,14 +310,6 @@ export const visitService = {
         return this.byId(row.id);
     },
 
-    /**
-     * §8 — completes the visit regardless of what was paid. The amount is
-     * confirmed and editable here, because it is often the first time anyone
-     * has looked at it.
-     *
-     * Reached from `checked_in` or from `awaiting_payment` (§7); the middle
-     * step is optional, so a walk-in checks out straight from the chair.
-     */
     async checkOut(input: CheckOutInput): Promise<Visit> {
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
@@ -355,8 +322,6 @@ export const visitService = {
                 );
             }
 
-            // §7 — checkout closes either the chair (`checked_in`) or the desk
-            // (`awaiting_payment`). Anything else is not a visit in progress.
             const [appointment] = await tx
                 .select()
                 .from(appointments)
@@ -384,7 +349,6 @@ export const visitService = {
                 })
                 .where(eq(visits.id, visit.id));
 
-            // Zero paid is a valid checkout — the balance is derived (§10).
             if (input.paidTotal > 0) {
                 await insertPayment(tx, visit.id, input.paidTotal, input.method, input.methodNote ?? null);
             }
@@ -399,7 +363,6 @@ export const visitService = {
         return this.byId(input.visitId);
     },
 
-    /** §10 — a payment made later, against an outstanding balance. */
     async recordPayment(input: RecordPaymentInput): Promise<Visit> {
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
@@ -410,7 +373,6 @@ export const visitService = {
         return this.byId(input.visitId);
     },
 
-    /** The visit for an appointment, if it has one. */
     async byAppointment(appointmentId: string): Promise<VisitRow | null> {
         const [row] = await db.select().from(visits).where(eq(visits.appointmentId, appointmentId)).limit(1);
         return row ?? null;
@@ -433,7 +395,6 @@ async function insertPayment(
             methodNote,
         });
     } catch (err) {
-        // The database enforces both rules; these map them onto the contract.
         if (pgErrorCode(err) === PG_ERROR.CHECK_VIOLATION) {
             throw method === 'other'
                 ? new AppError(ERROR_CODE.PAYMENT_NOTE_REQUIRED, "method 'other' requires a note", 422, {

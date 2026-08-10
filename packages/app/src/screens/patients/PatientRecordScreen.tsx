@@ -1,3 +1,15 @@
+// One patient: visits, details, and the clinic's own questions. `patient.byId`
+// is one payload — patient, visit history and `questionnaireGaps` — so the
+// record is a single round trip and what it is missing is answered by the
+// server. Nothing about any clinic's questionnaire is written down here; a
+// second clinic's different list renders the same way. Gaps are recomputed by
+// the server, so a record that just stopped being a gap is re-read rather than
+// patched locally. Back is disabled while a write is open so an edit is never
+// abandoned mid-flight. The toast is a child of the screen root, not the scroll
+// view. Visits group by the parsed date's local year, not the ISO prefix — an
+// evening visit on 31 December is UTC 1 January and would sit under the wrong
+// heading. Answers to deactivated questions are hidden but still on the record
+// (§7.8).
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -23,20 +35,6 @@ import { useMutation, useQuery } from './data/_LocalQuery';
 import { errorText } from './data/errors';
 import type { Answers, CustomQuestion, PatientVisit, QuestionnaireGap } from './data/types';
 import { QuestionnaireSheet } from './QuestionnaireSheet';
-
-/**
- * One patient: their visits, their details, and the clinic's own questions.
- *
- * `patient.byId` is one payload — patient, visit history and `questionnaireGaps`
- * (SPEC §13) — so the record is a single round trip and the "what is this
- * record missing" question is answered by the server rather than by diffing two
- * queries on the phone.
- *
- * The questions are read from `customQuestion.list`, which returns the active
- * ones. That is the whole of what this screen knows about them: nothing about
- * any clinic's questionnaire is written down here, and a second clinic's
- * different list renders the same way.
- */
 
 export type PatientRecordScreenProps = {
     patientId: string;
@@ -64,12 +62,9 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
 
     const onSave = async (patch: Answers) => {
         const saved = await save.mutate(patch);
-        if (!saved) return; // The sheet stays open and shows why.
+        if (!saved) return;
         setEditing(false);
         setToast('Answers saved');
-        // Gaps are computed by the server, so the record is re-read rather than
-        // patched locally — otherwise a question that has just stopped being a
-        // gap keeps its "never asked" tag until the screen is left.
         record.refetch();
     };
 
@@ -78,8 +73,6 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
             <TopBar
                 title={patient?.name}
                 subtitle={patient?.phone}
-                // A write is open. Leaving now would abandon it mid-flight with
-                // no way to find out whether it landed.
                 onBack={save.pending ? undefined : onBack}
                 backLabel="Patients"
                 divider
@@ -142,14 +135,10 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
                 />
             )}
 
-            {/* A child of the screen root, never of the scroll view — a toast
-                positions against its parent (`ui/README.md`). */}
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
 }
-
-/* -------------------------------------------------------------------- visits */
 
 function Visits({ visits }: { visits: PatientVisit[] }) {
     const outstanding = visits.reduce((total, visit) => total + Math.max(visit.balance, 0), 0);
@@ -194,14 +183,6 @@ function Visits({ visits }: { visits: PatientVisit[] }) {
     );
 }
 
-/**
- * Newest year first, and newest visit first inside it — the payload's order.
- *
- * The year comes from the parsed date, not from the ISO string's first four
- * characters: the row's own stamp renders the day and month in local time, and
- * an evening visit on 31 December is a UTC 1 January. Read one way it would sit
- * under the wrong heading, labelled with the right day.
- */
 function groupByYear(visits: PatientVisit[]): Array<[string, PatientVisit[]]> {
     const groups = new Map<string, PatientVisit[]>();
     for (const visit of visits) {
@@ -212,8 +193,6 @@ function groupByYear(visits: PatientVisit[]): Array<[string, PatientVisit[]]> {
     }
     return [...groups].sort((a, b) => b[0].localeCompare(a[0]));
 }
-
-/* ------------------------------------------------------------------- details */
 
 type DetailsProps = {
     email: string | null;
@@ -229,10 +208,6 @@ type DetailsProps = {
 function Details({ email, age, gender, createdAt, answers, gaps, questions, onEdit }: DetailsProps) {
     const gapByKey = useMemo(() => new Map(gaps.map((gap) => [gap.key, gap])), [gaps]);
 
-    // Answers with no question in front of them are answers to questions the
-    // clinic has since deactivated. They are still on the record — that is the
-    // guarantee (§7.8) — and the record says so rather than showing a row for a
-    // question nobody is asked any more.
     const hidden = useMemo(() => {
         if (!questions.data) return 0;
         const shown = new Set(questions.data.map((q) => q.key));

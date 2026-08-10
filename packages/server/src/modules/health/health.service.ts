@@ -1,18 +1,17 @@
+/**
+ * SPEC §13/§14. The client probes this on both the LAN address and the
+ * Tailscale hostname and uses whichever answers first, so it must be cheap and
+ * must not throw — an unreachable database is a reportable state, not an error.
+ */
 import { sql as raw } from 'drizzle-orm';
 import { db, sql } from '../../db/index.ts';
 
 export interface HealthReport {
     ok: boolean;
     db: boolean;
-    /** Name of the most recently applied migration, or null if none have run. */
     migration: string | null;
 }
 
-/**
- * SPEC §13/§14. The client probes this on both the LAN address and the
- * Tailscale hostname and uses whichever answers first, so it must be cheap and
- * must not throw — an unreachable database is a reportable state, not an error.
- */
 export const healthService = {
     async check(): Promise<HealthReport> {
         let dbOk = false;
@@ -30,7 +29,6 @@ export const healthService = {
             `;
             migration = rows[0]?.hash ?? null;
         } catch {
-            // Reported as db: false. Deliberately not rethrown.
         }
 
         return { ok: dbOk, db: dbOk, migration };

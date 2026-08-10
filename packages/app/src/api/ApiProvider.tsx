@@ -6,18 +6,6 @@ import { trpcClient } from './client';
 import { useServerEvents } from './live';
 import { queryClient } from './queryClient';
 
-/**
- * The one provider the app shell mounts. Everything below it can call the
- * server:
- *
- *     <ApiProvider>
- *         <Navigation />
- *     </ApiProvider>
- *
- * `useTRPC()` returns the typed options proxy; pass what it gives you straight
- * to `useQuery` or `useMutation`.
- */
-
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 function ServerEvents({ children }: { children: ReactNode }) {

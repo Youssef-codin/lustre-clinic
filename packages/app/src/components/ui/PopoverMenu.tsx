@@ -1,3 +1,11 @@
+/**
+ * The overflow menu — anchored under the trailing icon button, scaling .94 → 1.
+ * The anchor is passed in rather than measured: the trigger is a top-bar button
+ * at a fixed inset on every screen that has one, and measuring it would make the
+ * menu depend on layout timing for no gain. Exactly one inline edge must be set —
+ * start or end, never both — or the surface stretches across the window instead
+ * of sitting under its trigger.
+ */
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
@@ -7,15 +15,8 @@ import { Scrim } from './Scrim';
 import { useReducedMotion } from './useReducedMotion';
 
 export type MenuAnchor = {
-    /** Distance from the top of the window to the menu's top edge. */
     top: number;
-    /** Distance from the inline end of the window — mirrors in Arabic. */
     end?: number;
-    /**
-     * Distance from the inline start instead. For a trigger in the start
-     * gutter: anchored by its end, the menu is pushed most of a screen width
-     * past the edge and its rows are clipped away.
-     */
     start?: number;
 };
 
@@ -24,7 +25,6 @@ export type MenuItem = {
     label: string;
     icon?: ReactNode;
     onPress: () => void;
-    /** Red label, and it sits under a divider. */
     danger?: boolean;
     disabled?: boolean;
 };
@@ -33,19 +33,11 @@ export type PopoverMenuProps = {
     visible: boolean;
     onClose: () => void;
     items: readonly MenuItem[];
-    /** Where the overflow button is. Defaults to under a top bar in the end gutter. */
     anchor?: MenuAnchor;
     accessibilityLabel?: string;
     testID?: string;
 };
 
-/**
- * The overflow menu — anchored under the trailing icon button, scaling .94 -> 1.
- *
- * The anchor is passed in rather than measured: the trigger is a top-bar button
- * at a fixed inset on every screen that has one, and measuring it would make the
- * menu depend on layout timing for no gain.
- */
 export function PopoverMenu({
     visible,
     onClose,
@@ -99,7 +91,6 @@ export type MenuSurfaceProps = {
     testID?: string;
 };
 
-/** The floating card itself. Shared with DropdownMenu. */
 export function MenuSurface({
     visible,
     onClose,
@@ -129,8 +120,6 @@ export function MenuSurface({
     if (!mounted) return null;
 
     const top = anchor?.top ?? space[12];
-    // One edge or the other, never both — two would stretch the surface across
-    // the window rather than sit it under its trigger.
     const inline =
         anchor?.start !== undefined ? { start: anchor.start } : { end: anchor?.end ?? size.gutter };
 

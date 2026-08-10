@@ -1,3 +1,12 @@
+/**
+ * The day as a list of rows, replacing a duration-sized timeline that spread
+ * the day over screens of empty grid. The swipe works either way because the
+ * list mirrors in Arabic — the distance commits, not the side. The checked-in
+ * pill reads "Waiting" (the card says "In the chair" for exactly one patient),
+ * stays legible when the chair is busy rather than disabled, and opens the
+ * visit once checked in instead of going inert. An unknown procedure renders
+ * `undefined` so the row falls back to the duration alone.
+ */
 import type { AppointmentStatus } from '@mawid/shared';
 import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
@@ -8,31 +17,15 @@ import { time12 } from '../time';
 import { statusLabel } from './_LocalStatusPill';
 import { ArrowBackIcon, ArrowForwardIcon, CheckIcon, ClockIcon } from './icons';
 
-/**
- * The day as a list of rows, which is what the design draws.
- *
- * It replaces a timeline that sized each block by its duration. That timeline
- * was defensible and it was not the design: a clinic that opens at ten and
- * closes at ten is twelve hours of ruler, so the six rows that matter arrived
- * spread over three screens of empty grid with the evening's last patient below
- * the fold. The list puts the whole day in one view and gives the check-in
- * button — the thing this screen is *for* — a permanent place on every row.
- */
-
 export type AgendaRowProps = {
     appointment: Appointment;
     onPress: () => void;
-    /** The procedure behind `typeId`, when it is known. */
     procedure?: string;
-    /** Settled rows are history: legible, and no longer competing. */
     dim?: boolean;
-    /** The row's right-hand end — a check-in button, or a status word. */
     trailing?: React.ReactNode;
-    /** Swiping the row far enough, either way, calls this. */
     onNoShow?: () => void;
 };
 
-/** How far the row has to travel before letting go marks the no-show. */
 const SWIPE_THRESHOLD = 96;
 
 export function AgendaRow({
@@ -46,11 +39,6 @@ export function AgendaRow({
     const slide = useRef(new Animated.Value(0)).current;
     const [armed, setArmed] = useState(false);
 
-    /**
-     * Either direction, because the row has no handedness: the list mirrors in
-     * Arabic and a gesture that only worked leftwards would work backwards
-     * there. The distance is what commits, not the side.
-     */
     const pan = useRef(
         PanResponder.create({
             onMoveShouldSetPanResponder: (_event, gesture) =>
@@ -129,9 +117,6 @@ function RowBody({ appointment, onPress, procedure, dim = false, trailing }: Age
                 <View style={styles.meta}>
                     <ClockIcon size={13} />
                     <Text variant="subhead" tone="muted" numberOfLines={1} style={styles.name}>
-                        {/* "Check-up · 20 min" where the procedure is known,
-                            the duration alone where it is not — an appointment
-                            booked without a type is a real row, not a gap. */}
                         {procedure
                             ? `${procedure} · ${appointment.durationMinutes} min`
                             : `${appointment.durationMinutes} min`}
@@ -147,36 +132,17 @@ function RowBody({ appointment, onPress, procedure, dim = false, trailing }: Age
 export type CheckInButtonProps = {
     appointment: Appointment;
     loading: boolean;
-    /** Somebody is in the chair, so the next patient cannot go in yet. */
     chairBusy: boolean;
-    /** Tapped while the chair is busy — the screen says why. */
     onBlocked: (appointment: Appointment) => void;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
 };
 
-/**
- * Pill-length words for the states the pill can be in. `statusLabel`'s "In the
- * chair" is a sentence and this is 60px wide; the row already says which patient
- * it is about, so the pill only has to say where they are.
- */
 const SHORT: Partial<Record<AppointmentStatus, string>> = {
-    // "In the chair" is the card's word, and the card is drawn for exactly one
-    // patient. A checked-in row is therefore someone who has arrived and is
-    // sitting in the waiting room, which is what it should say.
     checked_in: 'Waiting',
     awaiting_payment: 'At desk',
 };
 
-/**
- * The pill on the right of every row still to happen. Outlined until they are
- * in, filled once they are — the design's two states, and the only control the
- * secretary needs to hit without opening anything.
- *
- * Once they are in, the same pill opens the visit rather than going inert: a
- * checked-in row's next move is checking out, and a dead control in the place
- * the finger already goes is worse than no control.
- */
 export function CheckInButton({
     appointment,
     loading,
@@ -195,9 +161,6 @@ export function CheckInButton({
             loading={loading}
             icon={inside ? undefined : <CheckIcon size={13} stroke={color.ink} />}
             style={styles.pill}
-            // Not `disabled`: a washed-out pill on every row is most of the
-            // list greyed out, and the reason it cannot be pressed is not on
-            // screen. It stays legible and says why when it is tapped.
             onPress={() =>
                 inside ? onOpen(appointment) : chairBusy ? onBlocked(appointment) : onCheckIn(appointment)
             }
@@ -207,10 +170,8 @@ export function CheckInButton({
 
 export type UpNextProps = {
     appointments: readonly Appointment[];
-    /** Procedure name by `typeId`. Empty until `procedure.list` answers. */
     procedures: ReadonlyMap<string, string>;
     chairBusy: boolean;
-    /** False on any day but today, where "after this" has nothing to be after. */
     relativeToNow: boolean;
     checkingInId: string | null;
     onSelect: (appointment: Appointment) => void;
@@ -270,7 +231,6 @@ export type BeforeThisProps = {
     onSelect: (appointment: Appointment) => void;
 };
 
-/** Undefined rather than empty, so the row falls back to the duration alone. */
 function procedureName(
     procedures: ReadonlyMap<string, string>,
     appointment: Appointment,
@@ -278,11 +238,6 @@ function procedureName(
     return appointment.typeId ? procedures.get(appointment.typeId) : undefined;
 }
 
-/**
- * What has already happened, folded away. Closed by default because it is
- * settled by definition — it opens when somebody is checking rather than
- * working.
- */
 export function BeforeThis({ appointments, procedures, onSelect }: BeforeThisProps) {
     const [open, setOpen] = useState(false);
 
@@ -351,8 +306,6 @@ const styles = StyleSheet.create({
     },
     dim: { opacity: 0.72 },
     swipe: { position: 'relative' },
-    // The word sits under the row on both sides, so whichever way it goes the
-    // gesture explains itself before it commits.
     behind: {
         position: 'absolute',
         top: 0,
@@ -366,7 +319,6 @@ const styles = StyleSheet.create({
     },
     front: { backgroundColor: color.canvas },
     pressed: { backgroundColor: color.surface2 },
-    // Wide enough for `12:45` in DM Mono with its meridiem beside it.
     clock: { width: 62, flexDirection: 'row', alignItems: 'baseline', gap: space[0.5] },
     body: { flex: 1, gap: space[0.5] },
     nameLine: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },

@@ -1,3 +1,11 @@
+/**
+ * Ink pill, slides up 16px, leaves on a timer. The timer is cancelled while an
+ * action is present and pressed, and restarted on every change of message — so
+ * two toasts in a row do not share one deadline: `message` is a real dependency
+ * even though it is not read in the effect, and a second toast replacing a first
+ * without a gap gets its own full life, not the remainder of the one it
+ * displaced.
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { color, radius, size, space, Text } from '../../theme';
@@ -7,23 +15,14 @@ import { useReducedMotion } from './useReducedMotion';
 export type ToastProps = {
     visible: boolean;
     message: string;
-    /** Turns the toast into "Visit deleted · Undo" — §7.15, which had no target. */
     actionLabel?: string;
     onAction?: () => void;
     onDismiss: () => void;
-    /** Time on screen, ms. An action gets longer, because it has to be read and hit. */
     duration?: number;
-    /** Distance above the bottom edge — clear the nav, the action bar, or nothing. */
     offset?: number;
     testID?: string;
 };
 
-/**
- * Ink pill, slides up 16px, leaves on a timer.
- *
- * The timer is cancelled while an action is present and pressed, and restarted
- * on every change of message, so two toasts in a row do not share one deadline.
- */
 export function Toast({
     visible,
     message,
@@ -53,9 +52,6 @@ export function Toast({
         return () => animation.stop();
     }, [visible, progress, reducedMotion]);
 
-    // `message` is not read in here, but it is a real dependency: a second toast
-    // replacing a first one without a gap must get its own full life, not the
-    // remainder of the one it displaced.
     // biome-ignore lint/correctness/useExhaustiveDependencies: a new message restarts the clock
     useEffect(() => {
         if (!visible) return;

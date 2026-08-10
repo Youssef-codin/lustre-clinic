@@ -11,18 +11,16 @@ import {
 } from './helpers/trpc.ts';
 
 /**
- * SPEC §13 — the API surface, over the transport the app actually uses.
- *
- * The service suites import services directly, so three layers sit between them
- * and a real request and none of it is covered: the Zod input schemas, the
- * `AppError` → HTTP status mapping in `trpc/init.ts`, and the router wiring.
- * `router.test.ts` asserts the paths exist; this asserts they work, reject what
- * they should, and fail with the code and status the client switches on.
+ * SPEC §13 — the API surface, over the transport the app actually uses. The
+ * service suites import services directly, so this covers the layers between
+ * them and a real request: the Zod input schemas, the `AppError` → HTTP status
+ * mapping, and the router wiring. Errors carry an `appCode` the client
+ * switches on (it never parses the message), and websocket payloads are IDs
+ * only — clients refetch over tRPC.
  */
 
 let api: TestServer;
 
-/** The clinic, built through the API rather than through the services. */
 async function clinicViaApi() {
     const { client } = api;
 
@@ -86,7 +84,6 @@ describe('every path in §13 answers', () => {
         const { branch, patient, checkup } = await clinicViaApi();
 
         expect(branch.name).toBe('Main');
-        // §5 — the phone is normalized on the way in, whatever the caller sent.
         expect(patient.phone).toBe('+201012345678');
         expect(checkup.isCheckup).toBe(true);
 
@@ -118,12 +115,9 @@ describe('every path in §13 answers', () => {
         });
         expect(updatedPatient.name).toBe('Nadia H.');
 
-        // §6 — `patient.byId` is the history view: the record plus every visit.
         const detail = await client.patient.byId.query({ id: patient.id });
         expect(detail.patient.name).toBe('Nadia H.');
         expect(detail.visits).toEqual([]);
-        // This patient predates the question created above, so it is unanswered
-        // — carrying the label as it reads now (§12).
         expect(detail.questionnaireGaps).toEqual([
             { key: 'allergies', label: 'Known allergies', required: false, reason: 'unanswered' },
         ]);
@@ -165,14 +159,11 @@ describe('a full visit, end to end', () => {
         expect(appointment.status).toBe('booked');
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z2-9]{4}$/);
 
-        // §8 — check-in seeds the checkup line, so the visit is priced before
-        // anyone has entered a procedure.
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
         const seeded = await client.visit.byId.query({ id: visit.id });
         expect(seeded.chargedTotal).toBe(CHECKUP_PRICE);
         expect(seeded.balance).toBe(CHECKUP_PRICE);
 
-        // §9 — any other line waives the checkup.
         const priced = await client.visit.setProcedures.mutate({
             visitId: visit.id,
             procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
@@ -194,7 +185,6 @@ describe('a full visit, end to end', () => {
         expect(done.balance).toBe(150_000);
         expect((await client.appointment.byId.query({ id: appointment.id })).status).toBe('done');
 
-        // §10 — the balance is derived, and the patient shows up owing it.
         const outstanding = await client.balance.outstanding.query();
         expect(outstanding.total).toBe(150_000);
         expect(outstanding.patients[0]?.patientId).toBe(patient.id);
@@ -205,7 +195,6 @@ describe('a full visit, end to end', () => {
             method: 'instapay',
         });
         expect(settled.balance).toBe(0);
-        // A payment never edits what was charged.
         expect(settled.chargedTotal).toBe(200_000);
 
         expect((await client.balance.outstanding.query()).total).toBe(0);
@@ -297,9 +286,6 @@ describe('input validation', () => {
     test('rejects a duration outside the bounds the picker can offer', async () => {
         const { branch, patient } = await clinicViaApi();
 
-        // §5 bounds, independent of what the clinic configures. A value inside
-        // the bounds but outside the options is a domain error, not a schema
-        // one — see the INVALID_DURATION case below.
         for (const durationMinutes of [0, 4, 481]) {
             await expectValidationError(() =>
                 api.client.appointment.create.mutate({
@@ -320,9 +306,6 @@ describe('input validation', () => {
     test('rejects a malformed member of the patient union', async () => {
         const { branch } = await clinicViaApi();
 
-        // `kind: 'new'` needs a name and a phone; the discriminated union has
-        // to reject the half-filled member rather than fall through to the
-        // other one.
         await expectValidationError(() =>
             api.client.appointment.create.mutate({
                 // biome-ignore lint/suspicious/noExplicitAny: deliberately malformed
@@ -354,7 +337,6 @@ describe('input validation', () => {
         await expectValidationError(() =>
             client.visit.setPrice.mutate({ visitId: visit.id, chargedTotal: -1 }),
         );
-        // §9 — no floats anywhere.
         await expectValidationError(() =>
             client.visit.setPrice.mutate({ visitId: visit.id, chargedTotal: 100.5 }),
         );
@@ -415,7 +397,6 @@ describe('input validation', () => {
 
 describe('error mapping', () => {
     test('an unknown row is 404 NOT_FOUND', async () => {
-        // Well-formed but absent — past the schema, refused by the service.
         await expectTrpcError(ERROR_CODE.NOT_FOUND, 404, () =>
             api.client.patient.byId.query({ id: Bun.randomUUIDv7() }),
         );
@@ -450,8 +431,6 @@ describe('error mapping', () => {
     test('a duration the clinic has not configured is 422 INVALID_DURATION', async () => {
         const { branch, patient } = await clinicViaApi();
 
-        // 37 is inside the §5 bounds, so the schema lets it through; only the
-        // service knows the clinic offers 10/20/30/45.
         await expectTrpcError(ERROR_CODE.INVALID_DURATION, 422, () =>
             api.client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
@@ -559,8 +538,6 @@ describe('error mapping', () => {
     });
 
     test('every failure carries an appCode the client can localize from', async () => {
-        // §4 — the client switches on `appCode` and never parses `message`.
-        // A response without one leaves it with nothing to show.
         const res = await fetch(
             `${api.endpoint}/patient.byId?input=${encodeURIComponent(JSON.stringify({ id: 'bad' }))}`,
         );
@@ -598,8 +575,6 @@ describe('websocket broadcasts', () => {
             client.visit.checkIn.mutate({ appointmentId: appointment.id }),
         );
 
-        // Both screens have to refetch: the day view shows the status, the
-        // visit screen shows the seeded line.
         expect(events).toContainEqual({ event: WS_EVENT.VISIT_UPDATED, id: result.id });
         expect(events).toContainEqual({
             event: WS_EVENT.APPOINTMENT_UPDATED,
@@ -617,7 +592,6 @@ describe('websocket broadcasts', () => {
         });
         await client.visit.checkIn.mutate({ appointmentId: appointment.id });
 
-        // §13 — the day view has to refetch; the desk is now owed money.
         const { events } = await captureWsEvents(api.wsUrl, () =>
             client.appointment.awaitPayment.mutate({ id: appointment.id }),
         );
@@ -634,9 +608,6 @@ describe('websocket broadcasts', () => {
     });
 
     test('a failed mutation broadcasts nothing', async () => {
-        // The broadcast happens after the transaction commits. A push for a
-        // booking that never happened would have every client refetch a row
-        // that does not exist.
         const { client } = api;
         const { branch, patient } = await clinicViaApi();
         const startsAt = slot();
@@ -660,8 +631,6 @@ describe('websocket broadcasts', () => {
     });
 
     test('no payload ever carries patient data', async () => {
-        // §13 — payloads are IDs only and the client refetches over tRPC, so
-        // nothing identifying crosses this channel.
         const { client } = api;
         const { branch, patient } = await clinicViaApi();
 
@@ -685,7 +654,6 @@ describe('websocket broadcasts', () => {
         expect(serialized).not.toContain('Nadia');
         expect(serialized).not.toContain('201012345678');
         expect(serialized).not.toContain('100000');
-        // Only `event` and `id` keys, nothing else.
         for (const event of events) {
             expect(Object.keys(event).sort()).toEqual(
                 event.event === WS_EVENT.SETTINGS_UPDATED ? ['event'] : ['event', 'id'],

@@ -1,23 +1,21 @@
+/**
+ * Failures, in the words the secretary needs. §4/§14: the client localizes
+ * from `ERROR_CODE` and never parses the server's message, which stays English
+ * for the logs; when the dictionaries land (F4) these strings move into them
+ * and the switch does not change. The rule for the copy: say what happened to
+ * the thing on screen, then what to do about it. The SLOT_OVERLAP case matters
+ * most — double-booking is a Postgres exclusion constraint, and a secretary
+ * standing in front of the patient has to know the slot is gone, not that
+ * "something went wrong", or she tells them they are booked and they are not.
+ */
 import { ERROR_CODE } from '@mawid/shared';
 import type { RequestError } from './data';
-
-/**
- * Failures, in the words the secretary needs.
- *
- * §4/§14: the client localizes from `ERROR_CODE` and never parses the server's
- * message, which stays English for the logs. When the dictionaries land (F4)
- * these strings move into them; the switch does not change.
- *
- * The rule for the copy: say what happened to the thing on screen, then what to
- * do about it. "Something went wrong" is what this file exists to prevent.
- */
 
 export interface ErrorMessage {
     title: string;
     body?: string;
 }
 
-/** Where the failure happened, which is what makes the sentence specific. */
 export type ErrorContext = 'walk-in' | 'move' | 'check-in' | 'check-out' | 'day' | 'generic';
 
 export function describeError(error: RequestError, context: ErrorContext = 'generic'): ErrorMessage {
@@ -29,12 +27,6 @@ export function describeError(error: RequestError, context: ErrorContext = 'gene
     }
 
     switch (error.code) {
-        /**
-         * The one that matters. Double-booking is an exclusion constraint in
-         * Postgres, and the secretary is standing in front of the patient when
-         * it fires — she has to know the slot is gone, not that "something went
-         * wrong", or she tells them they are booked and they are not.
-         */
         case ERROR_CODE.SLOT_OVERLAP:
             return {
                 title: 'That slot is taken',

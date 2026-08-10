@@ -32,7 +32,6 @@ function flag(name: string): string | undefined {
 const into = flag('into');
 const keyArg = flag('key') ?? config.BACKUP_ENCRYPTION_KEY;
 
-/** An `.enc` file is decrypted to a temporary plain dump first. */
 let dumpPath = file;
 if (file.endsWith('.enc')) {
     if (!keyArg) {

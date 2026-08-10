@@ -1,3 +1,13 @@
+/**
+ * Settings → Working hours. Seven rows, one per weekday; a weekday with no row
+ * is closed — absence, not a flag — so the editor's switch is `setDay` against
+ * `clearDay`. The schedule only supplies a default; booking outside opening
+ * hours is the secretary's call and nothing here blocks it. Deactivated
+ * branches stay in the lists, and this day's own branch is kept as a select
+ * option even if it has since been deactivated, so it never draws as an unset
+ * placeholder. Times are zero-padded `HH:MM`, so string comparison is
+ * chronological. `ui/` has no time field, so the half-hour slots are hardcoded.
+ */
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
@@ -19,21 +29,8 @@ import { api } from './data/_LocalApi';
 import { errorMessage, useMutation, useQuery } from './data/hooks';
 import type { Branch, ClinicDay } from './data/types';
 
-/**
- * Settings → Working hours (MAW-1).
- *
- * Seven rows, one per weekday. A weekday with no row is closed — that is the
- * whole encoding, so "closed" is not a flag on a day, it is the absence of one,
- * and the switch in the editor is `setDay` against `clearDay`.
- *
- * The schedule only ever supplies a default. Booking outside opening hours is
- * the secretary's call and nothing here blocks it.
- */
-
-/** `0` is Sunday, matching `Date#getDay` and the `weekday` column. */
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
-/** Half-hour slots, 07:00 to 22:00. `ui/` has no time field — see BLOCKED.md. */
 const TIMES = Array.from({ length: 31 }, (_, index) => {
     const minutes = 7 * 60 + index * 30;
     const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
@@ -43,10 +40,6 @@ const TIMES = Array.from({ length: 31 }, (_, index) => {
 
 export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
     const schedule = useQuery(useCallback(() => api.settings.schedule(), []));
-    // Deactivated branches included on purpose. A day keeps pointing at its
-    // branch after that branch leaves the pickers, and an active-only list would
-    // render it as "Unknown branch" with the select looking unset — inviting a
-    // save that quietly moves the day somewhere else.
     const branches = useQuery(useCallback(() => api.branch.list({ includeInactive: true }), []));
     const [editing, setEditing] = useState<number | null>(null);
     const [toast, setToast] = useState<string | null>(null);
@@ -169,11 +162,6 @@ type DayEditorProps = {
     onSaved: (message: string) => void;
 };
 
-/**
- * One day, in a sheet. The switch is the difference between a row existing and
- * not existing, so turning it off is `clearDay` and turning it on is `setDay`
- * with whatever the fields currently hold.
- */
 function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditorProps) {
     const [open, setOpen] = useState(day !== undefined);
     const [branchId, setBranchId] = useState(day?.branchId ?? branches.find((b) => b.active)?.id ?? null);
@@ -181,9 +169,6 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     const [opensAt, setOpensAt] = useState(day?.opensAt ?? '10:00');
     const [closesAt, setClosesAt] = useState(day?.closesAt ?? '18:00');
 
-    // Active branches, plus this day's own if it has since been deactivated —
-    // otherwise the select has a value that is not one of its options, which
-    // draws as the placeholder and loses the day's branch on the next save.
     const options = branches
         .filter((branch) => branch.active || branch.id === day?.branchId)
         .map((branch) => ({
@@ -201,9 +186,6 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
         return 'open' as const;
     });
 
-    // Both are zero-padded `HH:MM`, so comparing them as strings orders them by
-    // time. Caught here as well as on the server so the sheet can say which
-    // field is wrong.
     const orderError = open && !(opensAt < closesAt) ? 'Closing time must be after opening.' : undefined;
     const canSave = !open || (branchId !== null && orderError === undefined);
 

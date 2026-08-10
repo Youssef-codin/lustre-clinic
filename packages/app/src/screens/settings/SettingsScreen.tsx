@@ -1,3 +1,11 @@
+/**
+ * Settings — one screen, not two: the role is a client-side preference, not a
+ * permission, so the doctor's rows are simply absent for the secretary. Until
+ * role selection exists in the app shell, this screen owns the role so the
+ * Users row is testable on its own. There is no navigator yet, so this screen
+ * is its own stack via `ui/PushView`; lifting the panes into a real navigator
+ * is `setRoute` → `navigate`.
+ */
 import type { ClientRole } from '@mawid/shared';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -10,29 +18,9 @@ import { ProceduresScreen } from './ProceduresScreen';
 import { UsersScreen } from './UsersScreen';
 import { WorkingHoursScreen } from './WorkingHoursScreen';
 
-/**
- * Settings — one screen, with rows gated by role (§7.10).
- *
- * Not two screens. The role is a client-side preference and not a permission
- * (SPEC §1, §6): either role can switch to the other in three taps, on the very
- * screen below. Two separate settings screens would imply a boundary that does
- * not exist, and would double every row that both roles need. So there is one
- * screen, and the doctor's rows are simply absent for the secretary — the
- * catalogue and the questionnaire are the doctor's to shape.
- *
- * ## Navigation
- *
- * There is no navigator in `packages/app` yet (F1/F3 in SPEC §18), and §10
- * forbids a screen agent adding one. So this screen is its own stack: one route
- * at a time in a `ui/PushView`, which is the transition the settings designs
- * draw anyway. Lifting these panes into a real navigator is a change of
- * `setRoute` to `navigate` — see BLOCKED.md.
- */
-
 type Route = 'index' | 'procedures' | 'patientFields' | 'branches' | 'hours' | 'users';
 
 export type SettingsScreenProps = {
-    /** From the app shell once role selection exists; defaulted until then. */
     role?: ClientRole;
     onChangeRole?: (role: ClientRole) => void;
 };
@@ -40,8 +28,6 @@ export type SettingsScreenProps = {
 export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenProps) {
     const [route, setRoute] = useState<Route>('index');
 
-    // The shell owns the role once it exists. Until it does, this screen holds
-    // it, so the Users row is testable on its own.
     const [localRole, setLocalRole] = useState<ClientRole>('doctor');
     const role = roleProp ?? localRole;
 

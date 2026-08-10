@@ -1,3 +1,15 @@
+// Answering the clinic's questions for one patient. A record outlives the
+// questionnaire it was filled in on, so: only edited keys are sent (`update`
+// validates only what it was sent — resubmitting the whole form would fail on
+// a `select` option removed since); deactivated questions are never in the
+// patch, so their answers survive (§7.8); a cleared answer is sent as `''`,
+// which the server deletes rather than storing blank. A boolean answered
+// `false` still counts as a change, so leaving it out would keep the question
+// in `questionnaireGaps` forever. Only the patch is validated — a stale
+// `select` answer stays visible as a gap on the record, and blocking Save on
+// it would stop the secretary fixing an unrelated answer. The write crosses
+// Tailscale, so Save spins, the sheet refuses to close under it, and a failure
+// keeps every draft on screen.
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ActionBar, Callout, Sheet } from '../../components/ui';
@@ -7,41 +19,13 @@ import type { Draft, DraftValue } from './components/customFields';
 import { fromDraft, isEditable, toDraft, validateDraft } from './components/customFields';
 import type { Answers, CustomQuestion } from './data/types';
 
-/**
- * Answering the clinic's questions for one patient.
- *
- * Three things it is careful about, all of them the same rule from a different
- * side — **a record outlives the questionnaire it was filled in on**:
- *
- * 1. **It sends only what was edited.** `patient.update` merges a partial
- *    `custom` patch over what is stored and validates only the keys it was
- *    sent. Sending the whole form back would re-submit answers nobody touched
- *    against a questionnaire that has moved on since, and correcting one phone
- *    number would fail on a `select` option removed in 2026.
- * 2. **It never sends a key it cannot see.** Deactivated questions are not in
- *    the list, so their answers are not in the patch, so they survive the save
- *    (§7.8: deactivate, never delete — the answers come back if the question
- *    does).
- * 3. **A cleared answer is sent as `''`**, which the server deletes from
- *    `patients.custom` rather than storing blank.
- *
- * The write is slow — it crosses Tailscale to a PC in the clinic — so Save
- * spins, the sheet refuses to close under it, and a failure keeps every draft
- * on screen rather than dropping the secretary back to a record that looks
- * unchanged for reasons she cannot see.
- */
-
 export type QuestionnaireSheetProps = {
     visible: boolean;
-    /** Active questions, in the questionnaire's own order. */
     questions: CustomQuestion[];
-    /** The patient's stored answers. */
     answers: Answers;
     pending: boolean;
-    /** The failed write, if the last attempt failed. */
     error?: string;
     onClose: () => void;
-    /** Called with the patch — only the keys that changed. */
     onSave: (patch: Answers) => void;
 };
 
@@ -54,9 +38,6 @@ export function QuestionnaireSheet({
     onClose,
     onSave,
 }: QuestionnaireSheetProps) {
-    // Only the kinds with an editor. A `date` answer is on the record,
-    // read-only, and is not silently dropped by being absent here — the patch
-    // never carries a key it did not show (§7.9).
     const editable = useMemo(() => questions.filter(isEditable), [questions]);
 
     const initial = useMemo<Draft>(() => {
@@ -68,26 +49,17 @@ export function QuestionnaireSheet({
     const [draft, setDraft] = useState<Draft>(initial);
     const [showErrors, setShowErrors] = useState(false);
 
-    // Reopening starts from what is stored, so an abandoned edit never
-    // reappears as if it had been saved.
     useEffect(() => {
         if (!visible) return;
         setDraft(initial);
         setShowErrors(false);
     }, [visible, initial]);
 
-    /**
-     * The patch: the questions whose answer actually moved. Everything else is
-     * left out, which is the whole of rule 1 above.
-     */
     const patch = useMemo(() => {
         const changed: Answers = {};
         for (const question of editable) {
             const next = fromDraft(question, draft[question.key] ?? '');
             const before = fromDraft(question, initial[question.key] ?? '');
-            // A boolean that was never answered and is still `false` counts as
-            // a change: `false` is an answer, and leaving it out would keep the
-            // question in `questionnaireGaps` forever.
             if (next !== before || (question.kind === 'boolean' && answers[question.key] === undefined)) {
                 changed[question.key] = next;
             }
@@ -95,16 +67,6 @@ export function QuestionnaireSheet({
         return changed;
     }, [editable, draft, initial, answers]);
 
-    /**
-     * Only what is being sent is checked.
-     *
-     * Validating every question on screen would undo the rule the patch exists
-     * to keep: a `select` answered in 2024 whose option was removed in 2026 is
-     * on this sheet, is not in the patch, and would never reach the server —
-     * blocking Save on it would stop the secretary correcting an unrelated
-     * answer for a reason she cannot fix from here. It stays visible as a gap
-     * on the record (`answer_no_longer_valid`), which is where it belongs.
-     */
     const errors = useMemo(() => {
         const found: Record<string, string> = {};
         for (const question of editable) {
@@ -135,8 +97,6 @@ export function QuestionnaireSheet({
             onClose={onClose}
             title="Clinic questions"
             subtitle="Answers are kept on the record. Nothing here is ever deleted."
-            // A write is open; closing under it would leave the secretary
-            // unsure whether it landed.
             dismissable={!pending}
             maxHeightRatio={0.88}
             testID="questionnaire-sheet"

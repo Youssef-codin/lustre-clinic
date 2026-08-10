@@ -4,11 +4,9 @@ import { color, radius } from '../../theme';
 export type ProgressTone = 'accent' | 'success' | 'due' | 'live' | 'ink';
 
 export type ProgressBarProps = {
-    /** 0–1. Values outside the range are clamped rather than overflowing the track. */
     value: number;
     tone?: ProgressTone;
     height?: number;
-    /** Inside a black card the track has to be light, not `surface2`. */
     onDark?: boolean;
     accessibilityLabel?: string;
 };

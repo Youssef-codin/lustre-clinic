@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Build/run the app on the Android emulator — `device.sh`, without the cable.
 #
-#   ./emulator.sh          boot the AVD (if cold), build/install, start the bundler
+#   ./emulator.sh          boot the AVD (if cold), then the bundler — building
+#                          and installing first only if the APK isn't there yet
 #   ./emulator.sh --build  force a native rebuild first
 #   ./emulator.sh --start  bundler only; the APK is already installed
+#   ./emulator.sh --clear  drop Metro's caches first; combines with the above
 #   ./emulator.sh --shot out.png  screenshot whatever is on screen and exit
 #
 # Why this exists next to `device.sh`: a phone drops off USB when the cable
@@ -18,8 +20,14 @@ set -euo pipefail
 
 AVD="${MAWID_AVD:-mawid_note}"
 METRO_PORT="${METRO_PORT:-8081}"
-API_PORT="${API_PORT:-3000}"
 BOOT_TIMEOUT="${BOOT_TIMEOUT:-180}"
+
+# The port the server actually binds, read from the same .env it reads, because
+# a reverse for the wrong port is invisible: the app just reports the clinic
+# server did not answer, and nothing in adb says why.
+env_file="$(dirname "$0")/../../../.env"
+env_port=$(sed -n 's/^[[:space:]]*PORT[[:space:]]*=[[:space:]]*\([0-9]\{1,\}\).*/\1/p' "$env_file" 2>/dev/null | tail -1)
+API_PORT="${API_PORT:-${env_port:-3000}}"
 
 # Prefer an already-exported SDK; fall back to the system-wide location.
 export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
@@ -28,16 +36,21 @@ export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/c
 
 mode="run"
 shot=""
-case "${1:-}" in
-    --build) mode="build" ;;
-    --start) mode="start" ;;
-    --shot)
-        mode="shot"
-        shot="${2:-emulator.png}"
-        ;;
-    "") ;;
-    *) echo "unknown option: $1 (expected --build, --start, --shot, or nothing)" >&2; exit 2 ;;
-esac
+clear_cache=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --build) mode="build" ;;
+        --start) mode="start" ;;
+        --clear) clear_cache="1" ;;
+        --shot)
+            mode="shot"
+            shot="${2:-emulator.png}"
+            if [ $# -gt 1 ]; then shift; fi
+            ;;
+        *) echo "unknown option: $1 (expected --build, --start, --clear, --shot, or nothing)" >&2; exit 2 ;;
+    esac
+    shift
+done
 
 if [ ! -d "$ANDROID_HOME" ]; then
     echo "Android SDK not found at $ANDROID_HOME. Set ANDROID_HOME." >&2
@@ -97,6 +110,14 @@ avd=$(adb -s "$serial" emu avd name 2>/dev/null | head -1 | tr -d '\r')
 
 echo "Emulator: $serial ($avd)"
 
+# One ABI, the one this emulator actually runs — see the note in
+# gradle.properties. Derived rather than assumed so an arm64 AVD (an Apple
+# Silicon host, say) builds for itself instead of for the x86_64 default.
+abi=$(adb -s "$serial" shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')
+if [ -n "$abi" ]; then
+    export ORG_GRADLE_PROJECT_reactNativeArchitectures="$abi"
+fi
+
 if [ "$mode" = "shot" ]; then
     adb -s "$serial" exec-out screencap -p >"$shot"
     echo "Wrote $shot"
@@ -113,8 +134,43 @@ echo "Reversed ports ${METRO_PORT} (metro) and ${API_PORT} (api) onto the emulat
 
 cd "$(dirname "$0")/.."
 
+# Metro keys its transform cache by file contents, but a crashed or killed
+# bundler can leave an entry behind that no longer matches what is on disk —
+# which reads as a syntax error in a file that parses fine, pointing at lines
+# the editor does not have. `--clear` is the way out. `expo run:android` has no
+# such flag, so the caches are removed by hand and both modes get the same fix.
+if [ -n "$clear_cache" ]; then
+    echo "Clearing Metro's caches…"
+    rm -rf "${TMPDIR:-/tmp}"/metro-* "${TMPDIR:-/tmp}"/haste-map-* \
+        ../../node_modules/.cache .expo/web/cache 2>/dev/null || true
+fi
+
+# The default used to be a full `run:android` every time — a Gradle build on
+# every start, even when nothing native had changed. That build is the
+# expensive half of this script by a wide margin, and on a 16 GB machine it is
+# the half that takes the desktop down with it.
+#
+# So the default is now conditional: if the APK is already on the device, the
+# bundler alone is what a JS change needs. `--build` still forces a rebuild, and
+# a missing APK falls through to one — the check is for the routine case, not a
+# way to end up with a bundler and nothing to attach it to.
+#
+# Native changes (a new native dependency, an app.json edit that touches the
+# native project) still need `--build`. Nothing here can detect those.
+if [ "$mode" = "run" ]; then
+    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx 'package:com.mawid.clinic'; then
+        echo "com.mawid.clinic is already installed — starting the bundler only."
+        echo "Use --build if you changed anything native."
+        mode="start"
+    else
+        echo "com.mawid.clinic is not installed on $serial — building it."
+    fi
+fi
+
 if [ "$mode" = "start" ]; then
-    exec bunx expo start --dev-client --localhost --port "$METRO_PORT"
+    args=(start --dev-client --localhost --port "$METRO_PORT")
+    [ -n "$clear_cache" ] && args+=(--clear)
+    exec bunx expo "${args[@]}"
 fi
 
 args=(run:android --device "$avd" --port "$METRO_PORT")

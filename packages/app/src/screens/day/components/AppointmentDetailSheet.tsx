@@ -1,3 +1,12 @@
+/**
+ * One appointment and everything that can happen to it from here. Every write
+ * crosses Tailscale and reports its failure *in this sheet*, next to the
+ * button that caused it — never a toast that fades. Destructive steps confirm
+ * inline because `Sheet` is a `Modal`, and a modal over a modal is how
+ * Android's back button ends up cancelling a write already in flight. The
+ * Check out button is disabled without a visit because (BLOCKED.md) the id is
+ * only known for a visit this session checked in.
+ */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Callout, CardDivider, Sheet, Tag } from '../../../components/ui';
@@ -16,27 +25,11 @@ import { formatTime, minutesOfDay, minutesToClock } from '../time';
 import { _LocalMoneyValue } from './_LocalMoneyValue';
 import { _LocalStatusPill } from './_LocalStatusPill';
 
-/**
- * One appointment, and everything that can happen to it from here.
- *
- * The status flow is the screen (§7): booked → checked in → at the desk → done,
- * with cancel and no-show off the front. Each transition is a write across
- * Tailscale, so each has a pending state and each failure lands *in this sheet*
- * next to the button that caused it. A toast that fades is not an acceptable
- * report of a write that did not happen.
- *
- * Destructive steps confirm inline rather than in a second sheet: `Sheet` is a
- * `Modal`, and a modal over a modal is how Android's back button ends up
- * cancelling a write that is already in flight.
- */
-
 export type AppointmentDetailSheetProps = {
     visible: boolean;
     appointment: Appointment | null;
     onClose: () => void;
-    /** The day's query, so a status change is reflected behind the sheet. */
     onChanged: () => void;
-    /** Hands the visit to the screen, which owns the checkout sheet. */
     onCheckOut: (appointment: Appointment, visit: Visit) => void;
 };
 
@@ -130,7 +123,6 @@ export function AppointmentDetailSheet({
                 />
             ) : null}
 
-            {/* The failure sits with the action, not in a toast that leaves. */}
             {writeError ? (
                 <View style={styles.error}>
                     <Callout tone="warning" title={describeError(writeError, 'check-in').title}>
@@ -182,9 +174,6 @@ function PrimaryAction({
                     label="Check out"
                     block
                     loading={visitLoading}
-                    // BLOCKED.md: without `visit.byAppointment` the id is only
-                    // known for a visit this session checked in. Saying so beats
-                    // a button that fails.
                     disabled={!visit && !visitLoading}
                     onPress={() => visit && onCheckOut(visit)}
                 />

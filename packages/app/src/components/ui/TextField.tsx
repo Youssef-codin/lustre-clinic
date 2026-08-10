@@ -1,3 +1,11 @@
+/**
+ * Single-line text input. The face follows the *value*, not the screen: a clinic
+ * keeps Arabic and Latin question labels in one list, so an Arabic answer renders
+ * in Noto Naskh even on an English screen (Component Inventory §6). An empty
+ * field falls back to the placeholder's script so the caret does not jump
+ * families on the first keystroke. The placeholder is drawn by `Placeholder`,
+ * not by `TextInput` — see there.
+ */
 import { useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput, View } from 'react-native';
@@ -10,20 +18,9 @@ export type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColo
     required?: boolean;
     hint?: string;
     error?: string;
-    /** Borderless — for a value sitting inline in a list row. */
     inline?: boolean;
 };
 
-/**
- * Single-line text input. White, r14, 48px, ink border on focus.
- *
- * The face follows the *value*, not the screen: a clinic keeps Arabic and Latin
- * question labels in one list, so an Arabic answer renders in Noto Naskh even on
- * an English screen (Component Inventory §6). Empty falls back to the placeholder's
- * script so the caret does not jump families on the first keystroke.
- *
- * The placeholder is drawn by `Placeholder`, not by `TextInput` — see there.
- */
 export function TextField({
     label,
     required,

@@ -7,16 +7,19 @@ import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { clinic, expectAppError, slot } from './helpers/factories.ts';
 
 /**
- * SPEC §7, §13 — the calls that write to several tables at once.
+ * SPEC §7, §13 — the calls that write to several tables at once. `create` builds
+ * a patient, an appointment, and a reminder; `walkIn` adds a visit and a seeded
+ * procedure line on top. Each runs in one transaction, and the reason that
+ * matters is what the database looks like after a booking that failed halfway:
+ * the patient is created before the appointment insert that fails, so without a
+ * transaction a leaked patient row would sit in `patient.search` forever with
+ * no appointment attached. A foreign-key failure (unknown branch) is raised by
+ * Postgres rather than a guard, so the rollback is the entire defense.
  *
- * `create` builds a patient, an appointment, and a reminder; `walkIn` adds a
- * visit and a seeded procedure line on top. Each runs in one transaction, and
- * the reason that matters is not visible from a passing booking: it is what the
- * database looks like after a booking that failed halfway.
- *
- * A leaked patient row is the specific hazard. `patient.search` is how a
- * secretary finds somebody, and a half-booked walk-up would sit in those results
- * forever with no appointment attached.
+ * Invariants: an appointment can never exist without its reminder; a walk-in
+ * retires its reminder (skipped) in the same transaction; check-in ships the
+ * visit, its seeded line, and the status change together; `setProcedures`
+ * replaces the whole list, so a rejected line must leave the old lines intact.
  */
 
 async function countOf(table: string): Promise<number> {
@@ -64,8 +67,6 @@ describe('appointment.create', () => {
             }),
         );
 
-        // The patient is created before the appointment insert that fails, so
-        // this is exactly the row a missing transaction would leave behind.
         expect(await snapshot()).toEqual(before);
         expect(await patientService.search({ q: 'Wael', limit: 25 })).toEqual([]);
     });
@@ -74,8 +75,6 @@ describe('appointment.create', () => {
         await clinic();
         const before = await snapshot();
 
-        // A foreign key violation, raised by Postgres rather than by a guard —
-        // the service never sees it coming, which is the point.
         await expect(
             appointmentService.create({
                 patient: { kind: 'new', name: 'Ghost Patient', phone: '01088888888' },

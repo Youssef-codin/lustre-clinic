@@ -1,3 +1,8 @@
+/**
+ * Back, title, one trailing action. Every sub-screen has one. The trailing slot
+ * is the same width as the back slot so the title stays optically centred
+ * whether or not there is a trailing action.
+ */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { color, size, space, Text } from '../../theme';
@@ -8,13 +13,10 @@ export type TopBarProps = {
     subtitle?: string;
     onBack?: () => void;
     backLabel?: string;
-    /** An IconButton, or a text Button for Reorder / Done. */
     trailing?: ReactNode;
-    /** Hairline under the bar. Off when the screen's own content draws one. */
     divider?: boolean;
 };
 
-/** Back, title, one trailing action. Every sub-screen has one. */
 export function TopBar({
     title,
     subtitle,
@@ -52,8 +54,6 @@ export function TopBar({
                 ) : null}
             </View>
 
-            {/* Same width as the back slot so the title stays optically centred
-                whether or not there is a trailing action. */}
             <View style={styles.side}>{trailing}</View>
         </View>
     );

@@ -1,26 +1,18 @@
+// One clinic question and its answer on the record: label on the start edge,
+// answer bold on the end edge. Nothing here knows what any question is — it
+// renders a label, a kind and whatever is stored, which is the point: a second
+// clinic's questionnaire is a different list. The label sets no face; `<Text>`
+// picks the script per string (§6). §7.9: an answer to a kind with no editor
+// (today `date`) is shown read-only.
 import { StyleSheet, View } from 'react-native';
 import { Tag } from '../../../components/ui';
 import { size, space, Text } from '../../../theme';
 import type { CustomQuestion, QuestionnaireGapReason } from '../data/types';
 import { displayAnswer, isReadOnly } from './customFields';
 
-/**
- * One clinic question and its answer on the record — Component Inventory §5's
- * `QARow`: label on the start edge, answer bold on the end edge.
- *
- * Nothing here knows what any question is. It renders a `label`, a `kind` and
- * whatever is stored under `key`, which is the whole point: the questionnaire
- * is the dentist's, and a second clinic's is a different list.
- *
- * The label sets no face — an Arabic question and a Latin one sit in the same
- * card and `<Text>` picks the script per string (§6).
- */
-
 export type CustomAnswerRowProps = {
     question: CustomQuestion;
-    /** The raw stored answer from `patients.custom`, if there is one. */
     value: unknown;
-    /** From `patient.byId`'s `questionnaireGaps`, when this question is in it. */
     gap?: QuestionnaireGapReason;
 };
 
@@ -62,7 +54,6 @@ export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) 
                     </Tag>
                 )}
 
-                {/* §7.9 — the answer is shown, the editor is not built yet. */}
                 {answer !== null && isReadOnly(question) && (
                     <Text variant="caption" tone="muted">
                         Read-only for now
@@ -82,7 +73,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: space[4],
         paddingVertical: space[2.5],
     },
-    // 150px, per the design. A two-line Arabic label still clears the row.
     label: { width: 150, flexDirection: 'row', alignItems: 'flex-start' },
     value: { flex: 1, alignItems: 'flex-end', gap: space[1] },
 });

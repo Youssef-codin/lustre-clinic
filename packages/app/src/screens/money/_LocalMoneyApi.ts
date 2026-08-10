@@ -1,35 +1,22 @@
+// Stub for the not-yet-landed tRPC client (`@trpc/client` and react-query are
+// not app dependencies). Every balance is DERIVED here, as the server derives
+// it — nothing is stored or cached and the screens never do money arithmetic
+// themselves; the hooks are shaped like TanStack Query's, so the real client is
+// a rename at the call site. Types are hand-mirrored: `Date` fields are ISO
+// strings, and `visit.byId` carries no `ref` or name (BLOCKED.md #14). The
+// store is mutable so a recorded payment moves every derived figure; `version`
+// is the cluster cache key — a recorded payment bumps it and every query
+// re-reads rather than patching balances locally. On an error the previous data
+// is dropped rather than left on screen. `setStubFailing` (dev-only) exercises
+// the failure states.
 import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@mawid/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// The tRPC client and the connection hook (§10, Spec §18 F2) have not landed —
-// `packages/app` has no `@trpc/client` and no `@tanstack/react-query`. Built
-// local per the §10 rule; see BLOCKED.md #2 and #3.
-//
-// Two things this file is careful about, because the cluster's correctness rests
-// on them:
-//
-//  1. Every balance is DERIVED here, from `charged_total` minus the payment rows
-//     (Spec §10), exactly as `balance.service.ts` derives it. Nothing is stored
-//     and nothing is cached. The screens render what this returns and never do
-//     arithmetic on money themselves — which is the whole point of the rule, and
-//     is what keeps them honest when this file is replaced by the real client.
-//  2. The hooks have the shape TanStack Query's bindings have, so swapping to
-//     `trpc.balance.outstanding.useQuery()` is a rename at the call site.
-//
-// The types below are copied from `balance.service.ts` and `visit.service.ts` by
-// hand rather than inferred from `AppRouter`, because the app does not depend on
-// the server package (BLOCKED.md #3). `Date` fields are `string`: there is no
-// transformer on `trpc/init.ts`, so dates arrive as ISO strings.
-
-// --- the contract, mirrored ------------------------------------------------
-
-/** `balance.outstanding` — a patient and what they owe across every visit. */
 export interface PatientBalance {
     patientId: string;
     name: string;
     phone: string;
     balance: number;
-    /** Start of the oldest visit that still owes something. */
     oldestUnpaidAt: string;
 }
 
@@ -38,7 +25,6 @@ export interface OutstandingReport {
     patients: PatientBalance[];
 }
 
-/** `balance.byPatient` — that patient's visits which still owe something. */
 export interface VisitBalance {
     visitId: string;
     appointmentId: string;
@@ -49,15 +35,12 @@ export interface VisitBalance {
     balance: number;
 }
 
-/** `balance.summary` — charged versus collected over a period. */
 export interface BalanceSummary {
     charged: number;
     collected: number;
-    /** `charged - collected` over the period, not the standing balance. */
     difference: number;
 }
 
-/** Nested inside `visit.byId`. */
 export interface VisitPayment {
     id: string;
     amount: number;
@@ -66,36 +49,18 @@ export interface VisitPayment {
     paidAt: string;
 }
 
-/**
- * The slice of `visit.byId` the money cluster reads.
- *
- * These are the `visits` table's own columns plus what the service derives —
- * and nothing else. `ref`, `startsAt` and the patient's name belong to the
- * appointment and the patient, and `visit.byId` does not join either, so a
- * screen that wants them takes them from the `balance.byPatient` row it was
- * reached through. Declaring them here would have made the swap BLOCKED.md #2
- * promises fail silently: a header falling back to a placeholder and a date
- * rendering `NaN undefined NaN`. See BLOCKED.md #14.
- *
- * `procedures` is omitted deliberately — the money screens do not price a
- * visit, they only settle it.
- */
 export interface VisitDetail {
     id: string;
     appointmentId: string;
     checkedInAt: string;
     completedAt: string | null;
-    /** Rule output from the entered procedures (§9). Never edited. */
     computedTotal: number;
-    /** What the patient owes. The difference from computed is the discount. */
     chargedTotal: number;
     payments: VisitPayment[];
     paidTotal: number;
-    /** Derived, never stored (§10). */
     balance: number;
 }
 
-/** Does not exist on the server — see BLOCKED.md #5. */
 export interface MethodTaking {
     method: PaymentMethod;
     amount: number;
@@ -109,22 +74,16 @@ export interface TakingsReport {
 
 export interface RecordPaymentInput {
     visitId: string;
-    /** Integer piastres, positive. */
     amount: number;
     method: PaymentMethod;
     methodNote?: string | null;
 }
-
-// --- fixtures ---------------------------------------------------------------
 
 type StoredPatient = { id: string; name: string; phone: string };
 
 type StoredVisit = {
     id: string;
     appointmentId: string;
-    /** Not on the `visits` row — held here so the stub can serve the queries
-     * that DO join the appointment, `balance.byPatient` and
-     * `balance.outstanding`. `visit.byId` must not return it. */
     patientId: string;
     ref: string;
     startsAt: string;
@@ -144,11 +103,6 @@ const patients: StoredPatient[] = [
     { id: 'p-6', name: 'Hana Mostafa', phone: '+201155038822' },
 ];
 
-/**
- * Amounts are piastres. The store is mutable so that recording a payment moves
- * every figure derived from it — which is the only way the pending state and the
- * clamp are worth anything to look at.
- */
 const visits: StoredVisit[] = [
     {
         id: 'v-1',
@@ -278,7 +232,6 @@ const visits: StoredVisit[] = [
             },
         ],
     },
-    // Settled in full. Here to prove it is excluded from both balance queries.
     {
         id: 'v-9',
         appointmentId: 'a-9',
@@ -319,11 +272,6 @@ export const PERIOD_LABEL: Record<Period, string> = {
     all: 'All time',
 };
 
-/**
- * Per-period figures. `collected` is not written down: it is summed from the
- * method rows, so the takings card and the hero can never disagree about how
- * much came in — which is the bug this fixture would otherwise invite.
- */
 const PERIOD_FIXTURES: Record<Period, { charged: number; byMethod: Record<PaymentMethod, MethodTaking> }> = {
     today: {
         charged: 340_000,
@@ -372,18 +320,10 @@ const PERIOD_FIXTURES: Record<Period, { charged: number; byMethod: Record<Paymen
     },
 };
 
-// --- the stubbed procedures -------------------------------------------------
-
-/** Long enough that a pending state is visible on a device, per §14's Tailscale hop. */
 const LATENCY_MS = 450;
 
 let failing = false;
 
-/**
- * Flips every procedure to a transport failure, so the loading and error states
- * on each screen can be looked at rather than reasoned about. Called from a dev
- * control, never from a screen.
- */
 export function setStubFailing(value: boolean): void {
     failing = value;
 }
@@ -414,12 +354,10 @@ function paidTotalOf(visit: StoredVisit): number {
     return visit.payments.reduce((sum, payment) => sum + payment.amount, 0);
 }
 
-/** Spec §10 — derived, never stored. */
 function balanceOf(visit: StoredVisit): number {
     return visit.chargedTotal - paidTotalOf(visit);
 }
 
-/** Exactly what `visit.byId` returns for the fields the money cluster reads. */
 function detailOf(visit: StoredVisit): VisitDetail {
     return {
         id: visit.id,
@@ -435,7 +373,6 @@ function detailOf(visit: StoredVisit): VisitDetail {
 }
 
 export const moneyApi = {
-    /** `balance.outstanding` — patients who owe something, aggregated (§10). */
     outstanding(): Promise<OutstandingReport> {
         return reply(() => {
             const rows: PatientBalance[] = [];
@@ -462,7 +399,6 @@ export const moneyApi = {
         });
     },
 
-    /** `balance.byPatient` — that patient's visits which still owe something. */
     byPatient(patientId: string): Promise<VisitBalance[]> {
         return reply(() =>
             visits
@@ -480,7 +416,6 @@ export const moneyApi = {
         );
     },
 
-    /** `visit.byId`, narrowed to what the money cluster reads. */
     visit(visitId: string): Promise<VisitDetail> {
         return reply(() => {
             const visit = visits.find((v) => v.id === visitId);
@@ -490,7 +425,6 @@ export const moneyApi = {
         });
     },
 
-    /** `balance.summary` for the period tab. */
     summary(period: Period): Promise<BalanceSummary> {
         return reply(() => {
             const fixture = PERIOD_FIXTURES[period];
@@ -499,7 +433,6 @@ export const moneyApi = {
         });
     },
 
-    /** The endpoint that does not exist yet — BLOCKED.md #5. */
     takings(period: Period): Promise<TakingsReport> {
         return reply(() => {
             const byMethod = Object.values(PERIOD_FIXTURES[period].byMethod);
@@ -507,10 +440,6 @@ export const moneyApi = {
         });
     },
 
-    /**
-     * `visit.recordPayment` — appends to `payments`. It does not touch
-     * `charged_total` (§10), so the balance moves only because a row was added.
-     */
     recordPayment(input: RecordPaymentInput): Promise<VisitDetail> {
         return reply(() => {
             const visit = visits.find((v) => v.id === input.visitId);
@@ -533,8 +462,6 @@ export const moneyApi = {
     },
 };
 
-// --- hooks, shaped like the TanStack Query bindings -------------------------
-
 export function errorCodeOf(error: unknown): ErrorCode {
     return error instanceof StubError ? error.code : ERROR_CODE.INTERNAL;
 }
@@ -548,10 +475,6 @@ export type QueryResult<T> = {
 
 type QueryState<T> = { data: T | undefined; isLoading: boolean; error: ErrorCode | null };
 
-/**
- * `key` is what re-runs the query, standing in for TanStack Query's query key.
- * The fetcher is held in a ref so a fresh closure each render does not re-fetch.
- */
 function useStubQuery<T>(key: string, fetcher: () => Promise<T>): QueryResult<T> {
     const fetcherRef = useRef(fetcher);
     const [nonce, setNonce] = useState(0);
@@ -561,11 +484,6 @@ function useStubQuery<T>(key: string, fetcher: () => Promise<T>): QueryResult<T>
         fetcherRef.current = fetcher;
     });
 
-    // `key` and `nonce` are the cache key, not values the effect reads: it
-    // re-runs *because* they changed, which is how a query key behaves and what
-    // `refetch` and the cluster's `version` both drive. Biome sees them unused
-    // in the body and offers to drop them, which would pin every screen to its
-    // first response.
     // biome-ignore lint/correctness/useExhaustiveDependencies: cache key, not a read value
     useEffect(() => {
         let cancelled = false;
@@ -576,9 +494,6 @@ function useStubQuery<T>(key: string, fetcher: () => Promise<T>): QueryResult<T>
                 if (!cancelled) setState({ data, isLoading: false, error: null });
             },
             (error: unknown) => {
-                // The previous data is dropped rather than left on screen under
-                // an error. A stale balance that looks current is the failure
-                // mode this cluster can least afford.
                 if (!cancelled) setState({ data: undefined, isLoading: false, error: errorCodeOf(error) });
             },
         );
@@ -593,13 +508,6 @@ function useStubQuery<T>(key: string, fetcher: () => Promise<T>): QueryResult<T>
     return { ...state, refetch };
 }
 
-/**
- * `version` is part of every key so that recording a payment can invalidate the
- * lot at once — the cluster bumps it and every derived figure on every mounted
- * screen re-reads. It stands in for `queryClient.invalidateQueries`, and it is
- * the reason nothing in this cluster needs to patch a balance locally after a
- * write: the server is asked again instead.
- */
 export function useOutstanding(version = 0): QueryResult<OutstandingReport> {
     return useStubQuery(`balance.outstanding:${version}`, () => moneyApi.outstanding());
 }
@@ -627,11 +535,6 @@ export type MutationResult<TInput, TOutput> = {
     reset: () => void;
 };
 
-/**
- * Every mutation in the cluster goes through this, because every mutation needs
- * a pending state: the write crosses Tailscale to a PC in the clinic, and a
- * payment button that still looks idle gets pressed twice.
- */
 export function useRecordPayment(): MutationResult<RecordPaymentInput, VisitDetail> {
     const [isPending, setIsPending] = useState(false);
     const [error, setError] = useState<ErrorCode | null>(null);

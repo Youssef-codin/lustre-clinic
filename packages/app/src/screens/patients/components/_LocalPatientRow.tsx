@@ -1,24 +1,16 @@
+// `_Local` per §10: `domain/PatientRow` is listed as shared but `domain/` does
+// not exist yet. Name, then phone · age · sex in mono, an outstanding amount in
+// `due` with a dot when there is one, and a chevron. The name sets no face —
+// `<Text>` detects the script per string (§6), so one row works for Arabic and
+// Latin names; the meta line is mono because it is digits.
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, Dot } from '../../../components/ui';
 import { color, size, space, Text } from '../../../theme';
 import type { Patient } from '../data/types';
 import { _LocalMoneyValue } from './_LocalMoneyValue';
 
-/**
- * `_Local` per §10: `domain/PatientRow` is listed as pre-built and shared, and
- * `domain/` does not exist yet. Noted in `BLOCKED.md`.
- *
- * Component Inventory §5: name, then phone · age · sex in mono, an outstanding
- * amount in `due` with a dot when there is one, and a chevron.
- *
- * The name sets no face. Arabic and Latin names sit in the same list and
- * `<Text>` detects the script per string (§6), so this row works for both
- * without knowing which it has. The meta line is mono because it is digits.
- */
-
 export type _LocalPatientRowProps = {
     patient: Patient;
-    /** Integer piastres owed across all visits, or 0. */
     due?: number;
     onPress: () => void;
 };

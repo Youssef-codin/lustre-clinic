@@ -1,3 +1,11 @@
+// Payment history for one visit, and the one write the money cluster makes.
+// §10: a payment is a row, not a state transition — this screen appends and
+// re-reads, and never patches a balance locally; the figure after a payment is
+// the one the server derived from the rows. `ref`/`startsAt`/name are passed in
+// because `visit.byId` joins neither the appointment nor the patient
+// (BLOCKED.md #14). The toast is a child of the screen root, not the scroll
+// content, and is only raised after the sheet closes: `ui/Sheet` is a native
+// Modal, so a toast raised while it is open would render behind it.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, EmptyState, SectionLabel, Toast, TopBar } from '../../components/ui';
@@ -9,31 +17,13 @@ import { PaymentRow } from './components/PaymentRow';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
 import { errorMessage, longDate } from './format';
 
-// Payment history for one visit, and the one write the money cluster makes:
-// `visit.recordPayment` (§13) — a payment against a balance, after checkout.
-//
-// §10: a payment is a row, not a state transition, and it never edits
-// `charged_total`. So this screen appends and re-reads; it never patches a
-// balance locally. The figure under "Outstanding" after a payment is the one the
-// server derived from the rows, not the one this screen could have worked out.
-
 export type VisitPaymentsScreenProps = {
     visitId: string;
-    /**
-     * The appointment's reference and date, and the patient's name.
-     *
-     * Passed in rather than read from `visit.byId`, which returns the visits
-     * row and joins neither the appointment nor the patient — so `ref`,
-     * `startsAt` and the name are not on it (BLOCKED.md #14). They come from the
-     * `balance.byPatient` row this screen was opened from, which already carries
-     * the first two, and from the route, which already carries the third.
-     */
     visitRef: string;
     startsAt: string;
     patientName: string;
     version: number;
     onBack: () => void;
-    /** Raised after a payment lands, so every other screen's figures re-read. */
     onPaymentRecorded: () => void;
 };
 
@@ -54,7 +44,7 @@ export function VisitPaymentsScreen({
 
     async function submit(input: RecordPaymentInput) {
         const updated = await payment.mutate(input);
-        if (!updated) return; // The error is on the sheet; the sheet stays open.
+        if (!updated) return;
 
         setSheetOpen(false);
         setToast('Payment recorded');
@@ -140,14 +130,6 @@ export function VisitPaymentsScreen({
                 />
             ) : null}
 
-            {/* A child of the screen root, never of the scroll content: a toast
-                nested in a ScrollView lands wherever that content has scrolled
-                to (ui/README.md).
-
-                Only raised once the sheet has closed. `ui/Sheet` is a native
-                `Modal`, and a toast raised while it is open would render behind
-                it — which is why the sheet says its own piece inline instead of
-                calling up here. */}
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );

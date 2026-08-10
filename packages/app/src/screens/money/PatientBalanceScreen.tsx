@@ -1,3 +1,9 @@
+// Spec §10 — a patient's unpaid visits. The total is NOT summed from the rows:
+// it is the figure `balance.outstanding` derived, read back from that query, so
+// it can never drift from the dashboard's number. A patient absent from the
+// report owes nothing — a real state here, reached by paying the last balance
+// off. `onOpenVisit` passes the whole row because `visit.byId` does not join
+// the appointment, so `ref`/`startsAt` come from here (BLOCKED.md #14).
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Card, EmptyState, SectionLabel, TopBar } from '../../components/ui';
 import { size, space, Text } from '../../theme';
@@ -6,25 +12,11 @@ import { MoneyValue } from './_LocalMoneyValue';
 import { LoadState, SkeletonCard, SkeletonRows } from './components/LoadState';
 import { VisitBalanceRow } from './components/VisitBalanceRow';
 
-// Spec §10 — "tapping through shows that patient's visits with balances".
-//
-// The patient's total is NOT summed from the rows on this screen. It is the
-// figure `balance.outstanding` derived, read back out of that query, so the
-// number here and the number on the dashboard are the same number and cannot
-// drift apart by a rounding rule or a filtered row. Summing the visible rows
-// would be one line shorter and one class of bug worse.
-
 export type PatientBalanceScreenProps = {
     patientId: string;
     patientName: string;
-    /** Bumped when a payment lands, so every figure re-reads. */
     version: number;
     onBack: () => void;
-    /**
-     * The whole row, not just the id: `visit.byId` does not join the
-     * appointment, so the reference and the date the next screen shows come
-     * from here (BLOCKED.md #14).
-     */
     onOpenVisit: (visit: VisitBalance) => void;
 };
 
@@ -38,9 +30,6 @@ export function PatientBalanceScreen({
     const visits = useVisitsByPatient(patientId, version);
     const outstanding = useOutstanding(version);
 
-    // Absent from the report means this patient owes nothing — which is a real
-    // and expected state here, reached by paying the last balance off without
-    // leaving the screen.
     const patient = outstanding.data?.patients.find((row) => row.patientId === patientId);
 
     return (

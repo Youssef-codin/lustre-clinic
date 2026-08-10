@@ -1,8 +1,3 @@
-import { config } from '../config.ts';
-import { logger } from '../logger.ts';
-import { createDriveClient, normalizePrivateKey } from './drive.ts';
-import { type BackupFile, parseBackupFileName } from './retention.ts';
-
 /**
  * SPEC §16 — "two destinations: local disk, off-site object storage". The local
  * half is the filesystem; this is the off-site half, behind one interface so
@@ -11,36 +6,33 @@ import { type BackupFile, parseBackupFileName } from './retention.ts';
  * Google Drive is what the clinic actually uses. S3 stays because the interface
  * is the same shape either way and an object store is the obvious fallback if
  * Drive's service-account storage rules (see `drive.ts`) get in the way.
+ *
+ * Anything in an off-site store whose name does not parse as a dump is somebody
+ * else's file and is dropped before retention sees it — pruning must never
+ * delete a file it cannot name. Half-configured Drive is warned loudly: the run
+ * still succeeds locally and still writes its marker, so the 48h staleness
+ * check stays quiet while nothing is leaving the machine (§16, §17).
  */
+import { config } from '../config.ts';
+import { logger } from '../logger.ts';
+import { createDriveClient, normalizePrivateKey } from './drive.ts';
+import { type BackupFile, parseBackupFileName } from './retention.ts';
 
-/** A dump off-site: the name it is stored under, and what deletes it. */
 export interface OffsiteFile extends BackupFile {
     readonly handle: string;
 }
 
 export interface OffsiteDestination {
-    /** For logs and alerts. */
     readonly kind: 'drive' | 's3';
-    /** Returns an opaque handle — a Drive file id, or an S3 key. */
     upload(name: string, body: Uint8Array): Promise<string>;
-    /** Dumps already there, so retention can be applied off-site too. */
     list(): Promise<OffsiteFile[]>;
     remove(handle: string): Promise<void>;
 }
 
-/** `mawid-….dump.enc` → the dump name retention understands. */
 function toBackupName(name: string): string {
     return name.replace(/\.enc$/, '');
 }
 
-/**
- * A raw listing from an off-site store, reduced to the dumps in it.
- *
- * Anything whose name does not parse as a dump is somebody else's file and is
- * dropped here rather than handed to retention — pruning must never delete a
- * file it cannot name. Pure and exported so that property can be tested without
- * credentials.
- */
 export function selectOffsiteDumps(entries: readonly { name: string; handle: string }[]): OffsiteFile[] {
     return entries.flatMap((entry) => {
         const at = parseBackupFileName(toBackupName(entry.name));
@@ -57,10 +49,6 @@ function driveDestination(): OffsiteDestination | null {
             BACKUP_DRIVE_PRIVATE_KEY ? null : 'BACKUP_DRIVE_PRIVATE_KEY',
         ].filter((name) => name !== null);
 
-        // Half-configured is the dangerous case: the run still succeeds locally
-        // and still writes its marker, so the 48h staleness check stays quiet
-        // while nothing is leaving the machine (§16, §17). Say so loudly. All
-        // three unset is just "no Drive", and stays silent.
         if (missing.length < 3) {
             logger.warn(
                 { missing },
@@ -124,7 +112,6 @@ function s3Destination(): OffsiteDestination | null {
     };
 }
 
-/** Null when no off-site destination is configured; uploads are then skipped. */
 export function offsiteDestination(): OffsiteDestination | null {
     return driveDestination() ?? s3Destination();
 }

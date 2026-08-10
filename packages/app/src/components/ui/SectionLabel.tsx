@@ -4,11 +4,8 @@ import { size, space, Text } from '../../theme';
 
 export type SectionLabelProps = {
     children: string;
-    /** Trailing count, rendered mono beside the label. */
     count?: number;
-    /** Trailing action — a text Button, usually. */
     action?: ReactNode;
-    /** Screen-level labels sit in the gutter; in-card ones do not. */
     inset?: boolean;
 };
 

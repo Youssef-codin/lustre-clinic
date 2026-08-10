@@ -1,3 +1,9 @@
+/**
+ * One settings pane: a top bar, a scrolling body, and optionally an action bar
+ * under it. Every screen in this cluster is this shape. `Toast` is a child of
+ * the pane, never of the list — a toast nested in scrolling content lands
+ * wherever that content has scrolled to.
+ */
 import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { TopBar } from '../../../components/ui';
@@ -7,22 +13,12 @@ export type PaneProps = {
     title: string;
     subtitle?: string;
     onBack: () => void;
-    /** A text Button for Reorder / Done, or an IconButton. */
     trailing?: ReactNode;
     children: ReactNode;
-    /** An `ActionBar`, pinned below the scroll area. */
     footer?: ReactNode;
-    /** A `Toast`, positioned against this pane rather than against a list. */
     overlay?: ReactNode;
     testID?: string;
 };
-
-/**
- * One settings pane: a top bar, a scrolling body, and optionally an action bar
- * under it. Every screen in this cluster is this shape, and the shape is the
- * reason `Toast` is a child of the pane and not of the list — a toast nested in
- * scrolling content lands wherever that content happens to have scrolled to.
- */
 export function Pane({ title, subtitle, onBack, trailing, children, footer, overlay, testID }: PaneProps) {
     return (
         <View style={styles.pane} testID={testID}>

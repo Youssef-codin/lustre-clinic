@@ -1,6 +1,3 @@
-import { ERROR_CODE } from '@mawid/shared';
-import { AppError } from '../errors/AppError.ts';
-
 /**
  * SPEC §5 — `patients.phone` is E.164, normalized on write. §11 builds the
  * WhatsApp deep link from it (`wa.me/<E164 without +>`), which is why the
@@ -11,13 +8,13 @@ import { AppError } from '../errors/AppError.ts';
  * This is deliberately not a full libphonenumber — it validates shape, not
  * whether an operator has issued the number.
  */
+import { ERROR_CODE } from '@mawid/shared';
+import { AppError } from '../errors/AppError.ts';
 
-/** Egypt. Local numbers are entered as `01XXXXXXXXX`. */
 const DEFAULT_COUNTRY_CODE = '20';
 
 export function normalizePhone(raw: string): string {
     const trimmed = raw.trim();
-    // Keep a leading +, drop spaces, dashes, brackets, and dots.
     const cleaned = trimmed.replace(/[\s\-().]/g, '');
 
     let digits: string;
@@ -27,7 +24,6 @@ export function normalizePhone(raw: string): string {
     } else if (cleaned.startsWith('00')) {
         digits = cleaned.slice(2);
     } else if (cleaned.startsWith('0')) {
-        // A local number: 01012345678 → 201012345678.
         digits = DEFAULT_COUNTRY_CODE + cleaned.slice(1);
     } else {
         digits = cleaned;
@@ -40,7 +36,6 @@ export function normalizePhone(raw: string): string {
     return `+${digits}`;
 }
 
-/** `wa.me` wants the digits without the `+` (§11). */
 export function toWhatsAppNumber(e164: string): string {
     return e164.replace(/^\+/, '');
 }

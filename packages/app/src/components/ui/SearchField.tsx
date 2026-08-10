@@ -6,7 +6,6 @@ import { Placeholder } from './Placeholder';
 export type SearchFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {
     value: string;
     onChangeText: (value: string) => void;
-    /** `sheet` is the shorter canvas-filled variant used inside a picker. */
     variant?: 'inline' | 'sheet';
     onClear?: () => void;
 };

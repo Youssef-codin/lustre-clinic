@@ -1,19 +1,16 @@
+// A label / value / sub stat card beneath the hero. Compact figures are allowed
+// here and in the hero only (§7.12); the `older` and `discount` variants are
+// not built (BLOCKED.md #9). `due` colours the figure orange — money owed, not
+// money in.
 import { StyleSheet } from 'react-native';
 import { Card } from '../../../components/ui';
 import { space, Text } from '../../../theme';
 import { MoneyValue } from '../_LocalMoneyValue';
 
-// Inventory §5 `domain/StatCard` — label / value / sub, sat in a row beneath the
-// hero. Compact figures are allowed here and in the hero, nowhere else (§7.12).
-//
-// The `older` and `discount` variants are not built — BLOCKED.md #9.
-
 export type StatCardProps = {
     label: string;
-    /** Integer piastres. */
     amount: number;
     sub?: string;
-    /** `due` colours the figure orange: this is money owed, not money in. */
     tone?: 'ink' | 'due' | 'success';
     testID?: string;
 };

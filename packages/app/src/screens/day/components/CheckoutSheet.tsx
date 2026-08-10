@@ -1,3 +1,14 @@
+/**
+ * Checkout — the last step of the visit flow (§8). `chargedTotal` is what the
+ * patient owes and is editable here; `paidTotal` is what they hand over now
+ * and may be zero — an unpaid visit is a balance, not a blocked checkout.
+ * Overpayment is not allowed (§7.6): the entry clamps to what is due rather
+ * than rejecting on submit, because a cash clinic has no refund workflow. The
+ * charge cannot go below what is already paid either (that would check the
+ * patient out in credit), so the checkout is refused instead. Both amount
+ * fields route through the same clamp because the amount due moves with the
+ * charge.
+ */
 import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@mawid/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -7,20 +18,6 @@ import { type Appointment, api, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
 import { amountDue, formatMoney, poundsEntry } from '../money';
 import { _LocalMoneyValue } from './_LocalMoneyValue';
-
-/**
- * Checkout — the last step of the visit flow (§8).
- *
- * Two amounts, and they are not the same thing: `chargedTotal` is what the
- * patient owes and is editable here (the difference from the computed total is
- * the discount, §9), `paidTotal` is what they are handing over now and may be
- * zero. A visit checks out either way; an unpaid visit is a balance, not a
- * blocked checkout (§10).
- *
- * §7.6: overpayment is not allowed. The entry clamps to what is due rather than
- * rejecting on submit, because a cash clinic has no refund workflow and a
- * negative balance is a liability nobody can settle.
- */
 
 export type CheckoutSheetProps = {
     visible: boolean;
@@ -37,7 +34,6 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
     other: 'Other',
 };
 
-/** Whole pounds in, integer piastres out. Piastres are never typed (§7.12). */
 function toPiastres(pounds: string): number {
     const digits = poundsEntry(pounds);
     return digits ? Number(digits) * PIASTRES_PER_POUND : 0;
@@ -58,7 +54,6 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
 
     const chargedPiastres = toPiastres(charged);
 
-    // What is left to pay, not what the visit costs — see `amountDue`.
     const alreadyPaid = visit?.paidTotal ?? 0;
     const due = amountDue(chargedPiastres, alreadyPaid);
 
@@ -66,20 +61,8 @@ export function CheckoutSheet({ visible, appointment, visit, onClose, onDone }: 
     const remaining = due - paidPiastres;
     const noteMissing = paidPiastres > 0 && method === 'other' && methodNote.trim() === '';
 
-    /**
-     * Charging less than the visit has already taken would check out with the
-     * patient in credit, and there is no refund workflow to settle it (§7.6).
-     * The entry is not rewritten under the finger — a floor applied mid-type
-     * fights someone clearing the field to retype it — so the checkout is
-     * refused instead, and says why.
-     */
     const chargedTooLow = chargedPiastres < alreadyPaid;
 
-    /**
-     * Both fields go through here, because the amount due moves with the charge:
-     * lowering it after a payment is entered has to walk that payment down with
-     * it, or the field says 1,600 while the visit records 1,000.
-     */
     function clampPaidTo(nextDue: number, entry: string): void {
         const digits = poundsEntry(entry);
         if (toPiastres(digits) > nextDue) {

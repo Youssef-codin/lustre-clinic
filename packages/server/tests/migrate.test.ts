@@ -5,18 +5,18 @@ import { config } from '../src/config.ts';
 import { setupDatabase, sql } from './helpers/db.ts';
 
 /**
- * SPEC §5 — the schema, and the migrations that produce it.
- *
- * Nothing checked that migrations apply to an *empty* database. Every suite
- * calls `setupDatabase`, which is a no-op after the first run, so the path a
- * fresh clinic machine takes on its very first boot (§15) was never exercised.
- *
- * The scratch database also gives the truncation list somewhere to be checked
- * against: a table added to the schema and forgotten in `truncateAll` does not
- * fail, it leaks rows into whichever test runs next.
+ * SPEC §5 — the schema, and the migrations that produce it. Nothing else checks
+ * that migrations apply to an *empty* database: `setupDatabase` is a no-op
+ * after the first run, so the fresh-machine boot path was never exercised.
+ * Migrations must also be idempotent, because the entrypoint migrates on every
+ * start (§4). The scratch database doubles as a check on the truncation list —
+ * a table added to the schema but forgotten in `truncateAll` leaks rows into
+ * whichever test runs next. Double booking is prevented by Postgres, not
+ * application code, and the EXCLUDE index requires an IMMUTABLE expression, so
+ * the session-timezone test in overlap.test.ts guards against a volatile-
+ * behaving wrapper.
  */
 
-/** Every table `helpers/db.ts` empties between tests. */
 const TRUNCATED_TABLES = [
     'payments',
     'visit_procedures',
@@ -47,9 +47,6 @@ describe('migrations', () => {
         const scratch = `mawid_migrate_${Date.now()}_test`;
 
         await withScratchDatabase(config.DATABASE_URL, scratch, async (scratchUrl) => {
-            // `runMigrations` binds to the shared `db` client, so a second
-            // client is pointed at the scratch database and drizzle's migrator
-            // is driven directly against it.
             const client = postgres(scratchUrl, { max: 1, onnotice: () => {} });
 
             try {
@@ -61,9 +58,6 @@ describe('migrations', () => {
                 await migrate(scratchDb, { migrationsFolder });
                 const afterFirst = await tablesIn(client);
 
-                // Booting twice is normal: the entrypoint migrates on every
-                // start (§4), so a second pass must be a no-op rather than an
-                // error about something that already exists.
                 await migrate(scratchDb, { migrationsFolder });
                 const afterSecond = await tablesIn(client);
 
@@ -83,8 +77,6 @@ describe('migrations', () => {
     });
 
     test('create appointments_no_overlap', async () => {
-        // §5 calls this the one thing the schema cannot be without: double
-        // booking is prevented by Postgres, not by application code.
         const [row] = await sql<{ present: boolean }[]>`
             SELECT EXISTS (
                 SELECT 1 FROM pg_constraint WHERE conname = 'appointments_no_overlap'
@@ -103,10 +95,6 @@ describe('migrations', () => {
     });
 
     test('declare appointment_span IMMUTABLE, as the exclusion index requires', async () => {
-        // A GiST exclusion constraint may only index an immutable expression.
-        // Declared volatile, the migration fails; declared immutable but
-        // *behaving* volatilely, the index silently rots — which is what the
-        // session-timezone test in overlap.test.ts guards.
         const [row] = await sql<{ volatility: string }[]>`
             SELECT provolatile AS volatility FROM pg_proc WHERE proname = 'appointment_span'
         `;
@@ -124,14 +112,10 @@ describe('schema and the truncation list', () => {
     });
 
     test('every table in the schema is truncated between tests', async () => {
-        // The one that actually catches something: a new table added to the
-        // schema but not to `truncateAll` keeps its rows across tests, and the
-        // failure surfaces somewhere unrelated and much later.
         const present = await tablesIn(sql);
         const untracked = present.filter(
             (table) =>
                 !(TRUNCATED_TABLES as readonly string[]).includes(table) &&
-                // drizzle's own bookkeeping, which must survive truncation.
                 table !== '__drizzle_migrations',
         );
 

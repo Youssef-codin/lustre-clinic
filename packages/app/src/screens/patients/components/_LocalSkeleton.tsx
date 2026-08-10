@@ -1,28 +1,18 @@
+// `_Local` per §10: §7.14 asks for list loading skeletons and none are designed
+// yet, so this is the cluster's placeholder. A skeleton, not a spinner, because
+// the list has a known shape — rows of fixed height at a fixed inset — so the
+// screen does not jump when the answer lands. It does not animate: a shimmer
+// needs a gradient dependency the app does not have, and pulsing eight rows
+// costs frames on the clinic's Android for no information the static blocks do
+// not already give.
 import { StyleSheet, View } from 'react-native';
 import { color, radius, size, space } from '../../../theme';
 
-/**
- * `_Local` per §10: §7.14 asks for list loading skeletons and none are designed
- * yet, so this is the cluster's placeholder rather than an invented shared
- * component. Noted in `BLOCKED.md`.
- *
- * A skeleton, not a spinner, because the list it stands in for has a known
- * shape: rows of a fixed height at a fixed inset. The screen does not jump when
- * the answer lands, which a centred spinner guarantees it will.
- *
- * It does not animate. A shimmer needs a gradient dependency the app does not
- * have, and a pulse on eight rows is the kind of thing that costs frames on the
- * cheap Android the clinic actually uses — for no information the static blocks
- * do not already give.
- */
-
 export type SkeletonRowsProps = {
     count?: number;
-    /** Matches `_LocalPatientRow`'s inset; `space[4]` matches a card's. */
     gutter?: number;
 };
 
-/** Stable keys — the rows are identical and never reorder. */
 const KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index}`);
 
 export function SkeletonRows({ count = 6, gutter = size.gutter }: SkeletonRowsProps) {
@@ -31,8 +21,6 @@ export function SkeletonRows({ count = 6, gutter = size.gutter }: SkeletonRowsPr
             {KEYS.slice(0, count).map((key, index) => (
                 <View key={key} style={[styles.row, { paddingHorizontal: gutter }]}>
                     <View style={styles.text}>
-                        {/* Two lines, long then short, so the block reads as a
-                            name over a meta line rather than as a grey bar. */}
                         <View style={[styles.block, styles.primary, index % 2 === 0 && styles.wide]} />
                         <View style={[styles.block, styles.secondary]} />
                     </View>

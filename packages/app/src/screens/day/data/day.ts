@@ -1,3 +1,18 @@
+/**
+ * Every call the day view makes, in one file, over the real tRPC client, typed
+ * from `AppRouter` so a procedure that moves fails here at compile time. Two
+ * things are done by hand: dates arrive as ISO strings — there is no
+ * transformer either side, so the inferred types say `Date` while the wire
+ * carries strings, and `shaped`/`types.ts` bridge that gap until a transformer
+ * lands — and `wrap` turns tRPC failures into the `RequestError` the screens
+ * localize from. Offsets come from the date itself (`offsetForDate`) because a
+ * day on the far side of a DST changeover needs the offset in force on it;
+ * `byDates` is one POST over `httpBatchLink`, not thirty-one round trips. The
+ * visit id is not on the appointment, so `visitIds` keeps what this session
+ * created and `visit.byAppointment` reaches the rest; `checkInTimes` orders
+ * the waiting room by arrival, dropping a patient whose visit cannot be read
+ * so the order falls back to `updatedAt` and the day still draws.
+ */
 import type { PaymentMethod } from '@mawid/shared';
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 import { offsetForDate } from '../time';
@@ -16,30 +31,10 @@ import type {
     WalkInResult,
 } from './types';
 
-/**
- * Every call the day view makes, in one file, over the real tRPC client.
- *
- * The client is typed from `AppRouter`, so a procedure that moves or an input
- * that changes shape fails here at compile time rather than at the clinic.
- *
- * Two things it still has to do by hand. Dates arrive as strings — the server
- * returns `Date` and there is no transformer either side, so the inferred types
- * say `Date` while the wire carries ISO strings (`api/types.ts`). And the
- * screens read `RequestError`, which carries the `ERROR_CODE` they localize
- * from; `wrap` is where a tRPC failure becomes one.
- */
-
-/**
- * The Date/string gap, in one place. Everything above this file reads the local
- * interfaces in `types.ts`, which say `string` because that is what arrives.
- * When a transformer lands on the server these casts come out and the inferred
- * types are used directly.
- */
 function shaped<T>(value: unknown): T {
     return value as T;
 }
 
-/** A tRPC failure, in the terms `errors.ts` switches on. */
 async function wrap<T>(run: () => Promise<unknown>): Promise<T> {
     try {
         return shaped<T>(await run());
@@ -59,12 +54,6 @@ export const api = {
 
     branches: (): Promise<Branch[]> => wrap(() => trpcClient.branch.list.query({ includeInactive: false })),
 
-    /**
-     * The offset is taken from the date itself rather than from the caller —
-     * see `offsetForDate`. A day on the far side of a DST changeover needs the
-     * offset that was in force on it, and no screen should have to remember
-     * that.
-     */
     byDate: (date: string, branchId?: string): Promise<Appointment[]> =>
         wrap(() =>
             trpcClient.appointment.byDate.query({
@@ -74,11 +63,6 @@ export const api = {
             }),
         ),
 
-    /**
-     * A month in one request. These are separate calls, but `httpBatchLink`
-     * collects them into a single POST — thirty-one round trips over Tailscale
-     * is a visibly slow sheet and one is not.
-     */
     byDates: (dates: readonly string[]): Promise<Appointment[][]> =>
         wrap(() =>
             Promise.all(
@@ -91,13 +75,8 @@ export const api = {
             ),
         ),
 
-    /** The selectable procedures, for the name behind an appointment's `typeId`. */
     procedures: (): Promise<ProcedureType[]> => wrap(() => trpcClient.procedure.list.query()),
 
-    /**
-     * §11 — what is owed a message. `dueOnly` is the server's default and the
-     * one the screen wants: a reminder that is not due yet is not work.
-     */
     pendingReminders: (date: string): Promise<PendingReminder[]> =>
         wrap(() =>
             trpcClient.reminder.pending.query({
@@ -145,19 +124,21 @@ export const api = {
     visitById: (id: string): Promise<Visit> => wrap(() => trpcClient.visit.byId.query({ id })),
 };
 
-/**
- * The visit behind an appointment.
- *
- * `appointments` carries no `visit_id`, so the id has to be asked for. The ids
- * this session already has are kept — a check-in hands one back, and asking
- * again for what we just created is a round trip over Tailscale for nothing —
- * but a patient checked in on another phone, or yesterday, or before the app
- * was last opened, is now reachable too.
- */
 const visitIds = new Map<string, string>();
 
 export function rememberVisit(appointmentId: string, visitId: string): void {
     visitIds.set(appointmentId, visitId);
+}
+
+export async function checkInTimes(appointmentIds: readonly string[]): Promise<Map<string, string>> {
+    const visits = await Promise.all(appointmentIds.map((id) => visitForAppointment(id).catch(() => null)));
+
+    return new Map(
+        visits.flatMap((visit, index) => {
+            const id = appointmentIds[index];
+            return visit && id ? [[id, visit.checkedInAt] as const] : [];
+        }),
+    );
 }
 
 export async function visitForAppointment(appointmentId: string): Promise<Visit | null> {

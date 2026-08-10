@@ -1,15 +1,17 @@
+/**
+ * SPEC §6, §13 — the doctor view's numbers for a period. Everything here is an
+ * aggregate over the same rows the rest of the app writes; nothing is stored
+ * separately, so a stat can never drift from what happened.
+ *
+ * `outstanding` is the standing balance — what is still owed right now — not a
+ * per-period figure.
+ */
 import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { appointments, payments, procedureTypes, visitProcedures, visits } from '../../db/schema.ts';
 import { dayRange } from '../../util/time.ts';
 import { balanceService } from '../balance/balance.service.ts';
 import type { StatsSummaryInput } from './stats.schema.ts';
-
-/**
- * SPEC §6, §13 — the doctor view's numbers for a period. Everything here is an
- * aggregate over the same rows the rest of the app writes; nothing is stored
- * separately, so a stat can never drift from what happened.
- */
 
 export interface StatsSummary {
     from: Date;
@@ -24,9 +26,7 @@ export interface StatsSummary {
     };
     visits: {
         total: number;
-        /** Sum of `charged_total` for visits in the period. */
         charged: number;
-        /** Payments received in the period, whenever the visit happened. */
         collected: number;
         outstanding: number;
     };
@@ -86,7 +86,6 @@ export const statsService = {
             .orderBy(desc(sql`SUM(${visitProcedures.quantity})`))
             .limit(10);
 
-        // The standing balance, not a per-period figure — what is still owed.
         const { total: outstanding } = await balanceService.outstanding();
 
         return {

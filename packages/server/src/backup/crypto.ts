@@ -1,41 +1,23 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-
 /**
  * SPEC §16 — encrypt before off-site upload, so a dump sitting in somebody
  * else's storage is inert on its own.
  *
- * ## Where the key comes from
+ * `BACKUP_ENCRYPTION_KEY` is 32 bytes, hex or base64, and must NOT live on the
+ * clinic machine: if it is lost, every off-site dump is lost with it — no
+ * recovery path, deliberately no escrow. Local dumps stay unencrypted (same
+ * disk as the database). When the key is unset the server backs up locally but
+ * refuses the off-site upload rather than send patient data in the clear.
  *
- * `BACKUP_ENCRYPTION_KEY` in the environment — 32 bytes, hex or base64. It is
- * the one secret §16 says must NOT live on the clinic machine: the operator
- * generates it once, keeps it somewhere the clinic machine cannot reach (a
- * password manager, a note in a safe), and passes it to `scripts/restore.ts`
- * with `--key` when a restore is actually needed.
- *
- * Generate one with:
- *
- *     bun -e 'console.log(require("crypto").randomBytes(32).toString("base64"))'
- *
- * If it is lost, every off-site dump is lost with it — there is no recovery
- * path and deliberately no escrow. Local dumps stay unencrypted, because they
- * sit on the same disk as the database they came from, so encrypting them
- * would protect nothing and add a way to lose the data.
- *
- * When the key is unset the server still backs up locally; `runBackup` refuses
- * the off-site upload rather than sending patient data in the clear.
- *
- * AES-256-GCM, from the platform's own crypto. Chosen over age/libsodium
- * because it needs no dependency and no key-management format.
- *
- * Layout: MAGIC (6) ‖ IV (12) ‖ ciphertext ‖ tag (16).
+ * AES-256-GCM from the platform's own crypto. Layout: MAGIC (6) ‖ IV (12) ‖
+ * ciphertext ‖ tag (16). `decrypt` throws if ciphertext or tag is tampered.
  */
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 const MAGIC = Buffer.from('MAWID1', 'ascii');
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 const KEY_BYTES = 32;
 
-/** Accepts the key as hex or base64. Either way it must decode to 32 bytes. */
 export function parseKey(raw: string): Buffer {
     const trimmed = raw.trim();
 
@@ -70,11 +52,9 @@ export function decrypt(envelope: Uint8Array, key: Buffer): Buffer {
 
     const decipher = createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(tag);
-    // Throws if the ciphertext or the tag has been tampered with.
     return Buffer.concat([decipher.update(body), decipher.final()]);
 }
 
-/** Convenience for the operator: `bun -e 'console.log(generateKey())'`. */
 export function generateKey(): string {
     return randomBytes(KEY_BYTES).toString('base64');
 }

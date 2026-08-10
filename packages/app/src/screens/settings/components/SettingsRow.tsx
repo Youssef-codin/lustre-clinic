@@ -1,24 +1,21 @@
+/**
+ * A row on the settings index (Component Inventory §5): 32px icon tile, label
+ * and sub, chevron. Settings is the only cluster with an index like this, so
+ * it is cluster-local, but a candidate for `domain/` if a second one appears.
+ */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 
 export type SettingsRowProps = {
-    /** A glyph. There is no icon set yet, so the callers pass text. */
     icon: ReactNode;
     label: string;
     sub?: string;
     onPress: () => void;
-    /** Sits before the chevron — a count, or a "3 closed" summary. */
     value?: string;
     testID?: string;
 };
-
-/**
- * A row on the settings index (Component Inventory §5): 32px icon tile, label
- * and sub, chevron. Cluster-local — nothing outside settings has an index like
- * this — but a candidate for `domain/` if a second one appears.
- */
 export function SettingsRow({ icon, label, sub, onPress, value, testID }: SettingsRowProps) {
     return (
         <Pressable

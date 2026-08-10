@@ -5,7 +5,6 @@
  * rather than reading the server's own timezone.
  */
 
-/** Age in whole years at `on`, from a `YYYY-MM-DD` birth date (§5). */
 export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()): number | null {
     if (!birthDate) return null;
 
@@ -20,12 +19,6 @@ export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()
     return age < 0 ? null : age;
 }
 
-/**
- * The half-open instant range covering a local calendar day.
- *
- * `offsetMinutes` is the client's UTC offset — the clinic's day, as the person
- * looking at the day view understands it. The server never guesses it.
- */
 export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Date } {
     const startUtc = new Date(`${date}T00:00:00Z`);
     if (Number.isNaN(startUtc.getTime())) {
@@ -37,7 +30,6 @@ export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Dat
     return { from, to };
 }
 
-/** `DDMMYY`, day first — the date part of an appointment `ref` (§5). */
 export function refDatePart(at: Date, offsetMinutes = 0): string {
     const local = new Date(at.getTime() + offsetMinutes * 60_000);
     const dd = String(local.getUTCDate()).padStart(2, '0');

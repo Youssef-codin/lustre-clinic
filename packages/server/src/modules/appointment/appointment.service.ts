@@ -1,3 +1,18 @@
+/**
+ * SPEC §7. Double-booking is prevented by Postgres (§5); this service's job is
+ * to turn SQLSTATE 23P01 into `SLOT_OVERLAP` so the client can say something
+ * useful, and to keep the reminder row in step with the appointment.
+ *
+ * Missed appointments are never transitioned on a timer — they are listed for
+ * someone to resolve (§7).
+ *
+ * `insertWithRef` retries only when the generated `ref` collided; an overlap is
+ * a real answer and is not retried. The walk-in path imports the visit module
+ * lazily to avoid an import cycle (visit reads appointments). `awaitPayment`
+ * repeats the status in the UPDATE's predicate, so the write itself decides: a
+ * checkout committing `done` in between would otherwise leave a settled visit
+ * stuck in `awaiting_payment` with no way back.
+ */
 import { canTransition, ERROR_CODE, WS_EVENT } from '@mawid/shared';
 import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
@@ -18,22 +33,12 @@ import type {
     WalkInInput,
 } from './appointment.schema.ts';
 
-/**
- * SPEC §7. Double-booking is prevented by Postgres (§5); this service's job is
- * to turn SQLSTATE 23P01 into `SLOT_OVERLAP` so the client can say something
- * useful, and to keep the reminder row in step with the appointment.
- *
- * Missed appointments are never transitioned on a timer — they are listed for
- * someone to resolve (§7).
- */
-
 export type AppointmentRow = typeof appointments.$inferSelect;
 
 export interface AppointmentWithPatient extends AppointmentRow {
     patient: { id: string; name: string; phone: string };
 }
 
-/** How many refs to try before giving up. Collisions are vanishingly rare. */
 const REF_ATTEMPTS = 5;
 
 function mapWriteError(err: unknown): never {
@@ -49,7 +54,6 @@ async function resolveDuration(requested: number | undefined): Promise<number> {
     const { durationOptions, defaultDuration } = await settingsService.get();
     if (requested === undefined) return defaultDuration;
 
-    // §7: the duration comes from the picker, which offers exactly these.
     if (!durationOptions.includes(requested)) {
         throw new AppError(ERROR_CODE.INVALID_DURATION, 'duration is not one of the configured options', 422);
     }
@@ -61,7 +65,6 @@ async function resolvePatient(executor: Executor, ref: PatientRefInput): Promise
         await patientService.requireExists(ref.patientId);
         return ref.patientId;
     }
-    // §13 — the new patient is created in the same transaction as the booking.
     const created = await patientService.createMinimal(ref.name, ref.phone, executor);
     return created.id;
 }
@@ -72,10 +75,6 @@ async function requireRow(id: string): Promise<AppointmentRow> {
     return row;
 }
 
-/**
- * Inserts with a fresh `ref`, retrying only when the `ref` itself collided.
- * An overlap is a real answer and is not retried.
- */
 async function insertWithRef(
     executor: Executor,
     values: Omit<typeof appointments.$inferInsert, 'id' | 'ref'>,
@@ -100,7 +99,6 @@ async function insertWithRef(
 }
 
 export const appointmentService = {
-    /** The day view: one day, optionally one branch, patient embedded (§13). */
     async byDate(input: ByDateInput): Promise<AppointmentWithPatient[]> {
         const { from, to } = dayRange(input.date, input.offsetMinutes);
 
@@ -138,10 +136,6 @@ export const appointmentService = {
         return { ...row.appointment, patient: row.patient };
     },
 
-    /**
-     * §7 — still `booked` after it should have ended. Listed for manual
-     * resolution to `no_show` or a reschedule; nothing transitions on a timer.
-     */
     async missed(input: MissedInput = { limit: 100 }): Promise<AppointmentWithPatient[]> {
         const rows = await db
             .select({
@@ -184,7 +178,6 @@ export const appointmentService = {
                 input.offsetMinutes,
             );
 
-            // §11 — the reminder exists from the moment the booking does.
             await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
             return appointment;
         });
@@ -193,17 +186,11 @@ export const appointmentService = {
         return row;
     },
 
-    /**
-     * §7 — a walk-in books and checks in at once, `starts_at = now`. Both rows
-     * land in one transaction, and the same overlap constraint applies.
-     */
     async walkIn(input: WalkInInput): Promise<{ appointment: AppointmentRow; visitId: string }> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const { reminderLeadHours } = await settingsService.get();
         const startsAt = new Date();
 
-        // Imported lazily: the visit module reads appointments, so a top-level
-        // import in both directions would be a cycle.
         const { visitService } = await import('../visit/visit.service.ts');
 
         const result = await db.transaction(async (tx) => {
@@ -224,13 +211,10 @@ export const appointmentService = {
             );
 
             await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
-            // A walk-in is already here, so there is nobody to remind.
             await reminderService.skipFor(tx, appointment.id);
 
             const visit = await visitService.checkIn({ appointmentId: appointment.id }, tx);
 
-            // Re-read: check-in moved the status to `checked_in`, and the
-            // caller gets the appointment as it now is, not as it was inserted.
             const [current] = await tx
                 .select()
                 .from(appointments)
@@ -245,7 +229,6 @@ export const appointmentService = {
     },
 
     async update(input: UpdateAppointmentInput): Promise<AppointmentRow> {
-        // `startsAt` arrives as an ISO string and is applied as a Date below.
         const { id, startsAt: _startsAt, ...patch } = input;
         const current = await requireRow(id);
 
@@ -310,7 +293,6 @@ export const appointmentService = {
 
             if (!updated) throw AppError.notFound('appointment');
 
-            // No message is owed for an appointment that is not happening.
             await reminderService.skipFor(tx, id);
             return updated;
         });
@@ -319,13 +301,6 @@ export const appointmentService = {
         return row;
     },
 
-    /**
-     * §7 — the doctor is done with the patient, who now owes money at the desk.
-     * Optional: the secretary can check out straight from `checked_in`.
-     *
-     * The slot is released by this, not held: `awaiting_payment` is outside the
-     * overlap constraint, because the chair is free again.
-     */
     async awaitPayment(id: string): Promise<AppointmentRow> {
         const current = await requireRow(id);
 
@@ -337,11 +312,6 @@ export const appointmentService = {
             );
         }
 
-        // The status is repeated in the predicate, so the read above is only an
-        // optimization for the error message — the write itself is what decides.
-        // A checkout committing `done` in between would otherwise leave a
-        // settled visit against an appointment stuck here, and checkout refuses
-        // to run twice, so there would be no way back.
         const [updated] = await db
             .update(appointments)
             .set({ status: 'awaiting_payment', updatedAt: new Date() })
@@ -360,7 +330,6 @@ export const appointmentService = {
         return updated;
     },
 
-    /** Used by the visit module, which owns the check-in transition itself. */
     async requireExists(id: string): Promise<AppointmentRow> {
         return requireRow(id);
     },

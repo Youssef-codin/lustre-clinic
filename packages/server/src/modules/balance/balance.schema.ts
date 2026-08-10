@@ -1,11 +1,12 @@
+/**
+ * SPEC §10. Balances are derived, never stored. Date ranges are inclusive
+ * start, exclusive end — both `YYYY-MM-DD` local dates.
+ */
 import { z } from 'zod';
-
-/** SPEC §10. Balances are derived, never stored. */
 
 export const byPatientInput = z.object({ patientId: z.uuid() });
 
 export const balanceSummaryInput = z.object({
-    /** Inclusive start, exclusive end — both `YYYY-MM-DD` local dates. */
     from: z.iso.date(),
     to: z.iso.date(),
     offsetMinutes: z.number().int().min(-840).max(840).default(0),

@@ -1,14 +1,14 @@
 /**
- * Runs before any test file is imported (see `bunfig.toml`).
+ * Runs before any test file is imported (see `bunfig.toml`). `src/config.ts`
+ * reads `Bun.env` at module load, and the suite truncates every table between
+ * tests, so loading `.env.test` here makes the safe scratch database the
+ * default no matter how the runner is invoked — a bare `bun test` otherwise
+ * picks up `.env` and destroys the developer's working database.
  *
- * `src/config.ts` reads `Bun.env` at module load, and the suite truncates every
- * table between tests. Left alone, a bare `bun test` would pick up `.env` — the
- * developer's working database — and destroy it. Loading `.env.test` here means
- * the safe database is the default no matter how the runner is invoked, rather
- * than only when someone remembers to pass `--env-file`.
- *
- * An explicitly exported `DATABASE_URL` still wins, provided it names a test
- * database; CI relies on nothing here beyond that.
+ * Empty values are meaningful: `.env.test` blanks the Drive and Discord keys
+ * precisely so a test run cannot reach the network. An explicitly exported
+ * `DATABASE_URL` still wins, but only if it ends in `_test`; `assertTestDatabase`
+ * is the backstop that refuses anything else.
  */
 
 const ENV_FILE = new URL('../.env.test', import.meta.url).pathname;
@@ -24,8 +24,6 @@ function parseEnvFile(contents: string): Record<string, string> {
         if (eq === -1) continue;
 
         const key = trimmed.slice(0, eq).trim();
-        // Empty is meaningful here: `.env.test` blanks the Drive and Discord
-        // keys precisely so a test run cannot reach the network (§16, §17).
         values[key] = trimmed
             .slice(eq + 1)
             .trim()
@@ -47,9 +45,6 @@ for (const [key, value] of Object.entries(testEnv)) {
     Bun.env[key] = value;
 }
 
-// Honour a deliberate override — a scratch database, or CI's service container
-// — but only when it is a test database. `assertTestDatabase` in
-// `helpers/db.ts` is the backstop that refuses anything else.
 if (explicitDatabaseUrl?.endsWith('_test')) {
     Bun.env.DATABASE_URL = explicitDatabaseUrl;
 }

@@ -1,6 +1,13 @@
+/**
+ * There is no renderer under `bun test`, so what is tested here is the part of
+ * the screen that is not React: which day is closed, where a block lands, and —
+ * the one that matters — what the secretary is told when Postgres refuses a
+ * double booking.
+ */
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE } from '@mawid/shared';
 import { splitDay } from './agenda';
+import { slotProgress, splitDoctorDay } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment } from './data/types';
 import { describeError } from './errors';
@@ -12,14 +19,10 @@ import {
     clockToMinutes,
     dateKey,
     formatDatePill,
+    minutesOfDay,
     minutesToClock,
     relativeDayLabel,
 } from './time';
-
-// There is no renderer under `bun test`, so what is tested here is the part of
-// the screen that is not React: which day is closed, where a block lands, and —
-// the one that matters — what the secretary is told when Postgres refuses a
-// double booking.
 
 const FRIDAY = '2026-08-07';
 const SATURDAY = '2026-08-08';
@@ -39,7 +42,6 @@ describe('clinic hours', () => {
         const schedule = [{ weekday: 5, branchId: 'b', opensAt: '09:00', closesAt: '13:00' }];
 
         expect(hoursFor(FRIDAY, schedule)).toEqual({ opens: 540, closes: 780 });
-        // Saturday has no row in this schedule, so the clinic is shut.
         expect(isClosed(SATURDAY, schedule)).toBe(true);
     });
 });
@@ -59,8 +61,6 @@ describe('the agenda', () => {
             [
                 at('done', '09:30', 'done'),
                 at('missed', '10:00', 'no_show'),
-                // Its slot is long gone, and nobody has said what happened. That
-                // is a decision waiting to be made, not history.
                 at('stale', '10:45', 'booked'),
                 at('later', '13:00', 'booked'),
             ],
@@ -85,6 +85,94 @@ describe('the agenda', () => {
     });
 });
 
+describe("the doctor's day", () => {
+    const at = (id: string, time: string, status: AppointmentStatus, updatedAt = time): Appointment =>
+        ({
+            id,
+            startsAt: `2026-08-10T${time}:00+03:00`,
+            updatedAt: `2026-08-10T${updatedAt}:00+03:00`,
+            status,
+            durationMinutes: 30,
+            patient: { id: `p-${id}`, name: id, phone: '' },
+        }) as Appointment;
+
+    const arrivals = (pairs: Record<string, string>) =>
+        new Map(Object.entries(pairs).map(([id, time]) => [id, `2026-08-10T${time}:00+03:00`]));
+
+    it('seats whoever checked in first and leaves the rest waiting', () => {
+        const day = splitDoctorDay(
+            [at('second', '11:35', 'checked_in'), at('first', '11:05', 'checked_in')],
+            arrivals({ first: '11:02', second: '11:20' }),
+        );
+
+        expect(day.chair?.id).toBe('first');
+        expect(day.waiting.map((row) => row.id)).toEqual(['second']);
+    });
+
+    it('gives the card to the patient waiting and the strip to the chair', () => {
+        const day = splitDoctorDay(
+            [
+                at('chair', '11:05', 'checked_in'),
+                at('waiting', '11:35', 'checked_in'),
+                at('booked', '12:00', 'booked'),
+            ],
+            arrivals({ chair: '11:02', waiting: '11:20' }),
+        );
+
+        expect(day.headline?.id).toBe('waiting');
+        expect(day.strip?.id).toBe('chair');
+        expect(day.list.map((row) => row.id)).toEqual(['booked']);
+    });
+
+    it('puts the next slot on the card while the chair keeps the strip', () => {
+        const day = splitDoctorDay(
+            [at('chair', '11:05', 'checked_in'), at('booked', '12:00', 'booked')],
+            arrivals({ chair: '11:02' }),
+        );
+
+        expect(day.headline?.id).toBe('booked');
+        expect(day.strip?.id).toBe('chair');
+        expect(day.list).toEqual([]);
+    });
+
+    it('hands the card back to the chair when there is nothing after it', () => {
+        const day = splitDoctorDay([at('chair', '11:05', 'checked_in')], arrivals({ chair: '11:02' }));
+
+        expect(day.headline?.id).toBe('chair');
+        expect(day.strip).toBeNull();
+    });
+
+    it('orders the queue by updatedAt when the visits are not to hand', () => {
+        const day = splitDoctorDay([
+            at('late', '11:05', 'checked_in', '11:30'),
+            at('early', '11:35', 'checked_in', '11:10'),
+        ]);
+
+        expect(day.chair?.id).toBe('early');
+    });
+
+    it('folds a patient sent to the desk away with the rest of the history', () => {
+        const day = splitDoctorDay([
+            at('paid', '09:30', 'done'),
+            at('desk', '10:00', 'awaiting_payment'),
+            at('booked', '12:00', 'booked'),
+        ]);
+
+        expect(day.past.map((row) => row.id)).toEqual(['paid', 'desk']);
+        expect(day.list).toEqual([]);
+        expect(day.headline?.id).toBe('booked');
+    });
+
+    it('measures the slot, and says so once it runs over', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const start = minutesOfDay(appointment.startsAt);
+
+        expect(slotProgress(appointment, start + 15).label).toBe('15 / 30 min');
+        expect(slotProgress(appointment, start + 45).over).toBe(true);
+        expect(slotProgress(appointment, start + 45).label).toBe('15 min over');
+    });
+});
+
 describe('errors', () => {
     it('says the slot is taken, and says what to do about it', () => {
         const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
@@ -93,7 +181,6 @@ describe('errors', () => {
         expect(walkIn.title).toBe('That slot is taken');
         expect(walkIn.body).toContain('shorter visit');
 
-        // Never the generic failure, whatever the screen it came from.
         expect(describeError(overlap, 'move').title).toBe('That slot is taken');
     });
 
@@ -111,19 +198,12 @@ describe('money', () => {
     });
 
     it('takes what has already been paid off the amount due', () => {
-        // A visit part-paid before checkout: `Full` must offer the remainder,
-        // not the whole charge, or the patient pays that part twice and the
-        // balance goes negative (§7.6).
         expect(amountDue(260_000, 100_000)).toBe(160_000);
         expect(amountDue(260_000, 0)).toBe(260_000);
-        // A discount below what is already paid settles it; it never refunds.
         expect(amountDue(50_000, 100_000)).toBe(0);
     });
 
     it('strips an amount where it is typed, not where it is parsed', () => {
-        // `decimal-pad` shows a `.` key. Stripping it only on parse would read
-        // a typed 12.5 as 125 with the field still saying 12.5; running the
-        // entry through this on the way in makes the two say the same thing.
         expect(poundsEntry('12.5')).toBe('125');
         expect(poundsEntry('1,200')).toBe('1200');
     });
@@ -151,7 +231,6 @@ describe('dates', () => {
 
     it('names the weekday in the header pill only when the day is not today', () => {
         const today = dateKey(new Date());
-        // `4 AUG` on today, `WED 5 AUG` off it — and uppercase either way.
         expect(formatDatePill(today, today).split(' ')).toHaveLength(2);
         expect(formatDatePill(addDays(today, 2), today).split(' ')).toHaveLength(3);
         expect(formatDatePill(today, today)).toBe(formatDatePill(today, today).toUpperCase());

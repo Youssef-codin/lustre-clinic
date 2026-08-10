@@ -1,3 +1,18 @@
+/**
+ * SPEC §12. One enforced row (§5), seeded on first read so a fresh database is
+ * usable without a manual step.
+ *
+ * `reminder_dismissed_on` lives here too (§11): the daily notification's repeat
+ * is suppressed while it equals today. Reminder logic reads it through this
+ * service rather than touching the row itself.
+ *
+ * Postgres returns `time` as `HH:MM:SS`, so rows are trimmed to `HH:MM` for the
+ * client. Seeding uses `onConflictDoNothing` to cover two boots racing on an
+ * empty database. `defaultDuration` must stay inside `durationOptions` or the
+ * picker would offer an unpickable default, and `setDay` resolves the branch
+ * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
+ * violation.
+ */
 import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@mawid/shared';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
@@ -6,15 +21,6 @@ import { AppError } from '../../errors/AppError.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
 import type { SetClinicDayInput, UpdateSettingsInput } from './settings.schema.ts';
-
-/**
- * SPEC §12. One enforced row (§5), seeded on first read so a fresh database is
- * usable without a manual step.
- *
- * `reminder_dismissed_on` lives here too (§11): the daily notification's repeat
- * is suppressed while it equals today. Reminder logic reads it through this
- * service rather than touching the row itself.
- */
 
 export interface Settings {
     clinicName: string;
@@ -31,7 +37,6 @@ export interface Settings {
 
 type SettingsRow = typeof settings.$inferSelect;
 
-/** Postgres returns `time` as `HH:MM:SS`; the client wants `HH:MM`. */
 function toSettings(row: SettingsRow): Settings {
     return {
         clinicName: row.clinicName,
@@ -51,7 +56,6 @@ async function readRow(): Promise<SettingsRow> {
     const [existing] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
     if (existing) return existing;
 
-    // Seed. `onConflictDoNothing` covers two boots racing on an empty database.
     await db
         .insert(settings)
         .values({ id: 1, clinicName: DEFAULT_CLINIC_NAME, reminderTemplate: DEFAULT_REMINDER_TEMPLATE })
@@ -62,16 +66,7 @@ async function readRow(): Promise<SettingsRow> {
     return seeded;
 }
 
-/**
- * MAW-1. The weekly schedule the day view draws its bounds from, and the
- * booking screen takes its default branch from. A weekday with no row is a
- * closed day — rendered as closed, not as an empty schedule.
- *
- * The schedule only ever supplies a default: booking outside opening hours is
- * the secretary's call, so nothing here blocks an appointment.
- */
 export interface ClinicDay {
-    /** 0 = Sunday … 6 = Saturday, matching `Date#getDay`. */
     weekday: number;
     branchId: string;
     opensAt: string;
@@ -94,7 +89,6 @@ export const settingsService = {
         return toSettings(await readRow());
     },
 
-    /** Called at boot so the row exists before anything else asks for it. */
     async ensureSeeded(): Promise<void> {
         await readRow();
     },
@@ -107,8 +101,6 @@ export const settingsService = {
             : [...current.durationOptions].sort((a, b) => a - b);
         const defaultDuration = input.defaultDuration ?? current.defaultDuration;
 
-        // The picker offers `durationOptions` and preselects `defaultDuration`
-        // (§7), so a default outside the list would be unpickable.
         if (!durationOptions.includes(defaultDuration)) {
             throw new AppError(
                 ERROR_CODE.INVALID_DURATION,
@@ -134,22 +126,17 @@ export const settingsService = {
         return toSettings(updated);
     },
 
-    /** MAW-1 — every open weekday, ascending. Missing weekdays are closed. */
     async schedule(): Promise<ClinicDay[]> {
         const rows = await db.select().from(clinicDays).orderBy(asc(clinicDays.weekday));
         return rows.map(toClinicDay);
     },
 
-    /** The day's hours, or null when the clinic is closed that weekday. */
     async dayFor(weekday: number): Promise<ClinicDay | null> {
         const [row] = await db.select().from(clinicDays).where(eq(clinicDays.weekday, weekday)).limit(1);
         return row ? toClinicDay(row) : null;
     },
 
-    /** Sets or replaces a weekday's branch and hours. */
     async setDay(input: SetClinicDayInput): Promise<ClinicDay> {
-        // Fails with NOT_FOUND before Postgres would fail with a foreign key
-        // violation, so the client gets a code it can localize.
         await branchService.byId(input.branchId);
 
         const [row] = await db
@@ -167,17 +154,11 @@ export const settingsService = {
         return toClinicDay(row);
     },
 
-    /** Marks a weekday closed by removing its row. Closing a closed day is a no-op. */
     async clearDay(weekday: number): Promise<void> {
         await db.delete(clinicDays).where(eq(clinicDays.weekday, weekday));
         broadcast(WS_EVENT.SETTINGS_UPDATED);
     },
 
-    /**
-     * §11 — silences the repeating notification until tomorrow. `date` is the
-     * clinic's local date as the client sees it; the server does not guess a
-     * timezone on its behalf.
-     */
     async dismissRemindersFor(date: string): Promise<Settings> {
         await readRow();
 

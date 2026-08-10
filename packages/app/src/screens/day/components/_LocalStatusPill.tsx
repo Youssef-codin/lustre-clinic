@@ -1,21 +1,18 @@
+/**
+ * `_Local` — BLOCKED.md: §10 freezes `domain/StatusPill` as shared and
+ * `components/domain/` does not exist yet; promote whole. The mapping is the
+ * point — a status is one word and one colour, decided once, so a cancelled
+ * appointment cannot read as a settled one. The chair's dot is accent rather
+ * than `live`, which disappears on white; a pulsing accent dot reads as the
+ * chair here.
+ */
 import type { AppointmentStatus } from '@mawid/shared';
 import { StyleSheet, View } from 'react-native';
 import { Dot, Tag } from '../../../components/ui';
 import { space } from '../../../theme';
 
-/**
- * `_Local` — BLOCKED.md. §10 freezes `domain/StatusPill` as shared and
- * `components/domain/` does not exist yet. Nothing here is day-view specific;
- * promote it whole.
- *
- * The mapping is the point: a status is one word and one colour, decided once,
- * so a cancelled appointment cannot read as a settled one on a screen the
- * secretary scans rather than reads.
- */
-
 export type StatusPillProps = {
     status: AppointmentStatus;
-    /** The dot pulses for a patient who is in the chair right now. */
     withDot?: boolean;
 };
 
@@ -46,8 +43,6 @@ export function _LocalStatusPill({ status, withDot = false }: StatusPillProps) {
 
     return (
         <View style={styles.row}>
-            {/* `live` is the black card's green and disappears on white, so the
-                chair reads as a pulsing accent dot here instead. */}
             {withDot ? <Dot tone={tone} pulse={status === 'checked_in'} /> : null}
             <Tag tone={tone} variant={status === 'checked_in' ? 'filled' : 'outline'}>
                 {LABEL[status]}

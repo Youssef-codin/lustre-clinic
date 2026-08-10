@@ -7,19 +7,12 @@ export type ChipProps = {
     selected?: boolean;
     onPress?: () => void;
     disabled?: boolean;
-    /** The dashed accent "new…" affordance that opens an editor instead of selecting. */
     variant?: 'solid' | 'new';
     icon?: ReactNode;
-    /** Chips in a wrapping row share the width; chips in a scroller do not. */
     grow?: boolean;
     testID?: string;
 };
 
-/**
- * One selectable chip. The designs grew three of these — procedure categories,
- * answer types, and the payment Full/Half/Nothing row (§4.2) — which are the same
- * control with different content.
- */
 export function Chip({
     label,
     selected = false,

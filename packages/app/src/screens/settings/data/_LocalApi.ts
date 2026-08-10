@@ -1,34 +1,19 @@
+/**
+ * Stand-in for the tRPC client until F2 lands: an in-memory store with the
+ * same procedure names, inputs and outputs as the routers the settings screens
+ * will call, enforced in the same places; nothing survives a reload. Every call
+ * is async with an artificial latency — writes cross Tailscale and the pending
+ * states are the point. Failures throw the server's codes (`ApiError` is a
+ * code, not a message) because the client localizes from `ERROR_CODE` and never
+ * parses a message. Invariants: parenthood is computed over every row, active
+ * or not, so a category is never demoted to selectable when its only subtype is
+ * deactivated; the checkup flag is held by exactly one procedure; `list` calls
+ * default to active-only, with the settings list the caller that passes
+ * `includeInactive`.
+ */
 import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
 import type { Branch, ClinicDay, CustomQuestion, Procedure, ProcedureNode } from './types';
 
-/**
- * The stand-in for the tRPC client.
- *
- * `packages/app` has no tRPC client and no TanStack Query — F2 in SPEC §18 has
- * not landed, and §10 forbids a screen agent inventing one, because four
- * clusters would then invent four. So this is `_Local` per the BLOCKED.md rule:
- * an in-memory store with the same procedure names, inputs and outputs as the
- * routers the settings screens will call, and the same rules enforced in the
- * same places.
- *
- *   settings.schedule / setDay / clearDay      branch.list / create / update
- *   procedure.tree / create / update           customQuestion.list / create / update
- *
- * Two things are deliberate rather than incidental:
- *
- * - **Everything is async, with a delay.** Every write in this app crosses
- *   Tailscale to a PC in the clinic, and the pending states are the point (see
- *   `ui/README.md`). A synchronous store would make every spinner untestable and
- *   every screen look correct on a machine where it never is.
- * - **Validation throws the codes the server throws.** The client localizes from
- *   `ERROR_CODE` and never parses a message (SPEC §4, §14), so the failures
- *   these screens have to render are the real ones: a duplicate question key, a
- *   category being priced, a default duration outside its list.
- *
- * Nothing here survives a reload. It is the shape of the data, not the data.
- */
-
-/** An error the way the tRPC client will hand one over: a code, not a message. */
 export class ApiError extends Error {
     constructor(
         readonly code: ErrorCode,
@@ -39,21 +24,17 @@ export class ApiError extends Error {
     }
 }
 
-/** Round trip to the clinic PC, roughly. Long enough that a spinner is visible. */
 const LATENCY_MS = 420;
 
 function settle<T>(value: T): Promise<T> {
     return new Promise((resolve) => setTimeout(() => resolve(value), LATENCY_MS));
 }
 
-/** Ids are UUIDv7 on the server. Here they only have to be unique and stable. */
 let sequence = 0;
 function nextId(prefix: string): string {
     sequence += 1;
     return `${prefix}-${sequence}`;
 }
-
-// --- seed -------------------------------------------------------------------
 
 const BRANCH_MAIN = 'branch-main';
 const BRANCH_NEW_CAIRO = 'branch-new-cairo';
@@ -64,11 +45,6 @@ const branches: Branch[] = [
     { id: 'branch-maadi', name: 'Maadi', address: null, active: false },
 ];
 
-/**
- * The tree the spec describes: a row with children is a category and is not
- * selectable; only leaves carry a price. Crown and Composite are categories,
- * Checkup and Extraction are childless roots and therefore selectable.
- */
 const procedures: Procedure[] = [
     leaf('proc-checkup', null, 'Checkup', 30_000, { isCheckup: true, sortOrder: 0 }),
     leaf('proc-crown', null, 'Crown', 0, { sortOrder: 1 }),
@@ -162,7 +138,6 @@ const questions: CustomQuestion[] = [
     },
 ];
 
-/** Sunday through Thursday. Friday and Saturday have no row, so they are closed. */
 const schedule: ClinicDay[] = [
     { weekday: 0, branchId: BRANCH_MAIN, opensAt: '10:00', closesAt: '18:00' },
     { weekday: 1, branchId: BRANCH_MAIN, opensAt: '10:00', closesAt: '18:00' },
@@ -171,9 +146,6 @@ const schedule: ClinicDay[] = [
     { weekday: 4, branchId: BRANCH_NEW_CAIRO, opensAt: '12:00', closesAt: '20:00' },
 ];
 
-// --- inputs -----------------------------------------------------------------
-
-/** `list` and `tree` take an object, not a flag — `listBranchInput` et al. */
 export interface ListInput {
     includeInactive?: boolean;
 }
@@ -222,7 +194,6 @@ export interface CreateQuestionInput {
     required: boolean;
 }
 
-/** `options` is jsonb on the wire, so it arrives unknown. Mirrors the service. */
 export function optionsOf(question: CustomQuestion): string[] {
     return Array.isArray(question.options) ? (question.options as string[]) : [];
 }
@@ -242,13 +213,10 @@ export interface SetClinicDayInput {
     closesAt: string;
 }
 
-// --- api --------------------------------------------------------------------
-
 const KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 export const api = {
     branch: {
-        /** The settings list shows deactivated branches; pickers do not. */
         async list({ includeInactive }: ListInput = {}): Promise<Branch[]> {
             const rows = [...branches].sort((a, b) => a.name.localeCompare(b.name));
             return settle(includeInactive ? rows : rows.filter((b) => b.active));
@@ -277,14 +245,10 @@ export const api = {
     },
 
     procedure: {
-        /** Categories with their leaves nested, exactly as `procedure.tree` returns them. */
         async tree({ includeInactive }: ListInput = {}): Promise<ProcedureNode[]> {
             const ordered = [...procedures].sort(bySortOrderThenName);
             const visible = includeInactive ? ordered : ordered.filter((p) => p.active);
 
-            // Parenthood is computed over every row, active or not — the same
-            // rule the service uses. Deriving it from the visible rows would
-            // mark a category whose only subtype was deactivated as selectable.
             const parents = new Set(procedures.map((p) => p.parentId).filter(isString));
 
             const nodes = visible
@@ -313,9 +277,6 @@ export const api = {
                 active: true,
                 sortOrder: siblings.length,
             };
-            // Only one procedure holds the checkup flag, on create as well as on
-            // update: two of them and the §9 waiver attaches to whichever
-            // `findCheckup` happens to order first.
             if (row.isCheckup) clearOtherCheckups(row.id);
 
             procedures.push(row);
@@ -355,12 +316,6 @@ export const api = {
             return settle({ ...row });
         },
 
-        /**
-         * Applies an order to a set of siblings. The server has no bulk endpoint
-         * — this is N `procedure.update` calls with a `sortOrder` each, done in
-         * one round trip here so the list does not reorder itself row by row in
-         * front of the user. See BLOCKED.md.
-         */
         async reorder(ids: readonly string[]): Promise<void> {
             ids.forEach((id, index) => {
                 const row = procedures.find((p) => p.id === id);
@@ -431,15 +386,12 @@ export const api = {
     },
 
     settings: {
-        /** Every open weekday, ascending. A missing weekday is closed. */
         async schedule(): Promise<ClinicDay[]> {
             return settle([...schedule].sort((a, b) => a.weekday - b.weekday));
         },
 
         async setDay(input: SetClinicDayInput): Promise<ClinicDay> {
             if (!branches.some((b) => b.id === input.branchId)) throw notFound('branch');
-            // Both are zero-padded `HH:MM`, so comparing them as strings orders
-            // them by time.
             if (!(input.opensAt < input.closesAt)) {
                 throw new ApiError(ERROR_CODE.VALIDATION, 'opensAt must be before closesAt');
             }
@@ -451,7 +403,6 @@ export const api = {
             return settle({ ...input });
         },
 
-        /** Closing a closed day is a no-op, the same as the service. */
         async clearDay({ weekday }: ClearClinicDayInput): Promise<void> {
             const index = schedule.findIndex((d) => d.weekday === weekday);
             if (index >= 0) schedule.splice(index, 1);
@@ -468,7 +419,6 @@ function isString(value: string | null): value is string {
     return value !== null;
 }
 
-/** The waiver in §9 is written against "the" checkup line, singular. */
 function clearOtherCheckups(keep: string): void {
     for (const other of procedures) {
         if (other.id !== keep) other.isCheckup = false;
@@ -479,7 +429,6 @@ function hasChildren(id: string): boolean {
     return procedures.some((p) => p.parentId === id);
 }
 
-/** A parent must itself be a root, or the tree would be three levels deep. */
 function assertUsableAsParent(parentId: string): void {
     const parent = procedures.find((p) => p.id === parentId);
     if (!parent) throw notFound('procedure');

@@ -1,18 +1,13 @@
+// The editor for one clinic question, chosen by its `kind`. No clinic's
+// questions are named anywhere — a question added in settings appears here with
+// no code change. The covered kinds are exactly `EDITABLE_KINDS`; any other
+// kind (today only `date`, §7.9) never reaches this component, because the
+// record renders it read-only.
 import { StyleSheet, View } from 'react-native';
 import { Field, NumericField, Select, Switch, TextField } from '../../../components/ui';
 import { space, Text } from '../../../theme';
 import type { CustomQuestion } from '../data/types';
 import type { DraftValue } from './customFields';
-
-/**
- * The editor for one clinic question, chosen by its `kind`.
- *
- * This is the generic renderer the brief asks for: no clinic's questions are
- * named anywhere, and adding a question in settings makes it appear here with
- * no code change. The kinds it covers are exactly `EDITABLE_KINDS`
- * (`customFields.ts`) — a question of any other kind never reaches this
- * component, because the record renders it read-only instead.
- */
 
 export type CustomAnswerControlProps = {
     question: CustomQuestion;
@@ -84,9 +79,6 @@ export function CustomAnswerControl({ question, value, onChange, error }: Custom
                 </Field>
             );
 
-        // §7.9. Designed in settings, not editable here yet — the record shows
-        // the stored answer read-only and never routes it to this component.
-        // Dropping it in is a `DatePicker` and this one case.
         case 'date':
             return null;
     }

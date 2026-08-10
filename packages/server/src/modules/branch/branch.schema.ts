@@ -1,6 +1,8 @@
+/**
+ * SPEC §12 — branches are rows the clinic edits in-app. A branch is
+ * deactivated rather than deleted, because appointments reference branches.
+ */
 import { z } from 'zod';
-
-/** SPEC §12 — branches are rows the clinic edits in-app. */
 
 export const createBranchInput = z.object({
     name: z.string().trim().min(1).max(120),
@@ -11,7 +13,6 @@ export const updateBranchInput = z.object({
     id: z.uuid(),
     name: z.string().trim().min(1).max(120).optional(),
     address: z.string().trim().max(500).nullish(),
-    /** Deactivated rather than deleted — appointments reference branches. */
     active: z.boolean().optional(),
 });
 

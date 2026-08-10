@@ -1,32 +1,24 @@
+/**
+ * The two hooks every settings screen is built out of — stand-ins for TanStack
+ * Query, so there is no cache or invalidation yet: a write calls `reload`,
+ * what `invalidateQueries` will do for free later. `load` is captured in a
+ * ref, not listed as a dependency, or a screen writing it inline would refetch
+ * on every render; a generation counter drops stale responses and invalidates
+ * on unmount. `run` never rejects — errors surface via `error` so the editor
+ * stays open. Messages localize from `ERROR_CODE`, never the server's text.
+ */
 import { ERROR_CODE } from '@mawid/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './_LocalApi';
 
-/**
- * The two hooks every settings screen is built out of.
- *
- * TanStack Query is what these become — it is the choice in SPEC §2 and it
- * arrives with the tRPC client (F2). Until then this is the smallest thing that
- * gives a screen the three states it is not allowed to skip: a list has loading
- * and error, a mutation has pending. There is no cache and no invalidation; a
- * write reloads the query it affected by calling `reload`, which is what
- * `invalidateQueries` will do for free later. See BLOCKED.md.
- */
-
 export interface QueryResult<T> {
     data: T | undefined;
-    /** True on the first load only. A reload keeps the stale rows on screen. */
     loading: boolean;
     reloading: boolean;
     error: Error | null;
     reload: () => void;
 }
 
-/**
- * `load` is called on mount and on every `reload`. It is captured in a ref
- * rather than listed as a dependency: a screen writing it inline would
- * otherwise refetch on every render, and every settings screen writes it inline.
- */
 export function useQuery<T>(load: () => Promise<T>): QueryResult<T> {
     const [data, setData] = useState<T>();
     const [error, setError] = useState<Error | null>(null);
@@ -35,7 +27,6 @@ export function useQuery<T>(load: () => Promise<T>): QueryResult<T> {
     const loadRef = useRef(load);
     loadRef.current = load;
 
-    // The one place a fetch is started, so the one place an effect is needed.
     const generation = useRef(0);
 
     const run = useCallback(() => {
@@ -47,8 +38,6 @@ export function useQuery<T>(load: () => Promise<T>): QueryResult<T> {
         loadRef
             .current()
             .then((result) => {
-                // A reload that started later has already answered; this one is
-                // stale and its rows would flicker the newer ones away.
                 if (generation.current !== generationAtStart) return;
                 setData(result);
                 setPending(false);
@@ -62,8 +51,6 @@ export function useQuery<T>(load: () => Promise<T>): QueryResult<T> {
 
     useEffect(() => {
         run();
-        // A screen that unmounts mid-flight invalidates the response rather
-        // than setting state on a component that is gone.
         return () => {
             generation.current += 1;
         };
@@ -79,18 +66,12 @@ export function useQuery<T>(load: () => Promise<T>): QueryResult<T> {
 }
 
 export interface MutationResult<TInput, TOutput> {
-    /** Resolves to the result, or to `undefined` when the write failed. */
     run: (input: TInput) => Promise<TOutput | undefined>;
     pending: boolean;
     error: Error | null;
     reset: () => void;
 }
 
-/**
- * A single write, with the pending state the buttons need. `run` never rejects
- * — a settings screen has nowhere to put an unhandled rejection, and every
- * caller wants the same thing: keep the editor open and show `error`.
- */
 export function useMutation<TInput, TOutput>(
     write: (input: TInput) => Promise<TOutput>,
 ): MutationResult<TInput, TOutput> {
@@ -122,12 +103,6 @@ function asError(value: unknown): Error {
     return value instanceof Error ? value : new Error(String(value));
 }
 
-/**
- * English for a failure. The client localizes from `ERROR_CODE` and never from
- * the server's message text (SPEC §4, §14) — this is that switch, in the one
- * language the app has until the localization scaffold (F4) lands with the
- * dictionaries. See BLOCKED.md.
- */
 export function errorMessage(error: Error | null): string | undefined {
     if (!error) return undefined;
     if (!(error instanceof ApiError)) return "Something went wrong. It wasn't saved.";

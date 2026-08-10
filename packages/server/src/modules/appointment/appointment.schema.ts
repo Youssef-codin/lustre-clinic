@@ -1,14 +1,17 @@
-import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@mawid/shared';
-import { z } from 'zod';
-
 /**
  * SPEC §7, §13. `patient` is a discriminated union: book for someone on file,
  * or create them in the same transaction.
+ *
+ * `offsetMinutes` is the client's UTC offset, so "today" and date inputs mean
+ * the clinic's day. `updateAppointmentInput.status` sets only `no_show` —
+ * cancel and check-in have their own calls. `awaitPaymentInput` marks that the
+ * doctor is finished and the patient pays at the desk (§7).
  */
+import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@mawid/shared';
+import { z } from 'zod';
 
 const duration = z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MINUTES);
 
-/** The client's UTC offset in minutes, so "today" means the clinic's today. */
 const offsetMinutes = z.number().int().min(-840).max(840).default(0);
 
 export const patientRefInput = z.discriminatedUnion('kind', [
@@ -40,7 +43,6 @@ export const walkInInput = z.object({
 });
 
 export const byDateInput = z.object({
-    /** `YYYY-MM-DD`, the clinic's local day. */
     date: z.iso.date(),
     branchId: z.uuid().optional(),
     offsetMinutes,
@@ -55,13 +57,11 @@ export const updateAppointmentInput = z.object({
     branchId: z.uuid().optional(),
     typeId: z.uuid().nullish(),
     note: z.string().trim().max(2000).nullish(),
-    /** Only `no_show` is set this way; cancel and check-in have their own calls. */
     status: z.literal('no_show').optional(),
 });
 
 export const cancelAppointmentInput = z.object({ id: z.uuid() });
 
-/** §7 — the doctor is finished; the patient pays at the desk. */
 export const awaitPaymentInput = z.object({ id: z.uuid() });
 
 export const missedInput = z

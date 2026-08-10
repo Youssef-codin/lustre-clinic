@@ -1,3 +1,6 @@
+/**
+ * −/value/+ on a grey track. Quantities, never money.
+ */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { color, radius, space, Text } from '../../theme';
 
@@ -11,7 +14,6 @@ export type StepperProps = {
     testID?: string;
 };
 
-/** −/value/+ on a grey track. Quantities, never money. */
 export function Stepper({
     value,
     onChange,

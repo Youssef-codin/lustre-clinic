@@ -1,3 +1,10 @@
+/**
+ * The designs draw a native `<select>` with a chevron. React Native's native
+ * pickers differ enough between platforms that the row would not match either
+ * design, so the control is the field plus a Sheet of options — one appearance
+ * on both platforms, and the option labels get per-string script detection for
+ * free.
+ */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { color, radius, size, space, Text } from '../../theme';
@@ -17,18 +24,10 @@ export type SelectProps<T extends string> = {
     hint?: string;
     error?: string;
     disabled?: boolean;
-    /** Defaults to the field's label. */
     sheetTitle?: string;
     testID?: string;
 };
 
-/**
- * The designs draw a native `<select>` with a chevron. React Native's native
- * pickers differ enough between platforms that the row would not match either
- * design, so the control is the field plus a Sheet of options — one appearance
- * on both platforms, and the option labels get per-string script detection for
- * free.
- */
 export function Select<T extends string>({
     options,
     value,

@@ -1,9 +1,3 @@
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
-import { db } from '../../db/index.ts';
-import { appointments, patients, payments, visits } from '../../db/schema.ts';
-import { dayRange } from '../../util/time.ts';
-import type { BalanceSummaryInput } from './balance.schema.ts';
-
 /**
  * SPEC §10:
  *
@@ -11,14 +5,23 @@ import type { BalanceSummaryInput } from './balance.schema.ts';
  *
  * Derived, never stored. There is no unpaid status — a payment is a row, not a
  * state transition — so every figure here is computed at read time.
+ *
+ * In `summary`, charged is attributed to the visit's appointment date while
+ * collected is attributed to the day the money arrived, which is why the two
+ * are counted separately rather than differenced per visit. `to` is inclusive
+ * as a date, so the range ends at the start of the following day.
  */
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { db } from '../../db/index.ts';
+import { appointments, patients, payments, visits } from '../../db/schema.ts';
+import { dayRange } from '../../util/time.ts';
+import type { BalanceSummaryInput } from './balance.schema.ts';
 
 export interface PatientBalance {
     patientId: string;
     name: string;
     phone: string;
     balance: number;
-    /** Start of the oldest visit that still owes something. */
     oldestUnpaidAt: Date;
 }
 
@@ -40,11 +43,9 @@ export interface VisitBalance {
 export interface BalanceSummary {
     charged: number;
     collected: number;
-    /** `charged - collected` over the period, not the standing balance. */
     difference: number;
 }
 
-/** Payments rolled up per visit, reused by every query in this module. */
 function paidPerVisit() {
     return db
         .select({
@@ -57,7 +58,6 @@ function paidPerVisit() {
 }
 
 export const balanceService = {
-    /** Patients who owe something, aggregated across their visits (§10). */
     async outstanding(): Promise<OutstandingReport> {
         const paid = paidPerVisit();
         const balance = sql<number>`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0))::int`;
@@ -84,7 +84,6 @@ export const balanceService = {
         };
     },
 
-    /** That patient's visits which still owe something. */
     async byPatient(patientId: string): Promise<VisitBalance[]> {
         const paid = paidPerVisit();
 
@@ -111,16 +110,8 @@ export const balanceService = {
         return rows.map((row) => ({ ...row, balance: row.chargedTotal - row.paidTotal }));
     },
 
-    /**
-     * Charged versus collected over a period (§10). Charged is attributed to
-     * the visit's appointment date; collected is attributed to the day the
-     * money arrived, which is why the two are counted separately rather than
-     * differenced per visit.
-     */
     async summary(input: BalanceSummaryInput): Promise<BalanceSummary> {
         const { from } = dayRange(input.from, input.offsetMinutes);
-        // `to` is inclusive as a date, so the range ends at the start of the
-        // following day.
         const { to } = dayRange(input.to, input.offsetMinutes);
 
         const [charged] = await db

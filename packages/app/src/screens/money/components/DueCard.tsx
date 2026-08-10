@@ -1,18 +1,13 @@
+// The canvas panel for a visit's balance. Overpayment does not exist (§7.6): a
+// payment is clamped to the amount due when it is taken, so there is no
+// negative balance — nothing here handles `balance < 0` because nothing can
+// produce one.
 import { StyleSheet, View } from 'react-native';
 import { Card, CardDivider, Dot } from '../../../components/ui';
 import { color, space, Text } from '../../../theme';
 import { MoneyValue } from '../_LocalMoneyValue';
 
-// Inventory §5 `domain/DueCard` — the canvas panel with the large figure, plus
-// Inventory §5 `domain/BalanceStrip`'s settled / outstanding states folded in,
-// since on this screen they are the same statement.
-//
-// §7.6: overpayment does not exist. The amount due is clamped where a payment is
-// taken, so there is no negative balance and no "refund due" state to draw.
-// Nothing here handles `balance < 0`, because nothing can produce it.
-
 export type DueCardProps = {
-    /** Integer piastres, derived by the server. */
     balance: number;
     chargedTotal: number;
     paidTotal: number;

@@ -56,6 +56,19 @@ if [ -z "$serial" ]; then
 fi
 echo "Device: $serial"
 
+# gradle.properties pins `reactNativeArchitectures` to x86_64, because the
+# emulator is the everyday target and building all four ABIs is what made a
+# 16 GB machine thrash. A phone is not x86_64, and an APK without its slice is
+# `INSTALL_FAILED_NO_MATCHING_ABIS` — so ask the phone what it is and override.
+#
+# `ORG_GRADLE_PROJECT_<name>` is a Gradle property set from the environment,
+# which is the only lever here: `expo run:android` has no flag to forward one.
+abi=$(adb -s "$serial" shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')
+if [ -n "$abi" ]; then
+    export ORG_GRADLE_PROJECT_reactNativeArchitectures="$abi"
+    echo "Building for $abi (this device's ABI)."
+fi
+
 # Metro so the JS bundle loads; API so tRPC calls to localhost:3000 reach us.
 adb -s "$serial" reverse "tcp:${METRO_PORT}" "tcp:${METRO_PORT}" >/dev/null
 adb -s "$serial" reverse "tcp:${API_PORT}" "tcp:${API_PORT}" >/dev/null

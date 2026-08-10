@@ -38,7 +38,6 @@ const TEXT: Record<TagTone, TextTone> = {
     danger: 'danger',
 };
 
-/** Uppercase mono micro-label — REQUIRED, CHECKUP, INACTIVE, DROPDOWN. */
 export function Tag({ children, tone = 'muted', variant = 'outline' }: TagProps) {
     return (
         <View

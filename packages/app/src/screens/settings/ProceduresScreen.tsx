@@ -1,3 +1,15 @@
+/**
+ * Settings → Procedures and prices. The catalogue is a self-referencing tree,
+ * one level deep: a row with children is a category — a heading with no price
+ * that never reaches a visit — and only leaves are chargeable, each priced on
+ * its own (a variant is a leaf). Nothing is ever deleted; deactivate stops it
+ * appearing in the picker and keeps it on every visit that already charged for
+ * it, at the snapshot price, so edits are forward-only. Inactive rows stay
+ * visible here, dimmed, because this is the screen where a deactivated
+ * procedure is brought back. In reorder mode the price is dropped rather than
+ * sat beside the arrows — a tappable price next to small buttons reprises by
+ * accident.
+ */
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
@@ -28,24 +40,7 @@ import { api } from './data/_LocalApi';
 import { errorMessage, useMutation, useQuery } from './data/hooks';
 import type { Procedure, ProcedureNode } from './data/types';
 
-/**
- * Settings → Procedures and prices (SPEC §5, §12).
- *
- * The catalogue is a self-referencing tree, one level deep. A row with children
- * is a **category** and is not selectable — it is a heading, so it has no price
- * and never reaches a visit. Only leaves are chargeable, and each carries its
- * own price: Crown → Zirconia / E.max, Composite → Class I–IV. There is no
- * separate variant concept; a variant is a leaf, which is what §7.4 resolves.
- *
- * Nothing is ever deleted (§7.8). A procedure is deactivated: it stops
- * appearing in the catalogue picker and stays on every visit that already
- * charged for it, at the price it was charged at (`visit_procedures.unit_price`
- * is a snapshot, §5). Editing a price is forward-only for the same reason.
- */
 export function ProceduresScreen({ onBack }: { onBack: () => void }) {
-    // Inactive rows are shown here, dimmed — this is the one screen where a
-    // deactivated procedure has to be findable, because it is where it is
-    // brought back.
     const tree = useQuery(useCallback(() => api.procedure.tree({ includeInactive: true }), []));
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
@@ -232,12 +227,6 @@ type ProcedureRowProps = {
     onMoveDown: () => void;
 };
 
-/**
- * Name, its flags, and a price. In reorder mode the price is replaced rather
- * than sat beside the arrows — the design freezes it deliberately, because a
- * tappable price next to a pair of small buttons is a way to reprice a
- * procedure by accident.
- */
 function ProcedureRow({
     procedure,
     reordering,
@@ -303,7 +292,6 @@ function ProcedureRow({
 
 type ProcedureEditorProps = {
     procedure: Procedure | null;
-    /** Set when the row is being added under a category from its card footer. */
     parent: ProcedureNode | null;
     categories: ProcedureNode[];
     onClose: () => void;
@@ -322,8 +310,6 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
     const [submitted, setSubmitted] = useState(false);
     const [confirming, setConfirming] = useState(false);
 
-    // A row that already has children is a category: it is a heading, so its
-    // price and flags are not editable and the form says why.
     const isCategory = categories.some((category) => category.id === procedure?.id);
 
     const save = useMutation(async () => {

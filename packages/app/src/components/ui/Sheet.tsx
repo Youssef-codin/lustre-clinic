@@ -1,3 +1,17 @@
+/**
+ * Bottom sheet — `translateY(102%)` to 0 over `.24–.32s cubic-bezier(.32,.72,0,1)`,
+ * r26 top corners, 38×4 grab handle (Component Inventory §4.3).
+ *
+ * Keyboard handling: iOS gets `KeyboardAvoidingView` padding; Android is left to
+ * `softwareKeyboardLayoutMode: resize` in app.json, which already shrinks the
+ * window under the modal — adding padding there as well would double it. The
+ * scroll cap is the window minus the keyboard, and `keyboardShouldPersistTaps="handled"`
+ * keeps the first tap from being swallowed by the keyboard close. The sheet
+ * stays mounted through the exit so it animates out; `requestClose` routes every
+ * close path (including Android's hardware back, which `Modal` sends here via
+ * `onRequestClose`) and refuses all of them while `dismissable` is false, so a
+ * write in flight cannot be cancelled into an unknown state.
+ */
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -21,44 +35,14 @@ export type SheetProps = {
     visible: boolean;
     onClose: () => void;
     title?: string;
-    /** Sits under the title in muted subhead. */
     subtitle?: string;
     children?: ReactNode;
-    /**
-     * Pinned below the scroll area — buttons stay reachable however long the
-     * content is. Give it the actions, not content.
-     */
     footer?: ReactNode;
-    /** Fraction of the window the sheet may grow to before it scrolls. */
     maxHeightRatio?: number;
-    /** A sheet mid-write should not be dismissable by tapping the scrim. */
     dismissable?: boolean;
     testID?: string;
 };
 
-/**
- * Bottom sheet — `translateY(102%)` to 0 over `.24–.32s cubic-bezier(.32,.72,0,1)`,
- * r26 top corners, 38x4 grab handle (Component Inventory §4.3).
- *
- * ## The keyboard
- *
- * Half the sheets in this app hold inputs — the tooth picker's search, the
- * catalogue search, every settings editor, the payment amount. A sheet that
- * ignores the keyboard puts its own footer under it, which is where the Save
- * button lives.
- *
- * Three things have to be true, and each is handled separately:
- *
- * 1. **The sheet moves.** `KeyboardAvoidingView` with `padding` on iOS. Android
- *    is left to `softwareKeyboardLayoutMode: resize` in app.json, which resizes
- *    the window under the modal — adding padding there as well would double it.
- * 2. **The content stays reachable.** The scroll area's cap is the window minus
- *    the keyboard, so a long form still scrolls to its end instead of stopping
- *    behind the keys.
- * 3. **The first tap counts.** `keyboardShouldPersistTaps="handled"` — without
- *    it the tap that closes the keyboard is swallowed, and the Save the user
- *    thinks they pressed never fired.
- */
 export function Sheet({
     visible,
     onClose,
@@ -87,8 +71,6 @@ export function Sheet({
             useNativeDriver: true,
         });
         animation.start(({ finished }) => {
-            // Stay mounted through the exit so it animates out rather than
-            // vanishing; a cancelled run means another one took over.
             if (finished && !visible) setMounted(false);
         });
 
@@ -96,22 +78,14 @@ export function Sheet({
     }, [visible, progress, reducedMotion]);
 
     function requestClose() {
-        // Every close path lands here, including Android's hardware back button —
-        // which `Modal` routes to `onRequestClose` whatever the scrim is doing. A
-        // sheet held open by a write in flight has to refuse all of them, or the
-        // back button cancels a confirm into an unknown state and the user
-        // re-confirms a write that may already have been issued.
         if (!dismissable) return;
 
-        // The keyboard belongs to a field that is about to unmount. Dismissing it
-        // first means one animation instead of two fighting.
         Keyboard.dismiss();
         onClose();
     }
 
     if (!mounted) return null;
 
-    // 102% in the designs — the extra 2% keeps the shadow off the bottom edge.
     const travel = sheetHeight > 0 ? sheetHeight * 1.02 : window.height;
     const availableHeight = window.height - (Platform.OS === 'ios' ? keyboard : 0);
 
@@ -121,9 +95,6 @@ export function Sheet({
             transparent
             animationType="none"
             onRequestClose={requestClose}
-            // Left opaque so Android's `resize` mode applies to the modal window;
-            // with a translucent status bar it resizes the wrong one and the
-            // keyboard covers the sheet.
             statusBarTranslucent={false}
             testID={testID}
         >
@@ -192,8 +163,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
         borderTopStartRadius: radius.sheet,
         borderTopEndRadius: radius.sheet,
-        // Clears the home indicator without a safe-area provider. Replace with a
-        // real inset when one lands in the shell.
         paddingBottom: space[6],
     },
     handleRow: { alignItems: 'center', paddingTop: space[2.5], paddingBottom: space[1] },

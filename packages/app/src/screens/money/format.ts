@@ -1,7 +1,9 @@
-import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@mawid/shared';
-
 // Dates and error copy for the money cluster. Money itself is not formatted
-// here — that is `_LocalMoneyValue`, and it is the only place (§7.12).
+// here — `_LocalMoneyValue` is the only place (§7.12). `visa` is labelled
+// "Card" because that is what the desk calls it; the stored value is untouched.
+// The client switches on `ERROR_CODE` and never parses the server's message,
+// and this one map is where a localisation scaffold will land.
+import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@mawid/shared';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const;
 
@@ -22,7 +24,6 @@ const MONTHS_LONG = [
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** The two-line stamp on a visit row: `02` over `MAY`. */
 export function dayStamp(iso: string): { day: string; month: string } {
     const date = new Date(iso);
     return {
@@ -31,13 +32,11 @@ export function dayStamp(iso: string): { day: string; month: string } {
     };
 }
 
-/** `2 May 2026`. */
 export function longDate(iso: string): string {
     const date = new Date(iso);
     return `${date.getDate()} ${MONTHS_LONG[date.getMonth()] ?? ''} ${date.getFullYear()}`;
 }
 
-/** `2 May 2026, 11:20`. Payments are timestamped; visits are not, on this screen. */
 export function longDateTime(iso: string): string {
     const date = new Date(iso);
     const hours = String(date.getHours()).padStart(2, '0');
@@ -45,12 +44,6 @@ export function longDateTime(iso: string): string {
     return `${longDate(iso)}, ${hours}:${minutes}`;
 }
 
-/**
- * How long a balance has been outstanding, for the debtor row's caption. Counted
- * in whole days from the start of the oldest unpaid visit, then rounded up into
- * a coarser unit — the number is a sense of age, not an accounting figure, and
- * "Outstanding 213 days" is harder to read than "7 months".
- */
 export function outstandingAge(iso: string, now: Date = new Date()): string {
     const days = Math.floor((now.getTime() - new Date(iso).getTime()) / MS_PER_DAY);
 
@@ -65,11 +58,6 @@ export function outstandingAge(iso: string, now: Date = new Date()): string {
     return years === 1 ? '1 year' : `${years} years`;
 }
 
-/**
- * §5 fixes the enum at `cash | visa | instapay | other`. `visa` is labelled
- * "Card" because that is what the payment design's tiles say and what the desk
- * calls it; the stored value is untouched.
- */
 const METHOD_LABEL: Record<PaymentMethod, string> = {
     cash: 'Cash',
     visa: 'Card',
@@ -82,11 +70,6 @@ export function methodLabel(method: PaymentMethod, note?: string | null): string
     return METHOD_LABEL[method];
 }
 
-/**
- * §4, §14 — the client switches on `ERROR_CODE` and never parses the server's
- * message. One map, so the localisation scaffold has a single place to replace
- * when it lands.
- */
 const ERROR_MESSAGE: Partial<Record<ErrorCode, string>> = {
     [ERROR_CODE.DB_UNAVAILABLE]: "Can't reach the clinic server.",
     [ERROR_CODE.NOT_FOUND]: 'That visit no longer exists.',

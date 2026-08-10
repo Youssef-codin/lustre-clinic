@@ -1,24 +1,17 @@
+/**
+ * The app's global navigation: four items, 22px stroked icons over an 11px
+ * label, the active tab in `ink` and the rest in `muted`. The fourth tab is the
+ * role — "Doctor" or "Secretary" — not a gear: the device is the account, so the
+ * tab says which one it is, and its icon is a tooth, the clinic's mark. The bar
+ * sits in flow at the bottom of the shell rather than absolutely positioned, and
+ * carries the bottom safe-area inset itself — an absolute position would put the
+ * labels under Android's own gesture bar.
+ */
 import type { ClientRole } from '@mawid/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { border, color, radius, size, space, Text } from '../../theme';
-
-/**
- * The app's global navigation, drawn from `doctor-day-view.html`: four items,
- * 22px stroked icons over an 11px label, the active one in `ink` and the rest
- * in `muted`. No pill, no fill, no accent — the design gives the active tab
- * weight and colour and nothing else.
- *
- * The fourth tab is the role, not a gear: it reads "Doctor" or "Secretary"
- * depending on what this phone is set to, which is also what its screen is for
- * (§6, §7.10). The device is the account, so the tab says which one it is.
- *
- * The bar sits *in flow* at the bottom of the shell rather than over the
- * screens, and carries the bottom safe-area inset itself. Android draws its own
- * gesture bar in that strip: an absolutely positioned bar puts the labels
- * underneath it.
- */
 
 export type TabKey = 'day' | 'patients' | 'money' | 'role';
 
@@ -28,7 +21,6 @@ export type BottomTabBarProps = {
     onChange: (tab: TabKey) => void;
 };
 
-/** 24×24 line icons, traced from the design's SVGs. */
 const ICONS: Record<TabKey, (stroke: string) => React.ReactNode> = {
     day: (stroke) => (
         <>
@@ -50,7 +42,6 @@ const ICONS: Record<TabKey, (stroke: string) => React.ReactNode> = {
             <Circle cx={17} cy={15} r={1.3} stroke={stroke} />
         </>
     ),
-    // A tooth. The clinic's own mark for "whose phone is this".
     role: (stroke) => (
         <>
             <Path

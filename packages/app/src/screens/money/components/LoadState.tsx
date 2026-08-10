@@ -1,3 +1,7 @@
+// Loading, failed, and data renderings for the money screens. The rule: an
+// error replaces the data — a stale figure that failed to refresh must never
+// sit above current-looking numbers, because acting on a balance that has
+// moved is worse than a screen that says it is broken.
 import type { ErrorCode } from '@mawid/shared';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
@@ -6,16 +10,6 @@ import { Button, Card, PULSE, useReducedMotion } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import { errorMessage } from '../format';
 
-// §7.14 — the gap the designs never drew. The whole architecture is a
-// clinic-local server over Tailscale, so every list on these screens has three
-// renderings and not one: loading, failed, and the data. This is the piece that
-// makes writing all three cheap enough that no screen quietly skips two.
-//
-// The rule the cluster follows: an error replaces the data, it never sits above
-// it. A balance that failed to refresh but is still on screen looks current, and
-// a stale figure someone acts on is worse than a screen that says it is broken.
-
-/** A grey block standing in for a line of text while it loads. */
 export function SkeletonBlock({ width, height = 12 }: { width: number | `${number}%`; height?: number }) {
     const opacity = useRef(new Animated.Value(1)).current;
     const reducedMotion = useReducedMotion();
@@ -41,7 +35,6 @@ export function SkeletonBlock({ width, height = 12 }: { width: number | `${numbe
     return <Animated.View style={[styles.block, { width, height, opacity }]} />;
 }
 
-/** The shape of a list row while its list is loading. */
 export function SkeletonRows({ rows = 3 }: { rows?: number }) {
     return (
         <Card>
@@ -59,7 +52,6 @@ export function SkeletonRows({ rows = 3 }: { rows?: number }) {
     );
 }
 
-/** The shape of a card while its figures load. */
 export function SkeletonCard({ height = 132 }: { height?: number }) {
     return (
         <Card padded style={{ minHeight: height }}>
@@ -76,7 +68,6 @@ export type LoadStateProps = {
     isLoading: boolean;
     error: ErrorCode | null;
     onRetry: () => void;
-    /** What stands in while the data is in flight. */
     skeleton: ReactNode;
     children: ReactNode;
 };

@@ -1,11 +1,14 @@
 import { Text as RNText, type TextProps as RNTextProps, StyleSheet } from 'react-native';
 import { color, font, type } from './tokens';
 
-/**
- * The type ramp. A screen picks a variant; it never picks a size, a line height
- * or a family. Adding a size means adding it to `type` in tokens.ts and giving
- * it a name here.
- */
+// The type ramp: a screen picks a variant, never a size, line height or family
+// (adding a size means adding it to `type` in tokens.ts and naming it here).
+// The face is chosen per string — a clinic holds Arabic and Latin labels in one
+// list, so an Arabic label gets Noto Naskh even on an English screen. Mono
+// variants (figure, amount, eyebrow, tag) stay in DM Mono even inside Arabic:
+// it has no Arabic-Indic coverage and swapping faces would break tabular
+// alignment (§7.11). The `live` tone is legible on `ink` only — never on a
+// white ground.
 export type TextVariant = keyof typeof type;
 
 export type TextWeight = keyof typeof font.sans;
@@ -20,14 +23,10 @@ export type TextTone =
     | 'danger'
     | 'wa'
     | 'inverse'
-    /** The chair card's green. Legible on `ink` only — never on a white ground. */
     | 'live';
 
 type Script = keyof typeof font;
 
-// Variants that are mono by nature — numerals, eyebrows and tags stay in DM Mono
-// even inside an Arabic screen, because it has no Arabic-Indic coverage and
-// swapping the face would break tabular alignment (Component Inventory §7.11).
 const MONO_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>(['figure', 'amount', 'eyebrow', 'tag']);
 
 const UPPERCASE_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>(['eyebrow', 'tag']);
@@ -68,11 +67,6 @@ const styles = StyleSheet.create({
 
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
 
-/**
- * Per-string script detection (Component Inventory §6). A clinic holds Arabic and
- * Latin question labels in one list, so the face is chosen per string rather than
- * per screen — an Arabic label gets Noto Naskh even on an English screen.
- */
 export function containsArabic(node: React.ReactNode): boolean {
     if (typeof node === 'string') return ARABIC.test(node);
     if (Array.isArray(node)) return node.some(containsArabic);
@@ -83,7 +77,6 @@ export type TextProps = RNTextProps & {
     variant?: TextVariant;
     weight?: TextWeight;
     tone?: TextTone;
-    /** Force the face instead of detecting it from the string. */
     script?: Script;
 };
 

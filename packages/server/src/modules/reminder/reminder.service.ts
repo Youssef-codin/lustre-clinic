@@ -1,3 +1,16 @@
+/**
+ * SPEC §11. No automated sending: a row is created on booking, the screen lists
+ * what is pending, and the user marks each one sent or skipped after opening
+ * WhatsApp. Delivery cannot be confirmed, so nothing here may depend on whether
+ * the message actually went out.
+ *
+ * `scheduleFor` runs inside the booking transaction so an appointment can never
+ * exist without its reminder. A cancelled appointment's reminder is marked
+ * skipped rather than deleted — the row is the record that no message was owed,
+ * and `appointment_id` is UNIQUE so a later reinstatement reuses it. Message
+ * times are shifted into the clinic's local day before formatting, because
+ * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
+ */
 import { REMINDER_PLACEHOLDERS } from '@mawid/shared';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
@@ -6,13 +19,6 @@ import { AppError } from '../../errors/AppError.ts';
 import { toWhatsAppNumber } from '../../util/phone.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import type { DismissTodayInput, PendingRemindersInput } from './reminder.schema.ts';
-
-/**
- * SPEC §11. No automated sending: a row is created on booking, the screen lists
- * what is pending, and the user marks each one sent or skipped after opening
- * WhatsApp. Delivery cannot be confirmed, so nothing here may depend on whether
- * the message actually went out.
- */
 
 export type Reminder = typeof reminders.$inferSelect;
 
@@ -23,12 +29,10 @@ export interface PendingReminder {
     startsAt: Date;
     ref: string;
     patient: { id: string; name: string; phone: string };
-    /** Ready to hand to `Linking.openURL` (§11). */
     whatsAppUrl: string;
     message: string;
 }
 
-/** `{{name}}` and friends. An unknown placeholder is left visible, not dropped. */
 export function renderTemplate(template: string, values: Record<string, string>): string {
     return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (whole, key: string) =>
         (REMINDER_PLACEHOLDERS as readonly string[]).includes(key) ? (values[key] ?? whole) : whole,
@@ -36,11 +40,6 @@ export function renderTemplate(template: string, values: Record<string, string>)
 }
 
 export const reminderService = {
-    /**
-     * §11 — created on booking, `due_at = starts_at - reminder_lead_hours`.
-     * Runs inside the booking transaction so an appointment can never exist
-     * without its reminder.
-     */
     async scheduleFor(
         executor: Executor,
         appointment: { id: string; startsAt: Date },
@@ -54,7 +53,6 @@ export const reminderService = {
             .onConflictDoUpdate({ target: reminders.appointmentId, set: { dueAt } });
     },
 
-    /** Follows a rescheduled appointment (§7). */
     async reschedule(executor: Executor, appointmentId: string, startsAt: Date): Promise<void> {
         const { reminderLeadHours } = await settingsService.get();
         await executor
@@ -63,11 +61,6 @@ export const reminderService = {
             .where(eq(reminders.appointmentId, appointmentId));
     },
 
-    /**
-     * A cancelled appointment's reminder is marked skipped rather than deleted:
-     * the row is the record that no message was owed, and `appointment_id` is
-     * UNIQUE, so a later reinstatement reuses it.
-     */
     async skipFor(executor: Executor, appointmentId: string): Promise<void> {
         await executor
             .update(reminders)
@@ -106,8 +99,6 @@ export const reminderService = {
             .limit(input.limit);
 
         return rows.map((row) => {
-            // Shifted into the clinic's local time before formatting: the
-            // message tells a patient when to turn up, and `startsAt` is UTC.
             const local = new Date(row.startsAt.getTime() + input.offsetMinutes * 60_000);
 
             const message = renderTemplate(settings.reminderTemplate, {
@@ -153,7 +144,6 @@ export const reminderService = {
         return row;
     },
 
-    /** §11 — suppresses the repeating notification for the rest of the day. */
     async dismissToday(input: DismissTodayInput) {
         return settingsService.dismissRemindersFor(input.date);
     },

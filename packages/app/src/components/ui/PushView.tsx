@@ -1,3 +1,10 @@
+/**
+ * The list → form transition in both settings editors: an absolutely positioned
+ * sibling that slides in from the inline edge and covers the list. Mirrors in
+ * Arabic, because a form that arrives from the wrong side reads as going back.
+ * Not a navigator — it is one screen showing one of two panes, which keeps the
+ * list's scroll position while a row is edited.
+ */
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, I18nManager, StyleSheet, useWindowDimensions } from 'react-native';
@@ -11,14 +18,6 @@ export type PushViewProps = {
     testID?: string;
 };
 
-/**
- * The list -> form transition in both settings editors: an absolutely positioned
- * sibling that slides in from the inline edge and covers the list. Mirrors in
- * Arabic, because a form that arrives from the wrong side reads as going back.
- *
- * Not a navigator. It is one screen showing one of two panes, which is what the
- * designs draw and what keeps the list's scroll position while a row is edited.
- */
 export function PushView({ visible, children, testID }: PushViewProps) {
     const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
     const [mounted, setMounted] = useState(visible);

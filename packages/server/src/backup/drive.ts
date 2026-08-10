@@ -1,5 +1,3 @@
-import { createSign } from 'node:crypto';
-
 /**
  * SPEC §16 — the off-site destination. Google Drive, reached with a service
  * account: no browser step, no refresh token to babysit, and nothing to
@@ -9,44 +7,29 @@ import { createSign } from 'node:crypto';
  * `googleapis`, which is a very large dependency for three calls (upload, list,
  * delete).
  *
- * ## Storage ownership
+ * A service account has no Drive storage of its own: uploading into a folder in
+ * someone's My Drive fails with `storageQuotaExceeded`. Use a shared drive
+ * (`BACKUP_DRIVE_FOLDER_ID` inside one) or domain-wide delegation via
+ * `BACKUP_DRIVE_SUBJECT`; on a personal Gmail account neither is available and
+ * this needs an OAuth refresh token instead.
  *
- * A service account has no Drive storage of its own. Uploading into a folder in
- * someone's My Drive therefore fails with `storageQuotaExceeded`, because the
- * file would be owned by the account that created it. Two configurations work:
- *
- * - **A shared drive** (Google Workspace). Share it with the service account as
- *   Content manager and point `BACKUP_DRIVE_FOLDER_ID` at a folder inside it.
- *   This is the intended setup.
- * - **Domain-wide delegation.** Set `BACKUP_DRIVE_SUBJECT` to a user the
- *   service account may impersonate; files are then owned by that user and
- *   count against their quota.
- *
- * If the clinic is on a personal Gmail account, neither is available and this
- * needs to become an OAuth refresh token against that account instead.
+ * Error bodies are read for the log but never include secrets; a 404 on delete
+ * means the file is already gone, which is the state pruning wanted.
  */
+import { createSign } from 'node:crypto';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v3/files';
 const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 
-/**
- * `drive.file` — per-file access to what this app creates. Enough to upload,
- * list, and prune its own dumps, and nothing else in the drive. Widen to
- * `https://www.googleapis.com/auth/drive` only if the folder cannot be reached.
- */
 const DEFAULT_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
-/** Tokens last an hour; renew a minute early rather than racing the expiry. */
 const TOKEN_SKEW_SECONDS = 60;
 
 export interface DriveCredentials {
     clientEmail: string;
-    /** PEM private key from the service-account JSON. */
     privateKey: string;
-    /** Folder the dumps land in. Must be inside a shared drive (see above). */
     folderId: string;
-    /** Optional user to impersonate, for domain-wide delegation. */
     subject?: string;
     scope?: string;
 }
@@ -70,10 +53,6 @@ function base64Url(input: string | Uint8Array): string {
         .replace(/=+$/, '');
 }
 
-/**
- * A `.env` file cannot hold a literal newline, so the PEM is normally pasted
- * with `\n` escapes. Both forms are accepted.
- */
 export function normalizePrivateKey(raw: string): string {
     const key = raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
     if (!key.includes('BEGIN')) {
@@ -82,10 +61,6 @@ export function normalizePrivateKey(raw: string): string {
     return key.trim();
 }
 
-/**
- * The signed assertion Google exchanges for an access token (RFC 7523).
- * Exported so a test can verify the signature rather than trust the shape.
- */
 export function buildJwt(credentials: DriveCredentials, nowMs: number): string {
     const issuedAt = Math.floor(nowMs / 1000);
 
@@ -106,7 +81,6 @@ export function buildJwt(credentials: DriveCredentials, nowMs: number): string {
 }
 
 export interface DriveClient {
-    /** Returns the new file's id. */
     upload(name: string, body: Uint8Array, mimeType?: string): Promise<string>;
     list(): Promise<DriveFile[]>;
     remove(fileId: string): Promise<void>;
@@ -131,7 +105,6 @@ export function createDriveClient(options: DriveOptions): DriveClient {
         });
 
         if (!res.ok) {
-            // The response body carries Google's reason but never a secret.
             throw new Error(`drive token request failed: ${res.status} ${await safeText(res)}`);
         }
 
@@ -158,7 +131,6 @@ export function createDriveClient(options: DriveOptions): DriveClient {
         async upload(name, body, mimeType = 'application/octet-stream'): Promise<string> {
             const metadata = { name, parents: [credentials.folderId] };
 
-            // Multipart upload: one request, metadata and bytes together.
             const boundary = `mawid-${crypto.randomUUID()}`;
             const parts = Buffer.concat([
                 Buffer.from(
@@ -213,7 +185,6 @@ export function createDriveClient(options: DriveOptions): DriveClient {
         async remove(fileId: string): Promise<void> {
             const res = await authed(`${FILES_URL}/${fileId}?supportsAllDrives=true`, { method: 'DELETE' });
 
-            // 404 means it is already gone, which is the state pruning wanted.
             if (!res.ok && res.status !== 404) {
                 throw new Error(`drive delete failed: ${res.status} ${await safeText(res)}`);
             }
@@ -221,7 +192,6 @@ export function createDriveClient(options: DriveOptions): DriveClient {
     };
 }
 
-/** Error bodies are for the log; never let reading one mask the real failure. */
 async function safeText(res: Response): Promise<string> {
     try {
         return (await res.text()).slice(0, 300);

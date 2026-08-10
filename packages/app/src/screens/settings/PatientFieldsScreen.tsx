@@ -1,3 +1,13 @@
+/**
+ * Settings → Patient fields. Five details are built in — they are columns on
+ * `patients`, not questions, so renaming one is a migration. Everything else is
+ * a `custom_questions` row the clinic writes, answered under a stable `key`.
+ * The verb is deactivate, never delete: deleting orphans every answer on a typo,
+ * while deactivating keeps the row so the key still points at the answers and
+ * reactivation shows them again. The answer type is fixed once answered —
+ * changing it would invalidate the stored answers. Labels need no direction
+ * handling; `Text` detects the Arabic script per string.
+ */
 import type { QuestionKind } from '@mawid/shared';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -28,22 +38,6 @@ import { api, optionsOf } from './data/_LocalApi';
 import { errorMessage, useMutation, useQuery } from './data/hooks';
 import type { CustomQuestion } from './data/types';
 
-/**
- * Settings → Patient fields (SPEC §5, §12).
- *
- * Five details are built in and cannot be touched. Everything else is a
- * `custom_questions` row the clinic writes itself, answered into
- * `patients.custom` under a stable `key`.
- *
- * The verb is deactivate, never delete (§7.8) — and here that resolution
- * matters more than it does for procedures. The design this screen comes from
- * deleted a question and promised the answers were "kept but hidden,
- * recoverable by re-adding a field with the same label", which silently orphans
- * every answer on a typo. Deactivating keeps the row, so the key keeps pointing
- * at the answers and reactivating shows them again.
- */
-
-/** §5 — columns on `patients`, not questions. Renaming one is a migration. */
 const FIXED_DETAILS = ['Full name', 'Phone', 'Email', 'Age', 'Sex'] as const;
 
 const KIND_LABEL: Record<QuestionKind, string> = {
@@ -205,11 +199,6 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     );
 }
 
-/**
- * The five built-in details, as inert chips. They are columns on `patients`,
- * not questions, so they cannot be renamed, reordered or removed — and the card
- * says so rather than leaving the clinic to find out by tapping.
- */
 function FixedDetailsCard() {
     return (
         <View style={styles.section}>
@@ -258,8 +247,6 @@ function QuestionRow({
             ? `${KIND_LABEL.select} · ${optionsOf(question).length} options`
             : KIND_LABEL[question.kind];
 
-    // The label carries the Arabic face by itself — `Text` detects the script
-    // per string, because a clinic holds Arabic and Latin labels in one list.
     const body = (
         <View style={[styles.rowText, !question.active && styles.dimmed]}>
             <Text variant="body" weight="medium">
@@ -356,7 +343,6 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
         submitted && kind === 'select' && options.length < 2 ? 'A dropdown needs at least two options.' : '';
     const busy = save.pending || setActive.pending;
 
-    /** The key is derived while it has not been typed into, and only on create. */
     function onChangeLabel(next: string) {
         setLabel(next);
         if (!keyEdited) setKey(toKey(next));
@@ -436,8 +422,6 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
                             key={option}
                             label={KIND_LABEL[option]}
                             selected={kind === option}
-                            // The kind decides how existing answers were stored,
-                            // so changing it would invalidate every one of them.
                             disabled={question !== null}
                             onPress={() => setKind(option)}
                         />
@@ -525,11 +509,6 @@ type FieldPreviewProps = {
     required: boolean;
 };
 
-/**
- * How the question will look where it is answered. It is the only place the
- * clinic sees the cost of a long label or an eight-option dropdown before a
- * patient does — inert on purpose, and it says so.
- */
 function FieldPreview({ label, kind, options, required }: FieldPreviewProps) {
     return (
         <Card variant="dashed" padded style={styles.preview}>
@@ -586,7 +565,6 @@ function previewValue(kind: QuestionKind, options: string[]): string {
     }
 }
 
-/** `How did you hear about us?` becomes `how_did_you_hear_about_us`. */
 function toKey(label: string): string {
     return label
         .toLowerCase()

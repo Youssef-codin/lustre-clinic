@@ -4,14 +4,12 @@ import { color, radius, size, space, Text } from '../../theme';
 export type RadioProps = {
     selected: boolean;
     onPress?: () => void;
-    /** With a label the whole row is the target; without, just the ring. */
     label?: string;
     disabled?: boolean;
     accessibilityLabel?: string;
     testID?: string;
 };
 
-/** 22px ring, 10px fill. */
 export function Radio({
     selected,
     onPress,

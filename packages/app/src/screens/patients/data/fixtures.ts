@@ -1,19 +1,11 @@
+// Seed data for `_LocalPatientsApi`, built to exercise the states the screens
+// must survive rather than to look plausible: mixed-script names (§6), every
+// answer kind the record renders plus a `date` question it does not yet edit
+// (§7.9), a deactivated question whose answers are still stored (§7.8), fully /
+// partly / never-answered patients, and visits with and without balances.
+// Amounts are piastres (§9): 260000 is EGP 2,600.
 import type { Answers, CustomQuestion, Patient, PatientVisit } from './types';
 
-/**
- * Seed data for `_LocalPatientsApi`. It exists to exercise the states the
- * screens have to survive, not to look plausible:
- *
- * - Arabic and Latin names in one list (§6 — the face is per string, and
- *   `<Text>` decides it, so nothing here sets one).
- * - A questionnaire holding every answer type the record renders, plus a
- *   `date` question the record deliberately does not yet edit, plus a
- *   deactivated one whose answers are still stored (§7.8).
- * - Patients that answered the questionnaire fully, partly, and not at all.
- * - Visits with a balance, settled visits, and a patient with no visits.
- */
-
-/** Piastres (§9). 260000 is EGP 2,600. */
 const EGP = 100;
 
 export const CUSTOM_QUESTIONS: CustomQuestion[] = [
@@ -38,8 +30,6 @@ export const CUSTOM_QUESTIONS: CustomQuestion[] = [
         active: true,
     },
     {
-        // An Arabic label sitting in the same list as Latin ones. The clinic
-        // types the question in whichever language it asks it in.
         id: 'q-chronic',
         key: 'chronic_conditions',
         label: 'الأمراض المزمنة',
@@ -70,8 +60,6 @@ export const CUSTOM_QUESTIONS: CustomQuestion[] = [
         active: true,
     },
     {
-        // Accepted by the server, not yet editable here (§7.9). On the record
-        // it renders read-only rather than disappearing or crashing.
         id: 'q-xray',
         key: 'last_xray',
         label: 'Last x-ray',
@@ -82,8 +70,6 @@ export const CUSTOM_QUESTIONS: CustomQuestion[] = [
         active: true,
     },
     {
-        // Deactivated, not deleted. Two patients below still hold an answer to
-        // it; the record must not show it, and saving must not drop it.
         id: 'q-insurance',
         key: 'insurance_provider',
         label: 'Insurance provider',
@@ -129,7 +115,6 @@ export const PATIENTS: Patient[] = [
             allergies: 'Penicillin',
             weight_kg: 68,
             last_xray: '2025-11-02',
-            // Answered before the question was deactivated. Preserved, hidden.
             insurance_provider: 'MedNet',
         },
     }),
@@ -138,7 +123,6 @@ export const PATIENTS: Patient[] = [
         gender: 'female',
         age: 28,
         createdAt: '2025-06-21T11:15:00.000Z',
-        // Registered before `weight_kg` and `last_xray` were added: two gaps.
         custom: { blood_type: 'O+', diabetic: true, allergies: 'None' },
     }),
     patient('p-3', 'أحمد سيد الشناوي', '+201227776655', {
@@ -159,7 +143,6 @@ export const PATIENTS: Patient[] = [
         gender: 'male',
         age: 23,
         createdAt: '2026-07-30T10:05:00.000Z',
-        // Booked over the phone, never sat down with the questionnaire.
         custom: {},
     }),
     patient('p-5', 'فاطمة الزهراء منصور', '+201099887711', {
@@ -181,8 +164,6 @@ export const PATIENTS: Patient[] = [
         age: 36,
         createdAt: '2025-03-08T16:20:00.000Z',
         custom: {
-            // The option 'AB' was renamed to 'AB+' after this was answered, so
-            // today's questionnaire would not accept it: an invalid-answer gap.
             blood_type: 'AB',
             diabetic: false,
             weight_kg: 80,
@@ -241,7 +222,6 @@ function visit(
     };
 }
 
-/** Newest first, the order `patient.byId` returns them in. */
 export const VISITS: Array<PatientVisit & { patientId: string }> = [
     visit('v-1', 'p-1', '120726-K4M9', '2026-07-12T09:30:00.000Z', 2700 * EGP, 1200 * EGP),
     visit('v-2', 'p-1', '030526-P7QW', '2026-05-03T11:00:00.000Z', 300 * EGP, 300 * EGP),

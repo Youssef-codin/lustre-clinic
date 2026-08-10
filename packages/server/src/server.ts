@@ -1,3 +1,11 @@
+/**
+ * SPEC §4. `Bun.serve` is the entire HTTP layer — no Express, no `ws`
+ * dependency. It hosts the tRPC fetch adapter, native WebSockets, and (later)
+ * APK downloads.
+ *
+ * There is no public ingress and no TLS: Tailscale is the transport and the
+ * security boundary (§1).
+ */
 import { TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import type { Server } from 'bun';
@@ -7,16 +15,9 @@ import { createContext } from './trpc/init.ts';
 import { appRouter } from './trpc/router.ts';
 import { type WsData, wsHandlers } from './ws/index.ts';
 
-/**
- * SPEC §4. `Bun.serve` is the entire HTTP layer — no Express, no `ws`
- * dependency. It hosts the tRPC fetch adapter, native WebSockets, and (later)
- * APK downloads.
- */
 export function createServer(port = config.PORT): Server<WsData> {
     return Bun.serve({
         port,
-        // No public ingress and no TLS: Tailscale is the transport and the
-        // security boundary (§1).
         fetch(req, server) {
             const url = new URL(req.url);
 
@@ -31,7 +32,6 @@ export function createServer(port = config.PORT): Server<WsData> {
                     req,
                     router: appRouter,
                     createContext,
-                    // Batching enabled (§4).
                     allowBatching: true,
                 });
             }

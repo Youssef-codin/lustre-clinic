@@ -3,6 +3,10 @@
  *
  * Background services live in `background/`. The reminder job lands here once
  * it exists.
+ *
+ * Ordering matters: monitoring starts before anything else so a startup
+ * failure is reported (§17), and the single settings row is seeded before
+ * anything reads it (§5, §12).
  */
 import { startBackupJob } from './background/backup.job.ts';
 import { config } from './config.ts';
@@ -12,7 +16,6 @@ import { settingsService } from './modules/settings/settings.service.ts';
 import { alert, startMonitoring, stopMonitoring } from './monitoring/index.ts';
 import { createServer } from './server.ts';
 
-// Before anything else, so a failure during startup is reported (§17).
 startMonitoring();
 
 try {
@@ -28,7 +31,6 @@ try {
     process.exit(1);
 }
 
-// The single settings row is seeded before anything reads it (§5, §12).
 await settingsService.ensureSeeded();
 
 const backupJob = startBackupJob();

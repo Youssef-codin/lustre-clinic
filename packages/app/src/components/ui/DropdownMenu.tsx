@@ -16,11 +16,6 @@ export type DropdownMenuProps<T extends string> = {
     testID?: string;
 };
 
-/**
- * A menu that picks one of a set — the money screen's sort order. Same surface as
- * PopoverMenu, but the rows are radios with a check rather than actions, which is
- * the difference the designs draw with `menuitemradio`.
- */
 export function DropdownMenu<T extends string>({
     visible,
     onClose,

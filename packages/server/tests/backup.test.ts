@@ -23,8 +23,16 @@ import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpe
 
 /**
  * SPEC §16. The end-to-end test dumps the real database, restores it into a
- * scratch database, and compares — which is the whole point of the section:
- * a dump nobody has restored is not a backup.
+ * scratch database, and compares — a dump nobody has restored is not a backup.
+ *
+ * Retention and pruning must tell dumps apart by identity, not name: two runs
+ * inside the same second share a file name, and a name-keyed policy keeps them
+ * both forever. Retention only ever sees files it can name, so strangers in the
+ * off-site folder are never touched. The `runBackup` suite needs
+ * pg_dump/pg_restore and a reachable database; it is skipped on workstations
+ * that lack them but never in CI, and resolves the binaries through PG_BIN_DIR
+ * exactly as the backup code does. It runs with `offsite: false` so a
+ * throwaway dump never reaches a real Drive folder when credentials exist.
  */
 
 describe('backup file names', () => {
@@ -52,7 +60,6 @@ describe('backup file names', () => {
 });
 
 describe('retention', () => {
-    /** One dump a day, newest first, ending on `end`. */
     function daily(days: number, end = new Date('2027-01-01T00:00:00Z')): BackupFile[] {
         return Array.from({ length: days }, (_, i) => {
             const at = new Date(end.getTime() - i * 86_400_000);
@@ -78,8 +85,6 @@ describe('retention', () => {
         const files = daily(400);
         const retained = selectRetained(files);
 
-        // 14 daily + up to 8 weekly + up to 12 monthly, with overlap between
-        // the sets — far fewer than the 400 that went in.
         expect(retained.size).toBeLessThanOrEqual(14 + 8 + 12);
         expect(retained.size).toBeGreaterThan(20);
         expect(selectForDeletion(files).length).toBe(files.length - retained.size);
@@ -95,9 +100,6 @@ describe('retention', () => {
     });
 
     test('keeps one of two dumps that share a name, and deletes the other', () => {
-        // Two runs inside the same second produce the same file name. Matching
-        // on name kept both forever — the bucket was full, so neither was ever
-        // a deletion candidate. Retention has to tell them apart by identity.
         const at = new Date('2027-01-01T00:00:00Z');
         const first = { name: 'mawid-2027-01-01T00-00-00Z.dump', at };
         const second = { name: 'mawid-2027-01-01T00-00-00Z.dump', at };
@@ -107,7 +109,6 @@ describe('retention', () => {
 
         expect(retained.size).toBe(1);
         expect(doomed.length).toBe(1);
-        // Whichever was kept, the other one goes — and they are different objects.
         expect(retained.has(doomed[0] as (typeof doomed)[number])).toBe(false);
     });
 
@@ -124,8 +125,6 @@ describe('retention', () => {
 
 describe('offsiteDestination', () => {
     test('is null when nothing is configured, so a run stays local', () => {
-        // The test environment sets neither Drive nor S3 credentials. If this
-        // ever fails, `runBackup` in the suite below is talking to the network.
         expect(offsiteDestination()).toBeNull();
     });
 });
@@ -141,8 +140,6 @@ describe('off-site listings', () => {
     });
 
     test('a file whose name is not a dump is never a candidate for pruning', () => {
-        // The safety property: the folder may hold anything, and retention only
-        // ever sees the files it can name.
         const entries = [
             { name: dump, handle: 'ours' },
             { name: 'clinic-scans.zip', handle: 'theirs' },
@@ -151,14 +148,11 @@ describe('off-site listings', () => {
         ];
 
         expect(selectOffsiteDumps(entries).map((f) => f.handle)).toEqual(['ours']);
-        // Even a policy that keeps nothing cannot reach the strangers.
         const doomed = selectForDeletion(selectOffsiteDumps(entries), { daily: 0, weekly: 0, monthly: 0 });
         expect(doomed.map((f) => f.handle)).toEqual(['ours']);
     });
 
     test('carries the handle through retention, so deletion never looks up by name', () => {
-        // Two runs in the same second: same name, two distinct files off-site.
-        // Listed in one call, as `pruneOffsite` lists them — not one at a time.
         const older = `${backupFileName(new Date('2020-01-01T00:00:00Z'))}.enc`;
         const doomed = selectForDeletion(
             selectOffsiteDumps([
@@ -173,8 +167,6 @@ describe('off-site listings', () => {
     });
 
     test('a duplicate of the newest dump is pruned rather than kept forever', () => {
-        // The retained side of the same problem: both copies fill the newest
-        // bucket, so a name-keyed policy never proposed either for deletion.
         const doomed = selectForDeletion(
             selectOffsiteDumps([
                 { name: dump, handle: 'keep-one' },
@@ -217,7 +209,6 @@ describe('encryption', () => {
     test('refuses a payload that has been tampered with', () => {
         const key = parseKey(generateKey());
         const envelope = encrypt(new TextEncoder().encode('body'), key);
-        // Flip a bit in the authentication tag.
         envelope.writeUInt8(envelope.readUInt8(envelope.length - 1) ^ 0xff, envelope.length - 1);
 
         expect(() => decrypt(envelope, key)).toThrow();
@@ -236,17 +227,6 @@ describe('encryption', () => {
     });
 });
 
-/**
- * Needs `pg_dump`/`pg_restore` and a reachable database. Skipped rather than
- * failed on a workstation that lacks them, so the unit tests above still run —
- * but never in CI, where a silent skip would mean the one test that proves a
- * dump can be restored quietly stops running (§16).
- *
- * Resolved through `PG_BIN_DIR` the same way `backup/pg.ts` does, so this probes
- * the binary the backup will actually invoke. Checking a bare `pg_dump` instead
- * would answer for a different one — on a host where PATH holds an older major
- * version, which is precisely when `PG_BIN_DIR` is set.
- */
 function pgBinary(program: string): string {
     return config.PG_BIN_DIR ? join(config.PG_BIN_DIR, program) : program;
 }
@@ -284,10 +264,6 @@ describe.skipIf(!hasPgTools)('runBackup', () => {
 
     test('dumps, verifies by restoring, prunes, and records success', async () => {
         try {
-            // `offsite: false` is not decoration. Without it a developer or a
-            // runner with Drive credentials in the environment uploads this
-            // throwaway dump to the clinic's real folder and prunes it against
-            // the 2027 timestamp below.
             const result = await runBackup({
                 directory,
                 now: new Date('2027-01-01T00:00:00Z'),
@@ -296,7 +272,6 @@ describe.skipIf(!hasPgTools)('runBackup', () => {
 
             expect(result.bytes).toBeGreaterThan(0);
             expect(result.verified).toBe(true);
-            // No off-site destination configured in tests.
             expect(result.offsiteKey).toBeNull();
 
             const files = await listLocalBackups(directory);

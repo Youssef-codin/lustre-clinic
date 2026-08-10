@@ -1,3 +1,7 @@
+// Wrong numbers on the money screens are worse than missing ones, and `bun
+// test` has no renderer, so what is tested here is everything that decides a
+// figure: the piastre-to-pound conversion, the compact form, the currency
+// rule, the overpayment clamp, and the derivations the screens trust.
 import { describe, expect, it } from 'bun:test';
 import { moneyApi } from './_LocalMoneyApi';
 import { outstandingAge } from './format';
@@ -11,11 +15,6 @@ import {
     isWholePounds,
     toEgp,
 } from './money';
-
-// Wrong numbers on the money screens are worse than missing ones, and there is
-// no renderer in `bun test` (ui/README.md), so what is tested here is everything
-// that decides a figure: the piastre-to-pound conversion, the compact form, the
-// currency rule, the overpayment clamp, and the derivations the screens trust.
 
 describe('piastres to pounds (§7.12)', () => {
     it('never shows piastres', () => {
@@ -76,7 +75,6 @@ describe('compact form — hero and stat cards only (§7.12)', () => {
 
 describe('overpayment does not exist (§7.6)', () => {
     it('caps a payment at the balance', () => {
-        // 2,600 owed; 5,000 typed.
         expect(clampToBalance(5_000, 260_000)).toBe(260_000);
     });
 
@@ -85,8 +83,6 @@ describe('overpayment does not exist (§7.6)', () => {
     });
 
     it('caps against the balance in piastres, not the rounded pound figure', () => {
-        // A balance of 120.50 rounds to a due of 121 pounds. Taking 121 pounds
-        // would be 50 piastres more than is owed.
         expect(toEgp(12_050)).toBe(121);
         expect(clampToBalance(121, 12_050)).toBe(12_050);
     });
@@ -120,7 +116,6 @@ describe('balances are derived, never stored (§10)', () => {
         const report = await moneyApi.outstanding();
 
         const mariam = report.patients.find((row) => row.name === 'Mariam Hassan');
-        // 400,000 charged less 140,000 paid, plus 175,000 unpaid.
         expect(mariam?.balance).toBe(435_000);
     });
 
@@ -153,7 +148,6 @@ describe('balances are derived, never stored (§10)', () => {
 
         expect(after.paidTotal).toBe(20_000);
         expect(after.balance).toBe(500_000);
-        // `charged_total` is untouched: a payment is a row, not an edit (§10).
         expect(after.chargedTotal).toBe(before.chargedTotal);
     });
 });
@@ -182,9 +176,6 @@ describe('the payment field takes whole pounds only (§7.12)', () => {
     });
 
     it('refuses a decimal rather than reinterpreting it', () => {
-        // The keyboard is `decimal-pad`, so the separator is reachable. Stripping
-        // it would turn 12.50 into 1250 — a hundredfold overcharge that then
-        // passes the clamp, because 1,250 is a plausible payment.
         expect(isWholePounds('12.50')).toBe(false);
         expect(isWholePounds('12.')).toBe(false);
         expect(isWholePounds('12,50')).toBe(false);
@@ -197,15 +188,11 @@ describe('the payment field takes whole pounds only (§7.12)', () => {
         const stripped = Number('12.50'.replace(/[^0-9]/g, ''));
         expect(stripped).toBe(1250);
         expect(clampToBalance(stripped, 500_000)).toBe(125_000);
-        // The guard is what stops that value ever reaching the field.
         expect(isWholePounds('12.50')).toBe(false);
     });
 });
 
 describe('a period can collect more than it charged', () => {
-    // `balance.summary` attributes charges to the visit's date and payments to
-    // the day the money arrived (balance.service.ts), so an old balance settled
-    // on a quiet day is an ordinary event that makes `difference` negative.
     const quietDay = { charged: 40_000, collected: 160_000, difference: -120_000 };
 
     it('never draws a negative amount due (§7.6)', () => {
@@ -236,15 +223,9 @@ describe('a period can collect more than it charged', () => {
 });
 
 describe('the mirrored contract matches what the server actually returns', () => {
-    // The mirror is hand-written (BLOCKED.md #3), so this is the check that it
-    // has not grown a field `visit.byId` cannot supply. Inventing one is not a
-    // type error anywhere — it fails silently at the swap, as a header falling
-    // back to a placeholder and a date rendering `NaN undefined NaN`.
     it('exposes no appointment or patient fields on a visit', async () => {
         const visit = await moneyApi.visit('v-1');
 
-        // `visit.byId` returns the visits row; the visits table joins neither
-        // the appointment nor the patient (schema.ts).
         expect(visit).not.toHaveProperty('ref');
         expect(visit).not.toHaveProperty('startsAt');
         expect(visit).not.toHaveProperty('patientId');
@@ -284,9 +265,6 @@ describe('currency position (§7.13)', () => {
     });
 
     it('agrees with the single-string form, which is the reference order', () => {
-        // `MoneyValue` splits the figure and the currency into two Texts so the
-        // figure can stay mono; the split must not change the order the string
-        // form produces.
         for (const locale of ['en', 'ar'] as const) {
             const whole = formatEgp(260_000, { locale });
             const figure = formatEgp(260_000, { locale, showCurrency: false });

@@ -1,22 +1,16 @@
+/**
+ * A closed day is closed, not empty — an empty day invites a booking, a Friday
+ * means shut, and the two must be told apart or someone gets booked into a
+ * locked clinic. Anything already on a closed day is still shown: booking
+ * outside opening hours is the secretary's call and the server allows it, and
+ * a day that was open when it was booked can be closed afterwards.
+ */
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Callout, SectionLabel } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { weekdayName, weekdayOf } from '../time';
 import { AppointmentRow } from './AppointmentRow';
-
-/**
- * A closed day is closed, not empty.
- *
- * An empty timeline says "nothing booked yet" and invites the secretary to book
- * into it. A Friday says "we are shut". They are different facts and the screen
- * has to tell them apart, or someone gets booked into a locked clinic.
- *
- * Anything already on a closed day is still shown. Booking outside opening
- * hours is the secretary's call and the server allows it (§7) — an appointment
- * that exists must never be invisible, and a day that was open when it was
- * booked can be closed afterwards.
- */
 
 export type ClosedDayProps = {
     dateKey: string;

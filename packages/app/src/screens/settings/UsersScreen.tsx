@@ -1,24 +1,17 @@
+/**
+ * Settings → Users. There are no accounts: SPEC §1 has no authentication —
+ * reachability on the tailnet is the authorization model, and there is no
+ * `users` table. What exists is a role stored locally on the device and
+ * switchable at any time by whoever holds the phone; if accounts are ever
+ * wanted, they are a schema change and a real permission boundary, not a
+ * settings row.
+ */
 import { CLIENT_ROLES, type ClientRole } from '@mawid/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Callout, Card, CardDivider, ConfirmSheet, Radio, Toast } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
-
-/**
- * Settings → Users.
- *
- * There are no user accounts, and this screen's job is largely to say so.
- * SPEC §1: no authentication — reachability on the tailnet is the authorization
- * model, and there is no `users` table, no login, and nothing on the server that
- * knows who is holding a phone. What does exist is a **role** (§6), stored
- * locally on the device and switchable at any time by whoever has it.
- *
- * So the honest screen is one row: what this device is set to. Anything more
- * would draw an account system the clinic does not have and cannot rely on.
- * See BLOCKED.md — if accounts are ever wanted, they are a schema change and a
- * real permission boundary, not a settings row.
- */
 
 const ROLE_LABEL: Record<ClientRole, string> = {
     secretary: 'Secretary',
@@ -30,7 +23,6 @@ const ROLE_SUB: Record<ClientRole, string> = {
     doctor: 'Today, patient history, money, and these settings.',
 };
 
-/** What actually changes on switching. The design draws it as a checklist. */
 const ROLE_EFFECTS: Record<ClientRole, readonly string[]> = {
     secretary: [
         'The fourth tab becomes Secretary',

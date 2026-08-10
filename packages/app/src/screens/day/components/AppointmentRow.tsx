@@ -1,17 +1,15 @@
+/**
+ * The list form of an appointment — for the places a timeline makes no sense
+ * (a closed day, the calendar's day summary). §5 lists `domain/AppointmentRow`
+ * under the day views only, so it stays in the cluster rather than being a
+ * `_Local` awaiting promotion.
+ */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, Tag } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { formatTime } from '../time';
 import { _LocalStatusPill } from './_LocalStatusPill';
-
-/**
- * The list form of an appointment — for the places a timeline makes no sense:
- * a closed day, and the calendar's day summary.
- *
- * §5 lists `domain/AppointmentRow` under the day views only, so it stays in the
- * cluster rather than being a `_Local` awaiting promotion.
- */
 
 export type AppointmentRowProps = {
     appointment: Appointment;

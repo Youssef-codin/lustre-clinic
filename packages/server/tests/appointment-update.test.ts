@@ -11,15 +11,17 @@ import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { bookedAppointment, clinic, expectAppError, slot } from './helpers/factories.ts';
 
 /**
- * SPEC §7 — rescheduling and manual resolution.
+ * SPEC §7 — rescheduling and manual resolution. `appointment.update` is the one
+ * call that can move an appointment in time, and it carries three things nothing
+ * else does: the overlap constraint applies to an UPDATE as well as an INSERT,
+ * the reminder has to follow the new time, and `no_show` is the only status the
+ * client sets through this route. `overlap.test.ts` proves Postgres refuses a
+ * colliding UPDATE; this proves the service turns that refusal into
+ * SLOT_OVERLAP rather than an opaque 23P01.
  *
- * `appointment.update` is the one call that can move an appointment in time,
- * and it carries three things nothing else does: the overlap constraint applies
- * to an UPDATE as well as an INSERT, the reminder has to follow the new time,
- * and `no_show` is the only status the client sets through this route.
- *
- * `overlap.test.ts` proves Postgres refuses a colliding UPDATE. This proves the
- * service turns that refusal into something the client can act on.
+ * Key invariants: `ref` keeps the booking date (never reissued), `no_show`
+ * frees the slot and skips the reminder, and the transition table is guarded so
+ * a stray edit cannot quietly re-open a closed transition.
  */
 
 async function reminderFor(appointmentId: string) {
@@ -46,8 +48,6 @@ describe('rescheduling', () => {
     });
 
     test('reports a collision as SLOT_OVERLAP rather than a database error', async () => {
-        // The counterpart to the create-path test in modules.test.ts. Without
-        // the mapping the client gets an opaque 23P01 and cannot say why.
         const fixtures = await clinic();
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
@@ -99,8 +99,6 @@ describe('rescheduling', () => {
 
         await appointmentService.update({ id: appointment.id, startsAt: moved });
 
-        // §11 — `due_at = starts_at - reminder_lead_hours`. A reminder left on
-        // the old time fires for an appointment that is no longer then.
         const reminder = await reminderFor(appointment.id);
         expect(reminder?.dueAt.toISOString()).toBe(
             new Date(Date.parse(moved) - reminderLeadHours * 3_600_000).toISOString(),
@@ -108,9 +106,6 @@ describe('rescheduling', () => {
     });
 
     test('extending a duration into the next appointment is refused', async () => {
-        // 09:00–09:20 followed by 09:20–09:40. Stretching the first to 45
-        // minutes runs it into the second. Both durations are ones the clinic
-        // actually offers, so this fails on the overlap and not on validation.
         const fixtures = await clinic();
         const startsAt = slot();
         const first = await appointmentService.create({
@@ -142,8 +137,6 @@ describe('rescheduling', () => {
     });
 
     test('keeps the original ref, so the number the patient was given still works', async () => {
-        // The ref carries the booking date, not the appointment date. Moving an
-        // appointment does not reissue it — the patient is holding the old one.
         const { appointment } = await bookedAppointment();
         const moved = new Date(Date.parse(slot()) + 48 * 3_600_000).toISOString();
 
@@ -165,15 +158,12 @@ describe('status transitions', () => {
 
         await appointmentService.update({ id: appointment.id, status: 'no_show' });
 
-        // §11 — nobody is owed a message about an appointment that did not happen.
         expect((await reminderFor(appointment.id))?.status).toBe('skipped');
         const pending = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
         expect(pending.map((r) => r.appointmentId)).not.toContain(appointment.id);
     });
 
     test('a no_show frees the slot', async () => {
-        // The exclusion constraint covers `booked` and `checked_in` only, so
-        // resolving a missed appointment makes the time bookable again (§5).
         const fixtures = await clinic();
         const startsAt = slot();
         const first = await appointmentService.create({
@@ -207,16 +197,12 @@ describe('status transitions', () => {
         const { appointment } = await bookedAppointment();
         await visitService.checkIn({ appointmentId: appointment.id });
 
-        // §7: `checked_in` goes only to `awaiting_payment` or `done`. Somebody
-        // who is in the chair cannot retroactively not have turned up.
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
             appointmentService.update({ id: appointment.id, status: 'no_show' }),
         );
     });
 
     test('the transition table permits exactly what §7 draws', () => {
-        // A guard on the table itself: every service guard reads from it, so a
-        // stray edit here would quietly re-open a transition the spec closed.
         expect(APPOINTMENT_TRANSITIONS).toEqual({
             booked: ['checked_in', 'cancelled', 'no_show'],
             checked_in: ['awaiting_payment', 'done'],
@@ -248,8 +234,6 @@ describe('reminder.markSkipped', () => {
         const skipped = await reminderService.markSkipped(reminder.id);
 
         expect(skipped.status).toBe('skipped');
-        // §11 — delivery is never confirmable, so `sent` must mean somebody said
-        // they sent it. Skipping is not sending.
         expect(skipped.sentAt).toBeNull();
         expect((await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 })).length).toBe(
             0,

@@ -1,31 +1,17 @@
+// `ui/` is the design system and it knows nothing about Mawid (Component
+// Inventory §2). That is what keeps screen work parallelisable: screens are built
+// against a frozen `ui/`, and if a primitive could reach a domain type, two
+// screens could disagree about what a Button is. A `ui/` file may import from
+// `react`, `react-native`, `../../theme` and its own siblings; anything else —
+// `@mawid/shared`, `../domain`, a tRPC client, a navigator — is a boundary
+// violation.
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { Glob } from 'bun';
 
-// `ui/` is the design system and it knows nothing about Mawid (Component
-// Inventory §2). That is not a style preference — it is what makes the screen
-// work parallelisable. Screens are built by separate agents against a frozen
-// `ui/`, and the moment one of them can reach a domain type through a primitive,
-// two screens can disagree about what a Button is and the freeze is gone.
-//
-// A `ui/` file may import from:
-//   - `react` and `react-native`
-//   - `../../theme`
-//   - its own siblings (`./Button`)
-//
-// Anything else — `@mawid/shared`, `../domain`, `../../screens`, a tRPC client,
-// a navigator — is a boundary violation. If a primitive needs to know that a
-// visit has procedures, the component belongs in `domain/`.
-
 const UI_ROOT = path.resolve(import.meta.dir);
 
-const ALLOWED = [
-    /^react$/,
-    /^react\/.+/,
-    /^react-native$/,
-    /^\.\.\/\.\.\/theme$/,
-    /^\.\/[\w.-]+$/, // siblings
-];
+const ALLOWED = [/^react$/, /^react\/.+/, /^react-native$/, /^\.\.\/\.\.\/theme$/, /^\.\/[\w.-]+$/];
 
 const IMPORT = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*'([^']+)'/g;
 

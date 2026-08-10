@@ -1,3 +1,11 @@
+// The money dashboard. Every figure was computed by the server: this screen
+// does not add, subtract, round, format or cache money, and the debtor list is
+// deliberately not period-filtered (an outstanding balance is standing, not
+// period-scoped). Three independent queries each render their own loading and
+// error states, so one failure never takes another figure down. Search is
+// client-side because `balance.outstanding` takes no argument (BLOCKED.md #6).
+// The list total is the outstanding total, not the filtered total, so it is
+// hidden while searching rather than recomputed.
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Card, EmptyState, ScreenHeader, SearchField, SectionLabel } from '../../components/ui';
@@ -18,22 +26,7 @@ import { PeriodTabs } from './components/PeriodTabs';
 import { StatCard } from './components/StatCard';
 import { TakingsCard } from './components/TakingsCard';
 
-// The money dashboard — `money-dashboard-v2.html`, the largest design in the
-// export. Hero, stat cards, takings, debtors, search.
-//
-// Every figure on this screen was computed by the server. The screen holds three
-// independent queries and each renders its own loading and error state, so a
-// takings card that failed never takes the hero down with it, and a figure is
-// never drawn from a query that did not answer.
-//
-// The four things this screen deliberately does NOT do:
-//   - add, subtract or round any amount (§10, §7.12)
-//   - format money (that is `MoneyValue`, and only `MoneyValue`)
-//   - cache a balance across a period change
-//   - filter the debtor list by period — see `PeriodTabs` for why
-
 export type MoneyScreenProps = {
-    /** Bumped when a payment lands anywhere in the cluster; every figure re-reads. */
     version: number;
     onOpenPatient: (patientId: string, name: string) => void;
 };
@@ -42,17 +35,12 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
 
-    // All three are period- and version-keyed: a payment changes what was
-    // collected, which changes the rate, the takings and the amount owed.
     const summary = useBalanceSummary(period, version);
     const takings = useTakings(period, version);
     const outstanding = useOutstanding(version);
 
     const periodLabel = PERIOD_LABEL[period];
 
-    // Client-side, over the array `balance.outstanding` returned — the procedure
-    // takes no search argument (BLOCKED.md #6). Name and phone, because the desk
-    // knows a patient by either.
     const debtors = useMemo(() => {
         const rows = outstanding.data?.patients ?? [];
         const needle = search.trim().toLowerCase();
@@ -113,9 +101,6 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
                             <StatCard
                                 label="Outstanding"
                                 amount={outstanding.data.total}
-                                // The one figure on this screen that is not
-                                // period-scoped, and it sits beside four that
-                                // are — so it says so.
                                 sub="All unpaid visits"
                                 tone="due"
                                 testID="money-stat-outstanding"
@@ -206,10 +191,6 @@ function DebtorList({
                 ))}
             </Card>
 
-            {/* The list total, not the filtered total — which is why it is
-                hidden while searching rather than recomputed. A search narrows
-                what is shown, and a total that moved with it would read as the
-                clinic being owed less than it is. */}
             {searching ? null : (
                 <View style={styles.totalRow}>
                     <Text variant="subhead" tone="muted">

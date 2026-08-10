@@ -1,3 +1,14 @@
+/**
+ * The header from `day-view-schedule.html`: a branch pill, the wordmark, a
+ * date pill. It replaces a centred `Today` between two arrows — the date pill
+ * is the only way off today and opens the calendar, carrying the weekday
+ * whenever the screen is not on today, so the fact the arrows made obvious is
+ * still written down. The branch menu anchors to the pill's start edge via
+ * physical left; in RTL the window width less the pill's far edge is the same
+ * distance measured the other way. The mark's `letterSpacing` is 0.28em at
+ * 15px written out (React Native has no `em`), with half-step padding so the
+ * glyphs sit centred.
+ */
 import { useRef, useState } from 'react';
 import { Dimensions, I18nManager, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, DropdownMenu, type MenuAnchor } from '../../../components/ui';
@@ -5,17 +16,6 @@ import { border, color, radius, shadow, size, space, Text } from '../../../theme
 import type { Branch } from '../data';
 import { formatDate, formatDatePill, relativeDayLabel } from '../time';
 import { CalendarIcon, PinIcon } from './icons';
-
-/**
- * The header from `day-view-schedule.html`: a branch pill, the wordmark, a date
- * pill. Three small things on one line, none of them a title.
- *
- * It replaces a centred `Today` between two arrow buttons. The design has no
- * arrows — the date pill is the only way off today, and it opens the calendar,
- * which is the control that can answer "which Thursday" as well as "tomorrow".
- * The pill carries the weekday whenever the screen is not on today, so the fact
- * the arrows used to make obvious is still written down.
- */
 
 export type DayHeaderProps = {
     dateKey: string;
@@ -34,10 +34,6 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
     const switchable = branches.length > 1;
 
     function openBranches() {
-        // The pill sits in the start gutter, so the menu hangs from its start
-        // edge. `x` is a physical left, which is the inline start only in a
-        // left-to-right layout; in Arabic the window width less the pill's far
-        // edge is the same distance measured the other way.
         pill.current?.measureInWindow((x, y, width, height) => {
             const rtl = I18nManager.isRTL;
             setAnchor({
@@ -69,8 +65,6 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
                     </Pressable>
                 </View>
 
-                {/* Centred on the header, not between the pills — the two are
-                    different widths and the wordmark has to sit on the axis. */}
                 <View style={styles.markSlot} pointerEvents="none">
                     <Text variant="body" weight="semibold" style={styles.mark}>
                         MAWID
@@ -126,11 +120,7 @@ const styles = StyleSheet.create({
         boxShadow: shadow.pill,
     },
     pressed: { backgroundColor: color.surface2 },
-    // A long branch name shortens rather than pushing the date pill off-screen.
     branch: { maxWidth: 120 },
     markSlot: { position: 'absolute', start: 0, end: 0, alignItems: 'center' },
-    // 0.28em at 15px. React Native has no em, so it is written out. The spacing
-    // also lands after the final D, which pulls the glyphs half a step left of
-    // the box; the padding is that half, not the whole.
     mark: { letterSpacing: 4.2, paddingStart: 2.1 },
 });

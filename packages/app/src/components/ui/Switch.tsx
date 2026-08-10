@@ -17,7 +17,6 @@ const TRACK_HEIGHT = 28;
 const KNOB = 22;
 const TRAVEL = TRACK_WIDTH - KNOB - 6;
 
-/** 46x28 track, 22px knob, ink when on. Mirrors in Arabic. */
 export function Switch({ value, onValueChange, disabled = false, accessibilityLabel, testID }: SwitchProps) {
     const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
     const reducedMotion = useReducedMotion();

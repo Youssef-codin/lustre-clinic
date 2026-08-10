@@ -1,16 +1,13 @@
+// The cluster's logic lives in three places — money formatting, answer
+// draft↔wire conversion, and patch semantics — and there is no renderer in
+// `bun test`, so the components are verified on a device and this covers what
+// would fail silently.
 import { describe, expect, it } from 'bun:test';
 import { displayAnswer, fromDraft, isEditable, toDraft, validateDraft } from './components/customFields';
 import { formatMoney } from './components/money';
 import { _LocalApiError, _LocalPatientsApi } from './data/_LocalPatientsApi';
 import { errorText } from './data/errors';
 import type { CustomQuestion } from './data/types';
-
-/**
- * The cluster's logic, which is all in three places: how money is formatted,
- * how an answer moves between its control and the wire, and what the patch
- * semantics guarantee. There is no renderer in `bun test`, so the components
- * themselves are verified on a device — this covers what would fail silently.
- */
 
 const question = (over: Partial<CustomQuestion> = {}): CustomQuestion => ({
     id: 'q',
@@ -42,7 +39,6 @@ describe('money (§7.12, §7.13)', () => {
     it('rounds a negative amount the same way as its positive twin, and keeps the sign', () => {
         expect(formatMoney(-250)).toBe('EGP -3');
         expect(formatMoney(250)).toBe('EGP 3');
-        // (-100, 0) rounds to zero, and zero has no sign to show.
         expect(formatMoney(-40)).toBe('EGP 0');
     });
 });

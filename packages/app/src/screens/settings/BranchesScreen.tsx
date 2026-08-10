@@ -1,3 +1,10 @@
+/**
+ * Settings → Branches. Branches are never deleted — appointments reference
+ * them and history must keep making sense — so the verb is deactivate, the
+ * same as procedures and patient fields, and a deactivated branch stays on
+ * every appointment that already names it. While a write is in flight, Back
+ * is blocked so leaving cannot hide whether the save landed.
+ */
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
@@ -24,14 +31,6 @@ import { api } from './data/_LocalApi';
 import { errorMessage, useMutation, useQuery } from './data/hooks';
 import type { Branch } from './data/types';
 
-/**
- * Settings → Branches (SPEC §12).
- *
- * Branches are never deleted. Appointments reference them and the history has to
- * keep making sense, so the verb is deactivate — the same verb procedures and
- * patient fields use (§7.8), and the same guarantee: it stops appearing in the
- * pickers and keeps every appointment that already names it.
- */
 export function BranchesScreen({ onBack }: { onBack: () => void }) {
     const branches = useQuery(useCallback(() => api.branch.list({ includeInactive: true }), []));
     const [editing, setEditing] = useState<Branch | 'new' | null>(null);
@@ -196,7 +195,6 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
     return (
         <Pane
             title={branch ? 'Edit branch' : 'New branch'}
-            // A write is in flight: leaving now would hide whether it landed.
             onBack={busy ? () => {} : onClose}
             footer={
                 <ActionBar

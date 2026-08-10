@@ -1,61 +1,29 @@
+/**
+ * The chair, at the top of the screen — the black card from
+ * `day-view-schedule.html`. The list answers "what does today look like"; this
+ * answers "what is happening right now", and it has three states because the
+ * clinic has three: someone in the chair or at the desk, someone due next, and
+ * nobody. The `ProgressBar` must sit in its own container: it sizes itself
+ * with `alignSelf`, which inside a row means nothing at all.
+ */
 import { StyleSheet, View } from 'react-native';
 import { Button, Dot, ProgressBar } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
+import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
-import { formatTime, minutesOfDay, minutesToClock, time12 } from '../time';
+import { minutesOfDay, time12 } from '../time';
 import { CheckIcon, ClockIcon } from './icons';
 
-/**
- * The chair, at the top of the screen — the black card from
- * `day-view-schedule.html`.
- *
- * The list answers "what does today look like"; this answers "what is happening
- * right now", which is the question the secretary actually has all day. It has
- * three states because the clinic has three: someone in the chair or at the
- * desk, someone due next, and nobody.
- */
-
 export type NowCardProps = {
-    /** The patient in the chair, or at the desk. */
     active: Appointment | null;
-    /** The next appointment still to arrive, if any. */
     next: Appointment | null;
     nowMinutes: number;
-    /** The procedure behind the active row's `typeId`, when it is known. */
     procedure?: string;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
     checkingInId: string | null;
 };
 
-/**
- * How far into the slot the clinic is.
- *
- * Against the *slot*, not against the patient: `checked_in` says nothing about
- * when they actually sat down (`checked_in_at` is on the visit, which this card
- * does not hold), so a bar presented as time in the chair would be a number the
- * secretary acts on and it would be wrong. Both halves of the label name the
- * slot, and past its end the bar stops filling and says so.
- */
-function slotProgress(appointment: Appointment, nowMinutes: number) {
-    const start = minutesOfDay(appointment.startsAt);
-    const elapsed = nowMinutes - start;
-    const duration = appointment.durationMinutes;
-    const over = elapsed - duration;
-
-    return {
-        value: duration > 0 ? elapsed / duration : 0,
-        over: over > 0,
-        label: over > 0 ? overLabel(over) : `${Math.max(elapsed, 0)} / ${duration} min`,
-        window: `${formatTime(appointment.startsAt)} – ${minutesToClock(start + duration)}`,
-    };
-}
-
-function overLabel(over: number): string {
-    return over < 60 ? `${over} min over` : `${Math.floor(over / 60)}h ${over % 60}m over`;
-}
-
-/** The eyebrow's right-hand end: when the slot began. */
 function StartedAt({ appointment }: { appointment: Appointment }) {
     const { time, meridiem } = time12(appointment.startsAt);
     return (
@@ -95,19 +63,12 @@ export function NowCard({
                 <View style={styles.detail}>
                     <ClockIcon />
                     <Text variant="callout" tone="muted" numberOfLines={1} style={styles.detailText}>
-                        {/* What is being done, which is what the design puts
-                            here. The note is the more specific answer when
-                            somebody wrote one; the slot window is the fallback
-                            for an appointment booked without a type. */}
                         {active.note ?? procedure ?? progress.window}
                     </Text>
                 </View>
 
                 {inChair ? (
                     <View style={styles.progress}>
-                        {/* The bar stretches to its own container: `ProgressBar`
-                            sizes itself with `alignSelf`, which in a row means
-                            nothing at all. */}
                         <View style={styles.track}>
                             <ProgressBar
                                 value={progress.value}

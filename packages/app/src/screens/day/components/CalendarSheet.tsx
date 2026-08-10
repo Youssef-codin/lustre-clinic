@@ -1,3 +1,13 @@
+/**
+ * A month, with how full each day is. The load bar is the reason this is not a
+ * date picker — "is Thursday busy" is the question asked over the phone, and
+ * counting by opening the day is how someone gets double-booked. The month is
+ * one request (`api.byDates` batches via `httpBatchLink`), not thirty-one.
+ * Cancelled and no-show rows hold no slot, so they do not make a day look
+ * busy. The pick follows the month, so the grid, the summary and "Go to this
+ * day" never describe different days. Today's thick border insets the
+ * absolute fill, so `pickedFillToday` bleeds the fill out under the border.
+ */
 import { SLOT_HOLDING_STATUSES } from '@mawid/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -8,23 +18,10 @@ import { describeError } from '../errors';
 import { isClosed, openMinutes } from '../hours';
 import { addMonths, formatDate, formatMonth, monthDays, parseKey, time12, todayKey } from '../time';
 
-/**
- * A month, with how full each day is.
- *
- * The load bar is the reason this is not a date picker. "Is Thursday busy" is
- * the question that gets asked over the phone, and answering it by opening
- * Thursday and counting is how someone gets double-booked while the secretary
- * is looking at the wrong day.
- *
- * The month is one request, not thirty-one: `api.byDates` batches (§4).
- */
-
 export type CalendarSheetProps = {
     visible: boolean;
-    /** The day the screen is on, which is where the grid opens. */
     selected: string;
     schedule: readonly ClinicDay[] | undefined;
-    /** Named in the legend — the load shown is this branch's, not the clinic's. */
     branchName: string | undefined;
     onPick: (dateKey: string) => void;
     onClose: () => void;
@@ -32,9 +29,7 @@ export type CalendarSheetProps = {
 
 interface DayLoad {
     count: number;
-    /** 0–1 of the clinic's open minutes. Over 0.9 reads as full. */
     fill: number;
-    /** ISO start of the first slot-holding appointment, for the summary. */
     firstAt: string | null;
 }
 
@@ -50,8 +45,6 @@ function loadsFrom(
 
     days.forEach((day, index) => {
         const rows = perDay[index] ?? [];
-        // Cancelled and no-show rows do not hold a slot (§7), so they do not
-        // make a day look busy either.
         const holding = rows.filter((row) =>
             (SLOT_HOLDING_STATUSES as readonly string[]).includes(row.status),
         );
@@ -87,19 +80,12 @@ export function CalendarSheet({
     const loads = query.data ? loadsFrom(days, query.data, schedule) : new Map<string, DayLoad>();
     const today = todayKey();
 
-    // Blank cells before the 1st, so the columns line up with their weekday.
     const leading = parseKey(days[0] ?? month).getDay();
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     const pendingLoad = loads.get(pending);
     const pendingClosed = isClosed(pending, schedule);
 
-    /**
-     * The pick follows the month. Left behind, the grid highlights nothing, the
-     * summary describes a day that is not on screen, and "Go to this day" goes
-     * back to the day the sheet opened on — which is where the secretary
-     * already was.
-     */
     function goToMonth(next: string) {
         setMonth(next);
         const nextDays = monthDays(next);
@@ -180,9 +166,14 @@ export function CalendarSheet({
                                     closed && styles.closed,
                                     full && styles.full,
                                     day === today && styles.today,
-                                    day === pending && styles.picked,
                                 ]}
                             >
+                                {day === pending ? (
+                                    <View
+                                        style={[styles.pickedFill, day === today && styles.pickedFillToday]}
+                                    />
+                                ) : null}
+
                                 <Text
                                     variant="callout"
                                     weight={day === pending || day === today ? 'semibold' : 'regular'}
@@ -191,10 +182,6 @@ export function CalendarSheet({
                                     {parseKey(day).getDate()}
                                 </Text>
 
-                                {/* A stub whose length is the count, not a track
-                                    that fills: four bookings and forty read the
-                                    same on a 40px cell, and the design sizes it
-                                    off the number rather than the minutes. */}
                                 <View
                                     style={[
                                         styles.load,
@@ -292,7 +279,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: space[1],
         borderRadius: radius.md,
-        paddingHorizontal: space[1],
     },
     closed: {
         backgroundColor: color.canvas,
@@ -302,9 +288,21 @@ const styles = StyleSheet.create({
     },
     full: { backgroundColor: color.dueSoft },
     today: { borderWidth: border.thick, borderColor: color.ink },
-    // The border width matches `today`'s: Android squares off the background of
-    // a rounded box that carries a border colour without one.
-    picked: { backgroundColor: color.ink, borderWidth: border.thick, borderColor: color.ink },
+    pickedFill: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        start: 0,
+        end: 0,
+        backgroundColor: color.ink,
+        borderRadius: radius.md,
+    },
+    pickedFillToday: {
+        top: -border.thick,
+        bottom: -border.thick,
+        start: -border.thick,
+        end: -border.thick,
+    },
     load: { height: 3, borderRadius: radius.full },
     legend: { flexDirection: 'row', gap: space[4], marginTop: space[4] },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },

@@ -1,11 +1,11 @@
 /**
- * Development seed. Fills an empty (or wiped) database with a clinic that
- * exercises every state the UI has to render: paid and part-paid visits, a
- * discount, a no-show, a cancellation, a walk-in, reminders in all three
- * statuses, a day with nothing on it, and a day booked back to back.
- *
- * Destructive — it deletes every domain row before inserting. Refuses to run
- * against anything but a local database unless `--force` is passed.
+ * Development seed exercising every state the UI renders. Destructive — deletes
+ * every domain row before inserting, and refuses non-local databases unless
+ * `--force` is passed. Prices are piastres (30_000 = 300 EGP). Times are
+ * clinic-local via a fixed offset (CLINIC_OFFSET_MINUTES, Africa/Cairo summer);
+ * omitting `visit.chargedTotal` charges the computed total (no discount).
+ * Deletes run child-first; inserts put categories before their children for the
+ * self-referencing `parent_id`.
  *
  *   bun packages/server/scripts/seed.ts
  */
@@ -37,16 +37,10 @@ import {
 import { logger } from '../src/logger.ts';
 import { buildRef } from '../src/util/ref.ts';
 
-/**
- * Africa/Cairo, summer. The seed builds instants from clinic-local wall clock
- * times, and a fixed offset keeps the generated data readable in the day view
- * without pulling in a timezone library for a dev-only script.
- */
 const CLINIC_OFFSET_MINUTES = 180;
 
 const id = () => Bun.randomUUIDv7();
 
-/** Midnight of today, clinic-local, as an absolute instant. */
 const todayLocalMidnight = (() => {
     const now = new Date();
     const local = new Date(now.getTime() + CLINIC_OFFSET_MINUTES * 60_000);
@@ -54,7 +48,6 @@ const todayLocalMidnight = (() => {
     return new Date(utcMidnight - CLINIC_OFFSET_MINUTES * 60_000);
 })();
 
-/** `at(-1, '14:30')` — half past two, clinic time, yesterday. */
 function at(dayOffset: number, hhmm: string): Date {
     const [hours, minutes] = hhmm.split(':').map(Number);
     return new Date(
@@ -81,8 +74,6 @@ if (!isLocalDatabase(config.DATABASE_URL) && !process.argv.includes('--force')) 
     process.exit(1);
 }
 
-// --- reference data ---------------------------------------------------------
-
 const mainBranch = {
     id: id(),
     name: 'Nasr City',
@@ -90,10 +81,8 @@ const mainBranch = {
     active: true,
 };
 const secondBranch = { id: id(), name: 'Maadi', address: '9 Road 9, Maadi, Cairo', active: true };
-/** Inactive, so the branch picker has something to filter out. */
 const oldBranch = { id: id(), name: 'Heliopolis (closed)', address: null, active: false };
 
-/** Sunday–Thursday open, Friday and Saturday absent: the clinic is shut. */
 const days = [
     { weekday: 0, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
     { weekday: 1, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
@@ -119,7 +108,6 @@ const restorativeCat = cat('Restorative', 1);
 const surgicalCat = cat('Surgical', 2);
 const cosmeticCat = cat('Cosmetic', 3);
 
-/** Prices are piastres. 30_000 = 300 EGP. */
 const proc = (
     parent: { id: string },
     name: string,
@@ -166,7 +154,6 @@ const procedures = [
     whitening,
 ];
 
-/** One of every question kind, plus an inactive one. */
 const questions = [
     {
         id: id(),
@@ -230,8 +217,6 @@ const questions = [
     },
 ];
 
-// --- patients ---------------------------------------------------------------
-
 const patient = (
     name: string,
     phone: string,
@@ -262,7 +247,6 @@ const nour = patient('Nour Abdelrahman', '+201001234567', {
     custom: { referral: 'Instagram', allergies: 'Penicillin', diabetic: false, systolic: 118 },
     notes: 'Prefers morning slots.',
 });
-/** Long-standing patient, everything filled in, several visits behind them. */
 const kareem = patient('Kareem Hassanein', '+201115550101', {
     email: 'kareem.h@example.com',
     birthDate: '1978-11-30',
@@ -276,9 +260,7 @@ const kareem = patient('Kareem Hassanein', '+201115550101', {
     },
     notes: 'Type 2 diabetic — confirm HbA1c before any extraction.',
 });
-/** Bare minimum: name and phone only. This is what a rushed desk entry looks like. */
 const sara = patient('Sara Elmasry', '+201227778899', { createdAt: at(-2, '09:40') });
-/** Child — deciduous teeth on the chart. */
 const yassin = patient('Yassin Tarek', '+201006661212', {
     birthDate: '2019-09-08',
     gender: 'male',
@@ -296,21 +278,16 @@ const omar = patient('Omar Sedky', '+201098765432', {
     gender: 'male',
     custom: { referral: 'Instagram', diabetic: false },
 });
-/** No-show history. */
 const hoda = patient('Hoda Naguib', '+201212121212', { birthDate: '1988-01-03', gender: 'female' });
-/** Registered today, nothing booked yet — an empty patient page. */
 const laila = patient('Laila Mostafa', '+201555443322', {
     email: 'laila.m@example.com',
     gender: 'female',
     custom: { referral: 'Other', diabetic: false },
     createdAt: at(0, '09:15'),
 });
-/** Same first name as another patient, to stress the search results. */
 const monaSecond = patient('Mona Abdelaziz', '+201004445566', { birthDate: '1995-12-01', gender: 'female' });
 
 const allPatients = [nour, kareem, sara, yassin, mona, omar, hoda, laila, monaSecond];
-
-// --- appointments -----------------------------------------------------------
 
 interface Line {
     procedure: { id: string; defaultPrice: number };
@@ -329,11 +306,9 @@ interface Booking {
     status: AppointmentStatus;
     channel?: AppointmentChannel;
     note?: string;
-    /** Present for anything that reached the chair. */
     visit?: {
         checkedInAt: Date;
         completedAt?: Date;
-        /** Omit to charge the computed total — i.e. no discount. */
         chargedTotal?: number;
         lines: Line[];
         payments?: { amount: number; method: PaymentMethod; methodNote?: string; paidAt: Date }[];
@@ -342,7 +317,6 @@ interface Booking {
 }
 
 const bookings: Booking[] = [
-    // --- last week: settled history ----------------------------------------
     {
         patient: kareem,
         branch: mainBranch,
@@ -361,7 +335,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 400_000, method: 'visa', paidAt: at(-7, '11:22') }],
         },
     },
-    // Paid in two instalments, in two different ways.
     {
         patient: mona,
         branch: mainBranch,
@@ -379,7 +352,6 @@ const bookings: Booking[] = [
             ],
         },
     },
-    // Discount: charged less than computed.
     {
         patient: yassin,
         branch: mainBranch,
@@ -399,7 +371,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 90_000, method: 'cash', paidAt: at(-6, '11:31') }],
         },
     },
-    // Outstanding balance — treated, paid part, still owes.
     {
         patient: omar,
         branch: secondBranch,
@@ -417,7 +388,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 300_000, method: 'cash', paidAt: at(-5, '14:16') }],
         },
     },
-    // Treated, nothing paid at all.
     {
         patient: sara,
         branch: secondBranch,
@@ -432,7 +402,6 @@ const bookings: Booking[] = [
             lines: [{ procedure: extraction, tooth: 'LL8' }, { procedure: consultation }],
         },
     },
-    // Paid with `other`, which requires a note.
     {
         patient: monaSecond,
         branch: mainBranch,
@@ -459,8 +428,6 @@ const bookings: Booking[] = [
         note: 'Cancelled the night before, travelling.',
     },
 
-    // --- today: the day view's live states ----------------------------------
-    // Finished and paid, earlier this morning.
     {
         patient: mona,
         branch: mainBranch,
@@ -475,7 +442,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 15_000, method: 'cash', paidAt: at(0, '10:29') }],
         },
     },
-    // In the chair now.
     {
         patient: kareem,
         branch: mainBranch,
@@ -489,7 +455,6 @@ const bookings: Booking[] = [
             lines: [{ procedure: rootCanal, tooth: 'LR6', note: 'Session 2 of 2.' }],
         },
     },
-    // Done in the chair, standing at the desk to pay.
     {
         patient: nour,
         branch: mainBranch,
@@ -505,7 +470,6 @@ const bookings: Booking[] = [
             ],
         },
     },
-    // Walk-in, checked in, no procedures entered yet.
     {
         patient: laila,
         branch: mainBranch,
@@ -516,7 +480,6 @@ const bookings: Booking[] = [
         channel: 'walk_in',
         visit: { checkedInAt: at(0, '12:26'), lines: [] },
     },
-    // Still to come today.
     {
         patient: omar,
         branch: mainBranch,
@@ -547,7 +510,6 @@ const bookings: Booking[] = [
     },
     { patient: hoda, branch: mainBranch, startsAt: at(0, '17:00'), type: consultation, status: 'cancelled' },
 
-    // --- tomorrow: reminders are due ----------------------------------------
     {
         patient: nour,
         branch: mainBranch,
@@ -575,7 +537,6 @@ const bookings: Booking[] = [
         reminder: { status: 'sent', sentAt: at(0, '19:01') },
     },
 
-    // --- day after tomorrow: back to back, no gaps --------------------------
     {
         patient: sara,
         branch: secondBranch,
@@ -622,9 +583,6 @@ const bookings: Booking[] = [
         reminder: { status: 'pending' },
     },
 
-    // Day +3 is deliberately left empty — the day view needs an empty state.
-
-    // --- further out ---------------------------------------------------------
     {
         patient: kareem,
         branch: mainBranch,
@@ -645,8 +603,6 @@ const bookings: Booking[] = [
         reminder: { status: 'pending' },
     },
 ];
-
-// --- insert -----------------------------------------------------------------
 
 const appointmentRows: (typeof appointments.$inferInsert)[] = [];
 const visitRows: (typeof visits.$inferInsert)[] = [];
@@ -727,7 +683,6 @@ for (const booking of bookings) {
 }
 
 await db.transaction(async (tx) => {
-    // Child tables first; `settings` keeps its single row and is updated below.
     await tx.delete(payments);
     await tx.delete(visitProcedures);
     await tx.delete(visits);
@@ -741,7 +696,6 @@ await db.transaction(async (tx) => {
 
     await tx.insert(branches).values([mainBranch, secondBranch, oldBranch]);
     await tx.insert(clinicDays).values(days);
-    // Categories before their children, for the self-referencing parent_id.
     await tx.insert(procedureTypes).values(procedures);
     await tx.insert(customQuestions).values(questions);
     await tx.insert(patients).values(allPatients);

@@ -1,3 +1,11 @@
+// Every patient, and the search over them. Arabic and Latin names are one list
+// — rows set no face and `<Text>` picks the script per string (§6). Order is
+// the server's (newest first); the A–Z grouping the design describes is not
+// drawn in it and is not invented here. Capped at the query limit (25), so a
+// plain ScrollView beats a FlatList. Balances are a separate query so a money
+// failure costs only the row's amount. A refresh that failed over an existing
+// list leaves it up — stale, not gone (§7.14). The search is debounced because
+// it runs over Tailscale; stale answers are dropped by `useQuery`.
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -16,25 +24,10 @@ import { _LocalPatientsApi } from './data/_LocalPatientsApi';
 import { useQuery } from './data/_LocalQuery';
 import { errorText } from './data/errors';
 
-/**
- * Every patient, and the search over them.
- *
- * Arabic and Latin names are one list, not two — `_LocalPatientRow` sets no
- * face and `<Text>` detects the script per string (§6). Sorting and grouping
- * are the server's `patient.search` order (newest first); the A–Z grouping the
- * design describes is not drawn in it and is not invented here.
- *
- * The list is capped at the query's `limit` (25), which is why it is a plain
- * `ScrollView` and not a `FlatList` — virtualising 25 rows costs more than it
- * saves. If the cap ever lifts, this becomes a `FlatList` and nothing else
- * changes.
- */
-
 export type PatientListScreenProps = {
     onOpen: (patientId: string) => void;
 };
 
-/** Long enough that a name is not four searches, short enough to feel typed. */
 const DEBOUNCE_MS = 250;
 
 export function PatientListScreen({ onOpen }: PatientListScreenProps) {
@@ -43,10 +36,6 @@ export function PatientListScreen({ onOpen }: PatientListScreenProps) {
 
     const patients = useQuery(() => _LocalPatientsApi.search(query), [query]);
 
-    // Balances are a separate query on purpose: it is another cluster's screen
-    // that owns them, it is not what this list is for, and a patient list that
-    // cannot render until the money answers is a patient list that is down
-    // whenever the money is. A failure here costs the row's amount, nothing else.
     const balances = useQuery(() => _LocalPatientsApi.outstanding(), []);
     const dueByPatient = new Map((balances.data ?? []).map((row) => [row.patientId, row.balance]));
 
@@ -70,8 +59,6 @@ export function PatientListScreen({ onOpen }: PatientListScreenProps) {
                     />
                 </View>
 
-                {/* A refresh that failed over a list we already have. The list
-                    stays; it is stale, not gone (§7.14). */}
                 {patients.error && patients.data && (
                     <View style={styles.inset}>
                         <Banner tone="warning" message="Could not refresh. Showing the last results." />
@@ -120,11 +107,6 @@ export function PatientListScreen({ onOpen }: PatientListScreenProps) {
     );
 }
 
-/**
- * The search runs against a PC in the clinic over Tailscale, so it is not run
- * per keystroke. Stale answers are dropped by `useQuery` rather than by this —
- * debouncing is about how many round trips, not about which one wins.
- */
 function useDebounced(value: string, ms: number): string {
     const [settled, setSettled] = useState(value);
 

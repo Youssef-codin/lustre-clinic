@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { asRequestError, type RequestError } from './client';
-
 /**
  * `_LocalQuery` / `_LocalMutation` — BLOCKED.md. TanStack Query is Phase 1 F2
- * and is not a dependency yet. This is the part of it the day view actually
- * uses: a request with loading and error states, a refetch, and a mutation that
- * reports pending.
- *
- * What it deliberately is not: a cache, a deduper, or a background refetcher.
- * Adding those here would build a second query library that the real one then
- * has to be reconciled with.
+ * and is not a dependency yet; this is the part of it the day view uses. It is
+ * deliberately not a cache, a deduper, or a background refetcher — adding those
+ * would build a second query library the real one has to be reconciled with.
+ * `key` is what identifies a request (change it and the query runs again);
+ * `run` lives in a ref so an inline arrow never refetches — the key is the
+ * only thing that does. A slow answer for yesterday landing after the tap that
+ * moved to today is guarded by an attempt counter, and data is cleared on key
+ * change rather than on error, so a *failed refresh* still keeps the day on
+ * screen behind its stale-data banner. Every mutation crosses Tailscale, so
+ * `pending` is what stops the second tap becoming a second appointment, and
+ * errors are held rather than thrown so a failed write ends up on screen.
  */
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { asRequestError, type RequestError } from './client';
 
 export type QueryStatus = 'loading' | 'success' | 'error';
 
@@ -18,16 +21,10 @@ export interface QueryResult<T> {
     data: T | undefined;
     status: QueryStatus;
     error: RequestError | null;
-    /** A refetch over data already on screen — a spinner, not a skeleton. */
     refreshing: boolean;
     refetch: () => void;
 }
 
-/**
- * `key` is what identifies the request: change it and the query runs again.
- * `run` is read through a ref, so an inline arrow does not refetch on every
- * render — the key is the only thing that does.
- */
 export function useLocalQuery<T>(
     key: string,
     run: () => Promise<T>,
@@ -43,8 +40,6 @@ export function useLocalQuery<T>(
     const runRef = useRef(run);
     runRef.current = run;
 
-    // Guards against a slow answer for yesterday landing after the tap that
-    // moved the screen to today.
     const attempt = useRef(0);
 
     const load = useCallback(async (isRefresh: boolean) => {
@@ -53,12 +48,6 @@ export function useLocalQuery<T>(
         if (isRefresh) {
             setRefreshing(true);
         } else {
-            // Not a refresh means the key changed, and data from the old key
-            // belongs to a different question. Held on to, the calendar pairs
-            // this month's days with last month's counts and the card shows
-            // yesterday's patients while today loads. Cleared here rather than
-            // on error, so a *failed refresh* still keeps the day on screen
-            // behind its stale-data banner — same key, still true, just old.
             setData(undefined);
             setStatus('loading');
         }
@@ -78,13 +67,6 @@ export function useLocalQuery<T>(
         }
     }, []);
 
-    // The one effect this needs: a query is a subscription to a key, and the
-    // key changes when the secretary swipes to another day.
-    //
-    // `key` is not read inside the effect on purpose — it *is* the dependency.
-    // `run` is held in a ref so an inline arrow does not refetch on every
-    // render, which leaves the key as the only thing that says the request has
-    // changed.
     // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the subscription
     useEffect(() => {
         if (!enabled) return;
@@ -105,14 +87,6 @@ export interface MutationResult<I, T> {
     reset: () => void;
 }
 
-/**
- * Every mutation here crosses Tailscale to a PC in the clinic, so `pending` is
- * not optional decoration: it is what the caller passes to `Button`'s
- * `loading`, and what stops the second tap becoming a second appointment.
- *
- * The error is held rather than thrown. Silent failure is unacceptable — a
- * write that failed must end up on screen, next to the thing it failed to do.
- */
 export function useLocalMutation<I, T>(run: (input: I) => Promise<T>): MutationResult<I, T> {
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<RequestError | null>(null);

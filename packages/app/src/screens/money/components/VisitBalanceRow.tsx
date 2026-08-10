@@ -1,17 +1,13 @@
+// One of a patient's visits that still owes something. `chargedTotal`,
+// `paidTotal` and `balance` arrive from `balance.byPatient` already derived;
+// the row prints them and never checks they add up — if they did not, the
+// server would be wrong and a client that quietly corrected it would hide that.
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { VisitBalance } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { dayStamp, outstandingAge } from '../format';
-
-// Inventory §5 `domain/VisitRow`, narrowed to the money case: one visit of this
-// patient's that still owes something.
-//
-// `chargedTotal`, `paidTotal` and `balance` all arrive from `balance.byPatient`
-// already derived (§10). The row prints them; it never checks that they add up,
-// because if they did not the server would be wrong and a client that quietly
-// corrected it would hide that.
 
 export type VisitBalanceRowProps = {
     visit: VisitBalance;
