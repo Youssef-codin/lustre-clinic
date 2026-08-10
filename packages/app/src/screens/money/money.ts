@@ -112,3 +112,42 @@ export function clampToBalance(enteredEgp: number, balance: number): number {
 export function isWholePounds(text: string): boolean {
     return /^[0-9]*$/.test(text);
 }
+
+/**
+ * The share of a period's charges that has been collected, 0–1.
+ *
+ * Clamped, because `balance.summary` attributes charges to the visit's date and
+ * payments to the day the money arrived (`balance.service.ts`), so a quiet day
+ * on which an old balance is settled collects more than it charged. That is a
+ * real and ordinary event, not an error — but a rate of 140% is not a share of
+ * anything, and the split bar it drives has nowhere to put the overflow.
+ *
+ * Nothing charged means nothing was missed, so the rate is 1 rather than a
+ * division by zero.
+ */
+export function collectionRate(charged: number, collected: number): number {
+    if (charged <= 0) return 1;
+    return Math.min(1, Math.max(0, collected / charged));
+}
+
+/**
+ * §7.6 — what is still owed for a period, from `balance.summary`'s
+ * `difference`. Floored at zero: a negative difference means more came in than
+ * went out that period, and there is no such thing as a negative amount due.
+ * Money is never drawn below zero anywhere in this cluster.
+ */
+export function amountStillDue(difference: number): number {
+    return Math.max(0, difference);
+}
+
+/**
+ * The part of a period's collections that settled charges from earlier periods
+ * — the other side of `amountStillDue`, and zero whenever the period charged at
+ * least as much as it took.
+ *
+ * It exists so the hero can say why its rate reads 100% instead of silently
+ * rounding a fuller story down to it.
+ */
+export function collectedAhead(difference: number): number {
+    return Math.max(0, -difference);
+}

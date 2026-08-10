@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'bun:test';
 import { moneyApi } from './_LocalMoneyApi';
 import { outstandingAge } from './format';
-import { clampToBalance, formatEgp, isWholePounds, toEgp } from './money';
+import {
+    amountStillDue,
+    clampToBalance,
+    collectedAhead,
+    collectionRate,
+    formatEgp,
+    isWholePounds,
+    toEgp,
+} from './money';
 
 // Wrong numbers on the money screens are worse than missing ones, and there is
 // no renderer in `bun test` (ui/README.md), so what is tested here is everything
@@ -190,5 +198,38 @@ describe('the payment field takes whole pounds only (§7.12)', () => {
         expect(clampToBalance(stripped, 500_000)).toBe(125_000);
         // The guard is what stops that value ever reaching the field.
         expect(isWholePounds('12.50')).toBe(false);
+    });
+});
+
+describe('a period can collect more than it charged', () => {
+    // `balance.summary` attributes charges to the visit's date and payments to
+    // the day the money arrived (balance.service.ts), so an old balance settled
+    // on a quiet day is an ordinary event that makes `difference` negative.
+    const quietDay = { charged: 40_000, collected: 160_000, difference: -120_000 };
+
+    it('never draws a negative amount due (§7.6)', () => {
+        expect(amountStillDue(quietDay.difference)).toBe(0);
+        expect(formatEgp(amountStillDue(quietDay.difference))).toBe('EGP 0');
+    });
+
+    it('caps the collection rate at 100%, so the split bar has somewhere to put it', () => {
+        expect(collectionRate(quietDay.charged, quietDay.collected)).toBe(1);
+        expect(collectionRate(240_000, 120_000)).toBe(0.5);
+    });
+
+    it('reports what was collected against earlier visits rather than hiding it', () => {
+        expect(collectedAhead(quietDay.difference)).toBe(120_000);
+        expect(collectedAhead(50_000)).toBe(0);
+    });
+
+    it('treats a period that charged nothing as fully collected', () => {
+        expect(collectionRate(0, 0)).toBe(1);
+        expect(collectionRate(0, 90_000)).toBe(1);
+    });
+
+    it('leaves an ordinary period untouched', () => {
+        expect(amountStillDue(2_382_000)).toBe(2_382_000);
+        expect(collectedAhead(2_382_000)).toBe(0);
+        expect(Math.round(collectionRate(14_262_000, 11_880_000) * 100)).toBe(83);
     });
 });
