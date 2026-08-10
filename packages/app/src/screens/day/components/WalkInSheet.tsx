@@ -13,6 +13,7 @@ import { border, color, radius, size, space, Text } from '../../../theme';
 import { api, type Patient, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { localOffsetMinutes } from '../time';
+import { useDebounced } from '../useDebounced';
 
 /**
  * A walk-in: someone is at the desk now, and they are going in.
@@ -56,9 +57,20 @@ export function WalkInSheet({
     const [phone, setPhone] = useState('');
     const [duration, setDuration] = useState(defaultDuration);
 
+    /**
+     * The search waits for a pause in the typing.
+     *
+     * Every keystroke is otherwise a round trip to a PC in the clinic over
+     * Tailscale — the same argument that made the calendar fetch a month in one
+     * request rather than thirty-one. It also means the answers arrive in the
+     * order they were asked in far more often, which is the difference between
+     * a list that settles and one that flickers.
+     */
+    const query = useDebounced(term.trim(), 250);
+
     const search = useLocalQuery<Patient[]>(
-        `patients:${term.trim()}`,
-        () => (term.trim().length >= 2 ? api.searchPatients(term.trim()) : Promise.resolve([])),
+        `patients:${query}`,
+        () => (query.length >= 2 ? api.searchPatients(query) : Promise.resolve([])),
         { enabled: visible && mode === 'existing' },
     );
 

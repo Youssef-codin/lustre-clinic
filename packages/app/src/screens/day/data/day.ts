@@ -116,10 +116,6 @@ export function rememberVisit(appointmentId: string, visitId: string): void {
     visitIds.set(appointmentId, visitId);
 }
 
-export function knownVisitId(appointmentId: string): string | undefined {
-    return visitIds.get(appointmentId);
-}
-
 export async function visitForAppointment(appointmentId: string): Promise<Visit | null> {
     const known = visitIds.get(appointmentId);
     if (known) return api.visitById(known);

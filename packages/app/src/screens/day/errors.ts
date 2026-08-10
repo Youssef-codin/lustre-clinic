@@ -103,8 +103,3 @@ export function describeError(error: RequestError, context: ErrorContext = 'gene
 function writeContext(context: ErrorContext): boolean {
     return context !== 'day' && context !== 'generic';
 }
-
-/** The one-line form, for a toast or a banner. */
-export function shortError(error: RequestError, context: ErrorContext = 'generic'): string {
-    return describeError(error, context).title;
-}

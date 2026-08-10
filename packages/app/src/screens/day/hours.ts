@@ -90,14 +90,3 @@ export function timelineBounds(
     // Round out to the hour so the ruler starts and ends on a labelled line.
     return { opens: Math.floor(opens / 60) * 60, closes: Math.ceil(closes / 60) * 60 };
 }
-
-/** The default start for a walk-in: now, unless the clinic is not open yet. */
-export function defaultStartMinutes(
-    dateKey: string,
-    schedule: readonly ClinicDay[] | undefined,
-    nowMinutes: number,
-): number {
-    const hours = hoursFor(dateKey, schedule);
-    if (!hours) return nowMinutes;
-    return Math.min(Math.max(nowMinutes, hours.opens), hours.closes);
-}

@@ -1,4 +1,4 @@
-import { ERROR_CODE, SLOT_HOLDING_STATUSES } from '@mawid/shared';
+import { ERROR_CODE, PAYMENT_METHODS, type PaymentMethod, SLOT_HOLDING_STATUSES } from '@mawid/shared';
 import { addDays, dateKey, isoAt, minutesOfDay, todayKey } from '../time';
 import { RequestError, type Transport } from './client';
 import type { Appointment, ClinicDay, Visit, VisitRow } from './types';
@@ -161,6 +161,10 @@ function field(input: unknown, name: string): unknown {
     return (input as Record<string, unknown>)[name];
 }
 
+function isPaymentMethod(value: unknown): value is PaymentMethod {
+    return typeof value === 'string' && (PAYMENT_METHODS as readonly string[]).includes(value);
+}
+
 function stringField(input: unknown, name: string): string {
     const value = field(input, name);
     if (typeof value !== 'string') throw new RequestError(ERROR_CODE.VALIDATION, `${name} is required`);
@@ -309,11 +313,15 @@ function call(path: string, input: unknown): Promise<unknown> {
             visit.chargedTotal = chargedTotal;
             visit.completedAt = new Date().toISOString();
             if (paid > 0) {
+                const method = field(input, 'method');
+                const methodNote = field(input, 'methodNote');
                 visit.payments.push({
                     id: id('ffff'),
                     amount: paid,
-                    method: 'cash',
-                    methodNote: null,
+                    // What the sheet sent. Hardcoding cash here would have hidden
+                    // a method that never left the screen.
+                    method: isPaymentMethod(method) ? method : 'cash',
+                    methodNote: typeof methodNote === 'string' ? methodNote : null,
                     paidAt: new Date().toISOString(),
                 });
             }

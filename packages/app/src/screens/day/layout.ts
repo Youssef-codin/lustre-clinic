@@ -70,30 +70,3 @@ export function assignLanes<T extends Slot>(items: readonly T[]): Placement[] {
 
     return placements;
 }
-
-/**
- * Free time inside the opening hours — what the timeline draws as space rather
- * than as a row. Only slot-holding blocks close a gap: a cancelled appointment
- * leaves the time free, which is the whole point of cancelling it.
- */
-export function freeGaps(
-    bounds: Slot,
-    busy: readonly Slot[],
-    minimumMinutes = 15,
-): { startMinutes: number; endMinutes: number }[] {
-    const sorted = [...busy].sort((a, b) => a.startMinutes - b.startMinutes);
-    const gaps: { startMinutes: number; endMinutes: number }[] = [];
-
-    let cursor = bounds.startMinutes;
-    for (const slot of sorted) {
-        if (slot.startMinutes - cursor >= minimumMinutes) {
-            gaps.push({ startMinutes: cursor, endMinutes: slot.startMinutes });
-        }
-        cursor = Math.max(cursor, slot.endMinutes);
-    }
-    if (bounds.endMinutes - cursor >= minimumMinutes) {
-        gaps.push({ startMinutes: cursor, endMinutes: bounds.endMinutes });
-    }
-
-    return gaps;
-}

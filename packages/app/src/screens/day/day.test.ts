@@ -3,7 +3,7 @@ import { ERROR_CODE } from '@mawid/shared';
 import { RequestError } from './data/client';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes, timelineBounds } from './hours';
-import { assignLanes, freeGaps } from './layout';
+import { assignLanes } from './layout';
 import { amountDue, formatMoney, poundsEntry } from './money';
 import { addDays, clockToMinutes, dateKey, minutesToClock, relativeDayLabel } from './time';
 
@@ -65,16 +65,6 @@ describe('timeline layout', () => {
         expect(lanes[0]).toEqual({ lane: 0, lanes: 2 });
         expect(lanes[1]).toEqual({ lane: 1, lanes: 2 });
         expect(lanes[2]).toEqual({ lane: 0, lanes: 1 });
-    });
-
-    it('reports the free time between what is booked', () => {
-        const gaps = freeGaps({ startMinutes: 600, endMinutes: 780 }, [
-            { startMinutes: 630, endMinutes: 660 },
-        ]);
-        expect(gaps).toEqual([
-            { startMinutes: 600, endMinutes: 630 },
-            { startMinutes: 660, endMinutes: 780 },
-        ]);
     });
 });
 

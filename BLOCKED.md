@@ -82,6 +82,25 @@ FAB, which opens the walk-in sheet (§7). `appointment.cancel` and the `no_show`
 form of `appointment.update` are wired; `appointment.create` is not called
 anywhere yet, and neither is the move.
 
+## Which branch — Day view
+
+**Needed.** A decision, not a component. The day view queries every branch
+(`appointment.byDate`'s `branchId` is optional and is not passed) and the
+walk-in books into `branch.list`'s first row. With one branch per clinic PC that
+is right and a selector would be a control that never changes anything; with
+two, the walk-in silently lands in the wrong one.
+
+**Not built, deliberately.** The spec settles the neighbouring question — "branch
+is not part of the exclusion, one practitioner" (§5) — but never says whether a
+client sees one branch or all of them. `settings.schedule` hints at one: each
+weekday row carries a single `branchId`, so the clinic's own schedule assumes
+one branch is open on a given day.
+
+**If it is more than one**, this needs a branch in the app's own settings (the
+device's branch, not the clinic's) rather than a picker on the walk-in sheet —
+the secretary sits in one room and should not choose it per patient. That is the
+app shell's, alongside the server address.
+
 ## Clinic opening hours — Day view
 
 **Not blocked, recorded for the merge.** MAW-1 landed `clinic_days` and

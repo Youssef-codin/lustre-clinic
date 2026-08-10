@@ -147,7 +147,7 @@ export function DayScreen() {
                 default hours, and they are not the same fact: the second is the
                 clinic's own guess, the first is this screen's. Unsaid, a Friday
                 the clinic is shut renders as a working day nobody questions. */}
-            {schedule.status === 'error' ? (
+            {schedule.error !== null && schedule.status !== 'success' ? (
                 <Banner
                     tone="warning"
                     message="Opening hours could not be loaded — showing the usual hours."
@@ -157,7 +157,7 @@ export function DayScreen() {
                             variant="text"
                             size="md"
                             onPress={schedule.refetch}
-                            loading={schedule.refreshing}
+                            loading={schedule.status === 'loading'}
                         />
                     }
                 />
@@ -166,7 +166,10 @@ export function DayScreen() {
                 <Banner tone="warning" message={describeError(checkIn.error, 'check-in').title} />
             ) : null}
 
-            {isToday && !closed ? (
+            {/* Only once the day is known. Derived from an empty list, the card
+                says "nothing left to check in today" — a verdict — over a
+                skeleton that is still loading the appointments. */}
+            {isToday && !closed && day.status === 'success' ? (
                 <NowCard
                     active={active}
                     next={next}
@@ -181,7 +184,7 @@ export function DayScreen() {
                 {day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <DayError error={day.error} onRetry={day.refetch} retrying={day.refreshing} />
+                    <DayError error={day.error} onRetry={day.refetch} />
                 ) : closed ? (
                     <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
                 ) : appointments.length === 0 ? (

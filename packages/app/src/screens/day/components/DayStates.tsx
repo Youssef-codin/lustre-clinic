@@ -25,10 +25,11 @@ export function DaySkeleton() {
 export type DayErrorProps = {
     error: RequestError;
     onRetry: () => void;
-    retrying: boolean;
 };
 
-export function DayError({ error, onRetry, retrying }: DayErrorProps) {
+// No `loading` on the retry: this whole panel is replaced by the skeleton the
+// moment the query goes back to loading, so a spinner here would never be seen.
+export function DayError({ error, onRetry }: DayErrorProps) {
     const { title, body } = describeError(error, 'day');
 
     return (
@@ -42,7 +43,7 @@ export function DayError({ error, onRetry, retrying }: DayErrorProps) {
                         {body}
                     </Text>
                 ) : null}
-                <Button label="Try again" variant="secondary" onPress={onRetry} loading={retrying} />
+                <Button label="Try again" variant="secondary" onPress={onRetry} />
             </View>
         </View>
     );

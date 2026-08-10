@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { Button, Dot } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
-import { formatTime, minutesOfDay } from '../time';
+import { formatTime, minutesOfDay, minutesToClock } from '../time';
 
 /**
  * The chair, at the top of the screen.
@@ -26,10 +26,25 @@ export type NowCardProps = {
     checkingInId: string | null;
 };
 
-function waitedFor(appointment: Appointment, nowMinutes: number): string {
-    const elapsed = Math.max(nowMinutes - minutesOfDay(appointment.startsAt), 0);
-    if (elapsed < 60) return `${elapsed} min`;
-    return `${Math.floor(elapsed / 60)}h ${elapsed % 60}m`;
+/**
+ * The slot, and whether it has run past its end.
+ *
+ * Not "since 11:00" and not an elapsed time: the row says when the appointment
+ * was *booked* for, and `checked_in` says nothing about when they actually sat
+ * down — `checked_in_at` is on the visit, which this card does not hold. A
+ * number presented as how long they have been in the chair, that is really how
+ * long since their slot began, is a fact the secretary would act on and it
+ * would be wrong.
+ */
+function slotLine(appointment: Appointment, nowMinutes: number): string {
+    const start = minutesOfDay(appointment.startsAt);
+    const end = start + appointment.durationMinutes;
+    const window = `${formatTime(appointment.startsAt)} – ${minutesToClock(end)}`;
+
+    const over = nowMinutes - end;
+    if (over <= 0) return window;
+    if (over < 60) return `${window} · ${over} min over`;
+    return `${window} · ${Math.floor(over / 60)}h ${over % 60}m over`;
 }
 
 export function NowCard({ active, next, nowMinutes, onCheckIn, onOpen, checkingInId }: NowCardProps) {
@@ -49,9 +64,7 @@ export function NowCard({ active, next, nowMinutes, onCheckIn, onOpen, checkingI
                     {active.patient.name}
                 </Text>
                 <Text variant="subhead" tone="muted">
-                    {inChair
-                        ? `Since ${formatTime(active.startsAt)} · ${waitedFor(active, nowMinutes)}`
-                        : 'Waiting to settle up'}
+                    {inChair ? slotLine(active, nowMinutes) : 'Waiting to settle up'}
                 </Text>
 
                 <View style={styles.actions}>

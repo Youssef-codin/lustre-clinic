@@ -88,10 +88,6 @@ export function formatTime(iso: string): string {
     return minutesToClock(minutesOfDay(iso));
 }
 
-export function endMinutes(iso: string, durationMinutes: number): number {
-    return minutesOfDay(iso) + durationMinutes;
-}
-
 /**
  * A local-midnight ISO string with the offset the server expects, for writes
  * that name a time — booking into a gap, moving an appointment.
