@@ -138,7 +138,7 @@ function useDebounced(value: string, ms: number): string {
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
-    content: { paddingBottom: space[12], gap: space[3] },
+    content: { paddingBottom: size.nav + space[6], gap: space[3] },
     search: { paddingHorizontal: size.gutter },
     inset: { paddingHorizontal: size.gutter },
     list: { gap: space[1] },

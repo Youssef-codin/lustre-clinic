@@ -15,9 +15,7 @@ import { PatientRecordScreen } from './PatientRecordScreen';
  * with the same two routes and the same two props, and both screens are already
  * written against exactly that: `onOpen(patientId)` and `onBack()`.
  *
- * Mount it in place of `GalleryScreen` in `App.tsx` to see it. `App.tsx` is
- * deliberately not edited here — it is the one file all four clusters would
- * otherwise land on at once.
+ * The shell (`src/shell`) mounts this as the Patients tab.
  */
 
 type Route = { name: 'list' } | { name: 'record'; patientId: string };

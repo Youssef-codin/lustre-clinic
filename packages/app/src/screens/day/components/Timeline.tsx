@@ -112,7 +112,7 @@ export function Timeline({ appointments, bounds, nowMinutes, onSelect }: Timelin
 }
 
 const styles = StyleSheet.create({
-    content: { paddingHorizontal: size.gutter, paddingTop: space[3], paddingBottom: space[12] },
+    content: { paddingHorizontal: size.gutter, paddingTop: space[3], paddingBottom: size.nav + space[6] },
     canvas: { position: 'relative' },
     hour: {
         position: 'absolute',

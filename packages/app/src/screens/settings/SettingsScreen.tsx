@@ -156,7 +156,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
-    content: { paddingBottom: space[12], gap: space[4] },
+    content: { paddingBottom: size.nav + space[6], gap: space[4] },
     group: { gap: space[2], paddingHorizontal: size.gutter },
     note: { paddingHorizontal: space[1] },
 });

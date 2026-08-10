@@ -165,7 +165,16 @@ TextTone; bare?: boolean }`. Money screens will want compact (`142.6k`) as well
 Also exported here and needed by anything with a price input:
 `poundsToPiastres(text)`, the other edge of the same rule.
 
-### 3. No navigator
+### 3. No navigator — **resolved (F3)**
+
+`src/shell/AppShell.tsx` now mounts the four clusters under
+`domain/BottomTabBar`. Each cluster keeps its own internal stack; the panes
+below were left on `PushView`, which is still the transition the designs draw.
+Screens reserve `size.nav` at the bottom because the tab bar is drawn over them.
+
+<details><summary>Original entry</summary>
+
+### 3. No navigator (original)
 
 **Needed by:** the settings index → its five panes.
 **Built:** a route union inside `SettingsScreen`, one pane at a time in
@@ -176,7 +185,17 @@ transition the settings designs draw anyway, so this is not a workaround so much
 as an early version of the real thing. Lifting the panes out is a change of
 `setRoute` to `navigate`; each pane already takes an `onBack`.
 
-### 4. Nothing mounts the settings screen
+</details>
+
+### 4. Nothing mounts the settings screen — **resolved (F3)**
+
+`App.tsx` mounts `<AppShell />`, which mounts every cluster including settings,
+and hands `SettingsScreen` the shell-owned `role` / `onChangeRole`. Bundle
+verified: `bunx expo export --platform android` is clean.
+
+<details><summary>Original entry</summary>
+
+### 4. Nothing mounts the settings screen (original)
 
 `App.tsx` still mounts `GalleryScreen`. It was **deliberately not edited** —
 four clusters editing the app entry point is a merge conflict in four branches,
@@ -192,6 +211,8 @@ device:
 
 Verified with that swap applied locally: `bunx expo export --platform android`
 bundles clean, 754 modules. Not yet seen on a physical device.
+
+</details>
 
 ### 5. `packages/app/tsconfig.json` needed `allowImportingTsExtensions`
 
@@ -268,8 +289,9 @@ shared. Promote if a second cluster wants one:
 
 ### 11. Not built, and why
 
-- **`domain/BottomTabBar`** — cross-cluster (§10: built before the parallel run,
-  never during). The settings screen has no tab bar under it.
+- **`domain/BottomTabBar`** — **now built** (F3), in
+  `components/domain/BottomTabBar.tsx`, and drawn by the shell over every
+  cluster including settings.
 - **`domain/BrandWordmark`** — also cross-cluster (day view). The settings header
   renders "MAWID" as an eyebrow `Text` rather than claiming the name.
 - **`domain/ConnectionStatus`** — needs the connection hook, which §10 freezes
