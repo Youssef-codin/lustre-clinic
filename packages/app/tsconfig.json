@@ -5,7 +5,12 @@
         "noUncheckedIndexedAccess": true,
         "noImplicitOverride": true,
         "noFallthroughCasesInSwitch": true,
-        "verbatimModuleSyntax": true
+        "verbatimModuleSyntax": true,
+        // `@mawid/shared` is a source package: its barrel imports siblings with
+        // an explicit `.ts`, which Bun and Metro both resolve and which the
+        // repo's base config already allows. Nothing in `app` had imported it
+        // until a screen needed `ERROR_CODE`, so this had not come up.
+        "allowImportingTsExtensions": true
     },
     "include": ["**/*.ts", "**/*.tsx"],
     "exclude": ["node_modules", ".expo", "dist"]
