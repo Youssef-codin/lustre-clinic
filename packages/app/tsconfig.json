@@ -5,7 +5,11 @@
         "noUncheckedIndexedAccess": true,
         "noImplicitOverride": true,
         "noFallthroughCasesInSwitch": true,
-        "verbatimModuleSyntax": true
+        "verbatimModuleSyntax": true,
+        // `@mawid/shared` is source, not a build artefact, and its own files
+        // import each other with explicit `.ts` extensions. The first app file
+        // to import the contract pulls those in. See BLOCKED.md.
+        "allowImportingTsExtensions": true
     },
     "include": ["**/*.ts", "**/*.tsx"],
     "exclude": ["node_modules", ".expo", "dist"]
