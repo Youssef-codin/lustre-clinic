@@ -22,6 +22,7 @@
         "emu:shot": "bun run --cwd packages/app emu:shot",
         "db:generate": "bun run --cwd packages/server db:generate",
         "db:migrate": "bun packages/server/scripts/migrate.ts",
+        "db:seed": "bun packages/server/scripts/seed.ts",
         "backup": "bun packages/server/scripts/backup.ts",
         "restore": "bun packages/server/scripts/restore.ts"
     },
