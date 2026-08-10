@@ -983,8 +983,8 @@ describe('appointment', () => {
 
         await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
             appointmentService.create({
-                patient: { kind: 'existing', patientId: fixtures.patient.id },
-                branchId: fixtures.branch.id,
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
                 startsAt,
                 offsetMinutes: 0,
             }),

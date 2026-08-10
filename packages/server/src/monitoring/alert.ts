@@ -75,6 +75,11 @@ export function createAlerter(options: AlerterOptions): Alerter {
         now = Date.now,
     } = options;
 
+    /** Last send time per code, for dedupe. */
+    const lastSent = new Map<string, number>();
+    /** Send timestamps inside the current rate-limit window. */
+    let sentAt: number[] = [];
+    /** Set while suppressing, so the ceiling notice is announced exactly once. */
     let ceilingAnnounced = false;
 
     async function deliver(alert: Alert): Promise<void> {
@@ -87,33 +92,40 @@ export function createAlerter(options: AlerterOptions): Alerter {
     }
 
     return {
+        // The catch is load-bearing, not defensive habit: `unhandledRejection`
+        // in monitoring/index.ts calls this, so a throw here re-enters through
+        // that handler and loops until the host dies. Log, never re-alert.
         async report(alert: Alert): Promise<void> {
-            const at = now();
+            try {
+                const at = now();
 
-            const previous = lastSent.get(alert.code);
-            if (previous !== undefined && at - previous < dedupeWindowMs) {
-                logger.debug({ alertCode: alert.code }, 'alert deduplicated');
-                return;
-            }
-
-            sentAt = sentAt.filter((t) => at - t < rateLimit.windowMs);
-            if (sentAt.length >= rateLimit.max) {
-                if (!ceilingAnnounced) {
-                    ceilingAnnounced = true;
-                    logger.warn({ alertCode: alert.code }, 'alert rate limit reached, suppressing');
-                    await deliver({
-                        code: 'monitoring.rate_limited',
-                        summary: 'Alert rate limit reached. Further alerts are suppressed for now.',
-                        context: { max: rateLimit.max, windowMinutes: rateLimit.windowMs / 60_000 },
-                    });
+                const previous = lastSent.get(alert.code);
+                if (previous !== undefined && at - previous < dedupeWindowMs) {
+                    logger.debug({ alertCode: alert.code }, 'alert deduplicated');
+                    return;
                 }
-                return;
-            }
 
-            ceilingAnnounced = false;
-            lastSent.set(alert.code, at);
-            sentAt.push(at);
-            await deliver(alert);
+                sentAt = sentAt.filter((t) => at - t < rateLimit.windowMs);
+                if (sentAt.length >= rateLimit.max) {
+                    if (!ceilingAnnounced) {
+                        ceilingAnnounced = true;
+                        logger.warn({ alertCode: alert.code }, 'alert rate limit reached, suppressing');
+                        await deliver({
+                            code: 'monitoring.rate_limited',
+                            summary: 'Alert rate limit reached. Further alerts are suppressed for now.',
+                            context: { max: rateLimit.max, windowMinutes: rateLimit.windowMs / 60_000 },
+                        });
+                    }
+                    return;
+                }
+
+                ceilingAnnounced = false;
+                lastSent.set(alert.code, at);
+                sentAt.push(at);
+                await deliver(alert);
+            } catch (err) {
+                logger.error({ err, alertCode: alert.code }, 'alerting failed');
+            }
         },
     };
 }

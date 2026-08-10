@@ -31,15 +31,7 @@ push it, open the PR from there against `main`.
 
 ## Key Conventions
 
-- **Comment sparingly.** Do not narrate what the code already says, do not
-  justify every decision in prose, and do not open a file with an essay. A
-  comment earns its place when it records something the code cannot: a
-  non-obvious constraint, a spec reference, or why an obvious approach was
-  rejected. Default to none.
-- **In `packages/app`, no inline comments.** Nothing between the lines of a
-  function, nothing above a JSX block, nothing beside a style. If something is
-  genuinely important enough to write down, it goes in one short block at the
-  top of the file and nowhere else.
+- DO NOT use try and catch unleses specifically needed to.
 - DO NOT use useEffect unless strictly needed to.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)
@@ -57,3 +49,7 @@ push it, open the PR from there against `main`.
   everything the client sends GlitchTip (§17 — allow-list, never strip).
 - **The client localizes from `ERROR_CODE`**, never by parsing server message
   text. Server messages stay English for logs.
+
+## Code Comment Rules
+- Never describe *what* a line of code does mechanically (e.g., do not add `// loop over array`).
+- Only use comments to explain complex business rules, non-obvious mathematical formulas, or edge cases.
