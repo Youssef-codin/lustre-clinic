@@ -52,12 +52,12 @@ formats money itself.
 
 `MoneyValue` renders the figure and the currency as two `Text`s — the figure has
 to be mono for the tabular numerals, and `ج.م` has no coverage in DM Mono. The
-order is decided by locale, not by RTL mirroring, which does the opposite of what
-it looks like it does: the first child of an RTL row sits at the right edge and
-is therefore read *first*, so a fixed currency-then-figure order would give
-Arabic readers the English word order. The flex direction is pinned against the
-layout direction instead, which also keeps it correct before
-`I18nManager.allowRTL` is ever called.
+children are ordered by locale — `[currency, figure]` in English, `[figure,
+currency]` in Arabic — and the row is left plain so Yoga's mirroring finishes the
+job: the first child takes the left edge under LTR and the right edge under RTL,
+which is what makes one order correct in both. The four cases are written out
+above the component, because this is easy to get backwards; the reference is
+always what `formatEgp` produces as a single string.
 
 ## States
 

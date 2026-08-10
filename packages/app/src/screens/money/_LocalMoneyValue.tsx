@@ -1,5 +1,5 @@
 import type { StyleProp, ViewStyle } from 'react-native';
-import { I18nManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { TextTone, TextVariant, TextWeight } from '../../theme';
 import { space, Text } from '../../theme';
 import { currencyLeads, currencyOf, formatEgp, type MoneyLocale } from './money';
@@ -35,16 +35,28 @@ export type MoneyValueProps = {
  * for exactly this reason). The currency takes the ambient face, because
  * `ج.م` has no coverage in DM Mono and would render as boxes.
  *
- * The order is decided here rather than left to RTL mirroring, which does the
- * opposite of what it looks like it does: in an RTL row the *first* child sits
- * at the right edge, so currency-then-figure mirrors into a reader meeting
- * `ج.م` first — the English order, not §7.13's `2,600 ج.م`.
+ * The children are ordered by locale and the row is left plain, so Yoga's own
+ * mirroring finishes the job. `row` puts the first child at the main-axis start
+ * — the left edge under LTR, the right edge under RTL — which is what makes one
+ * child order correct in both. Written out, because this is easy to get
+ * backwards and the reference is always what `formatEgp` produces as a single
+ * string:
  *
- * So the flex direction is pinned against the layout direction, making JSX order
- * the visual order in both, and the children are then ordered by locale. That
- * also makes this correct before `I18nManager.allowRTL` is ever called, which
- * matters because the localisation scaffold has not landed and an Arabic amount
- * today would render inside an LTR layout (BLOCKED.md #10).
+ *     locale  children            layout  first child  reads as
+ *     en      [currency, figure]  LTR     left         EGP 2,600
+ *     en      [currency, figure]  RTL     right        EGP 2,600
+ *     ar      [figure, currency]  LTR     left         2,600 ج.م
+ *     ar      [figure, currency]  RTL     right        2,600 ج.م
+ *
+ * The RTL rows are the ones worth checking: the figure takes the right edge and
+ * the currency sits to its left, so a reader scanning from the right meets the
+ * number first — §7.13's order, and the same thing bidi does to the single
+ * string, whose base direction puts its leading run on the right too.
+ *
+ * The `ar`/LTR row is not hypothetical: `I18nManager.allowRTL` lands with the
+ * localisation scaffold, so an Arabic amount today renders inside an LTR layout
+ * (BLOCKED.md #10). Reasoned against Yoga's rules and against the string form,
+ * not yet seen on a device in either direction.
  */
 export function MoneyValue({
     amount,
@@ -78,7 +90,7 @@ export function MoneyValue({
 
     return (
         <View
-            style={[I18nManager.isRTL ? styles.rowPinned : styles.row, style]}
+            style={[styles.row, style]}
             testID={testID}
             accessible
             // A screen reader gets the whole number even when the figure is
@@ -103,8 +115,8 @@ export function MoneyValue({
 }
 
 const styles = StyleSheet.create({
+    // Plain `row`, never `row-reverse`: Yoga flips `row` under RTL and un-flips
+    // `row-reverse`, so reversing here would cancel the mirroring that makes one
+    // child order right in both directions.
     row: { flexDirection: 'row', alignItems: 'baseline', gap: space[1] },
-    // `row-reverse` under RTL cancels the automatic mirroring, so JSX order is
-    // the visual order in both directions and the locale decides it alone.
-    rowPinned: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space[1] },
 });
