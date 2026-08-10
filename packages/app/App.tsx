@@ -1,20 +1,23 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, StyleSheet } from 'react-native';
+import { GalleryScreen } from './src/screens/dev/GalleryScreen';
+import { color, useAppFonts } from './src/theme';
 
+// The app has no navigator yet, so the entry point is the component gallery —
+// the dev screen that renders every `ui/` primitive in its states. It is what the
+// first real screen replaces.
 export default function App() {
+    const fontsLoaded = useAppFonts();
+    if (!fontsLoaded) return <SafeAreaView style={styles.screen} />;
+
     return (
-        <View style={styles.container}>
-            <Text>Open up App.tsx to start working on your app!</Text>
-            <StatusBar style="auto" />
-        </View>
+        <SafeAreaView style={styles.screen}>
+            <GalleryScreen />
+            <StatusBar style="dark" />
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    screen: { flex: 1, backgroundColor: color.canvas },
 });

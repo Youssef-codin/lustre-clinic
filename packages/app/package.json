@@ -15,9 +15,13 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
+        "@expo-google-fonts/dm-mono": "^0.4.2",
+        "@expo-google-fonts/instrument-sans": "^0.4.2",
+        "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
         "@mawid/shared": "workspace:*",
         "expo": "~57.0.9",
         "expo-dev-client": "^57.0.10",
+        "expo-font": "~57.0.1",
         "expo-status-bar": "~57.0.1",
         "react": "19.2.3",
         "react-native": "0.86.2"
