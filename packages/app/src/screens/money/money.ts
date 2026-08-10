@@ -97,3 +97,18 @@ export function clampToBalance(enteredEgp: number, balance: number): number {
     if (!Number.isFinite(enteredEgp) || enteredEgp <= 0) return 0;
     return Math.max(0, Math.min(Math.trunc(enteredEgp) * PIASTRES_PER_EGP, balance));
 }
+
+/**
+ * Whether a payment field's contents are whole pounds — ASCII digits and
+ * nothing else.
+ *
+ * `ui/NumericField` hardcodes `keyboardType="decimal-pad"` and `ui/` is frozen,
+ * so a decimal separator can be typed into a field that takes whole pounds only
+ * (§7.12 — piastres are never shown and never typed). Stripping the separator
+ * out would read `12.50` as `1250`: a hundredfold overcharge that then passes
+ * every clamp, because 1,250 is a perfectly plausible payment. Callers refuse
+ * the keystroke instead, and say so.
+ */
+export function isWholePounds(text: string): boolean {
+    return /^[0-9]*$/.test(text);
+}

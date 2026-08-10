@@ -6,7 +6,7 @@ import { space, Text } from '../../../theme';
 import type { RecordPaymentInput } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { methodLabel } from '../format';
-import { clampToBalance, toEgp } from '../money';
+import { clampToBalance, formatEgp, isWholePounds, toEgp } from '../money';
 
 // `visit.recordPayment` (§13) — a payment made after checkout, against a
 // balance. Inventory §5's `domain/MethodTiles` is the 2×2 grid on the checkout
@@ -35,14 +35,7 @@ export type RecordPaymentSheetProps = {
     isPending: boolean;
     error: string | null;
     onSubmit: (input: RecordPaymentInput) => void;
-    /** Raised when the entered amount was clamped, so the screen can toast it. */
-    onClamped: () => void;
 };
-
-/** Digits only. No decimal point reaches the state, so no float ever exists. */
-function digitsOf(text: string): string {
-    return text.replace(/[^0-9]/g, '');
-}
 
 export function RecordPaymentSheet({
     visible,
@@ -52,13 +45,20 @@ export function RecordPaymentSheet({
     isPending,
     error,
     onSubmit,
-    onClamped,
 }: RecordPaymentSheetProps) {
     const dueEgp = toEgp(balance);
 
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState<PaymentMethod>('cash');
     const [note, setNote] = useState('');
+
+    // Why the field did not take what was typed. It lives inside the sheet, not
+    // on the screen behind it: `ui/Sheet` is a native `Modal`, so a `Toast` in
+    // the screen root renders beneath the modal window and its scrim and is
+    // excluded from the accessibility tree by `accessibilityViewIsModal`. §7.6
+    // requires the clamp to be announced, and an announcement nobody can see
+    // does not meet it.
+    const [notice, setNotice] = useState<string | null>(null);
 
     // A fresh sheet each time it opens. A leftover amount from a previous visit
     // is the sort of thing that gets confirmed without being read.
@@ -67,20 +67,26 @@ export function RecordPaymentSheet({
             setAmount('');
             setMethod('cash');
             setNote('');
+            setNotice(null);
         }
     }, [visible]);
 
     function changeAmount(text: string) {
-        const digits = digitsOf(text);
-        const entered = digits === '' ? 0 : Number(digits);
-
-        if (entered > dueEgp) {
-            setAmount(String(dueEgp));
-            onClamped();
+        if (!isWholePounds(text)) {
+            setNotice('Whole pounds only — piastres are not recorded.');
             return;
         }
 
-        setAmount(digits);
+        const entered = text === '' ? 0 : Number(text);
+
+        if (entered > dueEgp) {
+            setAmount(String(dueEgp));
+            setNotice(`That is more than the amount due. Capped at ${formatEgp(balance)}.`);
+            return;
+        }
+
+        setNotice(null);
+        setAmount(text);
     }
 
     const enteredEgp = amount === '' ? 0 : Number(amount);
@@ -139,6 +145,16 @@ export function RecordPaymentSheet({
                 editable={!isPending}
             />
 
+            {notice ? (
+                <View accessibilityLiveRegion="assertive" style={styles.notice}>
+                    <Callout tone="warning">
+                        <Text variant="subhead" tone="due">
+                            {notice}
+                        </Text>
+                    </Callout>
+                </View>
+            ) : null}
+
             <View style={styles.quick}>
                 <Chip
                     label="Full"
@@ -193,6 +209,7 @@ export function RecordPaymentSheet({
 
 const styles = StyleSheet.create({
     due: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space[3] },
+    notice: { alignSelf: 'stretch' },
     quick: { flexDirection: 'row', gap: space[2] },
     methods: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
 });

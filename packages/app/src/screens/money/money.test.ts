@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { moneyApi } from './_LocalMoneyApi';
 import { outstandingAge } from './format';
-import { clampToBalance, formatEgp, toEgp } from './money';
+import { clampToBalance, formatEgp, isWholePounds, toEgp } from './money';
 
 // Wrong numbers on the money screens are worse than missing ones, and there is
 // no renderer in `bun test` (ui/README.md), so what is tested here is everything
@@ -163,5 +163,32 @@ describe('takings', () => {
             expect(summary.collected).toBe(takings.total);
             expect(summary.difference).toBe(summary.charged - summary.collected);
         }
+    });
+});
+
+describe('the payment field takes whole pounds only (§7.12)', () => {
+    it('accepts digits and an empty field', () => {
+        expect(isWholePounds('')).toBe(true);
+        expect(isWholePounds('2600')).toBe(true);
+    });
+
+    it('refuses a decimal rather than reinterpreting it', () => {
+        // The keyboard is `decimal-pad`, so the separator is reachable. Stripping
+        // it would turn 12.50 into 1250 — a hundredfold overcharge that then
+        // passes the clamp, because 1,250 is a plausible payment.
+        expect(isWholePounds('12.50')).toBe(false);
+        expect(isWholePounds('12.')).toBe(false);
+        expect(isWholePounds('12,50')).toBe(false);
+        expect(isWholePounds('١٢')).toBe(false);
+        expect(isWholePounds('-5')).toBe(false);
+        expect(isWholePounds('1e3')).toBe(false);
+    });
+
+    it('would have overcharged a hundredfold under the old strip-the-dot rule', () => {
+        const stripped = Number('12.50'.replace(/[^0-9]/g, ''));
+        expect(stripped).toBe(1250);
+        expect(clampToBalance(stripped, 500_000)).toBe(125_000);
+        // The guard is what stops that value ever reaching the field.
+        expect(isWholePounds('12.50')).toBe(false);
     });
 });

@@ -127,13 +127,17 @@ export function VisitPaymentsScreen({
                     isPending={payment.isPending}
                     error={payment.error ? errorMessage(payment.error) : null}
                     onSubmit={submit}
-                    onClamped={() => setToast("That is more than the amount due — it's been capped.")}
                 />
             ) : null}
 
             {/* A child of the screen root, never of the scroll content: a toast
                 nested in a ScrollView lands wherever that content has scrolled
-                to (ui/README.md). */}
+                to (ui/README.md).
+
+                Only raised once the sheet has closed. `ui/Sheet` is a native
+                `Modal`, and a toast raised while it is open would render behind
+                it — which is why the sheet says its own piece inline instead of
+                calling up here. */}
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
