@@ -14,6 +14,7 @@ import { _LocalPatientRow } from './components/_LocalPatientRow';
 import { SkeletonRows } from './components/_LocalSkeleton';
 import { _LocalPatientsApi } from './data/_LocalPatientsApi';
 import { useQuery } from './data/_LocalQuery';
+import { errorText } from './data/errors';
 
 /**
  * Every patient, and the search over them.
@@ -82,7 +83,7 @@ export function PatientListScreen({ onOpen }: PatientListScreenProps) {
                 ) : patients.error && !patients.data ? (
                     <EmptyState
                         title="Could not reach the clinic"
-                        body={patients.error.message}
+                        body={errorText(patients.error)}
                         actionLabel="Try again"
                         onAction={patients.refetch}
                         weight="panel"

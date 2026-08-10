@@ -20,6 +20,7 @@ import { _LocalVisitRow } from './components/_LocalVisitRow';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { _LocalPatientsApi } from './data/_LocalPatientsApi';
 import { useMutation, useQuery } from './data/_LocalQuery';
+import { errorText } from './data/errors';
 import type { Answers, CustomQuestion, PatientVisit, QuestionnaireGap } from './data/types';
 import { QuestionnaireSheet } from './QuestionnaireSheet';
 
@@ -93,7 +94,7 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
             ) : record.error && !record.data ? (
                 <EmptyState
                     title="Could not open this record"
-                    body={record.error.message}
+                    body={errorText(record.error)}
                     actionLabel="Try again"
                     onAction={record.refetch}
                     weight="panel"
@@ -135,7 +136,7 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
                     questions={questions.data}
                     answers={record.data.patient.custom}
                     pending={save.pending}
-                    error={save.error?.message}
+                    error={save.error ? errorText(save.error) : undefined}
                     onClose={() => setEditing(false)}
                     onSave={onSave}
                 />
@@ -193,11 +194,18 @@ function Visits({ visits }: { visits: PatientVisit[] }) {
     );
 }
 
-/** Newest year first, and newest visit first inside it — the payload's order. */
+/**
+ * Newest year first, and newest visit first inside it — the payload's order.
+ *
+ * The year comes from the parsed date, not from the ISO string's first four
+ * characters: the row's own stamp renders the day and month in local time, and
+ * an evening visit on 31 December is a UTC 1 January. Read one way it would sit
+ * under the wrong heading, labelled with the right day.
+ */
 function groupByYear(visits: PatientVisit[]): Array<[string, PatientVisit[]]> {
     const groups = new Map<string, PatientVisit[]>();
     for (const visit of visits) {
-        const year = visit.startsAt.slice(0, 4);
+        const year = String(new Date(visit.startsAt).getFullYear());
         const bucket = groups.get(year);
         if (bucket) bucket.push(visit);
         else groups.set(year, [visit]);
@@ -276,7 +284,7 @@ function Details({ email, age, gender, createdAt, answers, gaps, questions, onEd
             ) : questions.error && !questions.data ? (
                 <EmptyState
                     title="Could not load the clinic's questions"
-                    body={questions.error.message}
+                    body={errorText(questions.error)}
                     weight="line"
                 />
             ) : questions.data && questions.data.length === 0 ? (

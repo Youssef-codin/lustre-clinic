@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test';
 import { displayAnswer, fromDraft, isEditable, toDraft, validateDraft } from './components/customFields';
 import { formatMoney } from './components/money';
-import { _LocalPatientsApi } from './data/_LocalPatientsApi';
+import { _LocalApiError, _LocalPatientsApi } from './data/_LocalPatientsApi';
+import { errorText } from './data/errors';
 import type { CustomQuestion } from './data/types';
 
 /**
@@ -36,6 +37,27 @@ describe('money (§7.12, §7.13)', () => {
 
     it('trails the symbol in Arabic and keeps the numerals Latin', () => {
         expect(formatMoney(260000, 'ar')).toBe('2,600 ج.م');
+    });
+
+    it('rounds a negative amount the same way as its positive twin, and keeps the sign', () => {
+        expect(formatMoney(-250)).toBe('EGP -3');
+        expect(formatMoney(250)).toBe('EGP 3');
+        // (-100, 0) rounds to zero, and zero has no sign to show.
+        expect(formatMoney(-40)).toBe('EGP 0');
+    });
+});
+
+describe('errors (SPEC §14 — localise from the code, never the message)', () => {
+    it('maps a known code to a fixed line and never shows the server text', () => {
+        const text = errorText(new _LocalApiError('CUSTOM_QUESTION_REQUIRED', "'blood_type' is required"));
+        expect(text).not.toContain('blood_type');
+        expect(text).toBe('A required question was left blank.');
+    });
+
+    it('falls back for an unknown code and for a transport failure', () => {
+        const unknown = errorText(new _LocalApiError('SOMETHING_NEW', 'internal detail'));
+        expect(unknown).toBe(errorText(new TypeError('Network request failed')));
+        expect(unknown).not.toContain('internal detail');
     });
 });
 

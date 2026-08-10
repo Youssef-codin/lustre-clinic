@@ -23,10 +23,13 @@ const SYMBOL: Record<MoneyLocale, string> = { en: 'EGP', ar: 'ج.م' };
  * against a runtime difference that only shows up on a device.
  */
 export function formatMoney(amount: number, locale: MoneyLocale = 'en'): string {
-    const pounds = Math.round(amount / 100);
-    const grouped = Math.abs(pounds)
-        .toString()
-        .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const signed = pounds < 0 ? `-${grouped}` : grouped;
+    // Rounded on the magnitude, not the signed value: `Math.round` breaks ties
+    // toward +∞, so -250 would round to -2 while 250 rounds to 3, and anything
+    // in (-100, 0) would land on -0 and lose its sign. No screen renders a
+    // negative amount today, but this is the formatter §7.12 wants promoted to
+    // `domain/`, where an overpayment or a refund eventually arrives.
+    const magnitude = Math.round(Math.abs(amount) / 100);
+    const grouped = magnitude.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    const signed = amount < 0 && magnitude > 0 ? `-${grouped}` : grouped;
     return locale === 'ar' ? `${signed} ${SYMBOL.ar}` : `${SYMBOL.en} ${signed}`;
 }

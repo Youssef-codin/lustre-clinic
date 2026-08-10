@@ -76,14 +76,44 @@ export function QuestionnaireSheet({
         setShowErrors(false);
     }, [visible, initial]);
 
+    /**
+     * The patch: the questions whose answer actually moved. Everything else is
+     * left out, which is the whole of rule 1 above.
+     */
+    const patch = useMemo(() => {
+        const changed: Answers = {};
+        for (const question of editable) {
+            const next = fromDraft(question, draft[question.key] ?? '');
+            const before = fromDraft(question, initial[question.key] ?? '');
+            // A boolean that was never answered and is still `false` counts as
+            // a change: `false` is an answer, and leaving it out would keep the
+            // question in `questionnaireGaps` forever.
+            if (next !== before || (question.kind === 'boolean' && answers[question.key] === undefined)) {
+                changed[question.key] = next;
+            }
+        }
+        return changed;
+    }, [editable, draft, initial, answers]);
+
+    /**
+     * Only what is being sent is checked.
+     *
+     * Validating every question on screen would undo the rule the patch exists
+     * to keep: a `select` answered in 2024 whose option was removed in 2026 is
+     * on this sheet, is not in the patch, and would never reach the server —
+     * blocking Save on it would stop the secretary correcting an unrelated
+     * answer for a reason she cannot fix from here. It stays visible as a gap
+     * on the record (`answer_no_longer_valid`), which is where it belongs.
+     */
     const errors = useMemo(() => {
         const found: Record<string, string> = {};
         for (const question of editable) {
+            if (!(question.key in patch)) continue;
             const message = validateDraft(question, draft[question.key] ?? '');
             if (message) found[question.key] = message;
         }
         return found;
-    }, [editable, draft]);
+    }, [editable, draft, patch]);
 
     const set = (key: string, value: DraftValue) => setDraft((current) => ({ ...current, [key]: value }));
 
@@ -92,19 +122,6 @@ export function QuestionnaireSheet({
             setShowErrors(true);
             return;
         }
-
-        const patch: Answers = {};
-        for (const question of editable) {
-            const next = fromDraft(question, draft[question.key] ?? '');
-            const before = fromDraft(question, initial[question.key] ?? '');
-            // A boolean that was never answered and is still `false` counts as
-            // a change: `false` is an answer, and leaving it out would keep the
-            // question in `questionnaireGaps` forever.
-            if (next !== before || (question.kind === 'boolean' && answers[question.key] === undefined)) {
-                patch[question.key] = next;
-            }
-        }
-
         if (Object.keys(patch).length === 0) {
             onClose();
             return;
