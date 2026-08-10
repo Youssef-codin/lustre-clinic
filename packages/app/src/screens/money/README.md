@@ -86,7 +86,7 @@ two.
 
 ## What is missing, and where it is written down
 
-[`BLOCKED.md`](../../../../../BLOCKED.md) at the repo root, entries 1–13 — read
+[`BLOCKED.md`](../../../../../BLOCKED.md) at the repo root, entries 1–14 — read
 it before reviewing this cluster. The short version:
 
 - `domain/MoneyValue` does not exist, nor does `components/domain/`
@@ -97,6 +97,9 @@ it before reviewing this cluster. The short version:
   amount
 - `--older` and `--discount` are left out: neither has a rule saying when it
   applies
+- `visit.byId` joins neither the appointment nor the patient, so the visit
+  reference, its date and the patient's name are threaded in from the
+  `balance.byPatient` row the screen was opened through
 
 The two files named `_Local*` are the §10 escape hatch and are meant to be
 deleted, not maintained.
@@ -116,10 +119,12 @@ adds 450ms of latency to every call so the pending states are visible.
 
 ## Verified
 
-`bun test packages/app` — 27 pass. The money arithmetic, the compact form, the
-currency rule, the clamp and the derived balances are covered in
-[`money.test.ts`](./money.test.ts); there is no renderer in `bun test`, so the
-screens themselves are not.
+`bun test packages/app` — 40 pass. [`money.test.ts`](./money.test.ts) covers
+everything that decides a figure: the piastre conversion, the compact form, the
+currency position, the whole-pounds guard, the overpayment clamp, the
+collection rate on a period that collects more than it charges, the derived
+balances, and the shape of the mirrored contract. There is no renderer in
+`bun test`, so the screens themselves are not covered.
 
 `bunx tsc --noEmit` and `bunx biome check` are clean, including the theme's
 raw-colour and physical-direction checks.
