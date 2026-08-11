@@ -13,12 +13,23 @@
  */
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, SegmentedControl, Toast } from '../../components/ui';
+import {
+    Banner,
+    Button,
+    PushView,
+    RefreshView,
+    SegmentedControl,
+    Toast,
+    usePullToRefresh,
+} from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { splitDay } from './agenda';
 import { splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
+import { BookFab } from './components/BookFab';
+import { BookingScreen } from './components/BookingScreen';
+import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { CheckoutSheet } from './components/CheckoutSheet';
 import { ClosedDay } from './components/ClosedDay';
@@ -26,9 +37,8 @@ import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { ChatIcon, ClockIcon } from './components/icons';
 import { NowCard } from './components/NowCard';
+import type { PatientDraft } from './components/PatientPicker';
 import { Reminders } from './components/Reminders';
-import { WalkInFab } from './components/WalkInFab';
-import { WalkInSheet } from './components/WalkInSheet';
 import {
     type Appointment,
     api,
@@ -46,12 +56,24 @@ import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
 
-export function DayScreen() {
+export type DayScreenProps = {
+    /** The booking page covers the day pane; the shell lights the Patients tab
+     * while it is up, because a booking belongs to the patient, not to today. */
+    onBookingChange?: (open: boolean) => void;
+};
+
+export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
-    const [walkIn, setWalkIn] = useState({ open: false, seq: 0 });
+    const [booking, setBooking] = useState({ open: false, seq: 0 });
+    // Who it is for is a sheet; the rest of the booking is a page pushed over
+    // the day (`PushView`), so the day keeps its date, branch and scroll and
+    // the tab bar stays where it is. The draft outlives the page's exit
+    // animation — clearing it on Back would unmount the pane mid-slide.
+    const [page, setPage] = useState<{ patient: PatientDraft; seq: number } | null>(null);
+    const [pageOpen, setPageOpen] = useState(false);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
         open: false,
@@ -121,6 +143,24 @@ export function DayScreen() {
         enabled: checkedInIds.length > 0,
     });
 
+    // A pull re-asks for this screen's six reads and nothing else. The other
+    // tabs are mounted behind this one and refetching them from here would put
+    // three screens' worth of traffic on the tunnel for a screen nobody is
+    // looking at — `/ws` is what keeps those fresh. A failed refresh keeps the
+    // day on screen behind its banner, so the gesture is safe on a bad signal.
+    const reads = [day, schedule, branches, procedureList, reminders, arrivals];
+    const refreshControl = usePullToRefresh(
+        () => {
+            day.refetch();
+            schedule.refetch();
+            branches.refetch();
+            procedureList.refetch();
+            reminders.refetch();
+            if (checkedInIds.length > 0) arrivals.refetch();
+        },
+        reads.some((read) => read.refreshing || read.status === 'loading'),
+    );
+
     // The chair is the queue's head, not whoever's slot the clock happens to be
     // inside — the doctor's screen reads it the same way, and picking by slot
     // was what had the two screens seating different patients.
@@ -139,7 +179,7 @@ export function DayScreen() {
         if (nextBranch) setBranchId(nextBranch);
     };
 
-    const openWalkIn = () => setWalkIn((current) => ({ open: true, seq: current.seq + 1 }));
+    const openBooking = () => setBooking((current) => ({ open: true, seq: current.seq + 1 }));
     const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
 
     const checkingInId = checkIn.pending ? checkingIn : null;
@@ -235,19 +275,29 @@ export function DayScreen() {
 
             <View style={styles.body}>
                 {tab === 'reminders' ? (
-                    <Reminders query={reminders} />
+                    <Reminders query={reminders} refreshControl={refreshControl} />
                 ) : day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <DayError error={day.error} onRetry={day.refetch} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayError error={day.error} onRetry={day.refetch} />
+                    </RefreshView>
                 ) : closed ? (
-                    <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
+                    <ClosedDay
+                        dateKey={dateKey}
+                        appointments={appointments}
+                        onSelect={openDetail}
+                        refreshControl={refreshControl}
+                    />
                 ) : appointments.length === 0 ? (
-                    <DayEmpty past={dateKey < todayKey()} onWalkIn={openWalkIn} elsewhere={elsewhere} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayEmpty past={dateKey < todayKey()} onBook={openBooking} elsewhere={elsewhere} />
+                    </RefreshView>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={refreshControl}
                         testID="day-agenda"
                     >
                         {isToday ? (
@@ -280,7 +330,7 @@ export function DayScreen() {
                 )}
             </View>
 
-            {isToday && tab === 'day' ? <WalkInFab onPress={openWalkIn} /> : null}
+            {tab === 'day' ? <BookFab onPress={openBooking} /> : null}
 
             <CalendarSheet
                 key={`calendar:${calendar.seq}`}
@@ -293,18 +343,43 @@ export function DayScreen() {
                 onClose={() => setCalendar((current) => ({ ...current, open: false }))}
             />
 
-            <WalkInSheet
-                key={`walk-in:${walkIn.seq}`}
-                visible={walkIn.open}
-                branchId={branch}
-                durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
-                defaultDuration={settings.data?.defaultDuration ?? 30}
-                onClose={() => setWalkIn((current) => ({ ...current, open: false }))}
-                onCreated={(message) => {
-                    setToast(message);
-                    day.refetch();
+            <BookPatientSheet
+                key={`book-patient:${booking.seq}`}
+                visible={booking.open}
+                onClose={() => setBooking((current) => ({ ...current, open: false }))}
+                onPicked={(patient) => {
+                    setBooking((current) => ({ ...current, open: false }));
+                    setPage((current) => ({ patient, seq: (current?.seq ?? 0) + 1 }));
+                    setPageOpen(true);
+                    onBookingChange?.(true);
                 }}
             />
+
+            <PushView visible={pageOpen} testID="booking-page">
+                {page ? (
+                    <BookingScreen
+                        key={`booking:${page.seq}`}
+                        patient={page.patient}
+                        branchId={branch}
+                        branches={branches.data ?? []}
+                        schedule={schedule.data}
+                        durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
+                        defaultDuration={settings.data?.defaultDuration ?? 30}
+                        dateKey={dateKey}
+                        nowMinutes={nowMinutes}
+                        onBack={() => {
+                            setPageOpen(false);
+                            onBookingChange?.(false);
+                        }}
+                        onBooked={(message) => {
+                            setPageOpen(false);
+                            onBookingChange?.(false);
+                            setToast(message);
+                            day.refetch();
+                        }}
+                    />
+                ) : null}
+            </PushView>
 
             <AppointmentDetailSheet
                 key={`detail:${selected.appointment?.id ?? 'none'}`}

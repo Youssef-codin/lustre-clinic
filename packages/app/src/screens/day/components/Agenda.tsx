@@ -10,18 +10,28 @@
 import type { AppointmentStatus } from '@mawid/shared';
 import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
-import { Button, Chevron, Tag } from '../../../components/ui';
+import { Button, Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { time12 } from '../time';
 import { statusLabel } from './_LocalStatusPill';
-import { ArrowBackIcon, ArrowForwardIcon, CheckIcon, ClockIcon } from './icons';
+import {
+    ArrowBackIcon,
+    ArrowForwardIcon,
+    ChairIcon,
+    CheckIcon,
+    ClockIcon,
+    PaymentIcon,
+    WaitingIcon,
+} from './icons';
 
 export type AgendaRowProps = {
     appointment: Appointment;
     onPress: () => void;
     procedure?: string;
     dim?: boolean;
+    /** The one seated patient — blue, where the queue behind them is orange. */
+    inChair?: boolean;
     trailing?: React.ReactNode;
     onNoShow?: () => void;
 };
@@ -33,6 +43,7 @@ export function AgendaRow({
     onPress,
     procedure,
     dim = false,
+    inChair = false,
     trailing,
     onNoShow,
 }: AgendaRowProps) {
@@ -62,7 +73,7 @@ export function AgendaRow({
         }),
     ).current;
 
-    if (!onNoShow) return <RowBody {...{ appointment, onPress, procedure, dim, trailing }} />;
+    if (!onNoShow) return <RowBody {...{ appointment, onPress, procedure, dim, inChair, trailing }} />;
 
     return (
         <View style={styles.swipe} {...pan.panHandlers}>
@@ -75,21 +86,47 @@ export function AgendaRow({
                 </Text>
             </View>
             <Animated.View style={[styles.front, { transform: [{ translateX: slide }] }]}>
-                <RowBody {...{ appointment, onPress, procedure, dim, trailing }} />
+                <RowBody {...{ appointment, onPress, procedure, dim, inChair, trailing }} />
             </Animated.View>
         </View>
     );
 }
 
-function RowBody({ appointment, onPress, procedure, dim = false, trailing }: AgendaRowProps) {
+/**
+ * Where the patient is, as the row's own fill — the button says what to do next
+ * and keeps one colour, so the state has to live somewhere else. Waiting is due
+ * — orange, a queue building — and the one seated patient is accent, so the
+ * chair reads as apart from the people waiting on it.
+ */
+const CHAIR_TINT = color.accentSoft;
+
+const TINT: Partial<Record<AppointmentStatus, string>> = {
+    checked_in: color.dueSoft,
+    awaiting_payment: color.accentSoft,
+};
+
+function RowBody({
+    appointment,
+    onPress,
+    procedure,
+    dim = false,
+    inChair = false,
+    trailing,
+}: AgendaRowProps) {
     const { time, meridiem } = time12(appointment.startsAt);
+    const tint = dim ? undefined : inChair ? CHAIR_TINT : TINT[appointment.status];
 
     return (
         <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${time} ${meridiem}, ${appointment.patient.name}, ${statusLabel(appointment.status)}`}
             onPress={onPress}
-            style={({ pressed }) => [styles.row, dim && styles.dim, pressed && styles.pressed]}
+            style={({ pressed }) => [
+                styles.row,
+                dim && styles.dim,
+                tint && [styles.tinted, { backgroundColor: tint }],
+                pressed && styles.pressed,
+            ]}
         >
             <View style={styles.clock}>
                 <Text variant="headline" script="mono" weight="semibold" tone={dim ? 'muted' : 'ink'}>
@@ -101,18 +138,15 @@ function RowBody({ appointment, onPress, procedure, dim = false, trailing }: Age
             </View>
 
             <View style={styles.body}>
-                <View style={styles.nameLine}>
-                    <Text
-                        variant="headline"
-                        weight="semibold"
-                        tone={dim ? 'ink2' : 'ink'}
-                        numberOfLines={1}
-                        style={styles.name}
-                    >
-                        {appointment.patient.name}
-                    </Text>
-                    {appointment.channel === 'walk_in' ? <Tag tone="due">WALK-IN</Tag> : null}
-                </View>
+                <Text
+                    variant="headline"
+                    weight="semibold"
+                    tone={dim ? 'ink2' : 'ink'}
+                    numberOfLines={1}
+                    style={styles.name}
+                >
+                    {appointment.patient.name}
+                </Text>
 
                 <View style={styles.meta}>
                     <ClockIcon size={13} />
@@ -129,13 +163,12 @@ function RowBody({ appointment, onPress, procedure, dim = false, trailing }: Age
     );
 }
 
-export type CheckInButtonProps = {
+export type CheckInControlProps = {
     appointment: Appointment;
     loading: boolean;
     /** `checked_in` is arrived, not seated — only the queue's head reads as IN. */
     inChair: boolean;
     onCheckIn: (appointment: Appointment) => void;
-    onOpen: (appointment: Appointment) => void;
 };
 
 const SHORT: Partial<Record<AppointmentStatus, string>> = {
@@ -143,20 +176,40 @@ const SHORT: Partial<Record<AppointmentStatus, string>> = {
     awaiting_payment: 'At desk',
 };
 
-export function CheckInButton({ appointment, loading, inChair, onCheckIn, onOpen }: CheckInButtonProps) {
-    const inside = appointment.status !== 'booked';
-    const label = inChair ? 'IN' : (SHORT[appointment.status] ?? statusLabel(appointment.status));
+/**
+ * Check in is the only thing to press out here — once the patient is inside,
+ * the row itself opens the visit, so the trailing slot drops to a chip that
+ * only says where they are. A button that repeats the row's own tap reads as a
+ * second, different action; the chip takes the button's width so the states
+ * still line up down the column.
+ */
+export function CheckInControl({ appointment, loading, inChair, onCheckIn }: CheckInControlProps) {
+    if (appointment.status === 'booked') {
+        return (
+            <Button
+                label="Check in"
+                variant="secondary"
+                size="md"
+                loading={loading}
+                icon={<CheckIcon size={13} stroke={color.ink} />}
+                style={styles.pill}
+                onPress={() => onCheckIn(appointment)}
+            />
+        );
+    }
+
+    const label = inChair ? 'In chair' : (SHORT[appointment.status] ?? statusLabel(appointment.status));
+    const seated = inChair || appointment.status === 'awaiting_payment';
+    const tone = seated ? color.accent : color.due;
+    const Icon = inChair ? ChairIcon : appointment.status === 'awaiting_payment' ? PaymentIcon : WaitingIcon;
 
     return (
-        <Button
-            label={inside ? label : 'Check in'}
-            variant={inside ? 'accentSoft' : 'secondary'}
-            size="md"
-            loading={loading}
-            icon={inside ? undefined : <CheckIcon size={13} stroke={color.ink} />}
-            style={styles.pill}
-            onPress={() => (inside ? onOpen(appointment) : onCheckIn(appointment))}
-        />
+        <View style={styles.chip} pointerEvents="none">
+            <Icon size={13} stroke={tone} />
+            <Text variant="callout" weight="semibold" tone={seated ? 'accent' : 'due'}>
+                {label}
+            </Text>
+        </View>
     );
 }
 
@@ -198,14 +251,14 @@ export function UpNext({
                     appointment={appointment}
                     procedure={procedureName(procedures, appointment)}
                     onPress={() => onSelect(appointment)}
+                    inChair={appointment.id === chairId}
                     onNoShow={appointment.status === 'booked' ? () => onNoShow(appointment) : undefined}
                     trailing={
-                        <CheckInButton
+                        <CheckInControl
                             appointment={appointment}
                             loading={checkingInId === appointment.id}
                             inChair={appointment.id === chairId}
                             onCheckIn={onCheckIn}
-                            onOpen={onSelect}
                         />
                     }
                 />
@@ -293,6 +346,12 @@ const styles = StyleSheet.create({
         borderBottomColor: color.line,
     },
     dim: { opacity: 0.72 },
+    tinted: {
+        paddingHorizontal: space[3],
+        marginHorizontal: -space[2],
+        borderRadius: radius.lg,
+        borderBottomColor: 'transparent',
+    },
     swipe: { position: 'relative' },
     behind: {
         position: 'absolute',
@@ -309,8 +368,17 @@ const styles = StyleSheet.create({
     pressed: { backgroundColor: color.surface2 },
     clock: { width: 62, flexDirection: 'row', alignItems: 'baseline', gap: space[0.5] },
     body: { flex: 1, gap: space[0.5] },
-    nameLine: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
     name: { flexShrink: 1 },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-    pill: { borderRadius: radius.full, paddingHorizontal: space[3] },
+    /** One width for every state, so the column of controls reads as a column. */
+    pill: { borderRadius: radius.full, paddingHorizontal: space[3], minWidth: 118 },
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: space[2],
+        minWidth: 118,
+        minHeight: size.row,
+        paddingHorizontal: space[3],
+    },
 });

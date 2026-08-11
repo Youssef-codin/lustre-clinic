@@ -4,7 +4,7 @@
  * nothing like a quiet Tuesday. The retry button carries no `loading`: the
  * whole panel is replaced by the skeleton the moment the query goes back to
  * loading, so a spinner here would never be seen. Past days get a statement
- * rather than an offer, and the walk-in action is omitted on the doctor's
+ * rather than an offer, and the booking action is omitted on the doctor's
  * screen, where booking one is the desk's job.
  *
  * `elsewhere` is the branch working a day this one is not. The day is fetched
@@ -56,12 +56,12 @@ export function DayError({ error, onRetry }: DayErrorProps) {
 
 export type DayEmptyProps = {
     past: boolean;
-    onWalkIn?: () => void;
+    onBook?: () => void;
     elsewhere?: { name: string; count: number; onGo: () => void };
 };
 
-export function DayEmpty({ past, onWalkIn, elsewhere }: DayEmptyProps) {
-    const offer = !past && onWalkIn !== undefined;
+export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
+    const offer = !past && onBook !== undefined;
 
     return (
         <View style={styles.centred}>
@@ -72,10 +72,10 @@ export function DayEmpty({ past, onWalkIn, elsewhere }: DayEmptyProps) {
                 body={
                     past
                         ? 'No appointments were booked, and nobody walked in.'
-                        : 'The day is clear. A patient who turns up without an appointment goes in as a walk-in.'
+                        : 'The day is clear. Book someone in for later, or start a walk-in who is at the desk now.'
                 }
-                actionLabel={offer ? 'Add a walk-in' : undefined}
-                onAction={offer ? onWalkIn : undefined}
+                actionLabel={offer ? 'Book someone in' : undefined}
+                onAction={offer ? onBook : undefined}
             />
 
             {elsewhere ? (

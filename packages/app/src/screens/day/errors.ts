@@ -16,7 +16,7 @@ export interface ErrorMessage {
     body?: string;
 }
 
-export type ErrorContext = 'walk-in' | 'move' | 'check-in' | 'check-out' | 'day' | 'generic';
+export type ErrorContext = 'walk-in' | 'booking' | 'move' | 'check-in' | 'check-out' | 'day' | 'generic';
 
 export function describeError(error: RequestError, context: ErrorContext = 'generic'): ErrorMessage {
     if (error.offline) {
@@ -33,7 +33,9 @@ export function describeError(error: RequestError, context: ErrorContext = 'gene
                 body:
                     context === 'walk-in'
                         ? 'Someone is already booked for that time. Give this walk-in a shorter visit, or finish the patient in the chair first.'
-                        : 'Someone is already booked for that time. Pick another time, or shorten the appointment.',
+                        : context === 'booking'
+                          ? 'That time was taken while this was being filled in. Go back and pick another one — the times have been reloaded.'
+                          : 'Someone is already booked for that time. Pick another time, or shorten the appointment.',
             };
 
         case ERROR_CODE.INVALID_DURATION:

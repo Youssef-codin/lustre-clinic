@@ -5,8 +5,9 @@
  * double booking.
  */
 import { describe, expect, it } from 'bun:test';
-import { type AppointmentStatus, ERROR_CODE } from '@mawid/shared';
+import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@mawid/shared';
 import { splitDay } from './agenda';
+import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment } from './data/types';
@@ -15,11 +16,21 @@ import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatMoney, poundsEntry } from './money';
 import { busiestBranch, loadsFrom } from './month';
 import {
+    describeProcedure,
+    groupByTooth,
+    type PlannedProcedure,
+    primaryTypeId,
+    QUADRANTS,
+    toothPosition,
+    totalOf,
+} from './procedures';
+import {
     addDays,
     clock12,
     clockToMinutes,
     dateKey,
     formatDatePill,
+    isoAt,
     minutesOfDay,
     minutesToClock,
     relativeDayLabel,
@@ -309,5 +320,173 @@ describe('dates', () => {
         expect(formatDatePill(today, today).split(' ')).toHaveLength(2);
         expect(formatDatePill(addDays(today, 2), today).split(' ')).toHaveLength(3);
         expect(formatDatePill(today, today)).toBe(formatDatePill(today, today).toUpperCase());
+    });
+});
+
+describe('booking slots', () => {
+    const SCHEDULE = [{ weekday: 1, branchId: 'b', opensAt: '10:00', closesAt: '12:00' }];
+    const MONDAY = '2026-08-10';
+
+    // `isoAt` rather than a hand-written `+03:00`: `bun test` runs in UTC, and a
+    // fixed offset would put 10:30 Cairo outside the clinic's morning there.
+    const booked = (minutes: number, durationMinutes: number, status: AppointmentStatus): Appointment =>
+        ({
+            id: String(minutes),
+            startsAt: isoAt(MONDAY, minutes),
+            durationMinutes,
+            status,
+            branchId: 'b',
+        }) as Appointment;
+
+    const at = (slots: readonly Slot[], minutes: number) => slots.find((slot) => slot.minutes === minutes);
+
+    it('steps the quarter hour from opening to closing', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [],
+            durationMinutes: 30,
+            nowMinutes: null,
+        });
+
+        expect(slots).toHaveLength(8);
+        expect(slots[0]?.minutes).toBe(600);
+        expect(slots.at(-1)?.minutes).toBe(705);
+        expect(slots.every((slot) => slot.state === 'free')).toBe(true);
+    });
+
+    it('offers a slot the visit would overrun closing on, and says so', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [],
+            durationMinutes: 45,
+            nowMinutes: null,
+        });
+
+        expect(at(slots, 690)?.runsLate).toBe(true);
+        expect(at(slots, 675)?.runsLate).toBe(false);
+        expect(at(slots, 690)?.state).toBe('free');
+    });
+
+    it('takes every slot a booking overlaps, at either end', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [booked(630, 30, 'booked')],
+            durationMinutes: 30,
+            nowMinutes: null,
+        });
+
+        // A 30-minute visit at 10:15 or 11:00 runs into 10:30–11:00.
+        expect(at(slots, 615)?.state).toBe('taken');
+        expect(at(slots, 630)?.state).toBe('taken');
+        expect(at(slots, 645)?.state).toBe('taken');
+        expect(at(slots, 600)?.state).toBe('free');
+        expect(at(slots, 660)?.state).toBe('free');
+    });
+
+    it('frees the time a cancellation or a no-show was holding', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [booked(630, 30, 'cancelled'), booked(660, 30, 'no_show')],
+            durationMinutes: 15,
+            nowMinutes: null,
+        });
+
+        expect(slots.every((slot) => slot.state === 'free')).toBe(true);
+    });
+
+    it('does not offer a time today that has already gone by', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [],
+            durationMinutes: 30,
+            nowMinutes: 11 * 60,
+        });
+
+        expect(at(slots, 645)?.state).toBe('past');
+        expect(at(slots, 660)?.state).toBe('free');
+        expect(firstFreeSlot(slots)).toBe(660);
+    });
+
+    it('has no times at all on a closed day', () => {
+        expect(
+            slotsFor({
+                dateKey: FRIDAY,
+                schedule: undefined,
+                appointments: [],
+                durationMinutes: 30,
+                nowMinutes: null,
+            }),
+        ).toEqual([]);
+    });
+
+    it('refuses a time that stopped being free while the sheet was open', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [booked(630, 30, 'booked')],
+            durationMinutes: 30,
+            nowMinutes: null,
+        });
+
+        expect(slotIsFree(slots, 600)).toBe(true);
+        expect(slotIsFree(slots, 630)).toBe(false);
+        expect(slotIsFree(slots, null)).toBe(false);
+    });
+});
+
+describe('the procedure plan', () => {
+    const line = (id: string, tooth: Tooth | null, price: number): PlannedProcedure => ({
+        id,
+        procedureId: `proc-${id}`,
+        name: 'Composite filling',
+        variant: 'Class II',
+        tooth,
+        price,
+    });
+
+    it('groups by tooth, in the order a chart is read, with no tooth last', () => {
+        const groups = groupByTooth([
+            line('a', 'LL4', 700_00),
+            line('b', null, 400_00),
+            line('c', 'UL6', 900_00),
+            line('d', 'LL4', 300_00),
+        ]);
+
+        expect(groups.map((group) => group.tooth)).toEqual(['UL6', 'LL4', null]);
+        expect(groups[1]?.items.map((item) => item.id)).toEqual(['a', 'd']);
+        expect(groups[1]?.subtotal).toBe(1000_00);
+    });
+
+    it('names where a tooth is, and says so when there is none', () => {
+        expect(toothPosition('UL6')).toBe('Upper left · 6');
+        expect(toothPosition('LRE')).toBe('Lower right · E');
+        expect(toothPosition(null)).toBe('No tooth assigned');
+    });
+
+    it('offers the child teeth after the permanent ones in every quadrant', () => {
+        const upperRight = QUADRANTS.find((quadrant) => quadrant.key === 'UR');
+
+        // Upper right counts towards the midline, so it starts at the wisdom tooth.
+        expect(upperRight?.codes[0]).toBe('UR8');
+        expect(upperRight?.codes[7]).toBe('UR1');
+        expect(upperRight?.codes.slice(8)).toEqual(['URA', 'URB', 'URC', 'URD', 'URE']);
+    });
+
+    it('totals the plan and hands the appointment the first line it can carry', () => {
+        const plan = [line('a', 'UL6', 900_00), line('b', null, 400_00)];
+
+        expect(totalOf(plan)).toBe(1300_00);
+        expect(primaryTypeId(plan)).toBe('proc-a');
+        expect(primaryTypeId([])).toBeNull();
+    });
+
+    it('reads a line back the way the note and the summary print it', () => {
+        expect(describeProcedure(line('a', 'UL6', 0))).toBe('Composite filling · Class II (UL6)');
+        expect(describeProcedure({ ...line('b', null, 0), variant: null })).toBe('Composite filling');
     });
 });

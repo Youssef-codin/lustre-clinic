@@ -16,6 +16,7 @@ import {
     ScreenHeader,
     SearchField,
     SectionLabel,
+    usePullToRefresh,
 } from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { _LocalPatientRow } from './components/_LocalPatientRow';
@@ -42,9 +43,22 @@ export function PatientListScreen({ onOpen }: PatientListScreenProps) {
     const searching = query.trim().length > 0;
     const rows = patients.data ?? [];
 
+    // Both queries, and no further than that: the record behind a row is read
+    // when it is opened, and the other tabs are refreshed by their own pull. A
+    // refresh while searching re-runs the search, not the whole list — the term
+    // is the query key, so this is the list on screen.
+    const refreshControl = usePullToRefresh(() => {
+        patients.refetch();
+        balances.refetch();
+    }, patients.loading || balances.loading);
+
     return (
         <View style={styles.screen}>
-            <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+            <ScrollView
+                contentContainerStyle={styles.content}
+                keyboardShouldPersistTaps="handled"
+                refreshControl={refreshControl}
+            >
                 <ScreenHeader title="Patients" />
 
                 <View style={styles.search}>

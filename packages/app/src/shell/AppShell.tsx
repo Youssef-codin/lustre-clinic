@@ -20,6 +20,10 @@ export function AppShell() {
     const [tab, setTab] = useState<TabKey>('day');
     const [role, setRole] = useState<ClientRole>('doctor');
     const [visited, setVisited] = useState<TabKey[]>(['day']);
+    // The day tab can be showing a booking, which is patients' work — the tab
+    // bar says so rather than leaving the highlight on a day nobody is looking
+    // at. Tapping a tab drops the highlight back where the tap says.
+    const [booking, setBooking] = useState(false);
     const { isOffline, isOnline } = useConnection();
 
     // Sticky: `reprobe` passes through 'probing' on its way to an answer, and
@@ -38,6 +42,7 @@ export function AppShell() {
             return;
         }
         setTab(next);
+        setBooking(false);
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
     }
 
@@ -45,7 +50,11 @@ export function AppShell() {
         <View style={styles.root}>
             <View style={styles.body}>
                 <Pane visible={tab === 'day'} mounted={visited.includes('day')}>
-                    {role === 'doctor' ? <DoctorDayScreen key="doctor" /> : <DayScreen key="secretary" />}
+                    {role === 'doctor' ? (
+                        <DoctorDayScreen key="doctor" />
+                    ) : (
+                        <DayScreen key="secretary" onBookingChange={setBooking} />
+                    )}
                 </Pane>
 
                 <Pane visible={tab === 'patients'} mounted={visited.includes('patients')}>
@@ -61,7 +70,7 @@ export function AppShell() {
                 </Pane>
             </View>
 
-            <BottomTabBar active={tab} role={role} onChange={open} />
+            <BottomTabBar active={booking && tab === 'day' ? 'patients' : tab} role={role} onChange={open} />
 
             {/* Covers the tab bar too: offline is a dead end, not a mode you
                 can navigate around. The clusters stay mounted underneath so

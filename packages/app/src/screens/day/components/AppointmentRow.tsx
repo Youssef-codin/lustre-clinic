@@ -5,7 +5,7 @@
  * `_Local` awaiting promotion.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Chevron, Tag } from '../../../components/ui';
+import { Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { formatTime } from '../time';
@@ -38,7 +38,6 @@ export function AppointmentRow({ appointment, onPress }: AppointmentRowProps) {
                     <Text variant="subhead" tone="muted">
                         {appointment.durationMinutes} min
                     </Text>
-                    {appointment.channel === 'walk_in' ? <Tag tone="muted">WALK-IN</Tag> : null}
                     <_LocalStatusPill status={appointment.status} />
                 </View>
             </View>

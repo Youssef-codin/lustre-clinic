@@ -13,8 +13,11 @@ import {
     Calendar,
     Check,
     Clock,
+    CreditCard,
+    Hourglass,
     MapPin,
     MessageCircle,
+    Plus,
     Stethoscope,
     X,
 } from 'lucide-react-native';
@@ -51,3 +54,14 @@ export const ChatIcon = icon(MessageCircle);
 export const CloseIcon = icon(X, 2.2);
 
 export const CheckIcon = icon(Check, 2.4);
+
+export const WaitingIcon = icon(Hourglass, 2.2);
+
+export const ChairIcon = icon(Stethoscope, 2);
+
+export const PaymentIcon = icon(CreditCard, 2.2);
+
+export const PlusIcon = icon(Plus, 2.4);
+
+/** The catalogue's remove — `CloseIcon` is a dismiss, this ends a line. */
+export const XIcon = icon(X, 2.2);

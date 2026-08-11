@@ -112,6 +112,30 @@ export interface ProcedureType {
     defaultPrice: number;
 }
 
+/**
+ * `procedure.tree` — one level of nesting (§5): a root is either selectable on
+ * its own (Extraction) or a category whose children are the variants that carry
+ * the price (Composite filling → Class I/II/III). `isToothSpecific` is what
+ * makes the picker ask which tooth before it asks which procedure.
+ */
+export interface ProcedureRow {
+    id: string;
+    parentId: string | null;
+    name: string;
+    defaultPrice: number;
+    hasQuantity: boolean;
+    isToothSpecific: boolean;
+    isCheckup: boolean;
+    active: boolean;
+    sortOrder: number;
+}
+
+export interface ProcedureCategory extends ProcedureRow {
+    children: ProcedureRow[];
+    /** No children — the root is the procedure, not a heading. */
+    selectable: boolean;
+}
+
 export interface PendingReminder {
     id: string;
     appointmentId: string;

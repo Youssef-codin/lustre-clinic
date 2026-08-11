@@ -129,6 +129,11 @@ export function formatDatePill(key: string, today: string = todayKey()): string 
     return key === today ? stamp : `${WEEKDAYS_SHORT[date.getDay()]?.toUpperCase()} ${stamp}`;
 }
 
+/** The month a date tile shows under its number. */
+export function monthShort(key: string): string {
+    return MONTHS_SHORT[parseKey(key).getMonth()] ?? '';
+}
+
 export function formatMonth(key: string): string {
     const date = parseKey(key);
     return `${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;

@@ -29,11 +29,17 @@ import type {
     ClinicSettings,
     Patient,
     PendingReminder,
+    ProcedureCategory,
     ProcedureType,
     Visit,
     VisitRow,
     WalkInResult,
 } from './types';
+
+/** §7/§13: book for someone on file, or create them with the appointment. */
+export type PatientRef =
+    | { kind: 'existing'; patientId: string }
+    | { kind: 'new'; name: string; phone: string };
 
 function shaped<T>(value: unknown): T {
     return value as T;
@@ -80,6 +86,9 @@ export const api = {
 
     procedures: (): Promise<ProcedureType[]> => wrap(() => trpcClient.procedure.list.query()),
 
+    procedureTree: (): Promise<ProcedureCategory[]> =>
+        wrap(() => trpcClient.procedure.tree.query({ includeInactive: false })),
+
     pendingReminders: (date: string): Promise<PendingReminder[]> =>
         wrap(() =>
             trpcClient.reminder.pending.query({
@@ -102,11 +111,23 @@ export const api = {
         wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId })),
 
     walkIn: (input: {
-        patient: { kind: 'existing'; patientId: string } | { kind: 'new'; name: string; phone: string };
+        patient: PatientRef;
         branchId: string;
         durationMinutes?: number;
+        typeId?: string | null;
+        note?: string | null;
         offsetMinutes: number;
     }): Promise<WalkInResult> => wrap(() => trpcClient.appointment.walkIn.mutate(input)),
+
+    create: (input: {
+        patient: PatientRef;
+        branchId: string;
+        startsAt: string;
+        durationMinutes?: number;
+        typeId?: string | null;
+        note?: string | null;
+        offsetMinutes: number;
+    }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.create.mutate(input)),
 
     cancel: (id: string): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.cancel.mutate({ id })),
 

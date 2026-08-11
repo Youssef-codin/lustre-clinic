@@ -11,7 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, Toast } from '../../components/ui';
+import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
@@ -93,6 +93,20 @@ export function DoctorDayScreen() {
         enabled: checkedInIds.length > 0,
     });
 
+    // This screen's reads only — see `DayScreen`. The doctor has no reminders
+    // tab and no settings read, so it is four queries rather than six.
+    const reads = [day, schedule, branches, procedureList, arrivals];
+    const refreshControl = usePullToRefresh(
+        () => {
+            day.refetch();
+            schedule.refetch();
+            branches.refetch();
+            procedureList.refetch();
+            if (checkedInIds.length > 0) arrivals.refetch();
+        },
+        reads.some((read) => read.refreshing || read.status === 'loading'),
+    );
+
     const { chair, headline, strip, list, past } = useMemo(
         () => splitDoctorDay(appointments, arrivals.data),
         [appointments, arrivals.data],
@@ -172,15 +186,25 @@ export function DoctorDayScreen() {
                 {day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <DayError error={day.error} onRetry={day.refetch} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayError error={day.error} onRetry={day.refetch} />
+                    </RefreshView>
                 ) : closed ? (
-                    <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
+                    <ClosedDay
+                        dateKey={dateKey}
+                        appointments={appointments}
+                        onSelect={openDetail}
+                        refreshControl={refreshControl}
+                    />
                 ) : appointments.length === 0 ? (
-                    <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
+                    </RefreshView>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={refreshControl}
                         testID="doctor-agenda"
                     >
                         {isToday ? (

@@ -8,7 +8,14 @@
 // hidden while searching rather than recomputed.
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Card, EmptyState, ScreenHeader, SearchField, SectionLabel } from '../../components/ui';
+import {
+    Card,
+    EmptyState,
+    ScreenHeader,
+    SearchField,
+    SectionLabel,
+    usePullToRefresh,
+} from '../../components/ui';
 import { size, space, Text } from '../../theme';
 import {
     type PatientBalance,
@@ -51,11 +58,25 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
         );
     }, [outstanding.data, search]);
 
+    // The dashboard's three figures, for the period on screen — a pull does not
+    // touch the other periods or the panes pushed over this one, which read
+    // themselves when they open. The debtor search is client-side, so a refresh
+    // while searching re-reads the same list and re-filters it.
+    const refreshControl = usePullToRefresh(
+        () => {
+            summary.refetch();
+            takings.refetch();
+            outstanding.refetch();
+        },
+        summary.isLoading || takings.isLoading || outstanding.isLoading,
+    );
+
     return (
         <ScrollView
             style={styles.screen}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
+            refreshControl={refreshControl}
             testID="money-screen"
         >
             <ScreenHeader title="Money" />

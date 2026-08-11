@@ -5,7 +5,7 @@
 // off. `onOpenVisit` passes the whole row because `visit.byId` does not join
 // the appointment, so `ref`/`startsAt` come from here (BLOCKED.md #14).
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Card, EmptyState, SectionLabel, TopBar } from '../../components/ui';
+import { Card, EmptyState, SectionLabel, TopBar, usePullToRefresh } from '../../components/ui';
 import { size, space, Text } from '../../theme';
 import { useOutstanding, useVisitsByPatient, type VisitBalance } from './_LocalMoneyApi';
 import { MoneyValue } from './_LocalMoneyValue';
@@ -32,11 +32,18 @@ export function PatientBalanceScreen({
 
     const patient = outstanding.data?.patients.find((row) => row.patientId === patientId);
 
+    // The total comes from `outstanding`, the rows from `byPatient`; refreshing
+    // one without the other is how the header and the list start disagreeing.
+    const refreshControl = usePullToRefresh(() => {
+        visits.refetch();
+        outstanding.refetch();
+    }, visits.isLoading || outstanding.isLoading);
+
     return (
         <View style={styles.screen} testID="money-patient-screen">
             <TopBar title={patientName} onBack={onBack} divider />
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
                 <View style={styles.gutter}>
                     <LoadState
                         isLoading={outstanding.isLoading}
