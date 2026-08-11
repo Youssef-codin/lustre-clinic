@@ -6,6 +6,11 @@
  * loading, so a spinner here would never be seen. Past days get a statement
  * rather than an offer, and the walk-in action is omitted on the doctor's
  * screen, where booking one is the desk's job.
+ *
+ * `elsewhere` is the branch working a day this one is not. The day is fetched
+ * for the whole clinic, so the count is already to hand, and an empty branch
+ * that says nothing about it is how "Nothing booked" gets read as a broken
+ * fetch rather than a quiet Maadi.
  */
 import { StyleSheet, View } from 'react-native';
 import { Button, EmptyState } from '../../../components/ui';
@@ -52,9 +57,10 @@ export function DayError({ error, onRetry }: DayErrorProps) {
 export type DayEmptyProps = {
     past: boolean;
     onWalkIn?: () => void;
+    elsewhere?: { name: string; count: number; onGo: () => void };
 };
 
-export function DayEmpty({ past, onWalkIn }: DayEmptyProps) {
+export function DayEmpty({ past, onWalkIn, elsewhere }: DayEmptyProps) {
     const offer = !past && onWalkIn !== undefined;
 
     return (
@@ -71,6 +77,22 @@ export function DayEmpty({ past, onWalkIn }: DayEmptyProps) {
                 actionLabel={offer ? 'Add a walk-in' : undefined}
                 onAction={offer ? onWalkIn : undefined}
             />
+
+            {elsewhere ? (
+                <View style={styles.elsewhere}>
+                    <Text variant="footnote" tone="muted" style={styles.centredText}>
+                        {elsewhere.count} {elsewhere.count === 1 ? 'appointment' : 'appointments'} that day,
+                        in {elsewhere.name}.
+                    </Text>
+                    <Button
+                        label={`Open ${elsewhere.name}`}
+                        variant="text"
+                        size="md"
+                        onPress={elsewhere.onGo}
+                        style={styles.action}
+                    />
+                </View>
+            ) : null}
         </View>
     );
 }
@@ -81,5 +103,6 @@ const styles = StyleSheet.create({
     centred: { flex: 1, justifyContent: 'center', padding: size.gutter },
     panel: { alignItems: 'center', gap: space[3] },
     centredText: { textAlign: 'center' },
+    elsewhere: { marginTop: space[5], alignItems: 'center', gap: space[1] },
     action: { alignSelf: 'center' },
 });

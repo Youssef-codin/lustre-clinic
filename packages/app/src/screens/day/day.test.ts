@@ -7,12 +7,13 @@
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE } from '@mawid/shared';
 import { splitDay } from './agenda';
-import { slotProgress, splitDoctorDay } from './chair';
+import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment } from './data/types';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatMoney, poundsEntry } from './money';
+import { busiestBranch, loadsFrom } from './month';
 import {
     addDays,
     clock12,
@@ -163,6 +164,35 @@ describe("the doctor's day", () => {
         expect(day.headline?.id).toBe('booked');
     });
 
+    it('seats the same patient the desk does', () => {
+        const rows = [at('second', '11:35', 'checked_in'), at('first', '11:05', 'checked_in')];
+        const when = arrivals({ first: '11:02', second: '11:20' });
+
+        expect(splitDeskDay(rows, when).chair?.id).toBe(splitDoctorDay(rows, when).chair?.id);
+    });
+
+    it('holds the desk card on the patient who still owes, and seats the next', () => {
+        const day = splitDeskDay(
+            [
+                at('desk', '11:05', 'awaiting_payment', '11:40'),
+                at('waiting', '11:35', 'checked_in'),
+                at('booked', '12:00', 'booked'),
+            ],
+            arrivals({ waiting: '11:20' }),
+        );
+
+        expect(day.card?.id).toBe('desk');
+        expect(day.chair?.id).toBe('waiting');
+    });
+
+    it('falls back to the chair, then to the next booking, for the card', () => {
+        const seated = [at('chair', '11:05', 'checked_in'), at('booked', '12:00', 'booked')];
+
+        expect(splitDeskDay(seated, arrivals({ chair: '11:02' })).card?.id).toBe('chair');
+        expect(splitDeskDay([at('booked', '12:00', 'booked')]).card?.id).toBe('booked');
+        expect(splitDeskDay([at('paid', '09:30', 'done')]).card).toBeNull();
+    });
+
     it('measures the slot, and says so once it runs over', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const start = minutesOfDay(appointment.startsAt);
@@ -170,6 +200,51 @@ describe("the doctor's day", () => {
         expect(slotProgress(appointment, start + 15).label).toBe('15 / 30 min');
         expect(slotProgress(appointment, start + 45).over).toBe(true);
         expect(slotProgress(appointment, start + 45).label).toBe('15 min over');
+    });
+});
+
+describe('the month', () => {
+    const at = (id: string, branchId: string, status: AppointmentStatus = 'booked'): Appointment =>
+        ({
+            id,
+            branchId,
+            startsAt: `2026-08-10T11:00:00+03:00`,
+            status,
+            durationMinutes: 30,
+            patient: { id: `p-${id}`, name: id, phone: '' },
+        }) as Appointment;
+
+    it('sends the day to the branch holding most of it', () => {
+        const rows = [at('a', 'maadi'), at('b', 'zamalek'), at('c', 'zamalek')];
+        expect(busiestBranch(rows, 'maadi')).toBe('zamalek');
+    });
+
+    it('stays where it is when the day is split evenly', () => {
+        const rows = [at('a', 'zamalek'), at('b', 'maadi')];
+        expect(busiestBranch(rows, 'maadi')).toBe('maadi');
+        expect(busiestBranch(rows, 'zamalek')).toBe('zamalek');
+    });
+
+    it('moves nothing on a day with nothing booked', () => {
+        expect(busiestBranch([], 'maadi')).toBe(null);
+    });
+
+    it('counts every branch, and lets no cancellation pull the pick', () => {
+        const loads = loadsFrom(
+            [SATURDAY],
+            [[at('a', 'maadi'), at('b', 'zamalek'), at('c', 'zamalek', 'cancelled')]],
+            undefined,
+            'maadi',
+        );
+
+        expect(loads.get(SATURDAY)?.count).toBe(2);
+        expect(loads.get(SATURDAY)?.busiest).toBe('maadi');
+    });
+
+    it('leaves a closed day at no load rather than dividing by nothing', () => {
+        const loads = loadsFrom([FRIDAY], [[at('a', 'maadi')]], undefined, 'maadi');
+        expect(loads.get(FRIDAY)?.fill).toBe(0);
+        expect(loads.get(FRIDAY)?.slots).toBe(0);
     });
 });
 

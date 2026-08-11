@@ -31,6 +31,12 @@ export function AppShell() {
     if (isOnline && showOffline) setShowOffline(false);
 
     function open(next: TabKey) {
+        // Testing shortcut: the role tab flips doctor/secretary in place instead
+        // of opening settings, so both day views are one tap apart.
+        if (next === 'role') {
+            setRole((current) => (current === 'doctor' ? 'secretary' : 'doctor'));
+            return;
+        }
         setTab(next);
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
     }

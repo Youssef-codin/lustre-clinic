@@ -26,6 +26,7 @@ import { AfterThis } from './components/DoctorAgenda';
 import { type Appointment, api, checkInTimes, useLocalMutation, useLocalQuery, type Visit } from './data';
 import { describeError } from './errors';
 import { isClosed } from './hours';
+import { busiestBranch, holdsSlot } from './month';
 import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
@@ -47,10 +48,13 @@ export function DoctorDayScreen() {
 
     const schedule = useLocalQuery('schedule', api.schedule);
     const branches = useLocalQuery('branches', api.branches);
-    const branch = branchId ?? branches.data?.[0]?.id ?? null;
-    const day = useLocalQuery(`day:${dateKey}:${branch ?? 'all'}`, () =>
-        api.byDate(dateKey, branch ?? undefined),
-    );
+    // Fetched for the whole clinic and split here, so the screen opens on the
+    // branch holding most of the day rather than on `branches[0]` — see
+    // `DayScreen`. A branch the user picked wins over the count.
+    const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const clinicDay = day.data ?? [];
+    const branch =
+        branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
 
     const procedureList = useLocalQuery('procedures', api.procedures);
     const procedures = useMemo(
@@ -58,9 +62,24 @@ export function DoctorDayScreen() {
         [procedureList.data],
     );
 
-    const appointments = day.data ?? [];
+    const appointments = useMemo(
+        () => clinicDay.filter((row) => row.branchId === branch),
+        [clinicDay, branch],
+    );
     const closed = isClosed(dateKey, schedule.data);
     const isToday = dateKey === todayKey();
+
+    const away = clinicDay.filter((row) => row.branchId !== branch && holdsSlot(row));
+    const awayId = busiestBranch(away, null);
+    const awayName = (branches.data ?? []).find((row) => row.id === awayId)?.name;
+    const elsewhere =
+        awayId && awayName
+            ? {
+                  name: awayName,
+                  count: away.filter((row) => row.branchId === awayId).length,
+                  onGo: () => setBranchId(awayId),
+              }
+            : undefined;
 
     const checkedInIds = useMemo(
         () =>
@@ -93,6 +112,13 @@ export function DoctorDayScreen() {
                 : 'next';
 
     const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
+
+    // The calendar counts every branch; the picked day carries the one it is
+    // busiest in, so the day it promised is the day this draws.
+    const pickDay = (nextDate: string, nextBranch: string | null) => {
+        setDateKey(nextDate);
+        if (nextBranch) setBranchId(nextBranch);
+    };
 
     function finishVisit(appointment: Appointment) {
         setFinishing(appointment.id);
@@ -150,7 +176,7 @@ export function DoctorDayScreen() {
                 ) : closed ? (
                     <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
                 ) : appointments.length === 0 ? (
-                    <DayEmpty past={dateKey < todayKey()} />
+                    <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
@@ -200,8 +226,9 @@ export function DoctorDayScreen() {
                 visible={calendar.open}
                 selected={dateKey}
                 schedule={schedule.data}
-                branchName={(branches.data ?? []).find((row) => row.id === branch)?.name}
-                onPick={setDateKey}
+                branches={branches.data ?? []}
+                branchId={branch}
+                onPick={pickDay}
                 onClose={() => setCalendar((current) => ({ ...current, open: false }))}
             />
 

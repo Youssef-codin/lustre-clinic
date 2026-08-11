@@ -20,7 +20,7 @@
             "predictiveBackGestureEnabled": false,
             "softwareKeyboardLayoutMode": "resize"
         },
-        "plugins": ["expo-font"],
+        "plugins": ["expo-font", "./plugins/withBuildTuning"],
         "extra": {
             "server": {
                 "lan": "http://localhost:3002",

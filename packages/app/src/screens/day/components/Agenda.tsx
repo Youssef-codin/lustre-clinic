@@ -132,8 +132,8 @@ function RowBody({ appointment, onPress, procedure, dim = false, trailing }: Age
 export type CheckInButtonProps = {
     appointment: Appointment;
     loading: boolean;
-    chairBusy: boolean;
-    onBlocked: (appointment: Appointment) => void;
+    /** `checked_in` is arrived, not seated — only the queue's head reads as IN. */
+    inChair: boolean;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
 };
@@ -143,27 +143,19 @@ const SHORT: Partial<Record<AppointmentStatus, string>> = {
     awaiting_payment: 'At desk',
 };
 
-export function CheckInButton({
-    appointment,
-    loading,
-    chairBusy,
-    onCheckIn,
-    onBlocked,
-    onOpen,
-}: CheckInButtonProps) {
+export function CheckInButton({ appointment, loading, inChair, onCheckIn, onOpen }: CheckInButtonProps) {
     const inside = appointment.status !== 'booked';
+    const label = inChair ? 'IN' : (SHORT[appointment.status] ?? statusLabel(appointment.status));
 
     return (
         <Button
-            label={inside ? (SHORT[appointment.status] ?? statusLabel(appointment.status)) : 'Check in'}
+            label={inside ? label : 'Check in'}
             variant={inside ? 'accentSoft' : 'secondary'}
             size="md"
             loading={loading}
             icon={inside ? undefined : <CheckIcon size={13} stroke={color.ink} />}
             style={styles.pill}
-            onPress={() =>
-                inside ? onOpen(appointment) : chairBusy ? onBlocked(appointment) : onCheckIn(appointment)
-            }
+            onPress={() => (inside ? onOpen(appointment) : onCheckIn(appointment))}
         />
     );
 }
@@ -171,25 +163,23 @@ export function CheckInButton({
 export type UpNextProps = {
     appointments: readonly Appointment[];
     procedures: ReadonlyMap<string, string>;
-    chairBusy: boolean;
+    chairId: string | null;
     relativeToNow: boolean;
     checkingInId: string | null;
     onSelect: (appointment: Appointment) => void;
     onCheckIn: (appointment: Appointment) => void;
     onNoShow: (appointment: Appointment) => void;
-    onBlocked: (appointment: Appointment) => void;
 };
 
 export function UpNext({
     appointments,
     procedures,
-    chairBusy,
+    chairId,
     relativeToNow,
     checkingInId,
     onSelect,
     onCheckIn,
     onNoShow,
-    onBlocked,
 }: UpNextProps) {
     if (appointments.length === 0) return null;
 
@@ -213,8 +203,7 @@ export function UpNext({
                         <CheckInButton
                             appointment={appointment}
                             loading={checkingInId === appointment.id}
-                            chairBusy={chairBusy}
-                            onBlocked={onBlocked}
+                            inChair={appointment.id === chairId}
                             onCheckIn={onCheckIn}
                             onOpen={onSelect}
                         />
@@ -250,7 +239,7 @@ export function BeforeThis({ appointments, procedures, onSelect }: BeforeThisPro
                 accessibilityState={{ expanded: open }}
                 accessibilityLabel={`Before this, ${appointments.length} appointments`}
                 onPress={() => setOpen((current) => !current)}
-                style={({ pressed }) => [styles.sectionLabel, styles.fold, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.sectionLabel, pressed && styles.pressed]}
             >
                 <ArrowBackIcon size={13} />
                 <Text variant="eyebrow" tone="muted">
@@ -293,7 +282,6 @@ const styles = StyleSheet.create({
         gap: space[1.5],
         minHeight: space[6],
     },
-    fold: { minHeight: size.row },
     spacer: { flex: 1 },
     row: {
         flexDirection: 'row',

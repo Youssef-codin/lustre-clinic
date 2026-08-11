@@ -16,6 +16,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, SegmentedControl, Toast } from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { splitDay } from './agenda';
+import { splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { CalendarSheet } from './components/CalendarSheet';
@@ -28,10 +29,19 @@ import { NowCard } from './components/NowCard';
 import { Reminders } from './components/Reminders';
 import { WalkInFab } from './components/WalkInFab';
 import { WalkInSheet } from './components/WalkInSheet';
-import { type Appointment, api, rememberVisit, useLocalMutation, useLocalQuery, type Visit } from './data';
+import {
+    type Appointment,
+    api,
+    checkInTimes,
+    rememberVisit,
+    useLocalMutation,
+    useLocalQuery,
+    type Visit,
+} from './data';
 import { describeError } from './errors';
 import { isClosed } from './hours';
-import { minutesOfDay, todayKey } from './time';
+import { busiestBranch, holdsSlot } from './month';
+import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
@@ -58,10 +68,15 @@ export function DayScreen() {
     const schedule = useLocalQuery('schedule', api.schedule);
     const settings = useLocalQuery('settings', api.settings);
     const branches = useLocalQuery('branches', api.branches);
-    const branch = branchId ?? branches.data?.[0]?.id ?? null;
-    const day = useLocalQuery(`day:${dateKey}:${branch ?? 'all'}`, () =>
-        api.byDate(dateKey, branch ?? undefined),
-    );
+    // The day is fetched for the whole clinic and split here, so the screen can
+    // open on the branch holding most of it: `branches[0]` drew an empty Maadi
+    // while Nasr City had the day, and the emptiness read as a broken fetch. A
+    // branch the user picked wins over the count, and holds until they pick
+    // another.
+    const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const clinicDay = day.data ?? [];
+    const branch =
+        branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
 
     const procedureList = useLocalQuery('procedures', api.procedures);
     const procedures = useMemo(
@@ -75,26 +90,54 @@ export function DayScreen() {
     const checkIn = useLocalMutation(api.checkIn);
     const noShow = useLocalMutation(api.markNoShow);
 
-    const appointments = day.data ?? [];
+    const appointments = clinicDay.filter((row) => row.branchId === branch);
     const closed = isClosed(dateKey, schedule.data);
+
+    // An empty branch on a day the clinic is working says so, and offers the
+    // branch working it — the same fetch already has the rows, and "Nothing
+    // booked" over a full Nasr City is the thing that reads as a broken app.
+    const away = clinicDay.filter((row) => row.branchId !== branch && holdsSlot(row));
+    const awayId = busiestBranch(away, null);
+    const awayName = (branches.data ?? []).find((row) => row.id === awayId)?.name;
+    const elsewhere =
+        awayId && awayName
+            ? {
+                  name: awayName,
+                  count: away.filter((row) => row.branchId === awayId).length,
+                  onGo: () => setBranchId(awayId),
+              }
+            : undefined;
     const isToday = dateKey === todayKey();
 
-    const inChair = appointments.filter((row) => row.status === 'checked_in');
-    const active =
-        inChair.find((row) => {
-            const startMinutes = minutesOfDay(row.startsAt);
-            return nowMinutes >= startMinutes && nowMinutes < startMinutes + row.durationMinutes;
-        }) ??
-        [...inChair].sort((a, b) => b.startsAt.localeCompare(a.startsAt))[0] ??
-        appointments.find((row) => row.status === 'awaiting_payment') ??
-        null;
+    const checkedInIds = useMemo(
+        () =>
+            appointments
+                .filter((row) => row.status === 'checked_in')
+                .map((row) => row.id)
+                .sort(),
+        [appointments],
+    );
+    const arrivals = useLocalQuery(`arrivals:${checkedInIds.join(',')}`, () => checkInTimes(checkedInIds), {
+        enabled: checkedInIds.length > 0,
+    });
 
-    const next =
-        appointments
-            .filter((row) => row.status === 'booked')
-            .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null;
+    // The chair is the queue's head, not whoever's slot the clock happens to be
+    // inside — the doctor's screen reads it the same way, and picking by slot
+    // was what had the two screens seating different patients.
+    const { chair, waiting, desk, next, card } = useMemo(
+        () => splitDeskDay(appointments, arrivals.data),
+        [appointments, arrivals.data],
+    );
 
-    const { past, upcoming } = splitDay(appointments, isToday ? (active?.id ?? null) : null);
+    const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null);
+
+    // The calendar counts every branch, so a picked day carries the branch it
+    // is busiest in; following it is what stops the grid promising a day the
+    // day view then draws empty. A day with nothing booked carries no branch.
+    const pickDay = (nextDate: string, nextBranch: string | null) => {
+        setDateKey(nextDate);
+        if (nextBranch) setBranchId(nextBranch);
+    };
 
     const openWalkIn = () => setWalkIn((current) => ({ open: true, seq: current.seq + 1 }));
     const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
@@ -106,7 +149,13 @@ export function DayScreen() {
         checkIn.mutate(appointment.id, {
             onSuccess: (visit) => {
                 rememberVisit(appointment.id, visit.id);
-                setToast(`${appointment.patient.name} is in the chair`);
+                // Checking in no longer means going in: with the chair taken
+                // they join the queue, and the toast has to say which happened.
+                setToast(
+                    chair
+                        ? `${appointment.patient.name} is waiting — ${waiting.length + 1} ahead of them`
+                        : `${appointment.patient.name} is in the chair`,
+                );
                 day.refetch();
             },
         });
@@ -194,7 +243,7 @@ export function DayScreen() {
                 ) : closed ? (
                     <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
                 ) : appointments.length === 0 ? (
-                    <DayEmpty past={dateKey < todayKey()} onWalkIn={openWalkIn} />
+                    <DayEmpty past={dateKey < todayKey()} onWalkIn={openWalkIn} elsewhere={elsewhere} />
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
@@ -207,10 +256,10 @@ export function DayScreen() {
 
                         {isToday ? (
                             <NowCard
-                                active={active}
+                                active={desk ?? chair}
                                 next={next}
                                 nowMinutes={nowMinutes}
-                                procedure={active?.typeId ? procedures.get(active.typeId) : undefined}
+                                procedure={card?.typeId ? procedures.get(card.typeId) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}
@@ -220,15 +269,12 @@ export function DayScreen() {
                         <UpNext
                             appointments={upcoming}
                             procedures={procedures}
-                            chairBusy={active?.status === 'checked_in'}
+                            chairId={isToday ? (chair?.id ?? null) : null}
                             relativeToNow={isToday}
                             checkingInId={checkingInId}
                             onSelect={openDetail}
                             onCheckIn={checkInFrom}
                             onNoShow={markNoShow}
-                            onBlocked={() =>
-                                setToast('Finish the visit in the chair before checking anyone else in')
-                            }
                         />
                     </ScrollView>
                 )}
@@ -241,8 +287,9 @@ export function DayScreen() {
                 visible={calendar.open}
                 selected={dateKey}
                 schedule={schedule.data}
-                branchName={(branches.data ?? []).find((row) => row.id === branch)?.name}
-                onPick={setDateKey}
+                branches={branches.data ?? []}
+                branchId={branch}
+                onPick={pickDay}
                 onClose={() => setCalendar((current) => ({ ...current, open: false }))}
             />
 

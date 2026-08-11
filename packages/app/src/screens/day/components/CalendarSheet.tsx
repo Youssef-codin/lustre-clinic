@@ -5,79 +5,88 @@
  * one request (`api.byDates` batches via `httpBatchLink`), not thirty-one.
  * Cancelled and no-show rows hold no slot, so they do not make a day look
  * busy. The pick follows the month, so the grid, the summary and "Go to this
- * day" never describe different days. Today's thick border insets the
- * absolute fill, so `pickedFillToday` bleeds the fill out under the border.
+ * day" never describe different days.
+ *
+ * Every cell is one shape: `cellBox` owns the geometry and `fill` is the only
+ * thing that paints it, so a state picks a colour and nothing else. That split
+ * is not tidiness — it is the fix for square corners. Inside a `Pressable`,
+ * Android drops the corner radius when it paints a descendant's background:
+ * fully booked came out a hard square while closed and today, which carry a
+ * border, came out round, because borders honour the radius when backgrounds
+ * do not. What does hold is the clip, so the box clips (`overflow: 'hidden'`)
+ * and the fill is a child it clips to shape. The load bar clips itself for the
+ * same reason — it is a plain background in the same subtree, and drew as a
+ * 3px rectangle rather than a pill. Anything painted in a cell from here on
+ * wants the same treatment; a bare `backgroundColor` will come out square.
+ *
+ * The count is every branch, not the one the day view is on: a receptionist
+ * asking "is Thursday busy" is asking about the clinic, and a month scoped to
+ * Maadi reads as an empty month rather than a day somewhere else. What that
+ * costs is a grid that can promise a day the day view then draws empty, so the
+ * pick carries the branch that day is busiest in (`month.ts`) and the day view
+ * moves with it. `branchOf` names that branch in the summary and on the
+ * button, so the switch is read before it happens rather than noticed after.
+ *
+ * The pill under the legend cycles that scope — every branch, then each one in
+ * turn. Booking into one branch is the other half of the phone call, and a
+ * month counting three answers it with days that look busy somewhere else.
+ * Scoping filters the month already fetched, so a cycle costs no request and
+ * moves no pick, and the choice outlives the sheet (`lastScope`).
  */
-import { SLOT_HOLDING_STATUSES } from '@mawid/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron, IconButton, Sheet } from '../../../components/ui';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
-import { type Appointment, api, type ClinicDay, useLocalQuery } from '../data';
+import { api, type Branch, type ClinicDay, useLocalQuery } from '../data';
 import { describeError } from '../errors';
-import { isClosed, openMinutes } from '../hours';
+import { isClosed } from '../hours';
+import { type DayLoad, loadsFrom } from '../month';
 import { addMonths, formatDate, formatMonth, monthDays, parseKey, time12, todayKey } from '../time';
 
 export type CalendarSheetProps = {
     visible: boolean;
     selected: string;
     schedule: readonly ClinicDay[] | undefined;
-    branchName: string | undefined;
-    onPick: (dateKey: string) => void;
+    branches: readonly Branch[];
+    branchId: string | null;
+    onPick: (dateKey: string, branchId: string | null) => void;
     onClose: () => void;
 };
-
-interface DayLoad {
-    count: number;
-    fill: number;
-    firstAt: string | null;
-}
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 const FULL_AT = 0.9;
 
-function loadsFrom(
-    days: readonly string[],
-    perDay: readonly Appointment[][],
-    schedule: readonly ClinicDay[] | undefined,
-): Map<string, DayLoad> {
-    const loads = new Map<string, DayLoad>();
-
-    days.forEach((day, index) => {
-        const rows = perDay[index] ?? [];
-        const holding = rows.filter((row) =>
-            (SLOT_HOLDING_STATUSES as readonly string[]).includes(row.status),
-        );
-        const booked = holding.reduce((total, row) => total + row.durationMinutes, 0);
-        const open = openMinutes(day, schedule);
-        const firstAt = holding.map((row) => row.startsAt).sort((a, b) => a.localeCompare(b))[0];
-        loads.set(day, {
-            count: holding.length,
-            fill: open > 0 ? Math.min(booked / open, 1) : 0,
-            firstAt: firstAt ?? null,
-        });
-    });
-
-    return loads;
-}
+/**
+ * The scope outlives the sheet: `DayScreen` remounts it by `seq` on every
+ * open, so component state would forget a receptionist who works one branch
+ * all morning. `null` counts every branch.
+ */
+let lastScope: string | null = null;
 
 export function CalendarSheet({
     visible,
     selected,
     schedule,
-    branchName,
+    branches,
+    branchId,
     onPick,
     onClose,
 }: CalendarSheetProps) {
     const [month, setMonth] = useState(selected);
     const [pending, setPending] = useState(selected);
+    const [scope, setScope] = useState(lastScope);
 
     const days = monthDays(month);
     const query = useLocalQuery(`month:${month}`, () => api.byDates(days), {
         enabled: visible,
     });
 
-    const loads = query.data ? loadsFrom(days, query.data, schedule) : new Map<string, DayLoad>();
+    const scoped =
+        query.data && scope
+            ? query.data.map((rows) => rows.filter((row) => row.branchId === scope))
+            : query.data;
+
+    const loads = scoped ? loadsFrom(days, scoped, schedule, branchId) : new Map<string, DayLoad>();
     const today = todayKey();
 
     const leading = parseKey(days[0] ?? month).getDay();
@@ -85,6 +94,18 @@ export function CalendarSheet({
 
     const pendingLoad = loads.get(pending);
     const pendingClosed = isClosed(pending, schedule);
+
+    const branchOf = (id: string | null) => branches.find((row) => row.id === id)?.name;
+    const scopeLabel = scope ? (branchOf(scope) ?? 'this branch') : 'all branches';
+    const movesTo = pendingLoad?.busiest && pendingLoad.busiest !== branchId ? pendingLoad.busiest : null;
+    const movesToName = branchOf(movesTo);
+
+    function cycleScope() {
+        const at = branches.findIndex((row) => row.id === scope);
+        const next = at + 1 >= branches.length ? null : (branches[at + 1]?.id ?? null);
+        lastScope = next;
+        setScope(next);
+    }
 
     function goToMonth(next: string) {
         setMonth(next);
@@ -99,10 +120,10 @@ export function CalendarSheet({
             testID="calendar-sheet"
             footer={
                 <Button
-                    label="Go to this day"
+                    label={movesToName ? `Go to this day in ${movesToName}` : 'Go to this day'}
                     block
                     onPress={() => {
-                        onPick(pending);
+                        onPick(pending, pendingLoad?.busiest ?? null);
                         onClose();
                     }}
                 />
@@ -130,8 +151,15 @@ export function CalendarSheet({
 
             <View style={styles.weekdays}>
                 {WEEKDAY_INITIALS.map((initial, index) => (
-                    // biome-ignore lint/suspicious/noArrayIndexKey: two Ts and two Ss
-                    <Text key={index} variant="caption" tone="muted" style={styles.weekday}>
+                    <Text
+                        // biome-ignore lint/suspicious/noArrayIndexKey: two Ts and two Ss
+                        key={index}
+                        variant="caption"
+                        script="sans"
+                        weight="bold"
+                        tone="muted"
+                        style={styles.weekday}
+                    >
                         {initial}
                     </Text>
                 ))}
@@ -148,6 +176,7 @@ export function CalendarSheet({
                     const closed = isClosed(day, schedule);
                     const past = day < today;
                     const full = (load?.fill ?? 0) >= FULL_AT;
+                    const fillTone = fillOf({ picked: day === pending, full, closed });
 
                     return (
                         <Pressable
@@ -156,6 +185,10 @@ export function CalendarSheet({
                             accessibilityState={{ selected: day === pending }}
                             accessibilityLabel={`${day}${closed ? ', closed' : ''}${
                                 load ? `, ${load.count} booked` : ''
+                            }${
+                                load?.busiest && load.busiest !== branchId
+                                    ? `, mostly in ${branchOf(load.busiest) ?? 'another branch'}`
+                                    : ''
                             }`}
                             onPress={() => setPending(day)}
                             style={styles.cell}
@@ -163,20 +196,19 @@ export function CalendarSheet({
                             <View
                                 style={[
                                     styles.cellBox,
-                                    closed && styles.closed,
-                                    full && styles.full,
-                                    day === today && styles.today,
+                                    closed && styles.closedEdge,
+                                    day === today && styles.todayEdge,
                                 ]}
                             >
-                                {day === pending ? (
-                                    <View
-                                        style={[styles.pickedFill, day === today && styles.pickedFillToday]}
-                                    />
-                                ) : null}
+                                <View style={[styles.fill, { backgroundColor: fillTone }]} />
 
                                 <Text
                                     variant="callout"
-                                    weight={day === pending || day === today ? 'semibold' : 'regular'}
+                                    // Instrument Sans, not the mono the rest of the
+                                    // cluster gives numbers: DM Mono stops at 500, and
+                                    // the grid is read at a glance, so it wants 700.
+                                    script="sans"
+                                    weight="bold"
                                     tone={day === pending ? 'inverse' : closed || past ? 'muted' : 'ink'}
                                 >
                                     {parseKey(day).getDate()}
@@ -205,11 +237,25 @@ export function CalendarSheet({
             <View style={styles.legend}>
                 <Legend tone={color.accent} label="booked load" />
                 <Legend tone={color.due} label="fully booked" />
-                {branchName ? (
-                    <Text variant="caption" tone="muted" style={styles.legendBranch}>
-                        {branchName}
-                    </Text>
-                ) : null}
+                {branches.length > 1 ? (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Counting ${scopeLabel}, next branch`}
+                        onPress={cycleScope}
+                        style={styles.legendBranch}
+                    >
+                        <Text variant="caption" weight="semibold" tone="ink">
+                            {scopeLabel}
+                        </Text>
+                        <Chevron direction="forward" tone="ink" size={7} />
+                    </Pressable>
+                ) : (
+                    <View style={styles.legendBranch}>
+                        <Text variant="caption" weight="semibold" tone="ink">
+                            {branchOf(branchId) ?? ''}
+                        </Text>
+                    </View>
+                )}
             </View>
 
             <View style={styles.summary}>
@@ -228,19 +274,39 @@ export function CalendarSheet({
                         <Button label="Try again" variant="text" size="md" onPress={query.refetch} />
                     </View>
                 ) : (
-                    <Text variant="footnote" tone="muted">
-                        {pendingClosed
-                            ? 'Closed that day.'
-                            : pendingLoad && pendingLoad.count > 0
-                              ? `${pendingLoad.count} booked · ${Math.round(pendingLoad.fill * 100)}% of the day${
-                                    pendingLoad.firstAt ? ` · first ${firstLabel(pendingLoad.firstAt)}` : ''
-                                }`
-                              : 'Nothing booked yet.'}
-                    </Text>
+                    <>
+                        <Text variant="footnote" tone="muted">
+                            {pendingClosed
+                                ? 'Closed that day.'
+                                : pendingLoad && pendingLoad.count > 0
+                                  ? `${pendingLoad.used} of ${pendingLoad.slots} slots${
+                                        pendingLoad.firstAt
+                                            ? ` · first ${firstLabel(pendingLoad.firstAt)}`
+                                            : ''
+                                    }`
+                                  : 'Nothing booked yet.'}
+                        </Text>
+                        {movesToName ? (
+                            <Text variant="footnote" tone="accent">
+                                Most of it is in {movesToName} — the day opens there.
+                            </Text>
+                        ) : null}
+                    </>
                 )}
             </View>
         </Sheet>
     );
+}
+
+/**
+ * The pick reads over how busy the day is, and both read over a closed day —
+ * a shut Friday that is also the pick is a pick first.
+ */
+function fillOf({ picked, full, closed }: { picked: boolean; full: boolean; closed: boolean }): string {
+    if (picked) return color.ink;
+    if (full) return color.dueSoft;
+    if (closed) return color.canvas;
+    return 'transparent';
 }
 
 function firstLabel(iso: string): string {
@@ -268,6 +334,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: space[3],
     },
+    monthTitle: { flexDirection: 'row', alignItems: 'baseline', gap: space[2] },
     monthNav: { flexDirection: 'row', gap: space[1.5] },
     weekdays: { flexDirection: 'row' },
     weekday: { width: `${100 / 7}%`, textAlign: 'center' },
@@ -279,35 +346,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: space[1],
         borderRadius: radius.md,
+        overflow: 'hidden',
     },
-    closed: {
-        backgroundColor: color.canvas,
-        borderWidth: border.hair,
-        borderStyle: 'dashed',
-        borderColor: color.line,
-    },
-    full: { backgroundColor: color.dueSoft },
-    today: { borderWidth: border.thick, borderColor: color.ink },
-    pickedFill: {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        start: 0,
-        end: 0,
-        backgroundColor: color.ink,
-        borderRadius: radius.md,
-    },
-    pickedFillToday: {
-        top: -border.thick,
-        bottom: -border.thick,
-        start: -border.thick,
-        end: -border.thick,
-    },
-    load: { height: 3, borderRadius: radius.full },
-    legend: { flexDirection: 'row', gap: space[4], marginTop: space[4] },
+    closedEdge: { borderWidth: border.hair, borderStyle: 'dashed', borderColor: color.line },
+    todayEdge: { borderWidth: border.thick, borderColor: color.ink },
+    fill: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0 },
+    load: { height: 3, borderRadius: radius.full, overflow: 'hidden' },
+    legend: { flexDirection: 'row', alignItems: 'center', gap: space[4], marginTop: space[4] },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
     legendSwatch: { width: space[4], height: 3, borderRadius: radius.full },
-    legendBranch: { marginStart: 'auto' },
+    legendBranch: {
+        marginStart: 'auto',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[1],
+        paddingHorizontal: space[2],
+        paddingVertical: space[0.5],
+        backgroundColor: color.canvas,
+        borderRadius: radius.full,
+    },
     summary: {
         marginTop: space[3.5],
         gap: space[1],

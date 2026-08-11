@@ -7,7 +7,11 @@
  * lands — and `wrap` turns tRPC failures into the `RequestError` the screens
  * localize from. Offsets come from the date itself (`offsetForDate`) because a
  * day on the far side of a DST changeover needs the offset in force on it;
- * `byDates` is one POST over `httpBatchLink`, not thirty-one round trips. The
+ * `byDates` is one POST over `httpBatchLink`, not thirty-one round trips.
+ * Neither read carries a branch, though the procedure takes one: a day is a
+ * few dozen rows, and the screens split it themselves so they can open on the
+ * branch holding most of it and say what the other one is doing — which a
+ * server-side filter throws away before the app can see it. The
  * visit id is not on the appointment, so `visitIds` keeps what this session
  * created and `visit.byAppointment` reaches the rest; `checkInTimes` orders
  * the waiting room by arrival, dropping a patient whose visit cannot be read
@@ -54,12 +58,11 @@ export const api = {
 
     branches: (): Promise<Branch[]> => wrap(() => trpcClient.branch.list.query({ includeInactive: false })),
 
-    byDate: (date: string, branchId?: string): Promise<Appointment[]> =>
+    byDate: (date: string): Promise<Appointment[]> =>
         wrap(() =>
             trpcClient.appointment.byDate.query({
                 date,
                 offsetMinutes: offsetForDate(date),
-                branchId,
             }),
         ),
 
