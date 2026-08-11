@@ -22,6 +22,7 @@ const TRUNCATED_TABLES = [
     'visit_procedures',
     'visits',
     'reminders',
+    'appointment_procedures',
     'appointments',
     'patients',
     'procedure_types',
@@ -115,8 +116,7 @@ describe('schema and the truncation list', () => {
         const present = await tablesIn(sql);
         const untracked = present.filter(
             (table) =>
-                !(TRUNCATED_TABLES as readonly string[]).includes(table) &&
-                table !== '__drizzle_migrations',
+                !(TRUNCATED_TABLES as readonly string[]).includes(table) && table !== '__drizzle_migrations',
         );
 
         expect(untracked).toEqual([]);
