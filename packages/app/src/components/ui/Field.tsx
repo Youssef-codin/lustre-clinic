@@ -4,16 +4,12 @@ import { space, Text } from '../../theme';
 
 export type FieldProps = {
     label?: string;
-    /** Draws the star, and turns the label `danger` once `error` is set. */
     required?: boolean;
-    /** Quiet helper copy under the control. */
     hint?: string;
-    /** Replaces the hint and recolours the label. */
     error?: string;
     children: ReactNode;
 };
 
-/** Label, control, and the one line under it. Shared by every input in `ui/`. */
 export function Field({ label, required = false, hint, error, children }: FieldProps) {
     return (
         <View style={styles.field}>

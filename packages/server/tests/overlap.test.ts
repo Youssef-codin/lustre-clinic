@@ -9,16 +9,16 @@ import { insertBranch, insertPatient, setupDatabase, sql, truncateAll, uuid } fr
  *
  * These assert Postgres behaviour, not application behaviour. Nothing here goes
  * through a service — the point is that the database refuses, so that no code
- * path anywhere can produce a double-booking.
+ * path anywhere can produce a double-booking. postgres.js does not serialize a
+ * `Date` bind parameter correctly under Bun, so raw SQL here passes ISO
+ * strings; Drizzle converts `Date` itself, so application code is unaffected.
+ * The session-timezone tests pin SET + SELECT to one connection via `SET LOCAL`
+ * — a stray `SET TIME ZONE` would leave a pooled connection in a foreign zone
+ * and quietly change what later queries see.
  */
 
 const BASE = new Date('2026-03-10T09:00:00.000Z');
 
-/**
- * Minutes after BASE, as an ISO string. postgres.js does not serialize a `Date`
- * bind parameter correctly under Bun, so raw SQL here passes strings. Drizzle
- * converts `Date` itself, so application code is unaffected.
- */
 function at(minutes: number): string {
     return new Date(BASE.getTime() + minutes * 60_000).toISOString();
 }
@@ -45,7 +45,6 @@ async function book(
     return id;
 }
 
-/** The exclusion constraint surfaces as SQLSTATE 23P01, exclusion_violation. */
 async function expectOverlap(fn: () => Promise<unknown>): Promise<void> {
     let code: string | undefined;
     try {
@@ -79,7 +78,6 @@ describe('appointments_no_overlap', () => {
 
     test('allows one ending exactly when the next begins', async () => {
         await book(0, 30);
-        // The range is half-open, so 09:30 is free.
         const id = await book(30, 30);
         expect(id).toBeTruthy();
     });
@@ -102,13 +100,11 @@ describe('appointments_no_overlap', () => {
 
     test('rejects an overlap on the leading edge', async () => {
         await book(30, 30);
-        // 09:15–09:45 runs into the 09:30 booking.
         await expectOverlap(() => book(15, 30));
     });
 
     test('rejects an overlap on the trailing edge', async () => {
         await book(0, 30);
-        // 09:15–09:45 runs out of the 09:00 booking.
         await expectOverlap(() => book(15, 30));
     });
 
@@ -136,15 +132,12 @@ describe('appointments_no_overlap', () => {
     });
 
     test('a done appointment does not hold its slot', async () => {
-        // Only 'booked' and 'checked_in' participate in the constraint.
         await book(0, 30, 'done');
         const id = await book(0, 30);
         expect(id).toBeTruthy();
     });
 
     test('an appointment awaiting payment does not hold its slot', async () => {
-        // §7 — that patient has left the chair for the desk, so the slot is
-        // bookable again even though the visit is not settled.
         await book(0, 30, 'awaiting_payment');
         const id = await book(0, 30);
         expect(id).toBeTruthy();
@@ -212,15 +205,6 @@ describe('appointment_span', () => {
     });
 
     test('is unaffected by the session timezone', async () => {
-        // The wrapper is declared IMMUTABLE, which is only sound if its result
-        // does not depend on session state. This is the assertion behind that.
-        // 2026-03-10 is chosen to sit near a DST boundary in many zones.
-        //
-        // `SET TIME ZONE` is connection state, and the pool hands out whichever
-        // connection is free — so the SET and the SELECT must be pinned to one
-        // connection or the SELECT can run somewhere still on UTC and assert
-        // nothing. `SET LOCAL` inside a transaction also unwinds the change, so
-        // no connection is left in a foreign zone for the rest of the run.
         const ends = async (zone: string) =>
             sql.begin(async (tx) => {
                 await tx.unsafe(`SET LOCAL TIME ZONE '${zone}'`);
@@ -228,7 +212,6 @@ describe('appointment_span', () => {
                 const [check] = await tx<{ zone: string }[]>`
                     SELECT current_setting('TimeZone') AS zone
                 `;
-                // Proves the SET and the SELECT really shared a connection.
                 expect(check?.zone).toBe(zone);
 
                 const [row] = await tx<{ correct: boolean }[]>`
@@ -244,8 +227,6 @@ describe('appointment_span', () => {
     });
 
     test('leaves no pooled connection in a foreign timezone', async () => {
-        // The reason the test above uses SET LOCAL. A stray `SET TIME ZONE`
-        // outlives its test and quietly changes what every later query sees.
         const zones = await Promise.all(
             Array.from(
                 { length: 10 },
@@ -266,7 +247,6 @@ describe('column constraints', () => {
         } catch (err) {
             code = (err as { code?: string }).code;
         }
-        // check_violation
         expect(code).toBe('23514');
     });
 
@@ -286,7 +266,6 @@ describe('column constraints', () => {
         } catch (err) {
             code = (err as { code?: string }).code;
         }
-        // unique_violation
         expect(code).toBe('23505');
     });
 

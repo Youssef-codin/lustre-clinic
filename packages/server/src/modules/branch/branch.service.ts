@@ -1,13 +1,12 @@
+/**
+ * SPEC §12. Branches are never deleted — appointments reference them, and the
+ * history has to keep making sense. `active: false` hides one from the pickers.
+ */
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { branches } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import type { CreateBranchInput, ListBranchInput, UpdateBranchInput } from './branch.schema.ts';
-
-/**
- * SPEC §12. Branches are never deleted — appointments reference them, and the
- * history has to keep making sense. `active: false` hides one from the pickers.
- */
 
 export type Branch = typeof branches.$inferSelect;
 

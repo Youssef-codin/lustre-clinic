@@ -1,0 +1,30 @@
+/**
+ * The day split by status, not by the clock: a booked slot whose time has
+ * passed and nobody checked in is still a decision to make, so it stays in the
+ * open list rather than folding behind. Only the three settled statuses go
+ * behind the fold. The patient in the chair is drawn once at the top and is
+ * excluded from the split via `activeId`.
+ */
+import type { AppointmentStatus } from '@mawid/shared';
+import type { Appointment } from './data/types';
+
+const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>(['done', 'cancelled', 'no_show']);
+
+export function isSettled(appointment: Appointment): boolean {
+    return SETTLED.has(appointment.status);
+}
+
+export interface DaySplit {
+    past: Appointment[];
+    upcoming: Appointment[];
+}
+
+export function splitDay(appointments: readonly Appointment[], activeId: string | null): DaySplit {
+    const byTime = [...appointments].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    const rest = activeId === null ? byTime : byTime.filter((row) => row.id !== activeId);
+
+    return {
+        past: rest.filter(isSettled),
+        upcoming: rest.filter((row) => !isSettled(row)),
+    };
+}

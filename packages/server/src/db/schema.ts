@@ -1,3 +1,23 @@
+/**
+ * SPEC §5. Timestamps are `timestamptz`. Money is integer piastres — never
+ * floats. IDs are UUIDv7, generated in application code (`Bun.randomUUIDv7()`)
+ * because Postgres 17 has no `uuidv7()`.
+ *
+ * The `EXCLUDE USING gist` overlap constraint on `appointments` and the
+ * `btree_gist` extension it needs are not expressible in Drizzle's schema DSL.
+ * They live in a hand-written migration; see `db/migrations/`.
+ *
+ * The weekly schedule keys a row by the weekday itself, so the dentist being
+ * in two places on the same day is impossible by construction (MAW-1).
+ * `visits.appointment_id` is UNIQUE (one appointment has at most one visit),
+ * and `settings` is a single enforced row (id = 1).
+ *
+ * `appointment_procedures` is the work a booking plans (§7). It mirrors
+ * `visit_procedures` minus `unit_price`: a booking made three weeks out must
+ * bill at the price on the day, so the price is snapshotted at check-in, which
+ * seeds one visit line per planned row. Teeth are Palmer notation, null unless
+ * the procedure is tooth-specific (§5).
+ */
 import {
     APPOINTMENT_CHANNELS,
     APPOINTMENT_STATUSES,
@@ -28,18 +48,7 @@ import {
     uuid,
 } from 'drizzle-orm/pg-core';
 
-/** Every timestamp in the schema is `timestamptz`, read back as a JS `Date`. */
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
-
-/**
- * SPEC §5. Timestamps are `timestamptz`. Money is integer piastres — never
- * floats. IDs are UUIDv7, generated in application code (`Bun.randomUUIDv7()`)
- * because Postgres 17 has no `uuidv7()`.
- *
- * The `EXCLUDE USING gist` overlap constraint on `appointments` and the
- * `btree_gist` extension it needs are not expressible in Drizzle's schema DSL.
- * They live in a hand-written migration; see `db/migrations/`.
- */
 
 export const branches = pgTable('branches', {
     id: uuid('id').primaryKey(),
@@ -48,18 +57,9 @@ export const branches = pgTable('branches', {
     active: boolean('active').notNull().default(true),
 });
 
-/**
- * MAW-1. The weekly schedule: which branch is open on a weekday, and between
- * which hours. An absent row means the clinic is closed that day.
- *
- * One row per weekday, keyed by the weekday itself, so "in two places on the
- * same day" is impossible by construction rather than by validation — the
- * dentist is one person and does not split a day between branches.
- */
 export const clinicDays = pgTable(
     'clinic_days',
     {
-        /** 0 = Sunday … 6 = Saturday, matching `Date#getDay`. */
         weekday: smallint('weekday').primaryKey(),
         branchId: uuid('branch_id')
             .notNull()
@@ -78,13 +78,10 @@ export const patients = pgTable(
     {
         id: uuid('id').primaryKey(),
         name: text('name').notNull(),
-        /** E.164, normalized on write. */
         phone: text('phone').notNull(),
         email: text('email'),
-        /** Age is derived at read time and never stored. */
         birthDate: date('birth_date'),
         gender: text('gender'),
-        /** Answers keyed by `custom_questions.key`. */
         custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),
         createdAt: timestamptz('created_at').notNull().defaultNow(),
@@ -97,13 +94,10 @@ export const patients = pgTable(
 
 export const procedureTypes = pgTable('procedure_types', {
     id: uuid('id').primaryKey(),
-    /** Null means this row is a category root. One level of nesting only (§5). */
     parentId: uuid('parent_id').references((): AnyPgColumn => procedureTypes.id),
     name: text('name').notNull(),
-    /** Piastres. */
     defaultPrice: integer('default_price').notNull(),
     hasQuantity: boolean('has_quantity').notNull().default(false),
-    /** Whether a line for this procedure must name a tooth (§5). */
     isToothSpecific: boolean('is_tooth_specific').notNull().default(false),
     isCheckup: boolean('is_checkup').notNull().default(false),
     active: boolean('active').notNull().default(true),
@@ -114,7 +108,6 @@ export const appointments = pgTable(
     'appointments',
     {
         id: uuid('id').primaryKey(),
-        /** `DDMMYY-XXXX`, day first. Stored uppercase, matched case-insensitively. */
         ref: text('ref').notNull().unique(),
         patientId: uuid('patient_id')
             .notNull()
@@ -123,7 +116,6 @@ export const appointments = pgTable(
             .notNull()
             .references(() => branches.id),
         startsAt: timestamptz('starts_at').notNull(),
-        /** Chosen by the secretary, never derived from the procedure type (§7). */
         durationMinutes: integer('duration_minutes').notNull(),
         note: text('note'),
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
@@ -132,19 +124,12 @@ export const appointments = pgTable(
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [
-        // The day view queries a date range.
         index('appointments_starts_at_idx').on(t.startsAt),
         index('appointments_patient_id_idx').on(t.patientId),
         check('appointments_duration_positive', sql`${t.durationMinutes} > 0`),
     ],
 );
 
-/**
- * §7 — the work the secretary expects to happen, entered at booking. Mirrors
- * `visit_procedures` minus `unit_price`: a booking made three weeks out must
- * bill at the price on the day, so the price is snapshotted at check-in, not
- * here. Check-in seeds one visit line per row below.
- */
 export const appointmentProcedures = pgTable(
     'appointment_procedures',
     {
@@ -156,7 +141,6 @@ export const appointmentProcedures = pgTable(
             .notNull()
             .references(() => procedureTypes.id),
         quantity: integer('quantity').notNull().default(1),
-        /** Palmer notation, e.g. `UL6`. Null when the procedure is not tooth-specific (§5). */
         tooth: text('tooth', { enum: TEETH }),
         note: text('note'),
         sortOrder: integer('sort_order').notNull().default(0),
@@ -169,19 +153,14 @@ export const appointmentProcedures = pgTable(
 
 export const visits = pgTable('visits', {
     id: uuid('id').primaryKey(),
-    /** One appointment has at most one visit (§5). */
     appointmentId: uuid('appointment_id')
         .notNull()
         .unique()
         .references(() => appointments.id),
     checkedInAt: timestamptz('checked_in_at').notNull(),
-    /** When `charged_total` was set, if that happened before checkout. */
     pricedAt: timestamptz('priced_at'),
-    /** Checked out. */
     completedAt: timestamptz('completed_at'),
-    /** Rule output from the entered procedures (§9). Never edited. */
     computedTotal: integer('computed_total').notNull().default(0),
-    /** What the patient owes. The difference from computed is the discount. */
     chargedTotal: integer('charged_total').notNull().default(0),
     createdAt: timestamptz('created_at').notNull().defaultNow(),
 });
@@ -193,10 +172,8 @@ export const payments = pgTable(
         visitId: uuid('visit_id')
             .notNull()
             .references(() => visits.id),
-        /** Piastres, always positive. A visit may have zero, one, or several. */
         amount: integer('amount').notNull(),
         method: text('method', { enum: PAYMENT_METHODS }).notNull(),
-        /** Required when `method = 'other'`. */
         methodNote: text('method_note'),
         paidAt: timestamptz('paid_at').notNull().defaultNow(),
     },
@@ -221,9 +198,7 @@ export const visitProcedures = pgTable(
             .notNull()
             .references(() => procedureTypes.id),
         quantity: integer('quantity').notNull().default(1),
-        /** Snapshot of the price on the day. Line total is unit_price × quantity. */
         unitPrice: integer('unit_price').notNull(),
-        /** Palmer notation, e.g. `UL6`. Null when the procedure is not tooth-specific (§5). */
         tooth: text('tooth', { enum: TEETH }),
         note: text('note'),
     },
@@ -235,11 +210,9 @@ export const visitProcedures = pgTable(
 
 export const customQuestions = pgTable('custom_questions', {
     id: uuid('id').primaryKey(),
-    /** Stable key into `patients.custom`. */
     key: text('key').notNull().unique(),
     label: text('label').notNull(),
     kind: text('kind', { enum: QUESTION_KINDS }).notNull(),
-    /** Only meaningful when `kind = 'select'`. */
     options: jsonb('options'),
     required: boolean('required').notNull().default(false),
     sortOrder: integer('sort_order').notNull().default(0),
@@ -254,7 +227,6 @@ export const reminders = pgTable(
             .notNull()
             .unique()
             .references(() => appointments.id),
-        /** `starts_at - settings.reminder_lead_hours`, set on booking (§11). */
         dueAt: timestamptz('due_at').notNull(),
         status: text('status', { enum: REMINDER_STATUSES }).notNull().default('pending'),
         sentAt: timestamptz('sent_at'),
@@ -262,7 +234,6 @@ export const reminders = pgTable(
     (t) => [index('reminders_status_due_at_idx').on(t.status, t.dueAt)],
 );
 
-/** A single enforced row (§5). */
 export const settings = pgTable(
     'settings',
     {
@@ -279,7 +250,6 @@ export const settings = pgTable(
         reminderRepeatMinutes: integer('reminder_repeat_minutes')
             .notNull()
             .default(DEFAULT_REMINDER_REPEAT_MINUTES),
-        /** §11: the repeat is suppressed while this equals today. */
         reminderDismissedOn: date('reminder_dismissed_on'),
         reminderTemplate: text('reminder_template').notNull(),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),

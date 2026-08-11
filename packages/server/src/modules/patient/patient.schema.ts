@@ -1,15 +1,16 @@
+/**
+ * SPEC §5. `phone` is normalized to E.164 in the service, not here. `custom` is
+ * keyed by `custom_questions.key` and validated against them on write. Age is
+ * derived from `birthDate` at read time and never stored.
+ */
 import { z } from 'zod';
 
-/** SPEC §5. `phone` is normalized to E.164 in the service, not here. */
-
-/** Answers keyed by `custom_questions.key`; validated against them on write. */
 const customAnswers = z.record(z.string(), z.unknown());
 
 export const createPatientInput = z.object({
     name: z.string().trim().min(1).max(160),
     phone: z.string().trim().min(5).max(32),
     email: z.email().max(200).nullish(),
-    /** `YYYY-MM-DD`. Age is derived at read time and never stored. */
     birthDate: z.iso.date().nullish(),
     gender: z.string().trim().max(40).nullish(),
     custom: customAnswers.default({}),

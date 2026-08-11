@@ -1,24 +1,22 @@
-import { logger } from '../logger.ts';
-
 /**
  * SPEC §17 — the app reporting its own failures: backup failed, database error,
  * unhandled exception. One POST to a Discord webhook; there is no bot to
  * register and no second service to keep running.
  *
- * Alerts carry IDs and error codes only, never patient data (§17). `scrub`
- * below is a backstop for that rule, not a licence to pass patient data in.
- *
- * Deduplicated and rate-limited, because the failure modes worth alerting on
- * are the ones that repeat — a database that is down is down for every query.
+ * Alerts carry IDs and error codes only, never patient data (§17). The context
+ * scrub mirrors the pino redaction list in `logger.ts` — an alert is a log line
+ * that leaves the machine, so it gets at least the same treatment. Delivery is
+ * deduplicated and rate-limited because the failures worth alerting on repeat
+ * (a database that is down is down for every query), and a delivery failure is
+ * only logged — the alert channel is the escalation, nothing is left to escalate
+ * to. `report` never throws, so alerting can never break the caller.
  */
+import { logger } from '../logger.ts';
 
-/** Values allowed in an alert context: identifiers, codes, counts, flags. */
 export type AlertValue = string | number | boolean | null;
 
 export interface Alert {
-    /** Stable machine-readable kind, e.g. `backup.failed`. Used for dedupe. */
     readonly code: string;
-    /** One English line for a human reading the channel. No patient data. */
     readonly summary: string;
     readonly context?: Readonly<Record<string, AlertValue>>;
 }
@@ -27,9 +25,7 @@ export type AlertSender = (alert: Alert, text: string) => Promise<void>;
 
 export interface AlerterOptions {
     send: AlertSender;
-    /** Identical codes are sent at most once per window. */
     dedupeWindowMs?: number;
-    /** Hard ceiling on sends per window, whatever the code. */
     rateLimit?: { max: number; windowMs: number };
     now?: () => number;
 }
@@ -37,11 +33,6 @@ export interface AlerterOptions {
 const DEFAULT_DEDUPE_WINDOW_MS = 15 * 60_000;
 const DEFAULT_RATE_LIMIT = { max: 20, windowMs: 60 * 60_000 };
 
-/**
- * Context keys that may carry patient data. Mirrors the pino redaction list in
- * `logger.ts` — an alert is a log line that leaves the machine, so it gets at
- * least the same treatment.
- */
 const FORBIDDEN_KEYS = new Set([
     'name',
     'phone',
@@ -73,7 +64,6 @@ export function formatAlert(alert: Alert, context: Record<string, AlertValue>): 
 }
 
 export interface Alerter {
-    /** Never throws and never rejects: alerting must not break the caller. */
     report(alert: Alert): Promise<void>;
 }
 
@@ -97,44 +87,49 @@ export function createAlerter(options: AlerterOptions): Alerter {
         try {
             await send(alert, text);
         } catch (err) {
-            // Nothing left to escalate to — the alert channel is the escalation.
             logger.error({ err, alertCode: alert.code }, 'alert delivery failed');
         }
     }
 
     return {
+        // The catch is load-bearing, not defensive habit: `unhandledRejection`
+        // in monitoring/index.ts calls this, so a throw here re-enters through
+        // that handler and loops until the host dies. Log, never re-alert.
         async report(alert: Alert): Promise<void> {
-            const at = now();
+            try {
+                const at = now();
 
-            const previous = lastSent.get(alert.code);
-            if (previous !== undefined && at - previous < dedupeWindowMs) {
-                logger.debug({ alertCode: alert.code }, 'alert deduplicated');
-                return;
-            }
-
-            sentAt = sentAt.filter((t) => at - t < rateLimit.windowMs);
-            if (sentAt.length >= rateLimit.max) {
-                if (!ceilingAnnounced) {
-                    ceilingAnnounced = true;
-                    logger.warn({ alertCode: alert.code }, 'alert rate limit reached, suppressing');
-                    await deliver({
-                        code: 'monitoring.rate_limited',
-                        summary: 'Alert rate limit reached. Further alerts are suppressed for now.',
-                        context: { max: rateLimit.max, windowMinutes: rateLimit.windowMs / 60_000 },
-                    });
+                const previous = lastSent.get(alert.code);
+                if (previous !== undefined && at - previous < dedupeWindowMs) {
+                    logger.debug({ alertCode: alert.code }, 'alert deduplicated');
+                    return;
                 }
-                return;
-            }
 
-            ceilingAnnounced = false;
-            lastSent.set(alert.code, at);
-            sentAt.push(at);
-            await deliver(alert);
+                sentAt = sentAt.filter((t) => at - t < rateLimit.windowMs);
+                if (sentAt.length >= rateLimit.max) {
+                    if (!ceilingAnnounced) {
+                        ceilingAnnounced = true;
+                        logger.warn({ alertCode: alert.code }, 'alert rate limit reached, suppressing');
+                        await deliver({
+                            code: 'monitoring.rate_limited',
+                            summary: 'Alert rate limit reached. Further alerts are suppressed for now.',
+                            context: { max: rateLimit.max, windowMinutes: rateLimit.windowMs / 60_000 },
+                        });
+                    }
+                    return;
+                }
+
+                ceilingAnnounced = false;
+                lastSent.set(alert.code, at);
+                sentAt.push(at);
+                await deliver(alert);
+            } catch (err) {
+                logger.error({ err, alertCode: alert.code }, 'alerting failed');
+            }
         },
     };
 }
 
-/** Posts to a Discord webhook. `content` is the whole message; no embeds. */
 export function discordSender(webhookUrl: string): AlertSender {
     return async (_alert, text) => {
         const res = await fetch(webhookUrl, {
@@ -149,7 +144,6 @@ export function discordSender(webhookUrl: string): AlertSender {
     };
 }
 
-/** Used when `DISCORD_WEBHOOK_URL` is unset — the alert is logged and dropped. */
 export const noopSender: AlertSender = async (alert, text) => {
     logger.warn({ alertCode: alert.code, text }, 'alert (no webhook configured)');
 };

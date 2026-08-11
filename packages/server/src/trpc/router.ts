@@ -1,3 +1,8 @@
+/**
+ * `AppRouter` is the API contract (§3, §4). Exported as a type only and
+ * consumed by the app, which is why request and response types are never
+ * hand-written.
+ */
 import { appointmentRouter } from '../modules/appointment/appointment.router.ts';
 import { balanceRouter } from '../modules/balance/balance.router.ts';
 import { branchRouter } from '../modules/branch/branch.router.ts';
@@ -11,7 +16,6 @@ import { statsRouter } from '../modules/stats/stats.router.ts';
 import { visitRouter } from '../modules/visit/visit.router.ts';
 import { router } from './init.ts';
 
-/** Merges every module router (SPEC §4, §13). This file does nothing else. */
 export const appRouter = router({
     health: healthRouter,
     settings: settingsRouter,
@@ -26,8 +30,4 @@ export const appRouter = router({
     stats: statsRouter,
 });
 
-/**
- * The API contract (§3, §4). Exported as a type only and consumed by the app,
- * which is why request and response types are never hand-written.
- */
 export type AppRouter = typeof appRouter;

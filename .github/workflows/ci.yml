@@ -1,12 +1,16 @@
 name: ci
 
 on:
-  # Branch pushes are covered by the pull_request event. Listing both would run
-  # every commit on a PR branch twice — same job, same containers, no more
-  # information. `main` still gets its own run, so what actually ships is
-  # verified after the merge commit exists.
+  # Branch pushes are covered by the pull_request event *while a PR is open*.
+  # With no PR, a long-lived branch takes commits with no CI at all — which is
+  # how a commit that broke 8 of the monitoring tests sat on `backend` unnoticed:
+  # every green check on the branch belonged to an older commit under an open PR.
+  #
+  # `main` and `backend` are therefore listed on `push` directly. The duplicate
+  # run while a PR is open on `backend` is the price, and it is worth paying for
+  # the branch that carries the server.
   push:
-    branches: [main]
+    branches: [main, backend]
   pull_request:
 
 concurrency:

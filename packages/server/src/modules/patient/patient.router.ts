@@ -1,3 +1,6 @@
+/**
+ * `byId` returns the patient and visit history in one payload (§13).
+ */
 import { publicProcedure, router } from '../../trpc/init.ts';
 import {
     createPatientInput,
@@ -10,7 +13,6 @@ import { patientService } from './patient.service.ts';
 export const patientRouter = router({
     search: publicProcedure.input(searchPatientInput).query(({ input }) => patientService.search(input)),
 
-    /** Patient and visit history in one payload (§13). */
     byId: publicProcedure.input(patientByIdInput).query(({ input }) => patientService.byId(input.id)),
 
     create: publicProcedure.input(createPatientInput).mutation(({ input }) => patientService.create(input)),

@@ -1,20 +1,28 @@
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView, StyleSheet } from 'react-native';
-import { GalleryScreen } from './src/screens/dev/GalleryScreen';
+import { StyleSheet, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { ApiProvider } from './src/api';
+import { AppShell } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
-// The app has no navigator yet, so the entry point is the component gallery —
-// the dev screen that renders every `ui/` primitive in its states. It is what the
-// first real screen replaces.
+// The entry point mounts the shell (F3): the bottom tab bar and four clusters,
+// each with its own internal navigation. The component gallery lives at
+// `src/screens/dev/GalleryScreen` — mount it in place of `<AppShell />` when
+// poking at a primitive on a device. `ApiProvider` wraps the whole shell
+// because the query cache and connection state outlive any one tab.
 export default function App() {
     const fontsLoaded = useAppFonts();
-    if (!fontsLoaded) return <SafeAreaView style={styles.screen} />;
+    if (!fontsLoaded) return <View style={styles.screen} />;
 
     return (
-        <SafeAreaView style={styles.screen}>
-            <GalleryScreen />
-            <StatusBar style="dark" />
-        </SafeAreaView>
+        <SafeAreaProvider>
+            <ApiProvider>
+                <SafeAreaView style={styles.screen} edges={['top']}>
+                    <AppShell />
+                    <StatusBar style="dark" />
+                </SafeAreaView>
+            </ApiProvider>
+        </SafeAreaProvider>
     );
 }
 

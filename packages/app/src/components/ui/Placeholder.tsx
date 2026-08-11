@@ -1,30 +1,23 @@
+/**
+ * The placeholder, drawn by us rather than by `TextInput`. Android renders the
+ * native hint in the system typeface no matter what `fontFamily` the input
+ * carries, so on a Samsung it came out in One UI's face next to a label in
+ * Instrument Sans. Drawing it also buys per-string script detection: an Arabic
+ * placeholder gets Noto Naskh, which the native hint could not do. The overlay
+ * sits above the input, so `pointerEvents="none"` — a tap has to reach the field
+ * under it.
+ */
 import { StyleSheet, View } from 'react-native';
 import type { TextVariant } from '../../theme';
 import { Text } from '../../theme';
 
 export type PlaceholderProps = {
     text?: string;
-    /** Caller passes `!value` — the overlay is only mounted when the field is empty. */
     visible: boolean;
     variant?: TextVariant;
     align?: 'start' | 'end' | 'top';
 };
 
-/**
- * The placeholder, drawn by us rather than by `TextInput`.
- *
- * Android renders the native hint in the system typeface no matter what
- * `fontFamily` the input carries, so on a Samsung the placeholder came out in
- * One UI's face next to a label in Instrument Sans — visible on the device, and
- * invisible to every check we run before it. Both platforms now go through this,
- * so they cannot drift apart again.
- *
- * It also buys per-string script detection for free: an Arabic placeholder gets
- * Noto Naskh, which the native hint could not do either.
- *
- * `pointerEvents="none"` — the overlay sits above the input and a tap has to
- * reach the field under it.
- */
 export function Placeholder({ text, visible, variant = 'body', align = 'start' }: PlaceholderProps) {
     if (!visible || !text) return null;
 

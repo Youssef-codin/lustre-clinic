@@ -9,7 +9,6 @@ export type DotTone = 'live' | 'wa' | 'due' | 'danger' | 'accent' | 'success' | 
 export type DotProps = {
     tone?: DotTone;
     size?: number;
-    /** The 2s `pulse` keyframe — in the chair, a WhatsApp send, in progress. */
     pulse?: boolean;
 };
 

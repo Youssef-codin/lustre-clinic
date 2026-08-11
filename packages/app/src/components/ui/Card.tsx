@@ -1,11 +1,14 @@
+/**
+ * Solid or dashed card. `dashed` marks read-only or built-in content the clinic
+ * cannot edit. `overflow: hidden` is what lets rows hairline-divide to the
+ * card's own edge.
+ */
 import type { ViewProps } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 import { color, radius, shadow, space } from '../../theme';
 
 export type CardProps = ViewProps & {
-    /** `dashed` marks read-only or built-in content the clinic cannot edit. */
     variant?: 'solid' | 'dashed';
-    /** Off by default: a card of hairline-divided rows pads its rows, not itself. */
     padded?: boolean;
     elevated?: boolean;
 };
@@ -25,10 +28,6 @@ export function Card({ variant = 'solid', padded = false, elevated = false, styl
     );
 }
 
-/**
- * A hairline between rows inside a Card. The designs draw it as a border on the
- * row rather than a separate element; this is the same thing, addressable.
- */
 export function CardDivider() {
     return <View style={styles.divider} />;
 }
@@ -39,7 +38,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: color.line,
         backgroundColor: color.surface,
-        // Rows can then hairline-divide to the card's own edge.
         overflow: 'hidden',
     },
     dashed: { borderStyle: 'dashed', backgroundColor: color.canvas },

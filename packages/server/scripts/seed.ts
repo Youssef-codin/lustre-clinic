@@ -1,11 +1,28 @@
 /**
- * Development seed. Fills an empty (or wiped) database with a clinic that
- * exercises every state the UI has to render: paid and part-paid visits, a
- * discount, a no-show, a cancellation, a walk-in, reminders in all three
- * statuses, a day with nothing on it, and a day booked back to back.
+ * Development seed exercising every state the UI renders. Destructive — deletes
+ * every domain row before inserting, and refuses non-local databases unless
+ * `--force` is passed. Prices are piastres (30_000 = 300 EGP). Times are
+ * clinic-local via a fixed offset (CLINIC_OFFSET_MINUTES, Africa/Cairo summer);
+ * omitting `visit.chargedTotal` charges the computed total (no discount).
+ * Deletes run child-first; inserts put categories before their children for the
+ * self-referencing `parent_id`.
  *
- * Destructive — it deletes every domain row before inserting. Refuses to run
- * against anything but a local database unless `--force` is passed.
+ * The hand-written bookings are the interesting ones — the awkward states the
+ * UI has to render. A deterministic PRNG then fills the rest of the calendar so
+ * the month reads like a working clinic: every open day of the current month
+ * carries a full column, past ones settled, future ones booked with reminders
+ * pending, and a few in next month so the calendar pages forward. The extra
+ * patient roster exists so lists paginate, search has to disambiguate, and the
+ * revenue figures come from more than a handful of rows. The clinic keeps the
+ * same hours everywhere, so a booking written for a wall-clock time is inside
+ * opening hours whichever weekday the seed happens to run on, and a booking's
+ * branch is whichever one is open that day rather than the one written down.
+ *
+ * A booking's planned procedures (§7) come from `plan`; `type` is the
+ * one-procedure shorthand the older fixtures use. A tooth-specific procedure
+ * needs a tooth to satisfy §5, so the shorthand reuses the tooth the visit
+ * actually recorded — the plan and the outcome agree — and falls back to a
+ * fixed tooth for bookings that never reached the chair.
  *
  *   bun packages/server/scripts/seed.ts
  */
@@ -38,16 +55,10 @@ import {
 import { logger } from '../src/logger.ts';
 import { buildRef } from '../src/util/ref.ts';
 
-/**
- * Africa/Cairo, summer. The seed builds instants from clinic-local wall clock
- * times, and a fixed offset keeps the generated data readable in the day view
- * without pulling in a timezone library for a dev-only script.
- */
 const CLINIC_OFFSET_MINUTES = 180;
 
 const id = () => Bun.randomUUIDv7();
 
-/** Midnight of today, clinic-local, as an absolute instant. */
 const todayLocalMidnight = (() => {
     const now = new Date();
     const local = new Date(now.getTime() + CLINIC_OFFSET_MINUTES * 60_000);
@@ -55,7 +66,6 @@ const todayLocalMidnight = (() => {
     return new Date(utcMidnight - CLINIC_OFFSET_MINUTES * 60_000);
 })();
 
-/** `at(-1, '14:30')` — half past two, clinic time, yesterday. */
 function at(dayOffset: number, hhmm: string): Date {
     const [hours, minutes] = hhmm.split(':').map(Number);
     return new Date(
@@ -82,8 +92,6 @@ if (!isLocalDatabase(config.DATABASE_URL) && !process.argv.includes('--force')) 
     process.exit(1);
 }
 
-// --- reference data ---------------------------------------------------------
-
 const mainBranch = {
     id: id(),
     name: 'Nasr City',
@@ -91,14 +99,8 @@ const mainBranch = {
     active: true,
 };
 const secondBranch = { id: id(), name: 'Maadi', address: '9 Road 9, Maadi, Cairo', active: true };
-/** Inactive, so the branch picker has something to filter out. */
 const oldBranch = { id: id(), name: 'Heliopolis (closed)', address: null, active: false };
 
-/**
- * Sunday–Thursday open, Friday and Saturday absent: the clinic is shut. Same
- * hours everywhere, so an appointment written for a wall-clock time is inside
- * opening hours whichever weekday the seed happens to run on.
- */
 const days = [
     { weekday: 0, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
     { weekday: 1, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
@@ -124,7 +126,6 @@ const restorativeCat = cat('Restorative', 1);
 const surgicalCat = cat('Surgical', 2);
 const cosmeticCat = cat('Cosmetic', 3);
 
-/** Prices are piastres. 30_000 = 300 EGP. */
 const proc = (
     parent: { id: string },
     name: string,
@@ -171,7 +172,6 @@ const procedures = [
     whitening,
 ];
 
-/** One of every question kind, plus an inactive one. */
 const questions = [
     {
         id: id(),
@@ -235,8 +235,6 @@ const questions = [
     },
 ];
 
-// --- patients ---------------------------------------------------------------
-
 const patient = (
     name: string,
     phone: string,
@@ -267,7 +265,6 @@ const nour = patient('Nour Abdelrahman', '+201001234567', {
     custom: { referral: 'Instagram', allergies: 'Penicillin', diabetic: false, systolic: 118 },
     notes: 'Prefers morning slots.',
 });
-/** Long-standing patient, everything filled in, several visits behind them. */
 const kareem = patient('Kareem Hassanein', '+201115550101', {
     email: 'kareem.h@example.com',
     birthDate: '1978-11-30',
@@ -281,9 +278,7 @@ const kareem = patient('Kareem Hassanein', '+201115550101', {
     },
     notes: 'Type 2 diabetic — confirm HbA1c before any extraction.',
 });
-/** Bare minimum: name and phone only. This is what a rushed desk entry looks like. */
 const sara = patient('Sara Elmasry', '+201227778899', { createdAt: at(-2, '09:40') });
-/** Child — deciduous teeth on the chart. */
 const yassin = patient('Yassin Tarek', '+201006661212', {
     birthDate: '2019-09-08',
     gender: 'male',
@@ -301,23 +296,15 @@ const omar = patient('Omar Sedky', '+201098765432', {
     gender: 'male',
     custom: { referral: 'Instagram', diabetic: false },
 });
-/** No-show history. */
 const hoda = patient('Hoda Naguib', '+201212121212', { birthDate: '1988-01-03', gender: 'female' });
-/** Registered today, nothing booked yet — an empty patient page. */
 const laila = patient('Laila Mostafa', '+201555443322', {
     email: 'laila.m@example.com',
     gender: 'female',
     custom: { referral: 'Other', diabetic: false },
     createdAt: at(0, '09:15'),
 });
-/** Same first name as another patient, to stress the search results. */
 const monaSecond = patient('Mona Abdelaziz', '+201004445566', { birthDate: '1995-12-01', gender: 'female' });
 
-/**
- * The rest of the book. Hand-written cases above cover the awkward states; this
- * roster exists so lists paginate, search has to disambiguate, and the revenue
- * figures come from more than a handful of rows.
- */
 const roster = [
     ['Ahmed Zaki', '+201004001001', 'male', '1983-03-17'],
     ['Aya Mahmoud', '+201004001002', 'female', '1996-08-22'],
@@ -347,8 +334,6 @@ const roster = [
     ['Injy Shokry', '+201004001026', 'female', '2001-03-06'],
     ['Marwan Sabry', '+201004001027', 'male', '1996-06-24'],
     ['Nourhan Ismail', '+201004001028', 'female', '1991-10-09'],
-    // Deliberate near-duplicates of the hand-written patients, so search has
-    // to be looked at rather than trusted.
     ['Mona Abdelrahman', '+201004001029', 'female', '1988-04-04'],
     ['Kareem Hassan', '+201004001030', 'male', '1984-12-19'],
     ['Omar Sedky', '+201004001031', 'male', '1966-02-02'],
@@ -374,8 +359,6 @@ const rosterPatients = roster.map(([name, phone, gender, birthDate], index) =>
 
 const allPatients = [nour, kareem, sara, yassin, mona, omar, hoda, laila, monaSecond, ...rosterPatients];
 
-// --- appointments -----------------------------------------------------------
-
 interface Line {
     procedure: { id: string; defaultPrice: number };
     quantity?: number;
@@ -389,9 +372,7 @@ interface Booking {
     branch: { id: string };
     startsAt: Date;
     durationMinutes?: number;
-    /** §7 — the one-procedure shorthand. Use `plan` for a multi-procedure booking. */
     type?: { id: string; isToothSpecific: boolean };
-    /** The procedures the secretary planned. Overrides `type` when both are set. */
     plan?: {
         procedure: { id: string; isToothSpecific: boolean };
         quantity?: number;
@@ -401,11 +382,9 @@ interface Booking {
     status: AppointmentStatus;
     channel?: AppointmentChannel;
     note?: string;
-    /** Present for anything that reached the chair. */
     visit?: {
         checkedInAt: Date;
         completedAt?: Date;
-        /** Omit to charge the computed total — i.e. no discount. */
         chargedTotal?: number;
         lines: Line[];
         payments?: { amount: number; method: PaymentMethod; methodNote?: string; paidAt: Date }[];
@@ -414,7 +393,6 @@ interface Booking {
 }
 
 const bookings: Booking[] = [
-    // --- last week: settled history ----------------------------------------
     {
         patient: kareem,
         branch: mainBranch,
@@ -433,7 +411,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 400_000, method: 'visa', paidAt: at(-7, '11:22') }],
         },
     },
-    // Paid in two instalments, in two different ways.
     {
         patient: mona,
         branch: mainBranch,
@@ -451,7 +428,6 @@ const bookings: Booking[] = [
             ],
         },
     },
-    // Discount: charged less than computed.
     {
         patient: yassin,
         branch: mainBranch,
@@ -471,7 +447,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 90_000, method: 'cash', paidAt: at(-6, '11:31') }],
         },
     },
-    // Outstanding balance — treated, paid part, still owes.
     {
         patient: omar,
         branch: secondBranch,
@@ -489,7 +464,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 300_000, method: 'cash', paidAt: at(-5, '14:16') }],
         },
     },
-    // Treated, nothing paid at all.
     {
         patient: sara,
         branch: secondBranch,
@@ -504,7 +478,6 @@ const bookings: Booking[] = [
             lines: [{ procedure: extraction, tooth: 'LL8' }, { procedure: consultation }],
         },
     },
-    // Paid with `other`, which requires a note.
     {
         patient: monaSecond,
         branch: mainBranch,
@@ -531,8 +504,6 @@ const bookings: Booking[] = [
         note: 'Cancelled the night before, travelling.',
     },
 
-    // --- today: the day view's live states ----------------------------------
-    // Finished and paid, earlier this morning.
     {
         patient: mona,
         branch: mainBranch,
@@ -547,7 +518,6 @@ const bookings: Booking[] = [
             payments: [{ amount: 15_000, method: 'cash', paidAt: at(0, '10:29') }],
         },
     },
-    // In the chair now.
     {
         patient: kareem,
         branch: mainBranch,
@@ -561,7 +531,6 @@ const bookings: Booking[] = [
             lines: [{ procedure: rootCanal, tooth: 'LR6', note: 'Session 2 of 2.' }],
         },
     },
-    // Done in the chair, standing at the desk to pay.
     {
         patient: nour,
         branch: mainBranch,
@@ -577,7 +546,6 @@ const bookings: Booking[] = [
             ],
         },
     },
-    // Walk-in, checked in, no procedures entered yet.
     {
         patient: laila,
         branch: mainBranch,
@@ -588,7 +556,6 @@ const bookings: Booking[] = [
         channel: 'walk_in',
         visit: { checkedInAt: at(0, '12:26'), lines: [] },
     },
-    // Still to come today.
     {
         patient: omar,
         branch: mainBranch,
@@ -619,9 +586,6 @@ const bookings: Booking[] = [
     },
     { patient: hoda, branch: mainBranch, startsAt: at(0, '17:00'), type: consultation, status: 'cancelled' },
 
-    // --- tomorrow: reminders are due ----------------------------------------
-    // Booked as a multi-procedure visit: the secretary knows all three are
-    // planned, and check-in seeds them as the visit's opening lines.
     {
         patient: nour,
         branch: mainBranch,
@@ -653,7 +617,6 @@ const bookings: Booking[] = [
         reminder: { status: 'sent', sentAt: at(0, '19:01') },
     },
 
-    // --- day after tomorrow: back to back, no gaps --------------------------
     {
         patient: sara,
         branch: secondBranch,
@@ -663,8 +626,6 @@ const bookings: Booking[] = [
         status: 'booked',
         reminder: { status: 'pending' },
     },
-    // Two fillings on different teeth — the case a single `type_id` could not
-    // express at all.
     {
         patient: omar,
         branch: secondBranch,
@@ -705,9 +666,6 @@ const bookings: Booking[] = [
         reminder: { status: 'pending' },
     },
 
-    // Day +3 is deliberately left empty — the day view needs an empty state.
-
-    // --- further out ---------------------------------------------------------
     {
         patient: kareem,
         branch: mainBranch,
@@ -729,17 +687,6 @@ const bookings: Booking[] = [
     },
 ];
 
-// --- the rest of the month --------------------------------------------------
-
-/**
- * The hand-written bookings above are the interesting ones. This fills in the
- * rest of the calendar so the month reads like a working clinic: every open day
- * of the current month has a full column of appointments, past ones settled,
- * future ones booked with reminders pending. A few land in next month so the
- * calendar has something to page forward to.
- */
-
-/** Small deterministic PRNG — same seed, same clinic, every run. */
 let randomState = 0x9e3779b9;
 function random(): number {
     randomState = (randomState * 1_664_525 + 1_013_904_223) >>> 0;
@@ -747,12 +694,10 @@ function random(): number {
 }
 const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T;
 
-/** Clinic-local weekday, 0 = Sunday, matching `clinicDays.weekday`. */
 function localWeekday(dayOffset: number): number {
     return new Date(at(dayOffset, '00:00').getTime() + CLINIC_OFFSET_MINUTES * 60_000).getUTCDay();
 }
 
-/** Day offsets covering this calendar month, plus the first week of the next. */
 const generatedRange = (() => {
     const local = new Date(todayLocalMidnight.getTime() + CLINIC_OFFSET_MINUTES * 60_000);
     const year = local.getUTCFullYear();
@@ -780,11 +725,6 @@ const treatments = [
 const teeth: Tooth[] = ['UR6', 'UR4', 'UL5', 'UL7', 'LL6', 'LL8', 'LR6', 'LR4', 'ULD', 'LRE'];
 const cashMethods: PaymentMethod[] = ['cash', 'cash', 'visa', 'instapay'];
 
-/**
- * `dense` packs the column open to close with no gaps — a day the desk would
- * call fully booked. Otherwise slots are jittered and a little air is left
- * between them, which is what an ordinary day looks like.
- */
 function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSITIVE_INFINITY): void {
     const weekday = localWeekday(dayOffset);
     const day = days.find((d) => d.weekday === weekday);
@@ -795,11 +735,9 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
     const [closeHour] = day.closesAt.split(':').map(Number);
     const past = dayOffset < 0;
 
-    // Today is already crowded by hand; top it up rather than doubling it.
     let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 30));
     const closingMinute = (closeHour ?? 18) * 60;
 
-    /** Everything already on this day, hand-written or generated, in minutes. */
     const dayStart = at(dayOffset, '00:00').getTime();
     const takenSlots = bookings
         .filter((b) => b.startsAt.getTime() >= dayStart && b.startsAt.getTime() < dayStart + 86_400_000)
@@ -811,19 +749,15 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
 
     let placed = 0;
     while (minute + 20 <= closingMinute && placed < maxBookings) {
-        // How much room there is before the next thing already on the day.
         const nextTaken = takenSlots
             .filter((slot) => slot.start >= minute)
             .reduce((soonest, slot) => Math.min(soonest, slot.start), closingMinute);
         const room = nextTaken - minute;
 
-        // A full day tiles the room exactly, so nothing is left over: 20 and 30
-        // minute treatments divide the 480-minute day and every gap in it.
         const treatment = dense
             ? pick(treatments.filter((t) => t.minutes <= room && t.minutes <= 30))
             : pick(treatments.filter((t) => t.minutes <= room));
 
-        // Nothing fits before the next appointment — resume after it.
         if (!treatment) {
             const blocker = takenSlots.find((slot) => slot.start === nextTaken);
             minute = blocker ? blocker.end : closingMinute;
@@ -864,7 +798,6 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
                 });
             } else {
                 const total = lines.reduce((sum, line) => sum + line.procedure.defaultPrice, 0);
-                // Most settle in full; some walk out owing, a few get a discount.
                 const charged = roll > 0.9 ? Math.round((total * 0.85) / 1_000) * 1_000 : total;
                 const paid = roll < 0.2 ? Math.round((charged * 0.5) / 1_000) * 1_000 : charged;
                 bookings.push({
@@ -917,17 +850,8 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
     }
 }
 
-/**
- * Days the clinic is full: one last week, today, tomorrow, and one later in the
- * month. The UI needs a column with no room left in it as much as it needs an
- * empty one.
- */
 const fullDays = new Set([-6, 0, 1, 8]);
 
-/**
- * Quiet days — two or three appointments and a lot of white space. A month
- * where every column is packed is as unrepresentative as one that is bare.
- */
 const quietDays = new Map([
     [-8, 2],
     [-1, 3],
@@ -939,15 +863,10 @@ const quietDays = new Map([
 ]);
 
 for (let offset = generatedRange.first; offset <= generatedRange.last; offset += 1) {
-    // One future day is left as the hand-written pair only, for the empty-ish
-    // state; day +3 stays untouched entirely.
     if (offset === 3) continue;
     generateDay(offset, fullDays.has(offset), quietDays.get(offset) ?? Number.POSITIVE_INFINITY);
 }
 
-// A handful next month, so the calendar has something to page forward into.
-// Offsets are walked rather than picked, since a fixed pick lands on a closed
-// Friday depending on where the month ends.
 let scheduledNextMonth = 0;
 for (
     let offset = generatedRange.last + 1;
@@ -961,9 +880,6 @@ for (
 
 bookings.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
-// --- insert -----------------------------------------------------------------
-
-/** `ref` is globally unique; with this many rows a collision is worth ruling out. */
 const usedRefs = new Set<string>();
 function uniqueRef(startsAt: Date): string {
     let ref = buildRef(startsAt, CLINIC_OFFSET_MINUTES);
@@ -972,7 +888,6 @@ function uniqueRef(startsAt: Date): string {
     return ref;
 }
 
-/** The branch that owns a booking's weekday, per `clinicDays`. */
 function branchOpenOn(startsAt: Date): { id: string } | undefined {
     const weekday = new Date(startsAt.getTime() + CLINIC_OFFSET_MINUTES * 60_000).getUTCDay();
     const day = days.find((d) => d.weekday === weekday);
@@ -994,9 +909,6 @@ for (const booking of bookings) {
         id: appointmentId,
         ref: uniqueRef(booking.startsAt),
         patientId: booking.patient.id,
-        // The schedule keys a weekday to one branch, so a booking's branch is
-        // whatever is open that day — the hand-written ones above are written
-        // for their state, not for the calendar they happen to land on.
         branchId: branchOpenOn(booking.startsAt)?.id ?? booking.branch.id,
         startsAt: booking.startsAt,
         durationMinutes,
@@ -1007,10 +919,6 @@ for (const booking of bookings) {
         updatedAt: booking.startsAt,
     });
 
-    // §7 — the planned procedures. `type` is the one-line shorthand, and a
-    // tooth-specific one needs a tooth to satisfy §5: reuse the one the visit
-    // actually recorded so the plan and the outcome agree, and fall back to a
-    // fixed tooth for bookings that never reached the chair.
     const plan =
         booking.plan ??
         (booking.type
@@ -1091,7 +999,6 @@ for (const booking of bookings) {
 }
 
 await db.transaction(async (tx) => {
-    // Child tables first; `settings` keeps its single row and is updated below.
     await tx.delete(payments);
     await tx.delete(visitProcedures);
     await tx.delete(visits);
@@ -1106,7 +1013,6 @@ await db.transaction(async (tx) => {
 
     await tx.insert(branches).values([mainBranch, secondBranch, oldBranch]);
     await tx.insert(clinicDays).values(days);
-    // Categories before their children, for the self-referencing parent_id.
     await tx.insert(procedureTypes).values(procedures);
     await tx.insert(customQuestions).values(questions);
     await tx.insert(patients).values(allPatients);

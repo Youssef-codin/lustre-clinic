@@ -1,11 +1,10 @@
-import { questionKindSchema } from '@mawid/shared';
-import { z } from 'zod';
-
 /**
  * SPEC §5, §12. `key` is the stable key into `patients.custom`, so it is
  * constrained to something that stays readable in JSON and never changes once
- * answers exist against it.
+ * answers exist against it — which is why `updateCustomQuestionInput` omits it.
  */
+import { questionKindSchema } from '@mawid/shared';
+import { z } from 'zod';
 
 const key = z
     .string()
@@ -19,7 +18,6 @@ export const createCustomQuestionInput = z
         key,
         label: z.string().trim().min(1).max(200),
         kind: questionKindSchema,
-        /** Only meaningful for `select`. */
         options: z.array(z.string().trim().min(1).max(120)).min(1).max(50).nullish(),
         required: z.boolean().default(false),
         sortOrder: z.number().int().min(0).max(9999).default(0),
@@ -31,7 +29,6 @@ export const createCustomQuestionInput = z
 
 export const updateCustomQuestionInput = z.object({
     id: z.uuid(),
-    /** `key` is deliberately absent: answers are stored against it. */
     label: z.string().trim().min(1).max(200).optional(),
     options: z.array(z.string().trim().min(1).max(120)).min(1).max(50).nullish(),
     required: z.boolean().optional(),

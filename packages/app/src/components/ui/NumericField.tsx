@@ -1,3 +1,12 @@
+/**
+ * Numerals only, always DM Mono, always Latin digits (§7.11), so columns of
+ * amounts stay aligned in Arabic too. `decimal-pad` rather than `numeric`: the
+ * numeric pad on Android carries a newline key that commits nothing. The `end`
+ * variant uses a physical textAlign resolved from the layout direction — React
+ * Native has no logical `textAlign`, and `auto` would put a Latin numeral on the
+ * wrong edge of an Arabic screen. Prefixes are units, never formatted numbers;
+ * formatting is `domain/`'s.
+ */
 import { useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { I18nManager, StyleSheet, TextInput, View } from 'react-native';
@@ -12,25 +21,11 @@ export type NumericFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextC
     required?: boolean;
     hint?: string;
     error?: string;
-    /**
-     * `display` — the 30px figure with a currency prefix (payment amount)
-     * `end` — end-aligned with a unit suffix (duration, price in a row)
-     * `inline` — borderless, underlines on focus (the per-line cost input)
-     */
     variant?: NumericFieldVariant;
-    /** Leading unit — `EGP`. Never a formatted number; formatting is `domain/`'s. */
     prefix?: string;
-    /** Trailing unit — `min`. */
     suffix?: string;
 };
 
-/**
- * Numerals only, always DM Mono, always Latin digits — §7.11, so columns of
- * amounts stay aligned in Arabic too.
- *
- * `decimal-pad` rather than `numeric`: the numeric pad on Android carries a
- * newline key that commits nothing.
- */
 export function NumericField({
     label,
     required,
@@ -120,9 +115,5 @@ const styles = StyleSheet.create({
     input: { alignSelf: 'stretch', color: color.ink, paddingVertical: space[2] },
     figure: { ...type.figure, fontFamily: font.mono.medium },
     amount: { ...type.amount, fontFamily: font.mono.medium },
-    // React Native has no logical `textAlign`, and `auto` aligns to the string's
-    // own direction — which for a Latin numeral on an Arabic screen is the wrong
-    // edge. This is the one place a physical direction is correct, and it is
-    // resolved from the layout direction rather than assumed.
     endAligned: { textAlign: END_ALIGN },
 });

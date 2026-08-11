@@ -1,3 +1,8 @@
+/**
+ * The inline explanation that sits under a control — "past visits keep the old
+ * price", "answers are kept, not erased". `note` is the dashed footer variant
+ * for content the clinic cannot change.
+ */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { TextTone } from '../../theme';
@@ -9,7 +14,6 @@ export type CalloutProps = {
     tone?: CalloutTone;
     title?: string;
     children: ReactNode;
-    /** Replaces the tone's default glyph. */
     icon?: ReactNode;
 };
 
@@ -41,11 +45,6 @@ const TEXT: Record<CalloutTone, TextTone> = {
     note: 'muted',
 };
 
-/**
- * The inline explanation that sits under a control — "past visits keep the old
- * price", "answers are kept, not erased". `note` is the dashed footer variant
- * for content the clinic cannot change.
- */
 export function Callout({ tone = 'info', title, children, icon }: CalloutProps) {
     return (
         <View

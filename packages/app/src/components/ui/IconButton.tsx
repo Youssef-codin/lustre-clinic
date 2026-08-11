@@ -1,3 +1,9 @@
+/**
+ * Icon-only button. The paint box can be under 44 (the designs draw 30–34px
+ * circles), so the touch target is extended past the paint rather than growing
+ * it. Box sizes by variant: 34 top-bar/row, 40 WhatsApp/call, 32 calendar nav,
+ * 30 kill/del/option dismiss.
+ */
 import type { ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';
@@ -7,24 +13,22 @@ export type IconButtonVariant = 'circle' | 'filled' | 'square' | 'bare';
 export type IconButtonTone = 'ink' | 'muted' | 'accent' | 'danger' | 'wa';
 
 export type IconButtonProps = {
-    /** Never optional. An icon-only control is unusable without it. */
     accessibilityLabel: string;
     icon: ReactNode;
     onPress?: () => void;
     variant?: IconButtonVariant;
     tone?: IconButtonTone;
     disabled?: boolean;
-    /** Overrides the variant's default box. */
     size?: number;
     style?: StyleProp<ViewStyle>;
     testID?: string;
 };
 
 const BOX: Record<IconButtonVariant, number> = {
-    circle: 34, // universal top-bar / row action
-    filled: 40, // WhatsApp, call
-    square: 32, // calendar nav
-    bare: 30, // kill, del, option dismiss
+    circle: 34,
+    filled: 40,
+    square: 32,
+    bare: 30,
 };
 
 const FILL: Record<IconButtonTone, string> = {
@@ -56,8 +60,6 @@ export function IconButton({
             disabled={disabled}
             onPress={onPress}
             testID={testID}
-            // The box can be under 44 — the designs draw 30–34px circles — so the
-            // touch target is extended past the paint rather than growing it.
             hitSlop={Math.max(0, Math.round((44 - box) / 2))}
             style={({ pressed }) => [
                 styles.base,

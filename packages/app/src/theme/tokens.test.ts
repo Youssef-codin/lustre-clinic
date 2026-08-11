@@ -2,19 +2,13 @@ import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { Glob } from 'bun';
 
-// Two rules the type system cannot express on its own.
-//
-// 1. No raw colour values. If a colour is not in tokens.ts it does not exist.
-//    Adding one is a deliberate, reviewable edit checked against the designs.
-// 2. No physical directions. The app runs Arabic and English, so padding, margin
-//    and insets are always logical — React Native supports `paddingStart`,
-//    `marginEnd`, `start`, `end` and `borderStartWidth` natively, and those
-//    respect the layout direction where their left/right twins do not.
-//
-// The rest of the token discipline is TypeScript's job: `color.dou` and
-// `radius.huge` are compile errors. That is why there is no "no magic number"
-// check here — reach for a token and a typo already fails the build.
-
+// Two rules the type system cannot express: no raw colour values outside
+// tokens.ts, and no physical-direction style properties — the app runs Arabic
+// and English, and React Native's logical properties (`paddingStart`,
+// `marginEnd`, `start`, `end`, `borderStartWidth`) respect layout direction
+// where their left/right twins do not. The rest of the token discipline is
+// TypeScript's job (`color.dou`, `radius.huge` are compile errors), which is
+// why there is no magic-number check here.
 const APP_ROOT = path.resolve(import.meta.dir, '../..');
 const TOKENS = 'src/theme/tokens.ts';
 
@@ -28,7 +22,6 @@ async function sourceFiles(): Promise<string[]> {
     return files;
 }
 
-/** Strip line and block comments so a hex in prose is not a violation. */
 function stripComments(source: string): string {
     return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 }

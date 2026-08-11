@@ -22,7 +22,6 @@ function recorder() {
     };
 }
 
-/** A clock the test advances by hand, so nothing here waits on real time. */
 function clock(start = 0) {
     let t = start;
     return { now: () => t, advance: (ms: number) => (t += ms) };
@@ -141,7 +140,6 @@ describe('createAlerter', () => {
             await alerter.report({ code: `code.${i}`, summary: 'boom' });
         }
 
-        // Three real alerts, then exactly one suppression notice.
         expect(r.sent.length).toBe(4);
         expect(r.sent.at(-1)?.alert.code).toBe('monitoring.rate_limited');
     });

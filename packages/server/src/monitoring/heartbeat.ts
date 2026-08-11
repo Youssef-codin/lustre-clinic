@@ -1,5 +1,3 @@
-import { logger } from '../logger.ts';
-
 /**
  * SPEC §17 — the external check that the machine is responding. It catches
  * power cuts, crashes, and network failure, which the app cannot report itself.
@@ -9,17 +7,19 @@ import { logger } from '../logger.ts';
  * (UptimeRobot heartbeat, or any equivalent) alerts on silence. A failed ping
  * is logged, never alerted — if the network is down the alert cannot leave
  * either, and silence is exactly the signal the monitor is watching for.
+ *
+ * The timer is `unref`'d so the heartbeat is never the reason the process stays
+ * alive.
  */
+import { logger } from '../logger.ts';
 
 export interface HeartbeatOptions {
     url: string;
     intervalMs: number;
-    /** Injected in tests. */
     fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 export interface Heartbeat {
-    /** Sends one ping now. Resolves true if the monitor acknowledged it. */
     ping(): Promise<boolean>;
     stop(): void;
 }
@@ -44,7 +44,6 @@ export function startHeartbeat(options: HeartbeatOptions): Heartbeat {
 
     void ping();
     const timer = setInterval(() => void ping(), intervalMs);
-    // The heartbeat must never be the reason the process stays alive.
     timer.unref?.();
 
     logger.info({ intervalSeconds: intervalMs / 1000 }, 'heartbeat started');

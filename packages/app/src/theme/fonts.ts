@@ -10,19 +10,13 @@ import { NotoNaskhArabic_600SemiBold } from '@expo-google-fonts/noto-naskh-arabi
 import { NotoNaskhArabic_700Bold } from '@expo-google-fonts/noto-naskh-arabic/700Bold';
 import { useFonts } from 'expo-font';
 
-// The three bundled faces (Component Inventory §7.2). A system font stack is not
-// viable: it resolves to Roboto on Android, and the designs' 620/680 weights and
-// negative tracking collapse without anyone noticing.
-//
-// Instrument Serif is deliberately absent — several designs load it and none use it.
-//
-// Imported per weight rather than from each package root. The root index re-exports
-// every face it ships, and Metro bundles what it can reach: importing it pulls in
-// eight italics and DM Mono Light that nothing uses, for about 430KB.
-//
-// The keys are the family names in tailwind.config.js `fontFamily`. React Native
-// selects a face by family name alone, so each weight is registered separately
-// rather than as one family with a numeric weight.
+// The three bundled faces (Component Inventory §7.2). A system stack resolves
+// to Roboto on Android and collapses the designs' weights and tracking, and
+// Instrument Serif is deliberately absent (loaded by no design). Faces are
+// imported per weight rather than from package roots, which would bundle
+// ~430KB of unused italics. Keys are the family names from tailwind.config.js
+// `fontFamily`; React Native selects a face by family name alone, so each
+// weight is registered separately rather than as one family with a weight.
 export const APP_FONTS = {
     InstrumentSans_400Regular,
     InstrumentSans_500Medium,
@@ -36,11 +30,8 @@ export const APP_FONTS = {
     NotoNaskhArabic_700Bold,
 };
 
-/**
- * Loads every bundled face. Returns false until they are all resolved — hold the
- * splash screen until then, or the first frame renders in the fallback face and
- * reflows.
- */
+// Hold the splash screen until every face is resolved, or the first frame
+// renders in the fallback face and reflows.
 export function useAppFonts(): boolean {
     const [loaded, error] = useFonts(APP_FONTS);
     if (error) throw error;

@@ -1,3 +1,18 @@
+/**
+ * SPEC §5, §13. Phone is normalized to E.164 on write; age is derived at read
+ * time and never stored.
+ *
+ * `byId` returns the patient and the visit history in one payload (§13), so the
+ * records screen is a single round trip.
+ *
+ * Search uses a trigram-free substring `ILIKE` deliberately — thousands of
+ * patients, not millions — and normalizes the phone term first so `0101…`
+ * finds `+20101…`. `create` validates the full questionnaire (a new record is
+ * the form answered in one sitting), while `update` merges a partial `custom`
+ * patch and does not re-check answers the caller left out. `createMinimal`
+ * (used by appointment booking) deliberately skips questionnaire validation —
+ * the secretary is on the phone, and the form is filled in at the desk.
+ */
 import { desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, payments, visits } from '../../db/schema.ts';
@@ -8,18 +23,9 @@ import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
 import type { CreatePatientInput, SearchPatientInput, UpdatePatientInput } from './patient.schema.ts';
 
-/**
- * SPEC §5, §13. Phone is normalized to E.164 on write; age is derived at read
- * time and never stored.
- *
- * `byId` returns the patient and the visit history in one payload (§13), so the
- * records screen is a single round trip.
- */
-
 export type PatientRow = typeof patients.$inferSelect;
 
 export interface Patient extends PatientRow {
-    /** Derived from `birthDate` at read time (§5). */
     age: number | null;
 }
 
@@ -33,17 +39,12 @@ export interface PatientVisit {
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;
-    /** Derived, never stored (§10). */
     balance: number;
 }
 
 export interface PatientDetail {
     patient: Patient;
     visits: PatientVisit[];
-    /**
-     * What this record is missing against today's questionnaire — empty for a
-     * patient registered since the last change to it (§12).
-     */
     questionnaireGaps: QuestionnaireGap[];
 }
 
@@ -51,7 +52,6 @@ function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
 }
 
-/** `patients.custom` is JSONB, which Drizzle hands back as `unknown`. */
 function answersOf(row: PatientRow): Answers {
     return (row.custom ?? {}) as Answers;
 }
@@ -63,22 +63,14 @@ async function requireRow(id: string): Promise<PatientRow> {
 }
 
 export const patientService = {
-    /**
-     * Name or phone. The trigram-free `ILIKE` is deliberate: the clinic has
-     * thousands of patients, not millions, and a substring match is what the
-     * secretary expects when they type three letters of a name.
-     */
     async search(input: SearchPatientInput): Promise<Patient[]> {
         const term = input.q.trim();
         if (!term) return [];
 
-        // A phone search is normalized first so '0101…' finds '+20101…'.
         let phoneTerm = term;
         try {
             phoneTerm = normalizePhone(term);
-        } catch {
-            // Not phone-shaped; fall through to the raw term.
-        }
+        } catch {}
 
         const rows = await db
             .select()
@@ -128,8 +120,6 @@ export const patientService = {
     },
 
     async create(input: CreatePatientInput): Promise<Patient> {
-        // A new record is the questionnaire filled in as a whole, so every
-        // required question has to be answered here (§5).
         const custom = await customQuestionService.validateIntake(input.custom);
 
         const [row] = await db
@@ -153,9 +143,6 @@ export const patientService = {
     async update({ id, ...patch }: UpdatePatientInput): Promise<Patient> {
         const current = await requireRow(id);
 
-        // A partial `custom` patch is merged over what is stored, so editing one
-        // answer does not drop the rest — and answers the caller left out are
-        // not re-checked against a questionnaire that has moved on since.
         const custom = patch.custom
             ? await customQuestionService.validatePatch(answersOf(current), patch.custom)
             : undefined;
@@ -174,12 +161,6 @@ export const patientService = {
         return toPatient(row);
     },
 
-    /**
-     * Used by `appointment.create` when booking for a patient who is new (§13).
-     * Custom questions are deliberately not enforced here: the secretary is on
-     * the phone taking a booking, and the questionnaire is filled in at the
-     * desk. `patient.update` validates them when it is.
-     */
     async createMinimal(name: string, phone: string, executor: Executor = db): Promise<PatientRow> {
         const [row] = await executor
             .insert(patients)

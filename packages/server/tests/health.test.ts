@@ -34,8 +34,6 @@ describe('health.check', () => {
     });
 
     test('is reachable over plain HTTP GET, as the connection probe expects', async () => {
-        // §14: the client probes both addresses with a short timeout and uses
-        // whichever answers first.
         const res = await fetch(`${baseUrl}${TRPC_ENDPOINT}/health.check`);
         expect(res.status).toBe(200);
 
@@ -53,9 +51,6 @@ describe('transport', () => {
 
         expect(a.ok).toBe(true);
         expect(b.ok).toBe(true);
-        // The assertion that makes this a batching test: two queries, one
-        // round trip. Counting is the only way to tell — both calls resolve
-        // whether or not `allowBatching` is on.
         expect(server.requestCount()).toBe(1);
     });
 

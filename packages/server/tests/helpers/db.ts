@@ -7,16 +7,14 @@ import { runMigrations } from '../../src/db/migrate.ts';
  * Tests run against a real Postgres, because the things worth testing here are
  * enforced by Postgres — the `EXCLUDE` constraint above all. Point
  * `DATABASE_URL` at a scratch database; `docker compose up -d db` is enough.
+ *
+ * `truncateAll` runs in a `beforeEach` and empties every table, which is not
+ * recoverable, so the suite refuses to start unless the database name ends in
+ * `_test` — this guard is what stops a plain `bun test` (which would pick up
+ * `.env`) from wiping the developer's working database.
  */
 export const sql = dbSql;
 
-/**
- * `truncateAll` runs in a `beforeEach` and empties every table. Nothing about
- * that is recoverable, so the suite refuses to start unless the database is
- * named like one that exists to be destroyed. `.env.test` supplies the name;
- * without this guard a plain `bun test` picks up `.env` and wipes the developer's
- * working database.
- */
 const TEST_DATABASE_SUFFIX = '_test';
 
 export function assertTestDatabase(url = config.DATABASE_URL): void {
@@ -41,7 +39,6 @@ export async function setupDatabase(): Promise<void> {
     migrated = true;
 }
 
-/** Wipes every table. Order matters only in that CASCADE handles it for us. */
 export async function truncateAll(): Promise<void> {
     await sql`
         TRUNCATE TABLE

@@ -1,3 +1,11 @@
+/**
+ * Dev screen: every `ui/` primitive on one scroll, in its states. It imports
+ * `ui/` and the theme and nothing else, so it cannot drift into being a real
+ * screen by accident. The toast lives at screen level, not in the section
+ * that raises it — it positions itself absolutely against its parent. The
+ * pending-state demo simulates a 1200ms write, the realistic worst-case round
+ * trip over Tailscale.
+ */
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -39,22 +47,7 @@ import {
 } from '../../components/ui';
 import { color, size, space, Text } from '../../theme';
 
-/**
- * Every `ui/` primitive on one scroll, in its states.
- *
- * This is where a component is checked against the designs before a screen
- * depends on it, and where the two things that only fail on a device get
- * exercised: a Button's pending state, and a Sheet with the keyboard up.
- *
- * It is a dev screen. It imports `ui/` and the theme and nothing else, so it
- * cannot drift into being a real screen by accident.
- */
 export function GalleryScreen() {
-    // The toast lives here, not in the section whose buttons raise it. It
-    // positions itself absolutely against its parent, so nested in scrolling
-    // content it lands wherever that content happens to be — mid-screen, over
-    // the very buttons it is reporting on. A screen-level notification has to be
-    // a child of the screen.
     const [toast, setToast] = useState<string | null>(null);
 
     return (
@@ -85,8 +78,6 @@ export function GalleryScreen() {
     );
 }
 
-/* ------------------------------------------------------------------ sections */
-
 function Buttons() {
     return (
         <Section title="Button">
@@ -114,9 +105,6 @@ function Pending() {
     const [saving, setSaving] = useState(false);
     const [presses, setPresses] = useState(0);
 
-    // Every write in this app crosses Tailscale to a PC in the clinic. 1.2s is a
-    // realistic round trip on a bad day, and it is exactly the window in which a
-    // button that looks idle gets tapped a second time.
     function save() {
         setSaving(true);
         setPresses((count) => count + 1);
@@ -512,8 +500,6 @@ function Chrome() {
         </Section>
     );
 }
-
-/* ------------------------------------------------------------------- helpers */
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
     return (

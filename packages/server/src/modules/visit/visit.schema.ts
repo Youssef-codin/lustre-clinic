@@ -1,7 +1,13 @@
+/**
+ * SPEC §8, §9, §13. Amounts are integer piastres.
+ *
+ * `setProcedures` replaces the whole list; it does not patch individual lines.
+ * `unitPrice` overrides the price snapshot and defaults to the procedure's
+ * price. `appointments` carries no `visit_id`, so the day view looks a visit up
+ * by appointment.
+ */
 import { MAX_AMOUNT_PIASTRES, paymentMethodSchema, toothSchema } from '@mawid/shared';
 import { z } from 'zod';
-
-/** SPEC §8, §9, §13. Amounts are integer piastres. */
 
 const amount = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);
 
@@ -9,7 +15,8 @@ export const checkInInput = z.object({ appointmentId: z.uuid() });
 
 export const visitByIdInput = z.object({ id: z.uuid() });
 
-/** Replaces the whole list; it does not patch individual lines (§13). */
+export const visitByAppointmentInput = z.object({ appointmentId: z.uuid() });
+
 export const setProceduresInput = z.object({
     visitId: z.uuid(),
     procedures: z
@@ -17,9 +24,7 @@ export const setProceduresInput = z.object({
             z.object({
                 procedureId: z.uuid(),
                 quantity: z.number().int().min(1).max(999).default(1),
-                /** Overrides the snapshot; defaults to the procedure's price. */
                 unitPrice: amount.optional(),
-                /** Palmer notation. Omitted when the procedure is not tooth-specific (§5). */
                 tooth: toothSchema.nullish(),
                 note: z.string().trim().max(500).nullish(),
             }),
@@ -41,7 +46,6 @@ export const checkOutInput = z
     .object({
         visitId: z.uuid(),
         chargedTotal: amount,
-        /** May be zero, partial, or full (§8). */
         paidTotal: amount.default(0),
         ...payment,
     })

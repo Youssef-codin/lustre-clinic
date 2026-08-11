@@ -1,3 +1,9 @@
+/**
+ * Confirm sheet. `loading` makes it non-dismissable: the confirm is a write and
+ * every write crosses Tailscale, so a confirm in flight must not be cancellable
+ * into an unknown state. Destructive red confirms exist for deactivating and the
+ * like, never for saving.
+ */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { space, Text } from '../../theme';
@@ -8,19 +14,12 @@ export type ConfirmSheetProps = {
     visible: boolean;
     title: string;
     body?: string;
-    /** A Callout, usually — what the confirm actually does to existing data. */
     detail?: ReactNode;
     confirmLabel: string;
     cancelLabel?: string;
     onConfirm: () => void;
     onCancel: () => void;
-    /** Red confirm. Deactivating counts; saving does not. */
     destructive?: boolean;
-    /**
-     * The confirm is a write and every write crosses Tailscale. Hold this true
-     * until the server answers: the sheet stops being dismissable, so a confirm
-     * in flight cannot be cancelled into an unknown state.
-     */
     loading?: boolean;
     testID?: string;
 };
@@ -46,7 +45,6 @@ export function ConfirmSheet({
             title={title}
             testID={testID}
             footer={
-                // 1 : 1.4 — the confirm is the wider one, in both designs.
                 <View style={styles.actions}>
                     <View style={styles.cancel}>
                         <Button

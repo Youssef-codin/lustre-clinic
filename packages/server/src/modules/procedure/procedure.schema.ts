@@ -1,17 +1,18 @@
+/**
+ * SPEC §5, §12. Prices are integer piastres — never floats. A null `parentId`
+ * makes a row a category root (one level of nesting only); `isToothSpecific`
+ * means lines for the procedure must name a tooth, and others must not.
+ */
 import { MAX_AMOUNT_PIASTRES } from '@mawid/shared';
 import { z } from 'zod';
-
-/** SPEC §5, §12. Prices are integer piastres — never floats. */
 
 const price = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);
 
 export const createProcedureInput = z.object({
-    /** Null makes this a category root. One level of nesting only (§5). */
     parentId: z.uuid().nullish(),
     name: z.string().trim().min(1).max(160),
     defaultPrice: price,
     hasQuantity: z.boolean().default(false),
-    /** Lines for this procedure must name a tooth; others must not (§5). */
     isToothSpecific: z.boolean().default(false),
     isCheckup: z.boolean().default(false),
     sortOrder: z.number().int().min(0).max(9999).default(0),

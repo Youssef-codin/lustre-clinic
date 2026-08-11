@@ -15,7 +15,6 @@ import {
  */
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-
 const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const PUBLIC_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 
@@ -29,7 +28,6 @@ function decodeSegment(segment: string): Record<string, unknown> {
     return JSON.parse(Buffer.from(segment, 'base64url').toString());
 }
 
-/** A fetch stub that records what it was called with. */
 function stubFetch(handlers: Record<string, (req: { url: string; init?: RequestInit }) => Response>) {
     const calls: { url: string; init?: RequestInit }[] = [];
 
@@ -84,7 +82,6 @@ describe('buildJwt', () => {
         expect(claims.scope).toBe('https://www.googleapis.com/auth/drive.file');
         expect(claims.iat).toBe(now / 1000);
         expect(claims.exp).toBe(now / 1000 + 3600);
-        // No impersonation unless one was configured.
         expect(claims.sub).toBeUndefined();
     });
 
@@ -124,7 +121,6 @@ describe('createDriveClient', () => {
         const text = uploadBody?.toString('binary') ?? '';
         expect(text).toContain('"parents":["folder-123"]');
         expect(text).toContain('mawid-2026-08-03T09-00-00Z.dump.enc');
-        // The ciphertext itself is in there, between the multipart boundaries.
         expect(uploadBody?.includes(Buffer.from([1, 2, 3]))).toBe(true);
     });
 

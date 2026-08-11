@@ -1,14 +1,3 @@
-import { ERROR_CODE } from '@mawid/shared';
-import { asc, eq } from 'drizzle-orm';
-import { db } from '../../db/index.ts';
-import { customQuestions } from '../../db/schema.ts';
-import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
-import type {
-    CreateCustomQuestionInput,
-    ListCustomQuestionInput,
-    UpdateCustomQuestionInput,
-} from './customQuestion.schema.ts';
-
 /**
  * SPEC §5, §12. The clinic defines its own intake questions; answers live in
  * `patients.custom`, keyed by `key`.
@@ -27,33 +16,37 @@ import type {
  * The asymmetry is the whole point. If a patient picked a `select` option in
  * 2024 and the doctor removed that option in 2026, correcting that patient's
  * phone number must not fail on an answer nobody touched.
+ *
+ * A submitted blank drops the answer (or clears it on patch), and a key with no
+ * question behind it is refused — nothing would ever validate it again.
+ * `coerce` is the single definition of an acceptable answer, shared by
+ * validation, patching, and auditing. Error messages name the question key,
+ * never the answer, which is patient data.
  */
+import { ERROR_CODE } from '@mawid/shared';
+import { asc, eq } from 'drizzle-orm';
+import { db } from '../../db/index.ts';
+import { customQuestions } from '../../db/schema.ts';
+import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
+import type {
+    CreateCustomQuestionInput,
+    ListCustomQuestionInput,
+    UpdateCustomQuestionInput,
+} from './customQuestion.schema.ts';
 
 export type CustomQuestion = typeof customQuestions.$inferSelect;
 
-/** Answers keyed by `custom_questions.key`, as stored in `patients.custom`. */
 export type Answers = Record<string, unknown>;
 
-/**
- * Why one patient's questionnaire wants the clinic's attention.
- *
- * `unanswered` — the question is asked today and this record has no answer to
- * it. Every patient on the books the day a question is added is unanswered.
- *
- * `answer_no_longer_valid` — there is an answer, but the question would not
- * accept it now. In practice this is a `select` whose option was removed.
- */
 export type QuestionnaireGapReason = 'unanswered' | 'answer_no_longer_valid';
 
 export interface QuestionnaireGap {
     key: string;
-    /** Carried so the records screen does not have to join `customQuestion.list`. */
     label: string;
     required: boolean;
     reason: QuestionnaireGapReason;
 }
 
-/** What a `select` question stores in its `options` JSONB column. */
 function optionsOf(question: CustomQuestion): string[] {
     return Array.isArray(question.options) ? (question.options as string[]) : [];
 }
@@ -106,16 +99,11 @@ export const customQuestionService = {
         return row;
     },
 
-    /** Every question, active or not, indexed by the key answers are stored under. */
     async byKey(): Promise<Map<string, CustomQuestion>> {
         const rows = await this.list({ includeInactive: true });
         return new Map(rows.map((question) => [question.key, question]));
     },
 
-    /**
-     * The complete questionnaire, filled in as one form. Returns the object to
-     * store in `patients.custom`.
-     */
     async validateIntake(answers: Answers): Promise<Answers> {
         const questions = await this.byKey();
         const result = checkSubmitted(answers, questions);
@@ -128,24 +116,12 @@ export const customQuestionService = {
         return result;
     },
 
-    /**
-     * An edit to one patient's answers. Returns the object to store: `stored`
-     * with the submitted keys applied over it.
-     *
-     * Questions the caller said nothing about are not looked at, whatever the
-     * questionnaire says about them today. That is what lets a record outlive
-     * the form it was filled in on — a question added, deactivated, made
-     * required, or narrowed since never blocks an unrelated edit. Use
-     * `auditAnswers` to find what such a record is now missing.
-     */
     async validatePatch(stored: Answers, patch: Answers): Promise<Answers> {
         const questions = await this.byKey();
         const edits = checkSubmitted(patch, questions);
         const result: Answers = { ...stored };
 
         for (const key of Object.keys(patch)) {
-            // A key that survived `checkSubmitted` without landing in `edits`
-            // was submitted blank, which means the caller cleared the answer.
             if (key in edits) result[key] = edits[key];
             else delete result[key];
         }
@@ -153,21 +129,7 @@ export const customQuestionService = {
         return result;
     },
 
-    /**
-     * What one patient's stored answers are missing or no longer say, measured
-     * against the questionnaire as it stands today.
-     *
-     * `validatePatch` deliberately lets a record fall behind the form rather
-     * than block an edit on it, so the gap has to show up somewhere the clinic
-     * will see it. This is that somewhere: the records screen reads it off
-     * `patient.byId` and asks the questions the patient never got.
-     *
-     * Ordered by the questionnaire's own `sortOrder`, so the prompts come in
-     * the order the form asks them.
-     */
     async auditAnswers(stored: Answers): Promise<QuestionnaireGap[]> {
-        // Active only — a deactivated question is no longer asked, so a patient
-        // who never answered it is not behind on anything.
         const questions = await this.list();
         const gaps: QuestionnaireGap[] = [];
 
@@ -188,13 +150,10 @@ export const customQuestionService = {
     },
 };
 
-/** The reason this answer needs attention, or null if it is fine as it stands. */
 function gapIn(question: CustomQuestion, value: unknown): QuestionnaireGapReason | null {
     if (isBlank(value)) return 'unanswered';
 
     try {
-        // `coerce` is the one definition of an acceptable answer, and it reports
-        // by throwing. Borrowing it here beats a second copy that can drift.
         coerce(question, value);
         return null;
     } catch {
@@ -202,12 +161,6 @@ function gapIn(question: CustomQuestion, value: unknown): QuestionnaireGapReason
     }
 }
 
-/**
- * The answers the caller actually sent, each checked against its own question.
- * A blank answer is dropped rather than stored, and a key with no question
- * behind it is refused: nothing would ever validate it again, so a typo would
- * sit in the patient's record for good.
- */
 function checkSubmitted(submitted: Answers, questions: Map<string, CustomQuestion>): Answers {
     const result: Answers = {};
 
@@ -228,12 +181,10 @@ function checkSubmitted(submitted: Answers, questions: Map<string, CustomQuestio
     return result;
 }
 
-/** What counts as "not answered", for a form where every field is optional to send. */
 function isBlank(value: unknown): boolean {
     return value === undefined || value === null || value === '';
 }
 
-/** One answer, checked against its question's kind. */
 function coerce(question: CustomQuestion, value: unknown): unknown {
     switch (question.kind) {
         case 'text':
@@ -251,9 +202,6 @@ function coerce(question: CustomQuestion, value: unknown): unknown {
             return value;
 
         case 'date':
-            // `YYYY-MM-DD`, and a real day: the pattern alone accepts
-            // 2026-02-31. Stored as the string it came in as — a calendar date
-            // has no time and no timezone to lose.
             if (typeof value !== 'string' || !isCalendarDate(value)) {
                 throw wrongKind(question, 'a YYYY-MM-DD date');
             }
@@ -271,17 +219,13 @@ function coerce(question: CustomQuestion, value: unknown): unknown {
 
 const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** True for a `YYYY-MM-DD` string that names a day that exists. */
 function isCalendarDate(value: string): boolean {
     if (!CALENDAR_DATE.test(value)) return false;
-    // `Date.UTC` rolls an impossible day forward, so a date that survives the
-    // round trip unchanged is a real one.
     const parsed = new Date(`${value}T00:00:00Z`);
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
 }
 
 function wrongKind(question: CustomQuestion, expected: string): AppError {
-    // The message names the key, never the answer — answers are patient data.
     return new AppError(ERROR_CODE.VALIDATION, `custom question '${question.key}' expects ${expected}`, 422);
 }
 

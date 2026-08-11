@@ -1,3 +1,9 @@
+/**
+ * Tap a value and it becomes an input in place; blur or Return commits, Escape
+ * reverts (§4.2). The draft is local until commit, so an abandoned edit never
+ * reaches the caller or the server — Escape sets an `abandoned` flag so the
+ * blur that follows does not commit the discarded draft.
+ */
 import { useRef, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
@@ -7,10 +13,8 @@ import { Placeholder } from './Placeholder';
 
 export type InlineEditorProps = {
     value: string;
-    /** Called on commit — blur or the return key — never per keystroke. */
     onCommit: (value: string) => void;
     placeholder?: string;
-    /** The variant the *displayed* value uses; the input matches it. */
     variant?: TextVariant;
     keyboardType?: KeyboardTypeOptions;
     disabled?: boolean;
@@ -18,14 +22,6 @@ export type InlineEditorProps = {
     testID?: string;
 };
 
-/**
- * Tap a value, it becomes an input in place; blur or Return commits, Escape
- * reverts (§4.2). Used for the prices on the procedures list, where opening a
- * form to change one number is the wrong weight of interaction.
- *
- * The draft is local until commit, so an abandoned edit never reaches the caller
- * and never reaches the server.
- */
 export function InlineEditor({
     value,
     onCommit,
@@ -38,8 +34,6 @@ export function InlineEditor({
 }: InlineEditorProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(value);
-    // Set when Escape reverts, so the blur that follows does not commit the draft
-    // the user just abandoned.
     const abandoned = useRef(false);
 
     function begin() {

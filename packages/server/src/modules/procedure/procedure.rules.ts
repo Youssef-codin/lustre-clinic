@@ -1,13 +1,24 @@
-import { ERROR_CODE, type Tooth } from '@mawid/shared';
-import { AppError } from '../../errors/AppError.ts';
-import { type Procedure, procedureService } from './procedure.service.ts';
-
 /**
  * SPEC §5. The rules a requested procedure list must satisfy, shared by visits
  * (what was done) and appointments (what is planned). They live here rather
  * than in either service so the two cannot drift: a list the secretary is
  * allowed to book is exactly a list the doctor is allowed to record.
+ *
+ * Only a leaf may go on a list; a category row is a heading. `is_tooth_specific`
+ * decides whether a tooth belongs on the line at all, so an extraction cannot
+ * be filed against no tooth and a consultation cannot be filed against UL6.
+ * Uniqueness is per tooth, not per procedure — an extraction on UL6 and one on
+ * UR3 are two real lines; tooth-less lines share one empty-string key, keeping
+ * the once-per-list rule for them.
+ *
+ * Catalogue reads go out together, but the rules are applied in request order,
+ * so the line a client is told about is the first offending one rather than
+ * whichever query happened to land first. Callers map the result onto their own
+ * row shape: a visit line adds the price snapshot, a planned one adds `sortOrder`.
  */
+import { ERROR_CODE, type Tooth } from '@mawid/shared';
+import { AppError } from '../../errors/AppError.ts';
+import { type Procedure, procedureService } from './procedure.service.ts';
 
 export interface RequestedLine {
     procedureId: string;
@@ -23,22 +34,11 @@ export interface ResolvedLine {
     note: string | null;
 }
 
-/**
- * Resolves each line against the catalogue and applies §5. Throws on the first
- * offending line; callers map the result onto their own row shape.
- */
 export async function resolveProcedureLines(lines: RequestedLine[]): Promise<ResolvedLine[]> {
-    // Catalogue reads are independent, so they go out together. The rules below
-    // are then applied in request order, so the line a client is told about is
-    // the first offending one rather than whichever query happened to land first.
     const procedures = await Promise.all(
         lines.map((line) => procedureService.requireSelectable(line.procedureId)),
     );
 
-    // §5 — uniqueness is per tooth, not per procedure: an extraction on UL6 and
-    // one on UR3 are two real lines. Lines with no tooth share the single
-    // empty-string key, so the old once-per-list rule still holds for
-    // procedures that are not tooth-specific.
     const seen = new Set<string>();
 
     return lines.map((line, i) => {
@@ -46,9 +46,6 @@ export async function resolveProcedureLines(lines: RequestedLine[]): Promise<Res
         if (!procedure) throw AppError.internal('procedure resolution returned nothing');
         const tooth = line.tooth ?? null;
 
-        // §5 — `is_tooth_specific` decides whether a tooth belongs on the line
-        // at all, so an extraction cannot be filed against no tooth and a
-        // consultation cannot be filed against UL6.
         if (procedure.isToothSpecific && !tooth) {
             throw new AppError(
                 ERROR_CODE.TOOTH_REQUIRED,

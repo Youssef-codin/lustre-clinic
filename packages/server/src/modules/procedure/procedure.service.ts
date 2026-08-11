@@ -1,3 +1,12 @@
+/**
+ * SPEC §5, §12. The hierarchy is one level deep. A row with children is a
+ * category and is not selectable; only leaves are. Both rules are enforced
+ * here, in the service layer, because the schema cannot express them.
+ *
+ * Parenthood is computed over every row, active or not, everywhere — a
+ * deactivated subtype must not make its category look selectable to a picker.
+ * `findCheckup` supplies the line seeded on check-in (§8).
+ */
 import { ERROR_CODE } from '@mawid/shared';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
@@ -5,17 +14,10 @@ import { procedureTypes } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import type { CreateProcedureInput, ProcedureTreeInput, UpdateProcedureInput } from './procedure.schema.ts';
 
-/**
- * SPEC §5, §12. The hierarchy is one level deep. A row with children is a
- * category and is not selectable; only leaves are. Both rules are enforced
- * here, in the service layer, because the schema cannot express them.
- */
-
 export type Procedure = typeof procedureTypes.$inferSelect;
 
 export interface ProcedureNode extends Procedure {
     children: Procedure[];
-    /** A row with no children. Only these may go on a visit (§5). */
     selectable: boolean;
 }
 
@@ -34,7 +36,6 @@ async function hasChildren(id: string): Promise<boolean> {
     return child !== undefined;
 }
 
-/** A parent must itself be a root, or the tree would be three levels deep. */
 async function assertUsableAsParent(parentId: string): Promise<void> {
     const parent = await requireRow(parentId);
     if (parent.parentId !== null) {
@@ -43,7 +44,6 @@ async function assertUsableAsParent(parentId: string): Promise<void> {
 }
 
 export const procedureService = {
-    /** Categories with their leaves nested; childless roots come back as leaves. */
     async tree(input: ProcedureTreeInput = { includeInactive: false }): Promise<ProcedureNode[]> {
         const rows = await db
             .select()
@@ -60,11 +60,6 @@ export const procedureService = {
             childrenByParent.set(row.parentId, siblings);
         }
 
-        // Parenthood is computed over every row, active or not — the same rule
-        // `selectableList` and `requireSelectable` apply. Deriving it from the
-        // visible rows instead would mark a category whose only subtype was
-        // deactivated as selectable, and the picker would offer a row that
-        // `requireSelectable` then refuses.
         const parents = new Set(rows.map((r) => r.parentId).filter((id): id is string => id !== null));
 
         return visible
@@ -80,10 +75,6 @@ export const procedureService = {
         return requireRow(id);
     },
 
-    /**
-     * Used by the visit module before a procedure goes on a visit. A category
-     * row is a heading, not something that can be charged for.
-     */
     async requireSelectable(id: string): Promise<Procedure> {
         const row = await requireRow(id);
         if (await hasChildren(row.id)) {
@@ -92,7 +83,6 @@ export const procedureService = {
         return row;
     },
 
-    /** §8 — the line seeded on check-in. Null when the clinic has not set one. */
     async findCheckup(): Promise<Procedure | null> {
         const [row] = await db
             .select()
@@ -137,7 +127,6 @@ export const procedureService = {
             }
             await assertUsableAsParent(patch.parentId);
 
-            // Moving a category under another would nest three levels deep.
             if (await hasChildren(id)) {
                 throw new AppError(
                     ERROR_CODE.PROCEDURE_NESTING_TOO_DEEP,
@@ -157,15 +146,12 @@ export const procedureService = {
         return row;
     },
 
-    /** Leaves only, for pickers that do not want the tree shape. */
     async selectableList(): Promise<Procedure[]> {
         const rows = await db
             .select()
             .from(procedureTypes)
             .orderBy(asc(procedureTypes.sortOrder), asc(procedureTypes.name));
 
-        // Parenthood is computed over every row, active or not: deactivating a
-        // subtype must not make its category look selectable.
         const parents = new Set(rows.map((r) => r.parentId).filter((id): id is string => id !== null));
         return rows.filter((row) => row.active && !parents.has(row.id));
     },

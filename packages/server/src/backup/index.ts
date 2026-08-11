@@ -1,3 +1,16 @@
+/**
+ * SPEC §16. One backup run is: dump → verify by restoring → copy off-site
+ * encrypted → prune. Every step that can fail alerts (§17), and the run records
+ * its success so the staleness check has something to look at.
+ *
+ * Verification restores the dump into a scratch database and compares row
+ * counts — and that `appointments_no_overlap` survived, since losing it
+ * restores a broken clinic. The off-site upload refuses to run without
+ * `BACKUP_ENCRYPTION_KEY`: patient data must not leave the clinic in the clear.
+ * Pruning is off by default in tests because a run with real credentials in the
+ * environment uploads to the clinic's actual Drive folder and prunes it against
+ * the run's own timestamp.
+ */
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import postgres from 'postgres';
@@ -16,24 +29,16 @@ import {
     selectForDeletion,
 } from './retention.ts';
 
-/**
- * SPEC §16. One backup run is: dump → verify by restoring → copy off-site
- * encrypted → prune. Every step that can fail alerts (§17), and the run records
- * its success so the staleness check has something to look at.
- */
-
 export * from './crypto.ts';
 export * from './destination.ts';
 export * from './retention.ts';
 
-/** Written after a successful run; read by the 48h staleness check. */
 const MARKER_FILE = 'last-success.json';
 
 export interface BackupResult {
     readonly file: string;
     readonly bytes: number;
     readonly verified: boolean;
-    /** Drive file id, or S3 key. Null when no off-site destination is set. */
     readonly offsiteKey: string | null;
     readonly pruned: readonly string[];
 }
@@ -43,14 +48,7 @@ export interface BackupOptions {
     directory?: string;
     retention?: RetentionPolicy;
     now?: Date;
-    /** Verification is the point of §16; only tests turn it off. */
     verify?: boolean;
-    /**
-     * Whether to copy off-site and apply retention there. Only tests turn it
-     * off, and they must: a run started with real credentials in the
-     * environment uploads to the clinic's actual Drive folder and then prunes
-     * it against the run's own timestamp.
-     */
     offsite?: boolean;
 }
 
@@ -70,11 +68,6 @@ export async function listLocalBackups(directory: string): Promise<BackupFile[]>
     return files.sort((a, b) => b.at.getTime() - a.at.getTime());
 }
 
-/**
- * Restores the dump into a throwaway database and checks that what comes back
- * is the database that went in. Comparing row counts is what makes this a
- * verification rather than a "the command exited 0" check.
- */
 async function verifyDump(databaseUrl: string, dumpFile: string, at: Date): Promise<void> {
     const counted = ['patients', 'appointments', 'visits', 'payments'] as const;
 
@@ -103,8 +96,6 @@ async function verifyDump(databaseUrl: string, dumpFile: string, at: Date): Prom
                 }
             }
 
-            // The overlap constraint is the one thing the schema cannot be
-            // without (§5). A restore that loses it restores a broken clinic.
             const [row] = await restored<{ present: boolean }[]>`
                 SELECT EXISTS (
                     SELECT 1 FROM pg_constraint WHERE conname = 'appointments_no_overlap'
@@ -128,17 +119,11 @@ async function countRows(sql: postgres.Sql, tables: readonly string[]): Promise<
     return counts;
 }
 
-/**
- * Off-site copy. Encrypted first — the key is not on this machine, so a dump
- * sitting in Drive is inert without the operator (§16).
- */
 async function uploadOffsite(localPath: string, name: string): Promise<string | null> {
     const destination = offsiteDestination();
     if (!destination) return null;
 
     if (!config.BACKUP_ENCRYPTION_KEY) {
-        // Refusing is the safe failure: patient data must not leave the clinic
-        // in the clear.
         throw new Error(
             'an off-site destination is configured but BACKUP_ENCRYPTION_KEY is not — refusing to upload',
         );
@@ -163,14 +148,10 @@ async function pruneLocal(directory: string, policy: RetentionPolicy): Promise<s
     return doomed.map((f) => f.name);
 }
 
-/** The same retention policy, applied where the off-site copies live (§16). */
 async function pruneOffsite(policy: RetentionPolicy): Promise<number> {
     const destination = offsiteDestination();
     if (!destination) return 0;
 
-    // `selectForDeletion` carries the handle through, so each doomed file is
-    // deleted by the handle it was listed with — no re-lookup by a name two
-    // runs in the same second could share.
     const doomed = selectForDeletion(await destination.list(), policy);
 
     for (const file of doomed) {
@@ -193,7 +174,6 @@ export async function readLastSuccess(directory = config.BACKUP_DIR): Promise<Ba
     }
 }
 
-/** One full backup run. Throws on failure, after alerting. */
 export async function runBackup(options: BackupOptions = {}): Promise<BackupResult> {
     const {
         databaseUrl = config.DATABASE_URL,

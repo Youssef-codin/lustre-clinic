@@ -1,3 +1,9 @@
+/**
+ * Screen-level strip. The designs draw only an offline banner, but §7.14 says a
+ * clinic-local server over Tailscale needs more than one — stale data and failed
+ * writes get their own — which is why this takes a tone rather than being
+ * `OfflineBanner`.
+ */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { TextTone } from '../../theme';
@@ -9,9 +15,7 @@ export type BannerTone = 'offline' | 'warning' | 'info' | 'success';
 export type BannerProps = {
     tone?: BannerTone;
     message: string;
-    /** A Retry, usually. Given as a node so the caller owns its loading state. */
     action?: ReactNode;
-    /** Pulses the dot — a live condition rather than a settled one. */
     live?: boolean;
 };
 
@@ -29,12 +33,6 @@ const TEXT: Record<BannerTone, TextTone> = {
     success: 'success',
 };
 
-/**
- * Screen-level strip. The offline one is the only banner the designs draw, and
- * §7.14 says one banner is not enough for a clinic-local server over Tailscale —
- * stale data and failed writes need their own, which is why this takes a tone
- * rather than being `OfflineBanner`.
- */
 export function Banner({ tone = 'info', message, action, live = false }: BannerProps) {
     return (
         <View accessibilityLiveRegion="polite" style={[styles.banner, { backgroundColor: GROUND[tone] }]}>

@@ -1,3 +1,12 @@
+/**
+ * `primary` is an ink fill, not blue (Component Inventory §3.1); `accent` is the
+ * handful of places that really are blue-filled, and `inverse` a white fill on
+ * the black chair card. `loading` is a hard requirement: every write crosses
+ * Tailscale to the clinic PC, and a button that looks idle mid-flight gets
+ * tapped again — a second tap on Book is a second booking. The label stays
+ * mounted and keeps its width while loading; `pressLockMs` covers the frame
+ * between the finger going down and the caller's state flipping.
+ */
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
@@ -5,16 +14,16 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import type { TextTone } from '../../theme';
 import { border, color, radius, shadow, size, space, Text } from '../../theme';
 
-/**
- * `primary` is an ink fill, not a blue one. Component Inventory §3.1 scopes the
- * blue to "FAB, progress fill, links, dashed add buttons" and System B records
- * `--fg #111114` as "text, *primary fill*" — the designs draw solid black
- * primaries throughout. §7.1's summary widens the blue to "buttons", which is
- * the one place it overshoots the inventory it is summarising.
- *
- * `accent` exists for the handful of places that really are blue-filled.
- */
-export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'text' | 'danger';
+export type ButtonVariant =
+    | 'primary'
+    | 'accent'
+    | 'accentSoft'
+    | 'inverse'
+    | 'secondary'
+    | 'ghost'
+    | 'text'
+    | 'danger'
+    | 'whatsapp';
 export type ButtonSize = 'lg' | 'md';
 
 export type ButtonProps = {
@@ -22,23 +31,10 @@ export type ButtonProps = {
     onPress?: () => void;
     variant?: ButtonVariant;
     size?: ButtonSize;
-    /**
-     * Shows a spinner in place of the label and refuses presses. Every write in
-     * this app crosses Tailscale to a PC in the clinic, so the gap between the
-     * tap and the server answering is visible — and a button that looks idle
-     * during it gets tapped again. The second tap on Book is a second booking.
-     */
     loading?: boolean;
     disabled?: boolean;
-    /** Rendered before the label. Sized by the caller. */
     icon?: ReactNode;
-    /** Stretch to the container's inline size. Primary actions usually do. */
     block?: boolean;
-    /**
-     * Ignore a repeat press landing within this window. `loading` is the real
-     * defence; this covers the frame between the finger going down and the
-     * caller's state actually flipping. 0 disables it.
-     */
     pressLockMs?: number;
     style?: StyleProp<ViewStyle>;
     testID?: string;
@@ -47,19 +43,25 @@ export type ButtonProps = {
 const LABEL_TONE: Record<ButtonVariant, TextTone> = {
     primary: 'inverse',
     accent: 'inverse',
+    accentSoft: 'accent',
+    inverse: 'ink',
     secondary: 'ink',
     ghost: 'ink',
     text: 'accent',
     danger: 'danger',
+    whatsapp: 'inverse',
 };
 
 const SPINNER: Record<ButtonVariant, string> = {
     primary: color.inverse,
     accent: color.inverse,
+    accentSoft: color.accent,
+    inverse: color.ink,
     secondary: color.ink,
     ghost: color.ink,
     text: color.accent,
     danger: color.danger,
+    whatsapp: color.inverse,
 };
 
 export function Button({
@@ -104,8 +106,6 @@ export function Button({
                 style,
             ]}
         >
-            {/* The label stays mounted and keeps its width while loading, so the
-                button does not resize under the finger mid-press. */}
             <View style={[styles.content, loading && styles.hidden]}>
                 {icon}
                 <Text
@@ -139,7 +139,9 @@ const styles = StyleSheet.create({
 
     primary: { backgroundColor: color.ink },
     accent: { backgroundColor: color.accent },
-    secondary: { borderWidth: border.thick, borderColor: color.ink, backgroundColor: color.surface },
+    accentSoft: { backgroundColor: color.accentSoft },
+    inverse: { backgroundColor: color.surface },
+    secondary: { borderWidth: border.thick, borderColor: color.outline },
     ghost: {
         borderWidth: 1,
         borderColor: color.line,
@@ -148,6 +150,7 @@ const styles = StyleSheet.create({
     },
     text: { paddingHorizontal: space[2], minHeight: size.row },
     danger: { borderWidth: border.thick, borderColor: color.danger, backgroundColor: color.surface },
+    whatsapp: { backgroundColor: color.wa },
 
     content: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     hidden: { opacity: 0 },

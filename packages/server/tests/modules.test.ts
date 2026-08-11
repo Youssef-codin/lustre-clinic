@@ -28,6 +28,15 @@ import {
  * ones the schema cannot hold on its own: the checkup waiver (§9), one level of
  * procedure nesting (§5), status transitions (§7), and balances being derived
  * rather than stored (§10).
+ *
+ * Key invariants: a weekday with no row is closed; a category with no bookable
+ * children is bookable by nobody; `missed` is `booked` past its end and nothing
+ * transitions on a timer; the status check and write are one statement, so a
+ * concurrent move is refused rather than silently overwritten; an explicit
+ * `charged_total` is the clinic's discount and survives recompute (and is never
+ * re-edited after checkout, where §10's `recordPayment` takes over); the
+ * questionnaire moves while records stay, so patches never touch answers the
+ * caller did not submit.
  */
 
 beforeAll(async () => {
@@ -75,8 +84,8 @@ describe('settings', () => {
 });
 
 /**
- * MAW-1. A weekday with no row is closed — the day view renders it as closed
- * rather than as an empty schedule, so absence is the meaningful case here.
+ * A weekday with no row is closed — the day view renders it as closed rather
+ * than as an empty schedule, so absence is the meaningful case here.
  */
 describe('clinic days', () => {
     test('an unset weekday is closed', async () => {
@@ -307,15 +316,11 @@ describe('procedure', () => {
             isCheckup: false,
             sortOrder: 0,
         });
-        // Selectable before, so the assertions below are about the change and
-        // not about an empty list.
         expect((await procedureService.selectableList()).map((p) => p.id)).toEqual([child.id]);
 
         await procedureService.update({ id: child.id, active: false });
 
         const selectable = await procedureService.selectableList();
-        // The subtype is gone, and its category did not inherit selectability:
-        // a category with no bookable children is bookable by nobody.
         expect(selectable.map((p) => p.id)).not.toContain(child.id);
         expect(selectable.map((p) => p.id)).not.toContain(category.id);
 
@@ -389,9 +394,6 @@ describe('customQuestion', () => {
             last_xray: '2026-02-28',
         });
 
-        // A day that does not exist, the wrong shape, and a timestamp — the
-        // stored value is a calendar date, with no time to drift across a
-        // timezone.
         for (const answer of ['2026-02-31', '28-02-2026', '2026-02-28T10:00:00Z']) {
             await expectAppError(ERROR_CODE.VALIDATION, () =>
                 customQuestionService.validateIntake({ last_xray: answer }),
@@ -426,11 +428,6 @@ describe('customQuestion', () => {
         );
     });
 
-    /**
-     * The questionnaire moves; the records stay. Everything below is a change
-     * the doctor makes years after an answer was given, and none of it may
-     * touch an answer the caller did not submit.
-     */
     describe('a patch against a questionnaire that has since changed', () => {
         test('does not demand a question that became required', async () => {
             const question = await customQuestionService.create({
@@ -480,8 +477,6 @@ describe('customQuestion', () => {
                 referral: 'facebook',
                 allergies: 'none',
             });
-            // Re-submitting it is another matter: that is the caller choosing an
-            // option the form no longer offers.
             await expectAppError(ERROR_CODE.VALIDATION, () =>
                 customQuestionService.validatePatch(stored, { referral: 'facebook' }),
             );
@@ -511,7 +506,6 @@ describe('customQuestion', () => {
                 referral: 'friend',
                 allergies: 'none',
             });
-            // No longer required, because it is no longer asked.
             expect(await customQuestionService.validatePatch(stored, { referral: '' })).toEqual({});
         });
     });
@@ -536,8 +530,6 @@ describe('customQuestion', () => {
         const stored = await customQuestionService.validateIntake({ referral: 'facebook', fax: '123' });
         expect(await customQuestionService.auditAnswers(stored)).toEqual([]);
 
-        // The doctor drops the option this patient picked, retires a question
-        // outright, and adds one nobody on the books has answered.
         await customQuestionService.update({ id: referral.id, options: ['friend', 'instagram'] });
         await customQuestionService.update({ id: retired.id, active: false });
         await customQuestionService.create({
@@ -548,8 +540,6 @@ describe('customQuestion', () => {
             sortOrder: 2,
         });
 
-        // In the questionnaire's own order, and silent about the retired
-        // question — it is not asked any more, so nobody is behind on it.
         expect(await customQuestionService.auditAnswers(stored)).toEqual([
             {
                 key: 'referral',
@@ -667,7 +657,6 @@ describe('patient', () => {
             custom: { referral: 'facebook' },
         });
 
-        // Two years of the doctor tidying up the form.
         await customQuestionService.update({ id: referral.id, options: ['friend', 'instagram'] });
         await customQuestionService.update({ id: bloodThinners.id, required: true });
 
@@ -692,7 +681,6 @@ describe('patient', () => {
             sortOrder: 0,
         });
 
-        // The record is behind the form, and `byId` is where the clinic sees it.
         const before = await patientService.byId(created.id);
         expect(before.questionnaireGaps).toEqual([
             {
@@ -862,7 +850,6 @@ describe('appointment', () => {
         expect(appointment.status).toBe('checked_in');
 
         const visit = await visitService.byId(visitId);
-        // §8 — the checkup line is seeded on check-in.
         expect(visit.procedures.length).toBe(1);
         expect(visit.chargedTotal).toBe(CHECKUP_PRICE);
     });
@@ -881,7 +868,6 @@ describe('appointment', () => {
         const missed = await appointmentService.missed({ limit: 100 });
         expect(missed.map((a) => a.id)).toContain(appointment.id);
 
-        // §7 — nothing transitions on a timer; it is still booked.
         expect(missed.find((a) => a.id === appointment.id)?.status).toBe('booked');
     });
 
@@ -898,8 +884,6 @@ describe('appointment', () => {
         await visitService.checkIn({ appointmentId: appointment.id });
         await appointmentService.awaitPayment(appointment.id);
 
-        // §7 — missed is `booked` past its end, and nothing else. The patient
-        // is standing at the desk; they did not fail to turn up.
         const missed = await appointmentService.missed({ limit: 100 });
         expect(missed.map((a) => a.id)).not.toContain(appointment.id);
     });
@@ -973,10 +957,6 @@ describe('appointment', () => {
         });
         await visitService.checkIn({ appointmentId: appointment.id });
 
-        // The status check and the write are one statement, so the loser here
-        // is refused rather than overwriting a status that moved underneath it
-        // — a checkout landing in the gap would otherwise strand a settled
-        // visit against an appointment stuck in `awaiting_payment`.
         const results = await Promise.allSettled([
             appointmentService.awaitPayment(appointment.id),
             appointmentService.awaitPayment(appointment.id),
@@ -1001,7 +981,6 @@ describe('appointment', () => {
         });
         await visitService.checkIn({ appointmentId: appointment.id });
 
-        // Checked in, the slot is held.
         await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
             appointmentService.create({
                 patient: { kind: 'existing', patientId: patient.id },
@@ -1311,7 +1290,6 @@ describe('visit', () => {
             ],
         });
 
-        // §9 — the checkup line stays on the visit but leaves the total.
         expect(updated.procedures.length).toBe(2);
         expect(updated.computedTotal).toBe(ROOT_CANAL_PRICE);
     });
@@ -1352,7 +1330,6 @@ describe('visit', () => {
             ],
         });
 
-        // §5 — uniqueness is per tooth. Two extractions is two extractions.
         expect(updated.procedures.length).toBe(2);
         expect(updated.computedTotal).toBe(EXTRACTION_PRICE * 2);
         expect(updated.procedures.map((p) => p.tooth).sort()).toEqual(['UL6', 'UR3']);
@@ -1407,7 +1384,6 @@ describe('visit', () => {
     test('rejects a tooth that is not on the chart', async () => {
         const { visit, extraction } = await checkedIn();
 
-        // The client picks from `TEETH`; nothing else parses.
         expect(
             setProceduresInput.safeParse({
                 visitId: visit.id,
@@ -1439,8 +1415,6 @@ describe('visit', () => {
             procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
 
-        // §9 — the difference from computed is the discount, and it is the
-        // clinic's, not something a recompute may quietly undo.
         expect(updated.computedTotal).toBe(ROOT_CANAL_PRICE);
         expect(updated.chargedTotal).toBe(200_000);
     });
@@ -1454,9 +1428,6 @@ describe('visit', () => {
             method: 'cash',
         });
 
-        // What the patient owes was settled at checkout. Moving it afterwards
-        // would silently change a balance someone has already been quoted —
-        // §10 has `recordPayment` for what comes next, not a re-price.
         await expectAppError(ERROR_CODE.VISIT_ALREADY_COMPLETED, () =>
             visitService.setPrice({ visitId: visit.id, chargedTotal: 10_000 }),
         );
@@ -1488,7 +1459,6 @@ describe('visit', () => {
         const { visit, appointment } = await checkedIn();
         await appointmentService.awaitPayment(appointment.id);
 
-        // §7 — checkout accepts `awaiting_payment` as readily as `checked_in`.
         const done = await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 100_000,
@@ -1503,8 +1473,6 @@ describe('visit', () => {
 
     test('refuses to check out against an appointment that is not in progress', async () => {
         const { visit, appointment } = await checkedIn();
-        // A no-show is set on the appointment, so the visit row survives while
-        // the appointment leaves the states checkout is allowed to close.
         await sql`UPDATE appointments SET status = 'no_show' WHERE id = ${appointment.id}`;
 
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
@@ -1567,7 +1535,6 @@ describe('visit', () => {
 
         expect(after.paidTotal).toBe(100_000);
         expect(after.balance).toBe(0);
-        // §10 — `charged_total` is not touched by a payment.
         expect(after.chargedTotal).toBe(100_000);
     });
 
