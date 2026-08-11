@@ -8,18 +8,18 @@
 import { StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
 import { size, space, Text } from '../../../theme';
+import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
 import { AgendaRow } from './Agenda';
 import { ArrowForwardIcon } from './icons';
 
 export type AfterThisProps = {
     appointments: readonly Appointment[];
-    procedures: ReadonlyMap<string, string>;
     relativeToNow: boolean;
     onSelect: (appointment: Appointment) => void;
 };
 
-export function AfterThis({ appointments, procedures, relativeToNow, onSelect }: AfterThisProps) {
+export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisProps) {
     if (appointments.length === 0) return null;
 
     return (
@@ -35,7 +35,7 @@ export function AfterThis({ appointments, procedures, relativeToNow, onSelect }:
                 <AgendaRow
                     key={appointment.id}
                     appointment={appointment}
-                    procedure={appointment.typeId ? procedures.get(appointment.typeId) : undefined}
+                    procedure={procedureLabel(appointment)}
                     onPress={() => onSelect(appointment)}
                     trailing={<Where appointment={appointment} />}
                 />

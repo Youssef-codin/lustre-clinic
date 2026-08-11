@@ -28,8 +28,7 @@ export const healthService = {
                 LIMIT 1
             `;
             migration = rows[0]?.hash ?? null;
-        } catch {
-        }
+        } catch {}
 
         return { ok: dbOk, db: dbOk, migration };
     },

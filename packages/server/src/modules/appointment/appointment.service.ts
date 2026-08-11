@@ -12,16 +12,26 @@
  * repeats the status in the UPDATE's predicate, so the write itself decides: a
  * checkout committing `done` in between would otherwise leave a settled visit
  * stuck in `awaiting_payment` with no way back.
+ *
+ * A booking carries the procedures the secretary expects (§7). They are
+ * validated against §5 before the transaction opens — reads against reference
+ * data, and the checks are about the request, not the booking — and written by
+ * `replaceProcedures`, whose `sortOrder` preserves the entered order, which is
+ * the order check-in seeds visit lines in. `procedures` must be destructured
+ * out of `update`'s patch: it is a separate table and would corrupt `set()`.
+ * Omitting it leaves the list alone, an empty array clears it (§13). Reads
+ * batch the catalogue join once per page rather than once per row.
  */
-import { canTransition, ERROR_CODE, WS_EVENT } from '@mawid/shared';
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
+import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
-import { appointments, patients } from '../../db/schema.ts';
+import { appointmentProcedures, appointments, patients, procedureTypes } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { buildRef } from '../../util/ref.ts';
 import { dayRange } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { patientService } from '../patient/patient.service.ts';
+import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
 import { reminderService } from '../reminder/reminder.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import type {
@@ -35,8 +45,19 @@ import type {
 
 export type AppointmentRow = typeof appointments.$inferSelect;
 
+/** §7 — a planned procedure, with the catalogue name resolved for the client. */
+export interface AppointmentLine {
+    id: string;
+    procedureId: string;
+    name: string;
+    quantity: number;
+    tooth: Tooth | null;
+    note: string | null;
+}
+
 export interface AppointmentWithPatient extends AppointmentRow {
     patient: { id: string; name: string; phone: string };
+    procedures: AppointmentLine[];
 }
 
 const REF_ATTEMPTS = 5;
@@ -73,6 +94,64 @@ async function requireRow(id: string): Promise<AppointmentRow> {
     const [row] = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
     if (!row) throw AppError.notFound('appointment');
     return row;
+}
+
+async function loadProcedures(ids: string[]): Promise<Map<string, AppointmentLine[]>> {
+    const byAppointment = new Map<string, AppointmentLine[]>();
+    if (ids.length === 0) return byAppointment;
+
+    const rows = await db
+        .select({
+            id: appointmentProcedures.id,
+            appointmentId: appointmentProcedures.appointmentId,
+            procedureId: appointmentProcedures.procedureId,
+            name: procedureTypes.name,
+            quantity: appointmentProcedures.quantity,
+            tooth: appointmentProcedures.tooth,
+            note: appointmentProcedures.note,
+        })
+        .from(appointmentProcedures)
+        .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
+        .where(inArray(appointmentProcedures.appointmentId, ids))
+        .orderBy(asc(appointmentProcedures.sortOrder));
+
+    for (const { appointmentId, ...line } of rows) {
+        const lines = byAppointment.get(appointmentId) ?? [];
+        lines.push(line);
+        byAppointment.set(appointmentId, lines);
+    }
+    return byAppointment;
+}
+
+async function withProcedures(
+    rows: (AppointmentRow & { patient: AppointmentWithPatient['patient'] })[],
+): Promise<AppointmentWithPatient[]> {
+    const byAppointment = await loadProcedures(rows.map((r) => r.id));
+    return rows.map((row) => ({ ...row, procedures: byAppointment.get(row.id) ?? [] }));
+}
+
+async function replaceProcedures(
+    executor: Executor,
+    appointmentId: string,
+    resolved: Awaited<ReturnType<typeof resolveProcedureLines>>,
+): Promise<void> {
+    await executor
+        .delete(appointmentProcedures)
+        .where(eq(appointmentProcedures.appointmentId, appointmentId));
+
+    if (resolved.length === 0) return;
+
+    await executor.insert(appointmentProcedures).values(
+        resolved.map((line, i) => ({
+            id: Bun.randomUUIDv7(),
+            appointmentId,
+            procedureId: line.procedure.id,
+            quantity: line.quantity,
+            tooth: line.tooth,
+            note: line.note,
+            sortOrder: i,
+        })),
+    );
 }
 
 async function insertWithRef(
@@ -118,7 +197,7 @@ export const appointmentService = {
             )
             .orderBy(asc(appointments.startsAt));
 
-        return rows.map((r) => ({ ...r.appointment, patient: r.patient }));
+        return withProcedures(rows.map((r) => ({ ...r.appointment, patient: r.patient })));
     },
 
     async byId(id: string): Promise<AppointmentWithPatient> {
@@ -133,7 +212,12 @@ export const appointmentService = {
             .limit(1);
 
         if (!row) throw AppError.notFound('appointment');
-        return { ...row.appointment, patient: row.patient };
+        const byAppointment = await loadProcedures([row.appointment.id]);
+        return {
+            ...row.appointment,
+            patient: row.patient,
+            procedures: byAppointment.get(row.appointment.id) ?? [],
+        };
     },
 
     async missed(input: MissedInput = { limit: 100 }): Promise<AppointmentWithPatient[]> {
@@ -154,13 +238,14 @@ export const appointmentService = {
             .orderBy(desc(appointments.startsAt))
             .limit(input.limit);
 
-        return rows.map((r) => ({ ...r.appointment, patient: r.patient }));
+        return withProcedures(rows.map((r) => ({ ...r.appointment, patient: r.patient })));
     },
 
     async create(input: CreateAppointmentInput): Promise<AppointmentRow> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const { reminderLeadHours } = await settingsService.get();
         const startsAt = new Date(input.startsAt);
+        const resolved = await resolveProcedureLines(input.procedures ?? []);
 
         const row = await db.transaction(async (tx) => {
             const patientId = await resolvePatient(tx, input.patient);
@@ -172,11 +257,12 @@ export const appointmentService = {
                     branchId: input.branchId,
                     startsAt,
                     durationMinutes,
-                    typeId: input.typeId ?? null,
                     note: input.note ?? null,
                 },
                 input.offsetMinutes,
             );
+
+            await replaceProcedures(tx, appointment.id, resolved);
 
             await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
             return appointment;
@@ -190,6 +276,7 @@ export const appointmentService = {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const { reminderLeadHours } = await settingsService.get();
         const startsAt = new Date();
+        const resolved = await resolveProcedureLines(input.procedures ?? []);
 
         const { visitService } = await import('../visit/visit.service.ts');
 
@@ -203,12 +290,13 @@ export const appointmentService = {
                     branchId: input.branchId,
                     startsAt,
                     durationMinutes,
-                    typeId: input.typeId ?? null,
                     note: input.note ?? null,
                     channel: 'walk_in',
                 },
                 input.offsetMinutes,
             );
+
+            await replaceProcedures(tx, appointment.id, resolved);
 
             await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
             await reminderService.skipFor(tx, appointment.id);
@@ -229,7 +317,7 @@ export const appointmentService = {
     },
 
     async update(input: UpdateAppointmentInput): Promise<AppointmentRow> {
-        const { id, startsAt: _startsAt, ...patch } = input;
+        const { id, startsAt: _startsAt, procedures, ...patch } = input;
         const current = await requireRow(id);
 
         if (patch.status && !canTransition(current.status, patch.status)) {
@@ -243,6 +331,7 @@ export const appointmentService = {
         const durationMinutes =
             patch.durationMinutes === undefined ? undefined : await resolveDuration(patch.durationMinutes);
         const startsAt = input.startsAt ? new Date(input.startsAt) : undefined;
+        const resolved = procedures === undefined ? undefined : await resolveProcedureLines(procedures);
 
         const row = await db.transaction(async (tx) => {
             let updated: AppointmentRow | undefined;
@@ -262,6 +351,8 @@ export const appointmentService = {
             }
 
             if (!updated) throw AppError.notFound('appointment');
+
+            if (resolved) await replaceProcedures(tx, id, resolved);
 
             if (startsAt) await reminderService.reschedule(tx, id, startsAt);
             if (patch.status === 'no_show') await reminderService.skipFor(tx, id);

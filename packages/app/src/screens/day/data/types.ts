@@ -20,6 +20,15 @@ export interface EmbeddedPatient {
     phone: string;
 }
 
+export interface AppointmentProcedure {
+    id: string;
+    procedureId: string;
+    name: string;
+    quantity: number;
+    tooth: Tooth | null;
+    note: string | null;
+}
+
 export interface Appointment {
     id: string;
     ref: string;
@@ -27,7 +36,7 @@ export interface Appointment {
     branchId: string;
     startsAt: string;
     durationMinutes: number;
-    typeId: string | null;
+    procedures: AppointmentProcedure[];
     note: string | null;
     status: AppointmentStatus;
     channel: AppointmentChannel;

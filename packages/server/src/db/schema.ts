@@ -11,6 +11,12 @@
  * in two places on the same day is impossible by construction (MAW-1).
  * `visits.appointment_id` is UNIQUE (one appointment has at most one visit),
  * and `settings` is a single enforced row (id = 1).
+ *
+ * `appointment_procedures` is the work a booking plans (§7). It mirrors
+ * `visit_procedures` minus `unit_price`: a booking made three weeks out must
+ * bill at the price on the day, so the price is snapshotted at check-in, which
+ * seeds one visit line per planned row. Teeth are Palmer notation, null unless
+ * the procedure is tooth-specific (§5).
  */
 import {
     APPOINTMENT_CHANNELS,
@@ -111,7 +117,6 @@ export const appointments = pgTable(
             .references(() => branches.id),
         startsAt: timestamptz('starts_at').notNull(),
         durationMinutes: integer('duration_minutes').notNull(),
-        typeId: uuid('type_id').references(() => procedureTypes.id),
         note: text('note'),
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
         channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
@@ -122,6 +127,27 @@ export const appointments = pgTable(
         index('appointments_starts_at_idx').on(t.startsAt),
         index('appointments_patient_id_idx').on(t.patientId),
         check('appointments_duration_positive', sql`${t.durationMinutes} > 0`),
+    ],
+);
+
+export const appointmentProcedures = pgTable(
+    'appointment_procedures',
+    {
+        id: uuid('id').primaryKey(),
+        appointmentId: uuid('appointment_id')
+            .notNull()
+            .references(() => appointments.id, { onDelete: 'cascade' }),
+        procedureId: uuid('procedure_id')
+            .notNull()
+            .references(() => procedureTypes.id),
+        quantity: integer('quantity').notNull().default(1),
+        tooth: text('tooth', { enum: TEETH }),
+        note: text('note'),
+        sortOrder: integer('sort_order').notNull().default(0),
+    },
+    (t) => [
+        index('appointment_procedures_appointment_id_idx').on(t.appointmentId),
+        check('appointment_procedures_quantity_positive', sql`${t.quantity} > 0`),
     ],
 );
 

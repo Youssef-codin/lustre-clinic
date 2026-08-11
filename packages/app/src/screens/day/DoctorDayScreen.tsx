@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, Toast } from '../../components/ui';
 import { color, size, space } from '../../theme';
+import { procedureLabel } from './agenda';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
@@ -50,12 +51,6 @@ export function DoctorDayScreen() {
     const branch = branchId ?? branches.data?.[0]?.id ?? null;
     const day = useLocalQuery(`day:${dateKey}:${branch ?? 'all'}`, () =>
         api.byDate(dateKey, branch ?? undefined),
-    );
-
-    const procedureList = useLocalQuery('procedures', api.procedures);
-    const procedures = useMemo(
-        () => new Map((procedureList.data ?? []).map((row) => [row.id, row.name])),
-        [procedureList.data],
     );
 
     const appointments = day.data ?? [];
@@ -102,10 +97,6 @@ export function DoctorDayScreen() {
                 day.refetch();
             },
         });
-    }
-
-    function procedureFor(appointment: Appointment | null): string | undefined {
-        return appointment?.typeId ? procedures.get(appointment.typeId) : undefined;
     }
 
     return (
@@ -157,15 +148,13 @@ export function DoctorDayScreen() {
                         showsVerticalScrollIndicator={false}
                         testID="doctor-agenda"
                     >
-                        {isToday ? (
-                            <BeforeThis appointments={past} procedures={procedures} onSelect={openDetail} />
-                        ) : null}
+                        {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
                         {isToday && strip ? (
                             <ChairStrip
                                 appointment={strip}
                                 nowMinutes={nowMinutes}
-                                procedure={procedureFor(strip)}
+                                procedure={procedureLabel(strip)}
                                 finishing={finishingId === strip.id}
                                 onOpen={openDetail}
                                 onFinish={finishVisit}
@@ -177,7 +166,7 @@ export function DoctorDayScreen() {
                                 appointment={headline}
                                 kind={kind}
                                 nowMinutes={nowMinutes}
-                                procedure={procedureFor(headline)}
+                                procedure={headline ? procedureLabel(headline) : undefined}
                                 checkedInAt={headline ? arrivals.data?.get(headline.id) : undefined}
                                 finishing={finishingId === headline?.id}
                                 onOpen={openDetail}
@@ -187,7 +176,6 @@ export function DoctorDayScreen() {
 
                         <AfterThis
                             appointments={isToday ? list : appointments}
-                            procedures={procedures}
                             relativeToNow={isToday}
                             onSelect={openDetail}
                         />

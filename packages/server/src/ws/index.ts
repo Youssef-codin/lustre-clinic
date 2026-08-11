@@ -32,8 +32,7 @@ export const wsHandlers: WebSocketHandler<WsData> = {
         ws.unsubscribe(TOPIC);
         logger.debug({ clients: sockets.size }, 'ws client disconnected');
     },
-    message() {
-    },
+    message() {},
 };
 
 export function broadcast(event: WsEvent, payload: Record<string, string> = {}): void {
