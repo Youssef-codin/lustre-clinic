@@ -14,6 +14,17 @@ export function isSettled(appointment: Appointment): boolean {
     return SETTLED.has(appointment.status);
 }
 
+/**
+ * The row's one-line summary of the planned work. A booking may plan several
+ * procedures (§7), and the name comes down with the appointment, so no lookup
+ * against the catalogue is needed. Undefined when nothing was planned, which is
+ * what the row treats as "no label".
+ */
+export function procedureLabel(appointment: Appointment): string | undefined {
+    if (appointment.procedures.length === 0) return undefined;
+    return appointment.procedures.map((row) => row.name).join(' · ');
+}
+
 export interface DaySplit {
     past: Appointment[];
     upcoming: Appointment[];

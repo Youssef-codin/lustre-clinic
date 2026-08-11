@@ -12,6 +12,7 @@ import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
+import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
 import { time12 } from '../time';
 import { statusLabel } from './_LocalStatusPill';
@@ -215,7 +216,6 @@ export function CheckInControl({ appointment, loading, inChair, onCheckIn }: Che
 
 export type UpNextProps = {
     appointments: readonly Appointment[];
-    procedures: ReadonlyMap<string, string>;
     chairId: string | null;
     relativeToNow: boolean;
     checkingInId: string | null;
@@ -226,7 +226,6 @@ export type UpNextProps = {
 
 export function UpNext({
     appointments,
-    procedures,
     chairId,
     relativeToNow,
     checkingInId,
@@ -249,7 +248,7 @@ export function UpNext({
                 <AgendaRow
                     key={appointment.id}
                     appointment={appointment}
-                    procedure={procedureName(procedures, appointment)}
+                    procedure={procedureLabel(appointment)}
                     onPress={() => onSelect(appointment)}
                     inChair={appointment.id === chairId}
                     onNoShow={appointment.status === 'booked' ? () => onNoShow(appointment) : undefined}
@@ -269,18 +268,10 @@ export function UpNext({
 
 export type BeforeThisProps = {
     appointments: readonly Appointment[];
-    procedures: ReadonlyMap<string, string>;
     onSelect: (appointment: Appointment) => void;
 };
 
-function procedureName(
-    procedures: ReadonlyMap<string, string>,
-    appointment: Appointment,
-): string | undefined {
-    return appointment.typeId ? procedures.get(appointment.typeId) : undefined;
-}
-
-export function BeforeThis({ appointments, procedures, onSelect }: BeforeThisProps) {
+export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
     const [open, setOpen] = useState(false);
 
     if (appointments.length === 0) return null;
@@ -307,7 +298,7 @@ export function BeforeThis({ appointments, procedures, onSelect }: BeforeThisPro
                       <AgendaRow
                           key={appointment.id}
                           appointment={appointment}
-                          procedure={procedureName(procedures, appointment)}
+                          procedure={procedureLabel(appointment)}
                           onPress={() => onSelect(appointment)}
                           dim
                           trailing={

@@ -70,8 +70,7 @@ export const patientService = {
         let phoneTerm = term;
         try {
             phoneTerm = normalizePhone(term);
-        } catch {
-        }
+        } catch {}
 
         const rows = await db
             .select()

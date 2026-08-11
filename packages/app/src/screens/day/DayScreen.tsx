@@ -23,7 +23,7 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { color, size, space } from '../../theme';
-import { splitDay } from './agenda';
+import { procedureLabel, splitDay } from './agenda';
 import { splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
@@ -100,12 +100,6 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
     const branch =
         branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
 
-    const procedureList = useLocalQuery('procedures', api.procedures);
-    const procedures = useMemo(
-        () => new Map((procedureList.data ?? []).map((row) => [row.id, row.name])),
-        [procedureList.data],
-    );
-
     const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
     const reminderCount = reminders.data?.length ?? 0;
 
@@ -143,18 +137,17 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
         enabled: checkedInIds.length > 0,
     });
 
-    // A pull re-asks for this screen's six reads and nothing else. The other
+    // A pull re-asks for this screen's five reads and nothing else. The other
     // tabs are mounted behind this one and refetching them from here would put
     // three screens' worth of traffic on the tunnel for a screen nobody is
     // looking at — `/ws` is what keeps those fresh. A failed refresh keeps the
     // day on screen behind its banner, so the gesture is safe on a bad signal.
-    const reads = [day, schedule, branches, procedureList, reminders, arrivals];
+    const reads = [day, schedule, branches, reminders, arrivals];
     const refreshControl = usePullToRefresh(
         () => {
             day.refetch();
             schedule.refetch();
             branches.refetch();
-            procedureList.refetch();
             reminders.refetch();
             if (checkedInIds.length > 0) arrivals.refetch();
         },
@@ -300,16 +293,14 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
                         refreshControl={refreshControl}
                         testID="day-agenda"
                     >
-                        {isToday ? (
-                            <BeforeThis appointments={past} procedures={procedures} onSelect={openDetail} />
-                        ) : null}
+                        {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
                         {isToday ? (
                             <NowCard
                                 active={desk ?? chair}
                                 next={next}
                                 nowMinutes={nowMinutes}
-                                procedure={card?.typeId ? procedures.get(card.typeId) : undefined}
+                                procedure={card ? procedureLabel(card) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}
@@ -318,7 +309,6 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
 
                         <UpNext
                             appointments={upcoming}
-                            procedures={procedures}
                             chairId={isToday ? (chair?.id ?? null) : null}
                             relativeToNow={isToday}
                             checkingInId={checkingInId}

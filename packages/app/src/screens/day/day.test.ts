@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@mawid/shared';
-import { splitDay } from './agenda';
+import { procedureLabel, splitDay } from './agenda';
 import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';
 import { RequestError } from './data/client';
@@ -94,6 +94,29 @@ describe('the agenda', () => {
     it('puts the day in order whatever order it arrived in', () => {
         const { upcoming } = splitDay([at('b', '13:00', 'booked'), at('a', '09:00', 'booked')], null);
         expect(upcoming.map((row) => row.id)).toEqual(['a', 'b']);
+    });
+
+    it('labels a row with every procedure the booking planned', () => {
+        const planned = (...names: string[]): Appointment =>
+            ({
+                ...at('x', '09:00', 'booked'),
+                procedures: names.map((name, i) => ({
+                    id: `l-${i}`,
+                    procedureId: `p-${i}`,
+                    name,
+                    quantity: 1,
+                    tooth: null,
+                    note: null,
+                })),
+            }) as Appointment;
+
+        expect(procedureLabel(planned('Consultation'))).toBe('Consultation');
+        expect(procedureLabel(planned('Consultation', 'Zirconia crown'))).toBe(
+            'Consultation · Zirconia crown',
+        );
+        // Nothing planned is not "unknown procedure" — the row falls back to
+        // the duration alone, as it did when `type_id` was null.
+        expect(procedureLabel(planned())).toBeUndefined();
     });
 });
 

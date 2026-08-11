@@ -1,9 +1,114 @@
 {
-  "id": "f64cc3ca-c74f-4dcb-8b85-dbad12ae0bef",
+  "id": "cf890942-29d3-40f5-b085-be18e2b024ac",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.appointment_procedures": {
+      "name": "appointment_procedures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "appointment_id": {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "procedure_id": {
+          "name": "procedure_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "tooth": {
+          "name": "tooth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "appointment_procedures_appointment_id_idx": {
+          "name": "appointment_procedures_appointment_id_idx",
+          "columns": [
+            {
+              "expression": "appointment_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "appointment_procedures_appointment_id_appointments_id_fk": {
+          "name": "appointment_procedures_appointment_id_appointments_id_fk",
+          "tableFrom": "appointment_procedures",
+          "tableTo": "appointments",
+          "columnsFrom": [
+            "appointment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "appointment_procedures_procedure_id_procedure_types_id_fk": {
+          "name": "appointment_procedures_procedure_id_procedure_types_id_fk",
+          "tableFrom": "appointment_procedures",
+          "tableTo": "procedure_types",
+          "columnsFrom": [
+            "procedure_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "appointment_procedures_quantity_positive": {
+          "name": "appointment_procedures_quantity_positive",
+          "value": "\"appointment_procedures\".\"quantity\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.appointments": {
       "name": "appointments",
       "schema": "",
@@ -43,12 +148,6 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
-        },
-        "type_id": {
-          "name": "type_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         },
         "note": {
           "name": "note",
@@ -143,19 +242,6 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "appointments_type_id_procedure_types_id_fk": {
-          "name": "appointments_type_id_procedure_types_id_fk",
-          "tableFrom": "appointments",
-          "tableTo": "procedure_types",
-          "columnsFrom": [
-            "type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -213,6 +299,66 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clinic_days": {
+      "name": "clinic_days",
+      "schema": "",
+      "columns": {
+        "weekday": {
+          "name": "weekday",
+          "type": "smallint",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opens_at": {
+          "name": "opens_at",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closes_at": {
+          "name": "closes_at",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "clinic_days_branch_id_branches_id_fk": {
+          "name": "clinic_days_branch_id_branches_id_fk",
+          "tableFrom": "clinic_days",
+          "tableTo": "branches",
+          "columnsFrom": [
+            "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "clinic_days_weekday_range": {
+          "name": "clinic_days_weekday_range",
+          "value": "\"clinic_days\".\"weekday\" BETWEEN 0 AND 6"
+        },
+        "clinic_days_opens_before_closes": {
+          "name": "clinic_days_opens_before_closes",
+          "value": "\"clinic_days\".\"opens_at\" < \"clinic_days\".\"closes_at\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.custom_questions": {

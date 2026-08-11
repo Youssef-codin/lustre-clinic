@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
+import { procedureLabel } from './agenda';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
@@ -56,12 +57,6 @@ export function DoctorDayScreen() {
     const branch =
         branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
 
-    const procedureList = useLocalQuery('procedures', api.procedures);
-    const procedures = useMemo(
-        () => new Map((procedureList.data ?? []).map((row) => [row.id, row.name])),
-        [procedureList.data],
-    );
-
     const appointments = useMemo(
         () => clinicDay.filter((row) => row.branchId === branch),
         [clinicDay, branch],
@@ -95,13 +90,12 @@ export function DoctorDayScreen() {
 
     // This screen's reads only — see `DayScreen`. The doctor has no reminders
     // tab and no settings read, so it is four queries rather than six.
-    const reads = [day, schedule, branches, procedureList, arrivals];
+    const reads = [day, schedule, branches, arrivals];
     const refreshControl = usePullToRefresh(
         () => {
             day.refetch();
             schedule.refetch();
             branches.refetch();
-            procedureList.refetch();
             if (checkedInIds.length > 0) arrivals.refetch();
         },
         reads.some((read) => read.refreshing || read.status === 'loading'),
@@ -142,10 +136,6 @@ export function DoctorDayScreen() {
                 day.refetch();
             },
         });
-    }
-
-    function procedureFor(appointment: Appointment | null): string | undefined {
-        return appointment?.typeId ? procedures.get(appointment.typeId) : undefined;
     }
 
     return (
@@ -207,15 +197,13 @@ export function DoctorDayScreen() {
                         refreshControl={refreshControl}
                         testID="doctor-agenda"
                     >
-                        {isToday ? (
-                            <BeforeThis appointments={past} procedures={procedures} onSelect={openDetail} />
-                        ) : null}
+                        {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
                         {isToday && strip ? (
                             <ChairStrip
                                 appointment={strip}
                                 nowMinutes={nowMinutes}
-                                procedure={procedureFor(strip)}
+                                procedure={procedureLabel(strip)}
                                 finishing={finishingId === strip.id}
                                 onOpen={openDetail}
                                 onFinish={finishVisit}
@@ -227,7 +215,7 @@ export function DoctorDayScreen() {
                                 appointment={headline}
                                 kind={kind}
                                 nowMinutes={nowMinutes}
-                                procedure={procedureFor(headline)}
+                                procedure={headline ? procedureLabel(headline) : undefined}
                                 checkedInAt={headline ? arrivals.data?.get(headline.id) : undefined}
                                 finishing={finishingId === headline?.id}
                                 onOpen={openDetail}
@@ -237,7 +225,6 @@ export function DoctorDayScreen() {
 
                         <AfterThis
                             appointments={isToday ? list : appointments}
-                            procedures={procedures}
                             relativeToNow={isToday}
                             onSelect={openDetail}
                         />
