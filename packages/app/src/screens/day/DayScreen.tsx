@@ -11,11 +11,11 @@
  * fall back to the same default hours, but the second is the clinic's own
  * guess while the first is this screen's.
  */
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, SegmentedControl, Toast } from '../../components/ui';
 import { color, size, space } from '../../theme';
-import { splitDay } from './agenda';
+import { procedureLabel, splitDay } from './agenda';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { CalendarSheet } from './components/CalendarSheet';
@@ -61,12 +61,6 @@ export function DayScreen() {
     const branch = branchId ?? branches.data?.[0]?.id ?? null;
     const day = useLocalQuery(`day:${dateKey}:${branch ?? 'all'}`, () =>
         api.byDate(dateKey, branch ?? undefined),
-    );
-
-    const procedureList = useLocalQuery('procedures', api.procedures);
-    const procedures = useMemo(
-        () => new Map((procedureList.data ?? []).map((row) => [row.id, row.name])),
-        [procedureList.data],
     );
 
     const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
@@ -201,16 +195,14 @@ export function DayScreen() {
                         showsVerticalScrollIndicator={false}
                         testID="day-agenda"
                     >
-                        {isToday ? (
-                            <BeforeThis appointments={past} procedures={procedures} onSelect={openDetail} />
-                        ) : null}
+                        {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
                         {isToday ? (
                             <NowCard
                                 active={active}
                                 next={next}
                                 nowMinutes={nowMinutes}
-                                procedure={active?.typeId ? procedures.get(active.typeId) : undefined}
+                                procedure={active ? procedureLabel(active) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}
@@ -219,7 +211,6 @@ export function DayScreen() {
 
                         <UpNext
                             appointments={upcoming}
-                            procedures={procedures}
                             chairBusy={active?.status === 'checked_in'}
                             relativeToNow={isToday}
                             checkingInId={checkingInId}
