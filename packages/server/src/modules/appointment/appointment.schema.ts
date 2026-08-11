@@ -1,4 +1,4 @@
-import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@mawid/shared';
+import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@mawid/shared';
 import { z } from 'zod';
 
 /**
@@ -10,6 +10,21 @@ const duration = z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MIN
 
 /** The client's UTC offset in minutes, so "today" means the clinic's today. */
 const offsetMinutes = z.number().int().min(-840).max(840).default(0);
+
+/**
+ * §7 — the work the secretary expects. No price: the visit snapshots that at
+ * check-in. Validated against the same §5 rules as a visit line, so a bookable
+ * list is exactly a recordable one.
+ */
+const procedureLine = z.object({
+    procedureId: z.uuid(),
+    quantity: z.number().int().min(1).max(999).default(1),
+    /** Palmer notation. Omitted when the procedure is not tooth-specific (§5). */
+    tooth: toothSchema.nullish(),
+    note: z.string().trim().max(500).nullish(),
+});
+
+const procedures = z.array(procedureLine).max(100);
 
 export const patientRefInput = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('existing'), patientId: z.uuid() }),
@@ -25,7 +40,7 @@ export const createAppointmentInput = z.object({
     branchId: z.uuid(),
     startsAt: z.iso.datetime({ offset: true }),
     durationMinutes: duration.optional(),
-    typeId: z.uuid().nullish(),
+    procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
     offsetMinutes,
 });
@@ -34,7 +49,7 @@ export const walkInInput = z.object({
     patient: patientRefInput,
     branchId: z.uuid(),
     durationMinutes: duration.optional(),
-    typeId: z.uuid().nullish(),
+    procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
     offsetMinutes,
 });
@@ -53,7 +68,8 @@ export const updateAppointmentInput = z.object({
     startsAt: z.iso.datetime({ offset: true }).optional(),
     durationMinutes: duration.optional(),
     branchId: z.uuid().optional(),
-    typeId: z.uuid().nullish(),
+    /** Replaces the whole list; it does not patch individual lines (§13). */
+    procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
     /** Only `no_show` is set this way; cancel and check-in have their own calls. */
     status: z.literal('no_show').optional(),

@@ -1023,6 +1023,253 @@ describe('appointment', () => {
     });
 });
 
+/**
+ * §7 — a booking carries the list of procedures the secretary expects, not a
+ * single type. The §5 rules are the same ones a visit line obeys, so a list
+ * that can be booked is a list that can be recorded.
+ */
+describe('appointment procedures', () => {
+    test('books several procedures and reads them back with their names', async () => {
+        const { branch, patient, rootCanal, extraction } = await fixtures();
+
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+            procedures: [
+                { procedureId: rootCanal.id, quantity: 1 },
+                { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+            ],
+        });
+
+        const read = await appointmentService.byId(appointment.id);
+        expect(read.procedures.map((p) => [p.name, p.tooth])).toEqual([
+            ['Root canal', null],
+            ['Extraction', 'UL6'],
+        ]);
+    });
+
+    test('the day view carries each booking its own procedures', async () => {
+        const { branch, patient, rootCanal } = await fixtures();
+        const startsAt = slot();
+
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt,
+            offsetMinutes: 0,
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
+        });
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(60),
+            offsetMinutes: 0,
+        });
+
+        const day = await appointmentService.byDate({
+            date: startsAt.slice(0, 10),
+            offsetMinutes: 0,
+        });
+
+        expect(day.map((a) => a.procedures.map((p) => p.name))).toEqual([['Root canal'], []]);
+    });
+
+    test('a tooth-specific procedure booked without a tooth is refused', async () => {
+        const { branch, patient, extraction } = await fixtures();
+
+        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt: slot(),
+                offsetMinutes: 0,
+                procedures: [{ procedureId: extraction.id, quantity: 1 }],
+            }),
+        );
+    });
+
+    test('a tooth on a procedure that is not tooth-specific is refused', async () => {
+        const { branch, patient, rootCanal } = await fixtures();
+
+        await expectAppError(ERROR_CODE.TOOTH_NOT_APPLICABLE, () =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt: slot(),
+                offsetMinutes: 0,
+                procedures: [{ procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' }],
+            }),
+        );
+    });
+
+    test('the same procedure twice on one tooth is refused, but once per tooth is fine', async () => {
+        const { branch, patient, extraction } = await fixtures();
+
+        await expectAppError(ERROR_CODE.PROCEDURE_DUPLICATE, () =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt: slot(),
+                offsetMinutes: 0,
+                procedures: [
+                    { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+                    { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+                ],
+            }),
+        );
+
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+            procedures: [
+                { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+                { procedureId: extraction.id, quantity: 1, tooth: 'UR3' },
+            ],
+        });
+
+        expect((await appointmentService.byId(appointment.id)).procedures).toHaveLength(2);
+    });
+
+    test('a booking may not plan a category row', async () => {
+        const { branch, patient, rootCanal } = await fixtures();
+        const category = await procedureService.create({
+            name: 'Restorative',
+            defaultPrice: 0,
+            hasQuantity: false,
+            isToothSpecific: false,
+            isCheckup: false,
+            sortOrder: 9,
+        });
+        await procedureService.update({ id: rootCanal.id, parentId: category.id });
+
+        await expectAppError(ERROR_CODE.PROCEDURE_NOT_SELECTABLE, () =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt: slot(),
+                offsetMinutes: 0,
+                procedures: [{ procedureId: category.id, quantity: 1 }],
+            }),
+        );
+    });
+
+    test('update replaces the whole list, and omitting it leaves the list alone', async () => {
+        const { branch, patient, rootCanal, xray } = await fixtures();
+
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
+        });
+
+        await appointmentService.update({ id: appointment.id, note: 'moved rooms' });
+        expect((await appointmentService.byId(appointment.id)).procedures.map((p) => p.name)).toEqual([
+            'Root canal',
+        ]);
+
+        await appointmentService.update({
+            id: appointment.id,
+            procedures: [{ procedureId: xray.id, quantity: 3 }],
+        });
+        const replaced = await appointmentService.byId(appointment.id);
+        expect(replaced.procedures.map((p) => [p.name, p.quantity])).toEqual([['X-ray', 3]]);
+
+        await appointmentService.update({ id: appointment.id, procedures: [] });
+        expect((await appointmentService.byId(appointment.id)).procedures).toEqual([]);
+    });
+
+    test('check-in seeds the visit from the plan, priced as of today', async () => {
+        const { branch, patient, rootCanal, extraction } = await fixtures();
+
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+            procedures: [
+                { procedureId: rootCanal.id, quantity: 1 },
+                { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
+            ],
+        });
+
+        // The catalogue moves between booking and arrival; the visit bills the
+        // price on the day, not the one that applied when the slot was taken.
+        await procedureService.update({ id: rootCanal.id, defaultPrice: ROOT_CANAL_PRICE + 10_000 });
+
+        const created = await visitService.checkIn({ appointmentId: appointment.id });
+        const visit = await visitService.byId(created.id);
+
+        expect(visit.procedures.map((l) => [l.name, l.unitPrice]).sort()).toEqual(
+            [
+                ['Checkup', CHECKUP_PRICE],
+                ['Extraction', EXTRACTION_PRICE],
+                ['Root canal', ROOT_CANAL_PRICE + 10_000],
+            ].sort(),
+        );
+        expect(visit.procedures.filter((l) => l.isCheckup)).toHaveLength(1);
+        // §9 — the checkup is waived once another line is present.
+        expect(visit.computedTotal).toBe(ROOT_CANAL_PRICE + 10_000 + EXTRACTION_PRICE);
+    });
+
+    test('a planned checkup is not seeded twice', async () => {
+        const { branch, patient, checkup } = await fixtures();
+
+        const appointment = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+            procedures: [{ procedureId: checkup.id, quantity: 1 }],
+        });
+
+        const created = await visitService.checkIn({ appointmentId: appointment.id });
+        const visit = await visitService.byId(created.id);
+
+        expect(visit.procedures).toHaveLength(1);
+        expect(visit.computedTotal).toBe(CHECKUP_PRICE);
+    });
+
+    test('a walk-in books its procedures and seeds them in the same transaction', async () => {
+        const { branch, patient, extraction } = await fixtures();
+
+        const { appointment, visitId } = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'LR8' }],
+        });
+
+        expect((await appointmentService.byId(appointment.id)).procedures.map((p) => p.tooth)).toEqual([
+            'LR8',
+        ]);
+
+        const visit = await visitService.byId(visitId);
+        expect(visit.procedures.map((l) => l.name).sort()).toEqual(['Checkup', 'Extraction']);
+    });
+
+    test('a refused walk-in leaves neither the booking nor its procedures behind', async () => {
+        const { branch, patient, extraction } = await fixtures();
+
+        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
+            appointmentService.walkIn({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                offsetMinutes: 0,
+                procedures: [{ procedureId: extraction.id, quantity: 1 }],
+            }),
+        );
+
+        const rows = await sql<{ count: string }[]>`SELECT count(*) FROM appointment_procedures`;
+        expect(Number(rows[0]?.count)).toBe(0);
+    });
+});
+
 describe('visit', () => {
     async function checkedIn() {
         const f = await fixtures();

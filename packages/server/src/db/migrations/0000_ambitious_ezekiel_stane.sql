@@ -1,3 +1,14 @@
+CREATE TABLE "appointment_procedures" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"appointment_id" uuid NOT NULL,
+	"procedure_id" uuid NOT NULL,
+	"quantity" integer DEFAULT 1 NOT NULL,
+	"tooth" text,
+	"note" text,
+	"sort_order" integer DEFAULT 0 NOT NULL,
+	CONSTRAINT "appointment_procedures_quantity_positive" CHECK ("appointment_procedures"."quantity" > 0)
+);
+--> statement-breakpoint
 CREATE TABLE "appointments" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"ref" text NOT NULL,
@@ -5,7 +16,6 @@ CREATE TABLE "appointments" (
 	"branch_id" uuid NOT NULL,
 	"starts_at" timestamp with time zone NOT NULL,
 	"duration_minutes" integer NOT NULL,
-	"type_id" uuid,
 	"note" text,
 	"status" text DEFAULT 'booked' NOT NULL,
 	"channel" text DEFAULT 'desk' NOT NULL,
@@ -20,6 +30,15 @@ CREATE TABLE "branches" (
 	"name" text NOT NULL,
 	"address" text,
 	"active" boolean DEFAULT true NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "clinic_days" (
+	"weekday" smallint PRIMARY KEY NOT NULL,
+	"branch_id" uuid NOT NULL,
+	"opens_at" time NOT NULL,
+	"closes_at" time NOT NULL,
+	CONSTRAINT "clinic_days_weekday_range" CHECK ("clinic_days"."weekday" BETWEEN 0 AND 6),
+	CONSTRAINT "clinic_days_opens_before_closes" CHECK ("clinic_days"."opens_at" < "clinic_days"."closes_at")
 );
 --> statement-breakpoint
 CREATE TABLE "custom_questions" (
@@ -116,15 +135,18 @@ CREATE TABLE "visits" (
 	CONSTRAINT "visits_appointment_id_unique" UNIQUE("appointment_id")
 );
 --> statement-breakpoint
+ALTER TABLE "appointment_procedures" ADD CONSTRAINT "appointment_procedures_appointment_id_appointments_id_fk" FOREIGN KEY ("appointment_id") REFERENCES "public"."appointments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_procedures" ADD CONSTRAINT "appointment_procedures_procedure_id_procedure_types_id_fk" FOREIGN KEY ("procedure_id") REFERENCES "public"."procedure_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_patient_id_patients_id_fk" FOREIGN KEY ("patient_id") REFERENCES "public"."patients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branch_id_branches_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branches"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_type_id_procedure_types_id_fk" FOREIGN KEY ("type_id") REFERENCES "public"."procedure_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "clinic_days" ADD CONSTRAINT "clinic_days_branch_id_branches_id_fk" FOREIGN KEY ("branch_id") REFERENCES "public"."branches"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_visit_id_visits_id_fk" FOREIGN KEY ("visit_id") REFERENCES "public"."visits"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "procedure_types" ADD CONSTRAINT "procedure_types_parent_id_procedure_types_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."procedure_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "reminders" ADD CONSTRAINT "reminders_appointment_id_appointments_id_fk" FOREIGN KEY ("appointment_id") REFERENCES "public"."appointments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visit_procedures" ADD CONSTRAINT "visit_procedures_visit_id_visits_id_fk" FOREIGN KEY ("visit_id") REFERENCES "public"."visits"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visit_procedures" ADD CONSTRAINT "visit_procedures_procedure_id_procedure_types_id_fk" FOREIGN KEY ("procedure_id") REFERENCES "public"."procedure_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "visits" ADD CONSTRAINT "visits_appointment_id_appointments_id_fk" FOREIGN KEY ("appointment_id") REFERENCES "public"."appointments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "appointment_procedures_appointment_id_idx" ON "appointment_procedures" USING btree ("appointment_id");--> statement-breakpoint
 CREATE INDEX "appointments_starts_at_idx" ON "appointments" USING btree ("starts_at");--> statement-breakpoint
 CREATE INDEX "appointments_patient_id_idx" ON "appointments" USING btree ("patient_id");--> statement-breakpoint
 CREATE INDEX "patients_phone_idx" ON "patients" USING btree ("phone");--> statement-breakpoint

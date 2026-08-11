@@ -1,10 +1,18 @@
 import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
-import { eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
-import { appointments, payments, procedureTypes, visitProcedures, visits } from '../../db/schema.ts';
+import {
+    appointmentProcedures,
+    appointments,
+    payments,
+    procedureTypes,
+    visitProcedures,
+    visits,
+} from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { computeTotal } from '../../util/money.ts';
 import { broadcast } from '../../ws/index.ts';
+import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
 import { procedureService } from '../procedure/procedure.service.ts';
 import type {
     CheckInInput,
@@ -129,8 +137,44 @@ export const visitService = {
                 .set({ status: 'checked_in', updatedAt: now })
                 .where(eq(appointments.id, appointment.id));
 
-            // §8 — the checkup line is seeded here, not at checkout.
-            const checkup = await procedureService.findCheckup();
+            // §7 — the procedures the secretary planned at booking become the
+            // visit's opening lines, so nothing is typed twice. Prices are
+            // snapshotted now, not at booking: a slot reserved three weeks ago
+            // bills at today's catalogue price.
+            const planned = await tx
+                .select({
+                    procedureId: appointmentProcedures.procedureId,
+                    quantity: appointmentProcedures.quantity,
+                    tooth: appointmentProcedures.tooth,
+                    note: appointmentProcedures.note,
+                    defaultPrice: procedureTypes.defaultPrice,
+                    isCheckup: procedureTypes.isCheckup,
+                })
+                .from(appointmentProcedures)
+                .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
+                .where(eq(appointmentProcedures.appointmentId, appointment.id))
+                .orderBy(asc(appointmentProcedures.sortOrder));
+
+            if (planned.length > 0) {
+                await tx.insert(visitProcedures).values(
+                    planned.map((line) => ({
+                        id: Bun.randomUUIDv7(),
+                        visitId: visit.id,
+                        procedureId: line.procedureId,
+                        quantity: line.quantity,
+                        unitPrice: line.defaultPrice,
+                        tooth: line.tooth,
+                        note: line.note,
+                    })),
+                );
+            }
+
+            // §8 — the checkup line is seeded here, not at checkout. Skipped
+            // when the booking already planned a checkup, or the visit would
+            // open with two of them.
+            const checkup = planned.some((line) => line.isCheckup)
+                ? null
+                : await procedureService.findCheckup();
             if (checkup) {
                 await tx.insert(visitProcedures).values({
                     id: Bun.randomUUIDv7(),
@@ -204,67 +248,20 @@ export const visitService = {
      * so a later price change never rewrites history.
      */
     async setProcedures(input: SetProceduresInput): Promise<Visit> {
-        // §5 — uniqueness is per tooth, not per procedure: an extraction on UL6
-        // and one on UR3 are two real lines. Lines with no tooth share the
-        // single empty-string key, so the old once-per-visit rule still holds
-        // for procedures that are not tooth-specific.
-        const seen = new Set<string>();
-
         // Resolved before the transaction: these are reads against reference
         // data, and the checks are about the request, not about the visit.
-        const resolved = await Promise.all(
-            input.procedures.map(async (line) => {
-                const procedure = await procedureService.requireSelectable(line.procedureId);
-                const tooth = line.tooth ?? null;
+        // The §5 rules are shared with booking; see `procedure.rules.ts`.
+        const lines = await resolveProcedureLines(input.procedures);
 
-                // §5 — `is_tooth_specific` decides whether a tooth belongs on
-                // the line at all, so an extraction cannot be filed against no
-                // tooth and a consultation cannot be filed against UL6.
-                if (procedure.isToothSpecific && !tooth) {
-                    throw new AppError(
-                        ERROR_CODE.TOOTH_REQUIRED,
-                        'that procedure must name the tooth it was done on',
-                        422,
-                    );
-                }
-                if (!procedure.isToothSpecific && tooth) {
-                    throw new AppError(
-                        ERROR_CODE.TOOTH_NOT_APPLICABLE,
-                        'that procedure is not done on a specific tooth',
-                        422,
-                    );
-                }
-
-                if (!procedure.hasQuantity) {
-                    const key = `${procedure.id}:${tooth ?? ''}`;
-                    if (seen.has(key)) {
-                        throw new AppError(
-                            ERROR_CODE.PROCEDURE_DUPLICATE,
-                            tooth
-                                ? 'that procedure may appear only once per tooth on a visit'
-                                : 'that procedure may appear only once on a visit',
-                            422,
-                        );
-                    }
-                    seen.add(key);
-                    if (line.quantity !== 1) {
-                        throw new AppError(
-                            ERROR_CODE.VALIDATION,
-                            'that procedure does not take a quantity',
-                            422,
-                        );
-                    }
-                }
-
-                return {
-                    procedureId: procedure.id,
-                    quantity: line.quantity,
-                    unitPrice: line.unitPrice ?? procedure.defaultPrice,
-                    tooth,
-                    note: line.note ?? null,
-                };
-            }),
-        );
+        const resolved = lines.map((line, i) => ({
+            procedureId: line.procedure.id,
+            quantity: line.quantity,
+            // An explicit override wins; otherwise the catalogue price is
+            // snapshotted as of now (§5).
+            unitPrice: input.procedures[i]?.unitPrice ?? line.procedure.defaultPrice,
+            tooth: line.tooth,
+            note: line.note,
+        }));
 
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);

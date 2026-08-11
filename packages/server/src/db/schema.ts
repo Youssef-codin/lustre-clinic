@@ -125,7 +125,6 @@ export const appointments = pgTable(
         startsAt: timestamptz('starts_at').notNull(),
         /** Chosen by the secretary, never derived from the procedure type (§7). */
         durationMinutes: integer('duration_minutes').notNull(),
-        typeId: uuid('type_id').references(() => procedureTypes.id),
         note: text('note'),
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
         channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
@@ -137,6 +136,34 @@ export const appointments = pgTable(
         index('appointments_starts_at_idx').on(t.startsAt),
         index('appointments_patient_id_idx').on(t.patientId),
         check('appointments_duration_positive', sql`${t.durationMinutes} > 0`),
+    ],
+);
+
+/**
+ * §7 — the work the secretary expects to happen, entered at booking. Mirrors
+ * `visit_procedures` minus `unit_price`: a booking made three weeks out must
+ * bill at the price on the day, so the price is snapshotted at check-in, not
+ * here. Check-in seeds one visit line per row below.
+ */
+export const appointmentProcedures = pgTable(
+    'appointment_procedures',
+    {
+        id: uuid('id').primaryKey(),
+        appointmentId: uuid('appointment_id')
+            .notNull()
+            .references(() => appointments.id, { onDelete: 'cascade' }),
+        procedureId: uuid('procedure_id')
+            .notNull()
+            .references(() => procedureTypes.id),
+        quantity: integer('quantity').notNull().default(1),
+        /** Palmer notation, e.g. `UL6`. Null when the procedure is not tooth-specific (§5). */
+        tooth: text('tooth', { enum: TEETH }),
+        note: text('note'),
+        sortOrder: integer('sort_order').notNull().default(0),
+    },
+    (t) => [
+        index('appointment_procedures_appointment_id_idx').on(t.appointmentId),
+        check('appointment_procedures_quantity_positive', sql`${t.quantity} > 0`),
     ],
 );
 

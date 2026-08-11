@@ -22,6 +22,7 @@ import {
 import { config } from '../src/config.ts';
 import { db, sql } from '../src/db/index.ts';
 import {
+    appointmentProcedures,
     appointments,
     branches,
     clinicDays,
@@ -93,13 +94,17 @@ const secondBranch = { id: id(), name: 'Maadi', address: '9 Road 9, Maadi, Cairo
 /** Inactive, so the branch picker has something to filter out. */
 const oldBranch = { id: id(), name: 'Heliopolis (closed)', address: null, active: false };
 
-/** Sunday–Thursday open, Friday and Saturday absent: the clinic is shut. */
+/**
+ * Sunday–Thursday open, Friday and Saturday absent: the clinic is shut. Same
+ * hours everywhere, so an appointment written for a wall-clock time is inside
+ * opening hours whichever weekday the seed happens to run on.
+ */
 const days = [
     { weekday: 0, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
     { weekday: 1, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
-    { weekday: 2, branchId: secondBranch.id, opensAt: '12:00', closesAt: '20:00' },
+    { weekday: 2, branchId: secondBranch.id, opensAt: '10:00', closesAt: '18:00' },
     { weekday: 3, branchId: mainBranch.id, opensAt: '10:00', closesAt: '18:00' },
-    { weekday: 4, branchId: secondBranch.id, opensAt: '12:00', closesAt: '20:00' },
+    { weekday: 4, branchId: secondBranch.id, opensAt: '10:00', closesAt: '18:00' },
 ];
 
 const cat = (name: string, sortOrder: number) => ({
@@ -308,7 +313,66 @@ const laila = patient('Laila Mostafa', '+201555443322', {
 /** Same first name as another patient, to stress the search results. */
 const monaSecond = patient('Mona Abdelaziz', '+201004445566', { birthDate: '1995-12-01', gender: 'female' });
 
-const allPatients = [nour, kareem, sara, yassin, mona, omar, hoda, laila, monaSecond];
+/**
+ * The rest of the book. Hand-written cases above cover the awkward states; this
+ * roster exists so lists paginate, search has to disambiguate, and the revenue
+ * figures come from more than a handful of rows.
+ */
+const roster = [
+    ['Ahmed Zaki', '+201004001001', 'male', '1983-03-17'],
+    ['Aya Mahmoud', '+201004001002', 'female', '1996-08-22'],
+    ['Bassem Ghali', '+201004001003', 'male', '1971-05-05'],
+    ['Dalia Sherif', '+201004001004', 'female', '1990-01-29'],
+    ['Eslam Fathy', '+201004001005', 'male', '1999-10-14'],
+    ['Farida Nabil', '+201004001006', 'female', '2005-06-30'],
+    ['Gamal Roshdy', '+201004001007', 'male', '1958-12-11'],
+    ['Habiba Selim', '+201004001008', 'female', '1993-02-08'],
+    ['IbrahimShafik', '+201004001009', 'male', '1986-07-19'],
+    ['Jailan Ezzat', '+201004001010', 'female', '2000-04-02'],
+    ['Karim Nagy', '+201004001011', 'male', '1994-11-23'],
+    ['Lamia Wahba', '+201004001012', 'female', '1969-09-01'],
+    ['Mahmoud Sobhy', '+201004001013', 'male', '1981-06-16'],
+    ['Nadia Kamel', '+201004001014', 'female', '1975-03-27'],
+    ['Osama Rifaat', '+201004001015', 'male', '2003-01-09'],
+    ['Passant Adel', '+201004001016', 'female', '1998-12-05'],
+    ['Ramy Guindy', '+201004001017', 'male', '1989-04-21'],
+    ['Salma Anis', '+201004001018', 'female', '2012-10-03'],
+    ['Tarek Halim', '+201004001019', 'male', '1962-08-13'],
+    ['Rana Bahgat', '+201004001020', 'female', '1997-05-26'],
+    ['Wael Mansour', '+201004001021', 'male', '1979-02-14'],
+    ['Yara Fahmy', '+201004001022', 'female', '2008-07-07'],
+    ['Ziad Okasha', '+201004001023', 'male', '1992-09-18'],
+    ['Amira Rashad', '+201004001024', 'female', '1985-11-11'],
+    ['Hesham Bakr', '+201004001025', 'male', '1973-01-31'],
+    ['Injy Shokry', '+201004001026', 'female', '2001-03-06'],
+    ['Marwan Sabry', '+201004001027', 'male', '1996-06-24'],
+    ['Nourhan Ismail', '+201004001028', 'female', '1991-10-09'],
+    // Deliberate near-duplicates of the hand-written patients, so search has
+    // to be looked at rather than trusted.
+    ['Mona Abdelrahman', '+201004001029', 'female', '1988-04-04'],
+    ['Kareem Hassan', '+201004001030', 'male', '1984-12-19'],
+    ['Omar Sedky', '+201004001031', 'male', '1966-02-02'],
+] as const;
+
+const rosterPatients = roster.map(([name, phone, gender, birthDate], index) =>
+    patient(name, phone, {
+        gender,
+        birthDate,
+        email: index % 3 === 0 ? `${name.split(' ')[0]?.toLowerCase()}.${index}@example.com` : null,
+        custom:
+            index % 4 === 0
+                ? { referral: 'Friend', diabetic: false }
+                : index % 4 === 1
+                  ? { referral: 'Instagram', diabetic: false, systolic: 115 + (index % 30) }
+                  : index % 4 === 2
+                    ? { referral: 'Walk-by', diabetic: index % 8 === 2, allergies: 'Latex' }
+                    : {},
+        notes: index % 7 === 0 ? 'Referred by a family member.' : null,
+        createdAt: at(-320 + index * 9, '11:00'),
+    }),
+);
+
+const allPatients = [nour, kareem, sara, yassin, mona, omar, hoda, laila, monaSecond, ...rosterPatients];
 
 // --- appointments -----------------------------------------------------------
 
@@ -325,7 +389,15 @@ interface Booking {
     branch: { id: string };
     startsAt: Date;
     durationMinutes?: number;
-    type?: { id: string };
+    /** §7 — the one-procedure shorthand. Use `plan` for a multi-procedure booking. */
+    type?: { id: string; isToothSpecific: boolean };
+    /** The procedures the secretary planned. Overrides `type` when both are set. */
+    plan?: {
+        procedure: { id: string; isToothSpecific: boolean };
+        quantity?: number;
+        tooth?: Tooth;
+        note?: string;
+    }[];
     status: AppointmentStatus;
     channel?: AppointmentChannel;
     note?: string;
@@ -548,12 +620,18 @@ const bookings: Booking[] = [
     { patient: hoda, branch: mainBranch, startsAt: at(0, '17:00'), type: consultation, status: 'cancelled' },
 
     // --- tomorrow: reminders are due ----------------------------------------
+    // Booked as a multi-procedure visit: the secretary knows all three are
+    // planned, and check-in seeds them as the visit's opening lines.
     {
         patient: nour,
         branch: mainBranch,
         startsAt: at(1, '10:00'),
         durationMinutes: 45,
-        type: crown,
+        plan: [
+            { procedure: consultation },
+            { procedure: xray, quantity: 2, tooth: 'UL4' },
+            { procedure: crown, tooth: 'UL4', note: 'Shade taken at the consult.' },
+        ],
         status: 'booked',
         reminder: { status: 'pending' },
     },
@@ -585,12 +663,17 @@ const bookings: Booking[] = [
         status: 'booked',
         reminder: { status: 'pending' },
     },
+    // Two fillings on different teeth — the case a single `type_id` could not
+    // express at all.
     {
         patient: omar,
         branch: secondBranch,
         startsAt: at(2, '12:30'),
         durationMinutes: 30,
-        type: filling,
+        plan: [
+            { procedure: filling, tooth: 'LL6' },
+            { procedure: filling, tooth: 'LL7' },
+        ],
         status: 'booked',
         reminder: { status: 'pending' },
     },
@@ -646,9 +729,258 @@ const bookings: Booking[] = [
     },
 ];
 
+// --- the rest of the month --------------------------------------------------
+
+/**
+ * The hand-written bookings above are the interesting ones. This fills in the
+ * rest of the calendar so the month reads like a working clinic: every open day
+ * of the current month has a full column of appointments, past ones settled,
+ * future ones booked with reminders pending. A few land in next month so the
+ * calendar has something to page forward to.
+ */
+
+/** Small deterministic PRNG — same seed, same clinic, every run. */
+let randomState = 0x9e3779b9;
+function random(): number {
+    randomState = (randomState * 1_664_525 + 1_013_904_223) >>> 0;
+    return randomState / 0x1_0000_0000;
+}
+const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T;
+
+/** Clinic-local weekday, 0 = Sunday, matching `clinicDays.weekday`. */
+function localWeekday(dayOffset: number): number {
+    return new Date(at(dayOffset, '00:00').getTime() + CLINIC_OFFSET_MINUTES * 60_000).getUTCDay();
+}
+
+/** Day offsets covering this calendar month, plus the first week of the next. */
+const generatedRange = (() => {
+    const local = new Date(todayLocalMidnight.getTime() + CLINIC_OFFSET_MINUTES * 60_000);
+    const year = local.getUTCFullYear();
+    const month = local.getUTCMonth();
+    const dayOfMonth = local.getUTCDate();
+    const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+    return { first: 1 - dayOfMonth, last: daysInMonth - dayOfMonth };
+})();
+
+const treatments = [
+    { type: consultation, minutes: 20, lines: [{ procedure: consultation }] },
+    { type: followUp, minutes: 20, lines: [{ procedure: followUp }] },
+    { type: scaling, minutes: 30, lines: [{ procedure: scaling }] },
+    { type: filling, minutes: 30, lines: [{ procedure: consultation }, { procedure: filling }] },
+    { type: extraction, minutes: 30, lines: [{ procedure: extraction }, { procedure: xray }] },
+    { type: rootCanal, minutes: 45, lines: [{ procedure: consultation }, { procedure: rootCanal }] },
+    { type: crown, minutes: 60, lines: [{ procedure: crown }, { procedure: xray }] },
+    {
+        type: surgicalExtraction,
+        minutes: 60,
+        lines: [{ procedure: surgicalExtraction }, { procedure: xray }],
+    },
+] as const;
+
+const teeth: Tooth[] = ['UR6', 'UR4', 'UL5', 'UL7', 'LL6', 'LL8', 'LR6', 'LR4', 'ULD', 'LRE'];
+const cashMethods: PaymentMethod[] = ['cash', 'cash', 'visa', 'instapay'];
+
+/**
+ * `dense` packs the column open to close with no gaps — a day the desk would
+ * call fully booked. Otherwise slots are jittered and a little air is left
+ * between them, which is what an ordinary day looks like.
+ */
+function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSITIVE_INFINITY): void {
+    const weekday = localWeekday(dayOffset);
+    const day = days.find((d) => d.weekday === weekday);
+    if (!day) return; // Friday and Saturday: shut.
+
+    const branch = day.branchId === mainBranch.id ? mainBranch : secondBranch;
+    const [openHour] = day.opensAt.split(':').map(Number);
+    const [closeHour] = day.closesAt.split(':').map(Number);
+    const past = dayOffset < 0;
+
+    // Today is already crowded by hand; top it up rather than doubling it.
+    let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 30));
+    const closingMinute = (closeHour ?? 18) * 60;
+
+    /** Everything already on this day, hand-written or generated, in minutes. */
+    const dayStart = at(dayOffset, '00:00').getTime();
+    const takenSlots = bookings
+        .filter((b) => b.startsAt.getTime() >= dayStart && b.startsAt.getTime() < dayStart + 86_400_000)
+        .map((b) => {
+            const start = (b.startsAt.getTime() - dayStart) / 60_000;
+            return { start, end: start + (b.durationMinutes ?? DEFAULT_DURATION_MINUTES) };
+        })
+        .sort((a, b) => a.start - b.start);
+
+    let placed = 0;
+    while (minute + 20 <= closingMinute && placed < maxBookings) {
+        // How much room there is before the next thing already on the day.
+        const nextTaken = takenSlots
+            .filter((slot) => slot.start >= minute)
+            .reduce((soonest, slot) => Math.min(soonest, slot.start), closingMinute);
+        const room = nextTaken - minute;
+
+        // A full day tiles the room exactly, so nothing is left over: 20 and 30
+        // minute treatments divide the 480-minute day and every gap in it.
+        const treatment = dense
+            ? pick(treatments.filter((t) => t.minutes <= room && t.minutes <= 30))
+            : pick(treatments.filter((t) => t.minutes <= room));
+
+        // Nothing fits before the next appointment — resume after it.
+        if (!treatment) {
+            const blocker = takenSlots.find((slot) => slot.start === nextTaken);
+            minute = blocker ? blocker.end : closingMinute;
+            continue;
+        }
+
+        const startsAt = at(
+            dayOffset,
+            `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`,
+        );
+        takenSlots.push({ start: minute, end: minute + treatment.minutes });
+
+        const who = pick(allPatients);
+        const lines: Line[] = treatment.lines.map((line) => ({
+            procedure: line.procedure,
+            tooth: line.procedure.isToothSpecific ? pick(teeth) : undefined,
+        }));
+        const roll = random();
+
+        if (past) {
+            if (!dense && roll < 0.06) {
+                bookings.push({
+                    patient: who,
+                    branch,
+                    startsAt,
+                    durationMinutes: treatment.minutes,
+                    type: treatment.type,
+                    status: 'no_show',
+                });
+            } else if (!dense && roll < 0.11) {
+                bookings.push({
+                    patient: who,
+                    branch,
+                    startsAt,
+                    durationMinutes: treatment.minutes,
+                    type: treatment.type,
+                    status: 'cancelled',
+                });
+            } else {
+                const total = lines.reduce((sum, line) => sum + line.procedure.defaultPrice, 0);
+                // Most settle in full; some walk out owing, a few get a discount.
+                const charged = roll > 0.9 ? Math.round((total * 0.85) / 1_000) * 1_000 : total;
+                const paid = roll < 0.2 ? Math.round((charged * 0.5) / 1_000) * 1_000 : charged;
+                bookings.push({
+                    patient: who,
+                    branch,
+                    startsAt,
+                    durationMinutes: treatment.minutes,
+                    type: treatment.type,
+                    status: 'done',
+                    channel: roll > 0.94 ? 'walk_in' : 'desk',
+                    visit: {
+                        checkedInAt: new Date(startsAt.getTime() - 4 * 60_000),
+                        completedAt: new Date(startsAt.getTime() + treatment.minutes * 60_000),
+                        chargedTotal: charged,
+                        lines,
+                        payments:
+                            paid > 0
+                                ? [
+                                      {
+                                          amount: paid,
+                                          method: pick(cashMethods),
+                                          methodNote: undefined,
+                                          paidAt: new Date(
+                                              startsAt.getTime() + (treatment.minutes + 2) * 60_000,
+                                          ),
+                                      },
+                                  ]
+                                : [],
+                    },
+                    reminder: { status: 'sent', sentAt: new Date(startsAt.getTime() - 20 * 3_600_000) },
+                });
+            }
+        } else {
+            bookings.push({
+                patient: who,
+                branch,
+                startsAt,
+                durationMinutes: treatment.minutes,
+                type: treatment.type,
+                status: !dense && roll < 0.05 ? 'cancelled' : 'booked',
+                reminder: {
+                    status: dayOffset <= 1 ? 'sent' : 'pending',
+                    sentAt: dayOffset <= 1 ? at(-1, '19:00') : undefined,
+                },
+            });
+        }
+
+        placed += 1;
+        minute += treatment.minutes + (!dense && random() < 0.25 ? 10 : 0);
+    }
+}
+
+/**
+ * Days the clinic is full: one last week, today, tomorrow, and one later in the
+ * month. The UI needs a column with no room left in it as much as it needs an
+ * empty one.
+ */
+const fullDays = new Set([-6, 0, 1, 8]);
+
+/**
+ * Quiet days — two or three appointments and a lot of white space. A month
+ * where every column is packed is as unrepresentative as one that is bare.
+ */
+const quietDays = new Map([
+    [-8, 2],
+    [-1, 3],
+    [2, 2],
+    [5, 3],
+    [9, 1],
+    [12, 2],
+    [16, 3],
+]);
+
+for (let offset = generatedRange.first; offset <= generatedRange.last; offset += 1) {
+    // One future day is left as the hand-written pair only, for the empty-ish
+    // state; day +3 stays untouched entirely.
+    if (offset === 3) continue;
+    generateDay(offset, fullDays.has(offset), quietDays.get(offset) ?? Number.POSITIVE_INFINITY);
+}
+
+// A handful next month, so the calendar has something to page forward into.
+// Offsets are walked rather than picked, since a fixed pick lands on a closed
+// Friday depending on where the month ends.
+let scheduledNextMonth = 0;
+for (
+    let offset = generatedRange.last + 1;
+    scheduledNextMonth < 4 && offset <= generatedRange.last + 25;
+    offset += 3
+) {
+    const before = bookings.length;
+    generateDay(offset);
+    if (bookings.length > before) scheduledNextMonth += 1;
+}
+
+bookings.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+
 // --- insert -----------------------------------------------------------------
 
+/** `ref` is globally unique; with this many rows a collision is worth ruling out. */
+const usedRefs = new Set<string>();
+function uniqueRef(startsAt: Date): string {
+    let ref = buildRef(startsAt, CLINIC_OFFSET_MINUTES);
+    while (usedRefs.has(ref)) ref = buildRef(startsAt, CLINIC_OFFSET_MINUTES);
+    usedRefs.add(ref);
+    return ref;
+}
+
+/** The branch that owns a booking's weekday, per `clinicDays`. */
+function branchOpenOn(startsAt: Date): { id: string } | undefined {
+    const weekday = new Date(startsAt.getTime() + CLINIC_OFFSET_MINUTES * 60_000).getUTCDay();
+    const day = days.find((d) => d.weekday === weekday);
+    return day?.branchId === secondBranch.id ? secondBranch : day ? mainBranch : undefined;
+}
+
 const appointmentRows: (typeof appointments.$inferInsert)[] = [];
+const planRows: (typeof appointmentProcedures.$inferInsert)[] = [];
 const visitRows: (typeof visits.$inferInsert)[] = [];
 const lineRows: (typeof visitProcedures.$inferInsert)[] = [];
 const paymentRows: (typeof payments.$inferInsert)[] = [];
@@ -660,17 +992,49 @@ for (const booking of bookings) {
 
     appointmentRows.push({
         id: appointmentId,
-        ref: buildRef(booking.startsAt, CLINIC_OFFSET_MINUTES),
+        ref: uniqueRef(booking.startsAt),
         patientId: booking.patient.id,
-        branchId: booking.branch.id,
+        // The schedule keys a weekday to one branch, so a booking's branch is
+        // whatever is open that day — the hand-written ones above are written
+        // for their state, not for the calendar they happen to land on.
+        branchId: branchOpenOn(booking.startsAt)?.id ?? booking.branch.id,
         startsAt: booking.startsAt,
         durationMinutes,
-        typeId: booking.type?.id ?? null,
         note: booking.note ?? null,
         status: booking.status,
         channel: booking.channel ?? 'desk',
         createdAt: new Date(booking.startsAt.getTime() - 3 * 86_400_000),
         updatedAt: booking.startsAt,
+    });
+
+    // §7 — the planned procedures. `type` is the one-line shorthand, and a
+    // tooth-specific one needs a tooth to satisfy §5: reuse the one the visit
+    // actually recorded so the plan and the outcome agree, and fall back to a
+    // fixed tooth for bookings that never reached the chair.
+    const plan =
+        booking.plan ??
+        (booking.type
+            ? [
+                  {
+                      procedure: booking.type,
+                      tooth: booking.type.isToothSpecific
+                          ? (booking.visit?.lines.find((l) => l.procedure.id === booking.type?.id)?.tooth ??
+                            ('UR6' as Tooth))
+                          : undefined,
+                  },
+              ]
+            : []);
+
+    plan.forEach((line, i) => {
+        planRows.push({
+            id: id(),
+            appointmentId,
+            procedureId: line.procedure.id,
+            quantity: line.quantity ?? 1,
+            tooth: line.tooth ?? null,
+            note: line.note ?? null,
+            sortOrder: i,
+        });
     });
 
     if (booking.visit) {
@@ -732,6 +1096,7 @@ await db.transaction(async (tx) => {
     await tx.delete(visitProcedures);
     await tx.delete(visits);
     await tx.delete(reminders);
+    await tx.delete(appointmentProcedures);
     await tx.delete(appointments);
     await tx.delete(clinicDays);
     await tx.delete(patients);
@@ -746,6 +1111,7 @@ await db.transaction(async (tx) => {
     await tx.insert(customQuestions).values(questions);
     await tx.insert(patients).values(allPatients);
     await tx.insert(appointments).values(appointmentRows);
+    if (planRows.length > 0) await tx.insert(appointmentProcedures).values(planRows);
     await tx.insert(visits).values(visitRows);
     if (lineRows.length > 0) await tx.insert(visitProcedures).values(lineRows);
     if (paymentRows.length > 0) await tx.insert(payments).values(paymentRows);

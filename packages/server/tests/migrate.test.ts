@@ -22,6 +22,7 @@ const TRUNCATED_TABLES = [
     'visit_procedures',
     'visits',
     'reminders',
+    'appointment_procedures',
     'appointments',
     'patients',
     'procedure_types',
