@@ -735,7 +735,9 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
     const [closeHour] = day.closesAt.split(':').map(Number);
     const past = dayOffset < 0;
 
-    let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 30));
+    // Days don't all start dead on the hour, but the desk books on a five-minute
+    // grid — a 10:41 start is a time nobody would say out loud.
+    let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 6) * 5);
     const closingMinute = (closeHour ?? 18) * 60;
 
     const dayStart = at(dayOffset, '00:00').getTime();
