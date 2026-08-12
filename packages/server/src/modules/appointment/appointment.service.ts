@@ -22,7 +22,7 @@
  * Omitting it leaves the list alone, an empty array clears it (§13). Reads
  * batch the catalogue join once per page rather than once per row.
  */
-import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
+import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, type Tooth, WS_EVENT } from '@lustre/shared';
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointmentProcedures, appointments, patients, procedureTypes } from '../../db/schema.ts';
@@ -177,6 +177,82 @@ async function insertWithRef(
     throw new AppError(ERROR_CODE.REF_GENERATION_FAILED, 'could not allocate a unique ref', 500);
 }
 
+/** A booked appointment the walk-in pushed, and where it went. */
+export interface Moved {
+    id: string;
+    from: Date;
+    to: Date;
+}
+
+/**
+ * A walk-in is someone standing at the desk, so it is never refused for want of
+ * room — it is taken now and the booked day moves out of its way (§7). Only the
+ * rows it actually runs into move, and only as far as they must: the walk-in's
+ * end becomes a cursor, each later slot-holding row that starts before the
+ * cursor is pushed to it, and the first row that already clears the cursor
+ * stops the ripple. A clinic's natural gaps therefore absorb the walk-in
+ * instead of the whole afternoon sliding.
+ *
+ * The rows are written *last one first*. Every move is forwards, so ascending
+ * order would push one appointment onto the next before that next one has
+ * moved, and `appointments_no_overlap` — which is not deferrable — would refuse
+ * the write halfway through a legal rearrangement.
+ *
+ * Cancelled and no-show rows hold no slot and are left where they are. The
+ * cascade is bounded to the walk-in's own day: a clinic that runs to midnight
+ * pushes nothing into tomorrow.
+ */
+export async function makeRoomForWalkIn(
+    tx: Executor,
+    at: Date,
+    durationMinutes: number,
+    offsetMinutes: number,
+): Promise<Moved[]> {
+    const { to } = dayRange(dayKeyOf(at, offsetMinutes), offsetMinutes);
+
+    const later = await tx
+        .select({
+            id: appointments.id,
+            startsAt: appointments.startsAt,
+            durationMinutes: appointments.durationMinutes,
+        })
+        .from(appointments)
+        .where(
+            and(
+                gte(appointments.startsAt, at),
+                lt(appointments.startsAt, to),
+                inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
+            ),
+        )
+        .orderBy(asc(appointments.startsAt));
+
+    let cursor = at.getTime() + durationMinutes * 60_000;
+    const moves: Moved[] = [];
+
+    for (const row of later) {
+        const start = row.startsAt.getTime();
+
+        if (start >= cursor) {
+            cursor = start + row.durationMinutes * 60_000;
+            continue;
+        }
+
+        moves.push({ id: row.id, from: row.startsAt, to: new Date(cursor) });
+        cursor += row.durationMinutes * 60_000;
+    }
+
+    for (const move of [...moves].reverse()) {
+        await tx.update(appointments).set({ startsAt: move.to }).where(eq(appointments.id, move.id));
+    }
+
+    return moves;
+}
+
+/** Which calendar day a moment falls on, in the clinic's offset. */
+function dayKeyOf(at: Date, offsetMinutes: number): string {
+    return new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
+}
+
 export const appointmentService = {
     async byDate(input: ByDateInput): Promise<AppointmentWithPatient[]> {
         const { from, to } = dayRange(input.date, input.offsetMinutes);
@@ -272,7 +348,9 @@ export const appointmentService = {
         return row;
     },
 
-    async walkIn(input: WalkInInput): Promise<{ appointment: AppointmentRow; visitId: string }> {
+    async walkIn(
+        input: WalkInInput,
+    ): Promise<{ appointment: AppointmentRow; visitId: string; moved: Moved[] }> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const { reminderLeadHours } = await settingsService.get();
         const startsAt = new Date();
@@ -282,6 +360,10 @@ export const appointmentService = {
 
         const result = await db.transaction(async (tx) => {
             const patientId = await resolvePatient(tx, input.patient);
+
+            // Before the insert, not after: the walk-in cannot be written into
+            // a slot something else still holds.
+            const moved = await makeRoomForWalkIn(tx, startsAt, durationMinutes, input.offsetMinutes);
 
             const appointment = await insertWithRef(
                 tx,
@@ -309,10 +391,14 @@ export const appointmentService = {
                 .where(eq(appointments.id, appointment.id))
                 .limit(1);
 
-            return { appointment: current ?? appointment, visitId: visit.id };
+            return { appointment: current ?? appointment, visitId: visit.id, moved };
         });
 
         broadcast(WS_EVENT.APPOINTMENT_CREATED, { id: result.appointment.id });
+        // Everyone who moved changed on someone else's screen too.
+        for (const move of result.moved) {
+            broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: move.id });
+        }
         return result;
     },
 

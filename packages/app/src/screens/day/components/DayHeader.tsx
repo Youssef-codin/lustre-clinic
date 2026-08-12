@@ -1,12 +1,11 @@
 /**
- * The header from `day-view-schedule.html`: a branch pill, the wordmark, a
- * date pill. It replaces a centred `Today` between two arrows — the date pill
+ * The header from `day-view-schedule.html`: a branch pill and a date pill. It
+ * replaces a centred `Today` between two arrows — the date pill
  * is the only way off today and opens the calendar, carrying the weekday
  * whenever the screen is not on today, so the fact the arrows made obvious is
  * still written down. The branch menu anchors to the pill's start edge via
  * physical left; in RTL the window width less the pill's far edge is the same
- * distance measured the other way. The wordmark is `BrandMark`, which owns its
- * own tracking — the mark is brand, not type the header gets to set.
+ * distance measured the other way.
  *
  * The name scrolls over when `branchId` changes under it, because it is not
  * always the user who changed it: picking a day in the calendar moves the day
@@ -24,7 +23,6 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, I18nManager, Pressable, StyleSheet, View } from 'react-native';
-import { BrandMark } from '../../../components/domain';
 import {
     Chevron,
     DropdownMenu,
@@ -147,10 +145,6 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
                     </Pressable>
                 </View>
 
-                <View style={styles.markSlot} pointerEvents="none">
-                    <BrandMark variant="lockup" size={15} />
-                </View>
-
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${relativeDayLabel(dateKey)}, ${formatDate(dateKey)}. Open the calendar`}
@@ -213,5 +207,4 @@ const styles = StyleSheet.create({
     },
     branchClip: { maxWidth: 120, overflow: 'hidden' },
     branchLeaving: { position: 'absolute', top: 0, start: 0 },
-    markSlot: { position: 'absolute', start: 0, end: 0, alignItems: 'center' },
 });

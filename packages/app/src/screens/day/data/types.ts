@@ -47,9 +47,18 @@ export interface Appointment {
 
 export type AppointmentRow = Omit<Appointment, 'patient'>;
 
+/** A booked appointment the walk-in pushed out of its way, and where it went. */
+export interface MovedAppointment {
+    id: string;
+    from: string;
+    to: string;
+}
+
 export interface WalkInResult {
     appointment: AppointmentRow;
     visitId: string;
+    /** Empty when the walk-in fitted in a gap and nobody had to move. */
+    moved: MovedAppointment[];
 }
 
 export interface VisitLine {

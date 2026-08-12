@@ -20,17 +20,26 @@
  * refusal lands above that button in the words of what was being attempted
  * (§4/§14) — never a toast that slides away while the patient is standing there.
  */
-import { useState } from 'react';
+import { PIASTRES_PER_POUND } from '@lustre/shared';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { slotIsFree, slotsFor } from '../booking';
+import { type Slot, slotIsFree, slotsFor } from '../booking';
 import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
-import { describeProcedure, type PlannedProcedure, primaryTypeId, totalOf } from '../procedures';
 import {
+    describeProcedure,
+    groupByTooth,
+    type PlannedProcedure,
+    primaryTypeId,
+    toothPosition,
+    totalOf,
+} from '../procedures';
+import {
+    addDays,
     clock12,
     formatDate,
     isoAt,
@@ -41,6 +50,7 @@ import {
     relativeDayLabel,
     todayKey,
 } from '../time';
+import { CheckIcon } from './icons';
 import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from './PatientPicker';
 import { ProcedurePlan } from './ProcedurePlan';
 import { SlotPicker } from './SlotPicker';
@@ -61,6 +71,9 @@ export type BookingScreenProps = {
     onBack: () => void;
     onBooked: (message: string) => void;
 };
+
+/** How far ahead the day strip offers. */
+const STRIP_DAYS = 14;
 
 type Step = 'what' | 'when' | 'confirm';
 type Timing = 'now' | 'later';
@@ -84,24 +97,32 @@ export function BookingScreen({
     onBooked,
 }: BookingScreenProps) {
     const today = todayKey();
-    // A walk-in is always "now", whatever day the screen behind is on — the
-    // only thing that rules it out is a clinic that is shut today.
-    const canWalkIn = !isClosed(today, schedule);
 
     const [index, setIndex] = useState(0);
     const [plan, setPlan] = useState<PlannedProcedure[]>([]);
-    const [timing, setTiming] = useState<Timing>(canWalkIn && dateKey === today ? 'now' : 'later');
+    const [timing, setTiming] = useState<Timing>(
+        !isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later',
+    );
     const [date, setDate] = useState(dateKey < today ? today : dateKey);
     const [slotMinutes, setSlotMinutes] = useState<number | null>(null);
     const [duration, setDuration] = useState(defaultDuration);
     const [note, setNote] = useState('');
     const [branch, setBranch] = useState<string | null>(branchId);
 
+    // A walk-in is always "now", whatever day the screen behind is on — the only
+    // thing that rules it out is a branch that is not working today. It moves
+    // with the branch, because Maadi being open is not Nasr City being open.
+    const canWalkIn = !isClosed(today, schedule, branch);
+    const branchName = branches.find((row) => row.id === branch)?.name ?? null;
+
     const walkIn = useLocalMutation(api.walkIn);
     const create = useLocalMutation(api.create);
 
     const step = STEPS[index]?.key ?? 'confirm';
-    const scheduled = timing === 'later';
+    // Picking a branch that is not working today takes the walk-in away under
+    // the choice already made, so "now" falls back to a time rather than
+    // leaving a booking with no when at all.
+    const scheduled = timing === 'later' || !canWalkIn;
     const pending = walkIn.pending || create.pending;
     const error = scheduled ? create.error : walkIn.error;
     const failure = error ? describeError(error, scheduled ? 'booking' : 'walk-in') : null;
@@ -111,21 +132,73 @@ export function BookingScreen({
 
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
 
-    // The day being booked into, which is usually not the day on screen behind
-    // this one. `useLocalQuery` is not a cache (BLOCKED.md, F2), so this is its
-    // own read; it is also the one answer to "is 3:00 still free", which both
-    // the grid and the Book button have to agree on.
-    const day = useLocalQuery(`booking-day:${date}`, () => api.byDate(date), {
-        enabled: scheduled && !isClosed(date, schedule),
-    });
+    // Every day the branch works in the fortnight ahead, not just the one on
+    // screen: "which days can take a 45-minute visit" cannot be answered from a
+    // single day, and a strip offering a day whose every time is gone is the
+    // same lie the slot grid used to tell. One request either way — `byDates`
+    // batches over `httpBatchLink` — and the day being booked reads its times
+    // out of the same answer, so the grid and the Book button cannot disagree.
+    const workingDays = useMemo(
+        () =>
+            Array.from({ length: STRIP_DAYS }, (_, index) => addDays(today, index)).filter(
+                (key) => !isClosed(key, schedule, branch),
+            ),
+        [today, schedule, branch],
+    );
 
-    const slots = slotsFor({
-        dateKey: date,
-        schedule,
-        appointments: (day.data ?? []).filter((row) => row.branchId === branch),
-        durationMinutes: duration,
-        nowMinutes: date === today ? nowMinutes : null,
-    });
+    const fortnight = useLocalQuery(
+        `booking-days:${branch}:${workingDays.join(',')}`,
+        () => api.byDates(workingDays),
+        { enabled: scheduled && workingDays.length > 0 },
+    );
+
+    // A day that has not answered yet has no taken times *to* know about, and
+    // `slotsFor([])` says every hour is free — which is how the grid came to
+    // offer a slot someone else is already in. `enabled: false` leaves the query
+    // at `success` with no data, and a key change clears data a frame before the
+    // fetch starts, so neither status alone is the question: the question is
+    // whether the rows are in hand. Until they are, nothing is offered.
+    const fetched = fortnight.data;
+
+    const slotsByDay = useMemo(() => {
+        const byDay = new Map<string, Slot[]>();
+        if (!fetched) return byDay;
+
+        workingDays.forEach((key, index) => {
+            byDay.set(
+                key,
+                slotsFor({
+                    dateKey: key,
+                    schedule,
+                    appointments: (fetched[index] ?? []).filter((row) => row.branchId === branch),
+                    branchId: branch,
+                    durationMinutes: duration,
+                    nowMinutes: key === today ? nowMinutes : null,
+                }),
+            );
+        });
+
+        return byDay;
+    }, [fetched, workingDays, schedule, branch, duration, today, nowMinutes]);
+
+    // Only the days that can actually take a visit this long. Asking for 45
+    // minutes on a full Thursday should take Thursday off the strip, not leave
+    // it there to be tapped and found empty.
+    const openDays = useMemo(
+        () => workingDays.filter((key) => (slotsByDay.get(key) ?? []).some((slot) => slot.state === 'free')),
+        [workingDays, slotsByDay],
+    );
+
+    const slots = slotsByDay.get(date) ?? [];
+
+    // Asking for a longer visit can take the day in hand off the strip. Landing
+    // on the first day that can still take it beats leaving the picker pointing
+    // at a day it no longer offers, with a grid that says nothing is left.
+    useEffect(() => {
+        if (openDays.length === 0 || openDays.includes(date)) return;
+        setDate(openDays[0] as string);
+        setSlotMinutes(null);
+    }, [openDays, date]);
 
     const timeIsFree = !scheduled || slotIsFree(slots, slotMinutes);
     const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
@@ -152,7 +225,20 @@ export function BookingScreen({
                     note: body,
                     offsetMinutes: localOffsetMinutes(),
                 },
-                { onSuccess: () => onBooked(name ? `${name} is checked in` : 'Walk-in checked in') },
+                {
+                    // A walk-in is never refused for want of room — the booked
+                    // day moves out of its way — so the desk is told when it
+                    // did, because those are patients who were given a time.
+                    onSuccess: (result) => {
+                        const pushed = result.moved.length;
+                        const who = name ? `${name} is checked in` : 'Walk-in checked in';
+                        onBooked(
+                            pushed === 0
+                                ? who
+                                : `${who} — ${pushed} appointment${pushed === 1 ? '' : 's'} moved back`,
+                        );
+                    },
+                },
             );
             return;
         }
@@ -173,6 +259,33 @@ export function BookingScreen({
         );
     }
 
+    // How long is asked before what time, because the grid tiles the day by it.
+    // A walk-in has no grid, so it gets the same control on its own.
+    const howLong = (
+        <View style={styles.section}>
+            <Text variant="eyebrow" tone="muted">
+                HOW LONG
+            </Text>
+            <View style={styles.row}>
+                {durationOptions.map((option) => (
+                    <Chip
+                        key={option}
+                        label={`${option} min`}
+                        grow
+                        selected={duration === option}
+                        onPress={() => {
+                            setDuration(option);
+                            // A new length is a new set of start times, and the
+                            // old pick is usually not one of them.
+                            setSlotMinutes(null);
+                            reset();
+                        }}
+                    />
+                ))}
+            </View>
+        </View>
+    );
+
     const last = step === 'confirm';
     const stepReady = step === 'when' ? whenAnswered && branch !== null : true;
 
@@ -189,7 +302,7 @@ export function BookingScreen({
                             return;
                         }
                         reset();
-                        if (scheduled) day.refetch();
+                        if (scheduled) fortnight.refetch();
                         setIndex(index - 1);
                     }}
                     style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
@@ -205,7 +318,7 @@ export function BookingScreen({
                 <View style={styles.tile}>
                     {scheduled ? (
                         <>
-                            <Text variant="title3" script="sans" weight="bold" tone="inverse">
+                            <Text variant="title2" script="sans" weight="bold" tone="inverse">
                                 {parseKey(date).getDate()}
                             </Text>
                             <Text variant="eyebrow" tone="inverse" style={styles.tileMonth}>
@@ -220,14 +333,14 @@ export function BookingScreen({
                 </View>
 
                 <View style={styles.who}>
-                    <Text variant="title3" numberOfLines={1}>
+                    <Text variant="title2" weight="bold" numberOfLines={1}>
                         {name}
                     </Text>
-                    <Text variant="subhead" tone="muted" numberOfLines={1}>
+                    <Text variant="footnote" tone="muted" numberOfLines={1}>
                         {patientPhoneOf(patient) || 'No phone on file'}
                     </Text>
                     <View style={styles.chip}>
-                        <Text variant="caption" weight="semibold" tone="ink2">
+                        <Text variant="footnote" weight="bold" tone="ink2">
                             {scheduled
                                 ? slotMinutes === null
                                     ? `${dayLabel(date)} · no time yet`
@@ -270,6 +383,29 @@ export function BookingScreen({
                             <Text variant="eyebrow" tone="muted">
                                 WHEN
                             </Text>
+
+                            {branches.length > 1 ? (
+                                <Select
+                                    label="Branch"
+                                    options={branches.map((row) => ({
+                                        value: row.id,
+                                        label: row.name,
+                                    }))}
+                                    value={branch}
+                                    onChange={(next) => {
+                                        setBranch(next);
+                                        setSlotMinutes(null);
+                                        // Branches keep different working days, so
+                                        // the day in hand may not be one of the new
+                                        // one's. Landing on its next working day
+                                        // beats a strip with nothing in it.
+                                        setDate(nextWorkingDay(date, schedule, next));
+                                        reset();
+                                    }}
+                                    sheetTitle="Which branch"
+                                />
+                            ) : null}
+
                             <View style={styles.row}>
                                 <Chip
                                     label="Now — walk-in"
@@ -294,7 +430,8 @@ export function BookingScreen({
 
                             {!canWalkIn ? (
                                 <Text variant="caption" tone="muted">
-                                    The clinic is closed today, so there is no walk-in to take.
+                                    {branchName ?? 'The clinic'} is not working today, so there is no walk-in
+                                    to take.
                                 </Text>
                             ) : !scheduled && dateKey !== today ? (
                                 <Text variant="caption" tone="muted">
@@ -311,6 +448,8 @@ export function BookingScreen({
                         {scheduled ? (
                             <SlotPicker
                                 dateKey={date}
+                                days={openDays}
+                                daysLoading={fetched === undefined && fortnight.status !== 'error'}
                                 onPickDate={setDate}
                                 slotMinutes={slotMinutes}
                                 onPickSlot={(next) => {
@@ -318,105 +457,144 @@ export function BookingScreen({
                                     reset();
                                 }}
                                 slots={slots}
-                                loading={day.status === 'loading'}
-                                error={day.status === 'error' ? day.error : null}
-                                onRetry={day.refetch}
-                                schedule={schedule}
+                                loading={fetched === undefined && fortnight.status !== 'error'}
+                                error={fortnight.status === 'error' ? fortnight.error : null}
+                                onRetry={fortnight.refetch}
+                                branchName={branchName}
+                                duration={howLong}
                             />
-                        ) : null}
-
-                        <View style={styles.section}>
-                            <Text variant="eyebrow" tone="muted">
-                                HOW LONG
-                            </Text>
-                            <View style={styles.row}>
-                                {durationOptions.map((option) => (
-                                    <Chip
-                                        key={option}
-                                        label={`${option} min`}
-                                        grow
-                                        selected={duration === option}
-                                        onPress={() => {
-                                            setDuration(option);
-                                            reset();
-                                        }}
-                                    />
-                                ))}
-                            </View>
-                        </View>
-
-                        {branches.length > 1 ? (
-                            <Select
-                                label="Branch"
-                                options={branches.map((row) => ({ value: row.id, label: row.name }))}
-                                value={branch}
-                                onChange={(next) => {
-                                    setBranch(next);
-                                    setSlotMinutes(null);
-                                    reset();
-                                }}
-                                sheetTitle="Which branch"
-                            />
-                        ) : null}
+                        ) : (
+                            howLong
+                        )}
                     </>
                 ) : (
-                    <View style={styles.summary}>
-                        <SummaryRow
-                            label="When"
-                            value={
-                                scheduled && slotMinutes !== null
-                                    ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
-                                    : 'Now — walk-in'
-                            }
-                        />
-                        <SummaryRow label="How long" value={`${duration} min`} />
-                        {branches.length > 1 ? (
+                    <>
+                        <View style={styles.card}>
                             <SummaryRow
-                                label="Branch"
-                                value={branches.find((row) => row.id === branch)?.name ?? '—'}
+                                label="When"
+                                value={
+                                    scheduled && slotMinutes !== null
+                                        ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
+                                        : 'Now — walk-in'
+                                }
+                                lead
                             />
-                        ) : null}
-                        <SummaryRow
-                            label="Patient"
-                            value={patient.mode === 'new' ? `${name} · new record` : name}
-                        />
+                            <SummaryRow label="How long" value={`${duration} min`} />
+                            {branches.length > 1 ? (
+                                <SummaryRow
+                                    label="Branch"
+                                    value={branches.find((row) => row.id === branch)?.name ?? '—'}
+                                />
+                            ) : null}
+                            <SummaryRow
+                                label="Patient"
+                                value={patient.mode === 'new' ? `${name} · new record` : name}
+                            />
+                        </View>
 
-                        <View style={styles.divider} />
+                        <View style={styles.section}>
+                            <View style={styles.head}>
+                                <Text variant="eyebrow" tone="muted">
+                                    WHAT IS PLANNED
+                                </Text>
+                                <Text variant="caption" weight="medium" tone="muted">
+                                    {plan.length === 0
+                                        ? 'Nothing yet'
+                                        : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+                                </Text>
+                            </View>
 
-                        {plan.length === 0 ? (
-                            <Text variant="subhead" tone="muted">
-                                No procedures planned — it will be decided in the chair.
-                            </Text>
-                        ) : (
-                            <>
-                                {plan.map((item) => (
-                                    <View key={item.id} style={styles.summaryLine}>
-                                        <Text variant="subhead" style={styles.grow} numberOfLines={1}>
-                                            {describeProcedure(item)}
+                            {plan.length === 0 ? (
+                                <View style={styles.emptyPlan}>
+                                    <Text variant="subhead" tone="muted">
+                                        No procedures planned — it will be decided in the chair.
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={styles.groups}>
+                                    {groupByTooth(plan).map((group) => (
+                                        <View key={group.tooth ?? 'none'} style={styles.group}>
+                                            <View style={styles.groupHead}>
+                                                <View
+                                                    style={[styles.badge, !group.tooth && styles.badgeNone]}
+                                                >
+                                                    <Text
+                                                        variant="caption"
+                                                        script="sans"
+                                                        weight="bold"
+                                                        tone={group.tooth ? 'ink' : 'muted'}
+                                                    >
+                                                        {group.tooth ?? '—'}
+                                                    </Text>
+                                                </View>
+
+                                                <Text
+                                                    variant="subhead"
+                                                    tone="muted"
+                                                    numberOfLines={1}
+                                                    style={styles.grow}
+                                                >
+                                                    {toothPosition(group.tooth)}
+                                                </Text>
+
+                                                <Text variant="headline" weight="bold">
+                                                    {formatMoney(group.subtotal)}
+                                                </Text>
+                                            </View>
+
+                                            {group.items.map((item) => (
+                                                <View key={item.id} style={styles.line}>
+                                                    <View style={styles.grow}>
+                                                        <Text
+                                                            variant="body"
+                                                            weight="semibold"
+                                                            numberOfLines={1}
+                                                        >
+                                                            {item.name}
+                                                        </Text>
+                                                        {item.variant ? (
+                                                            <Text variant="caption" tone="muted">
+                                                                {item.variant}
+                                                            </Text>
+                                                        ) : null}
+                                                    </View>
+
+                                                    <Text variant="caption" tone="muted">
+                                                        EGP
+                                                    </Text>
+                                                    <Text variant="body" weight="bold">
+                                                        {Math.round(item.price / PIASTRES_PER_POUND)}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    ))}
+
+                                    <View style={styles.total}>
+                                        <Text variant="subhead" tone="muted">
+                                            Estimated total
                                         </Text>
-                                        <Text variant="subhead" weight="semibold">
-                                            {formatMoney(item.price)}
+                                        <Text variant="title3" weight="bold">
+                                            {formatMoney(totalOf(plan))}
                                         </Text>
                                     </View>
-                                ))}
-                                <View style={styles.summaryLine}>
-                                    <Text variant="subhead" tone="muted" style={styles.grow}>
-                                        Estimated total
-                                    </Text>
-                                    <Text variant="headline">{formatMoney(totalOf(plan))}</Text>
                                 </View>
-                            </>
-                        )}
+                            )}
+                        </View>
 
                         {note.trim() ? (
-                            <>
-                                <View style={styles.divider} />
-                                <Text variant="subhead" tone="muted">
-                                    {note.trim()}
+                            <View style={styles.section}>
+                                <Text variant="eyebrow" tone="muted">
+                                    NOTE
                                 </Text>
-                            </>
+                                <View style={styles.noteCard}>
+                                    <Text variant="callout" tone="ink2">
+                                        {note.trim()}
+                                    </Text>
+                                </View>
+                            </View>
                         ) : null}
-                    </View>
+                    </>
                 )}
             </ScrollView>
 
@@ -465,29 +643,63 @@ function Steps({ index }: { index: number }) {
             style={styles.steps}
             testID="booking-steps"
         >
-            {STEPS.map((step, at) => (
-                <View key={step.key} style={styles.step}>
-                    <View style={[styles.stepBar, at <= index && styles.stepBarDone]} />
-                    <Text
-                        variant="caption"
-                        weight={at === index ? 'semibold' : 'regular'}
-                        tone={at === index ? 'ink' : 'muted'}
-                    >
-                        {step.label}
-                    </Text>
-                </View>
-            ))}
+            {STEPS.map((step, at) => {
+                const done = at < index;
+                const here = at === index;
+
+                return (
+                    <View key={step.key} style={styles.step}>
+                        <View style={styles.stepRow}>
+                            <View
+                                style={[
+                                    styles.stepDot,
+                                    done && styles.stepDotDone,
+                                    here && styles.stepDotHere,
+                                ]}
+                            >
+                                {done ? (
+                                    <CheckIcon size={11} stroke={color.inverse} />
+                                ) : (
+                                    <Text
+                                        variant="caption"
+                                        script="sans"
+                                        weight="bold"
+                                        tone={here ? 'inverse' : 'muted'}
+                                    >
+                                        {at + 1}
+                                    </Text>
+                                )}
+                            </View>
+                            <Text
+                                variant="footnote"
+                                weight={here ? 'bold' : 'medium'}
+                                tone={here ? 'ink' : 'muted'}
+                                numberOfLines={1}
+                                style={styles.grow}
+                            >
+                                {step.label}
+                            </Text>
+                        </View>
+                        <View style={[styles.stepBar, at <= index && styles.stepBarDone]} />
+                    </View>
+                );
+            })}
         </View>
     );
 }
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
+/** `lead` is the one row the eye should land on first — the time it is booked for. */
+function SummaryRow({ label, value, lead = false }: { label: string; value: string; lead?: boolean }) {
     return (
         <View style={styles.summaryLine}>
             <Text variant="subhead" tone="muted" style={styles.grow}>
                 {label}
             </Text>
-            <Text variant="subhead" weight="medium" numberOfLines={1}>
+            <Text
+                variant={lead ? 'headline' : 'callout'}
+                weight={lead ? 'bold' : 'semibold'}
+                numberOfLines={1}
+            >
                 {value}
             </Text>
         </View>
@@ -505,6 +717,23 @@ function noteWithPlan(note: string, plan: readonly PlannedProcedure[]): string |
 
     const planned = `Planned: ${plan.map(describeProcedure).join(', ')}`;
     return typed ? `${planned}\n${typed}` : planned;
+}
+
+/**
+ * The first day from `from` the branch actually works, within the fortnight the
+ * strip offers. A branch with no working day at all keeps the day it was on —
+ * there is nowhere better to go, and the picker says so in words.
+ */
+function nextWorkingDay(
+    from: string,
+    schedule: readonly ClinicDay[] | undefined,
+    branchId: string | null,
+): string {
+    for (let ahead = 0; ahead < 14; ahead += 1) {
+        const key = addDays(from, ahead);
+        if (!isClosed(key, schedule, branchId)) return key;
+    }
+    return from;
 }
 
 /** "today"/"tomorrow" read as words in a sentence; a date keeps its capitals. */
@@ -566,9 +795,27 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface2,
     },
 
-    steps: { flexDirection: 'row', gap: space[2], paddingHorizontal: size.gutter, paddingBottom: space[3] },
-    step: { flex: 1, gap: space[1.5] },
-    stepBar: { height: 3, borderRadius: radius.full, backgroundColor: color.line },
+    steps: {
+        flexDirection: 'row',
+        gap: space[2],
+        paddingHorizontal: size.gutter,
+        paddingBottom: space[3.5],
+    },
+    step: { flex: 1, gap: space[2] },
+    stepRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+    stepDot: {
+        width: 22,
+        height: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.full,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    stepDotHere: { backgroundColor: color.ink, borderColor: color.ink },
+    stepDotDone: { backgroundColor: color.ink2, borderColor: color.ink2 },
+    stepBar: { height: 4, borderRadius: radius.full, backgroundColor: color.line },
     stepBarDone: { backgroundColor: color.ink },
 
     scroll: { flex: 1 },
@@ -577,8 +824,10 @@ const styles = StyleSheet.create({
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
     grow: { flex: 1, minWidth: 0 },
 
-    summary: {
-        gap: space[2.5],
+    head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+
+    card: {
+        gap: space[3],
         padding: space[4],
         borderRadius: radius.xl,
         borderWidth: border.hair,
@@ -586,7 +835,67 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     summaryLine: { flexDirection: 'row', alignItems: 'baseline', gap: space[3] },
-    divider: { height: border.hair, backgroundColor: color.line },
+
+    emptyPlan: {
+        padding: space[4],
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderStyle: 'dashed',
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    groups: { gap: space[3] },
+    group: {
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+        overflow: 'hidden',
+    },
+    groupHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[2.5],
+        minHeight: 54,
+        paddingHorizontal: space[3],
+    },
+    badge: {
+        minWidth: 46,
+        height: 37,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: space[1.5],
+        borderRadius: radius.md,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    badgeNone: { borderStyle: 'dashed' },
+    line: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[2],
+        paddingStart: space[3.5],
+        paddingEnd: space[3.5],
+        paddingVertical: space[2.5],
+        borderTopWidth: border.hair,
+        borderTopColor: color.hair,
+    },
+    total: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: space[3.5],
+        borderRadius: radius.lg,
+        backgroundColor: color.surface2,
+    },
+    noteCard: {
+        padding: space[3.5],
+        borderRadius: radius.lg,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
 
     notice: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
     bar: {

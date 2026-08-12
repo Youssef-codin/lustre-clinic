@@ -14,7 +14,8 @@ import { Button, Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
-import { time12 } from '../time';
+import { type DayDelay, isProjected, ON_TIME, projectedStart } from '../delay';
+import { clock12, minutesOfDay, time12 } from '../time';
 import { statusLabel } from './_LocalStatusPill';
 import {
     ArrowBackIcon,
@@ -35,6 +36,13 @@ export type AgendaRowProps = {
     inChair?: boolean;
     trailing?: React.ReactNode;
     onNoShow?: () => void;
+    /**
+     * Minutes-from-midnight this row is realistically going to start, when the
+     * day is running behind. Drawn under the booked time, never instead of it:
+     * the booked time is what the patient was told on the phone, and the day
+     * usually catches up.
+     */
+    projectedMinutes?: number | null;
 };
 
 const SWIPE_THRESHOLD = 96;
@@ -47,6 +55,7 @@ export function AgendaRow({
     inChair = false,
     trailing,
     onNoShow,
+    projectedMinutes = null,
 }: AgendaRowProps) {
     const slide = useRef(new Animated.Value(0)).current;
     const [armed, setArmed] = useState(false);
@@ -74,7 +83,9 @@ export function AgendaRow({
         }),
     ).current;
 
-    if (!onNoShow) return <RowBody {...{ appointment, onPress, procedure, dim, inChair, trailing }} />;
+    const body = { appointment, onPress, procedure, dim, inChair, trailing, projectedMinutes };
+
+    if (!onNoShow) return <RowBody {...body} />;
 
     return (
         <View style={styles.swipe} {...pan.panHandlers}>
@@ -87,7 +98,7 @@ export function AgendaRow({
                 </Text>
             </View>
             <Animated.View style={[styles.front, { transform: [{ translateX: slide }] }]}>
-                <RowBody {...{ appointment, onPress, procedure, dim, inChair, trailing }} />
+                <RowBody {...body} />
             </Animated.View>
         </View>
     );
@@ -113,8 +124,15 @@ function RowBody({
     dim = false,
     inChair = false,
     trailing,
+    projectedMinutes = null,
 }: AgendaRowProps) {
     const { time, meridiem } = time12(appointment.startsAt);
+    const slipped = projectedMinutes !== null && projectedMinutes > minutesOfDay(appointment.startsAt);
+    // The day has moved, so the row shows where it moved to. The booked time is
+    // still what the appointment holds and what the detail sheet reads back —
+    // the list is answering "when is this patient seen", and the honest answer
+    // on a late day is the later one.
+    const shown = slipped ? clock12(projectedMinutes) : { time, meridiem };
     const tint = dim ? undefined : inChair ? CHAIR_TINT : TINT[appointment.status];
 
     return (
@@ -130,11 +148,17 @@ function RowBody({
             ]}
         >
             <View style={styles.clock}>
-                <Text variant="headline" script="mono" weight="semibold" tone={dim ? 'muted' : 'ink'}>
-                    {time}
+                <Text
+                    variant="headline"
+                    script="mono"
+                    weight="semibold"
+                    tone={slipped ? 'due' : dim ? 'muted' : 'ink'}
+                    numberOfLines={1}
+                >
+                    {shown.time}
                 </Text>
-                <Text variant="tag" tone="muted">
-                    {meridiem}
+                <Text variant="tag" tone={slipped ? 'due' : 'muted'}>
+                    {shown.meridiem}
                 </Text>
             </View>
 
@@ -217,6 +241,9 @@ export function CheckInControl({ appointment, loading, inChair, onCheckIn }: Che
 export type UpNextProps = {
     appointments: readonly Appointment[];
     chairId: string | null;
+    /** How far behind the day is, so each row can say what its time now means. */
+    delay?: DayDelay;
+    nowMinutes?: number | null;
     relativeToNow: boolean;
     checkingInId: string | null;
     onSelect: (appointment: Appointment) => void;
@@ -227,6 +254,8 @@ export type UpNextProps = {
 export function UpNext({
     appointments,
     chairId,
+    delay = ON_TIME,
+    nowMinutes = null,
     relativeToNow,
     checkingInId,
     onSelect,
@@ -251,6 +280,11 @@ export function UpNext({
                     procedure={procedureLabel(appointment)}
                     onPress={() => onSelect(appointment)}
                     inChair={appointment.id === chairId}
+                    projectedMinutes={
+                        isProjected(appointment, delay)
+                            ? projectedStart(appointment, delay, nowMinutes)
+                            : null
+                    }
                     onNoShow={appointment.status === 'booked' ? () => onNoShow(appointment) : undefined}
                     trailing={
                         <CheckInControl
@@ -357,7 +391,15 @@ const styles = StyleSheet.create({
     },
     front: { backgroundColor: color.canvas },
     pressed: { backgroundColor: color.surface2 },
-    clock: { width: 62, flexDirection: 'row', alignItems: 'baseline', gap: space[0.5] },
+    // Never wraps: 62px fitted "9:40 PM" and broke "10:00 PM" onto two lines,
+    // so the column jumped between one shape and the other down the list.
+    clock: {
+        width: 74,
+        flexShrink: 0,
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: space[0.5],
+    },
     body: { flex: 1, gap: space[0.5] },
     name: { flexShrink: 1 },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },

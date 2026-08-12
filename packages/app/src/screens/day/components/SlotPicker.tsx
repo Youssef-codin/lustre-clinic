@@ -5,24 +5,37 @@
  * a time that went while the note was being typed, and it can only do that if
  * there is one answer to "is 3:00 free", not two.
  *
- * A taken time is drawn and disabled, not hidden. "3:00 is gone, 3:30 is free"
- * is the sentence said on the phone, and a grid that silently omits 3:00 makes
- * the receptionist count the gaps herself. Closed days stay in the strip for the
- * same reason — "we're shut Friday" is an answer, an absent Friday is not.
+ * How long comes first, because the length decides both of the answers under
+ * it: the grid tiles the day by it, and a day with no room for forty-five
+ * minutes is not a day this booking can have. Asking it last meant every answer
+ * above it changed the moment it was given.
+ *
+ * Only free times are drawn. A grid of greyed-out hours is mostly noise on a
+ * busy day — what the desk is choosing between is what is left, so that is what
+ * it is shown, and the count says how many. A time that goes *while* the
+ * booking is being filled in is the one exception: it disappears from the grid,
+ * and the callout underneath says why the picked one no longer stands.
+ *
+ * The strip is the same idea one scale up: the days that can take this booking,
+ * and only those. Not the branch's working days — a Thursday whose every time
+ * has gone is as much use as a Friday it is shut — so `BookingScreen` reads the
+ * whole fortnight and hands down what is left. What is offered is what can be
+ * booked, at every scale.
  */
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Callout, Chip } from '../../../components/ui';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Slot } from '../booking';
-import type { ClinicDay, RequestError } from '../data';
+import type { RequestError } from '../data';
 import { describeError } from '../errors';
-import { isClosed } from '../hours';
-import { addDays, clock12, relativeDayLabel, todayKey } from '../time';
-
-const STRIP_DAYS = 14;
+import { clock12, relativeDayLabel } from '../time';
 
 export type SlotPickerProps = {
     dateKey: string;
+    /** The days that can take this booking — already filtered, in order. */
+    days: readonly string[];
+    /** The fortnight is still being read: "no days" is not the answer yet. */
+    daysLoading: boolean;
     onPickDate: (dateKey: string) => void;
     slotMinutes: number | null;
     onPickSlot: (minutes: number | null) => void;
@@ -31,11 +44,15 @@ export type SlotPickerProps = {
     loading: boolean;
     error: RequestError | null;
     onRetry: () => void;
-    schedule: readonly ClinicDay[] | undefined;
+    branchName: string | null;
+    /** The HOW LONG control, drawn above the two answers it decides. */
+    duration: React.ReactNode;
 };
 
 export function SlotPicker({
     dateKey,
+    days,
+    daysLoading,
     onPickDate,
     slotMinutes,
     onPickSlot,
@@ -43,43 +60,48 @@ export function SlotPicker({
     loading,
     error,
     onRetry,
-    schedule,
+    branchName,
+    duration,
 }: SlotPickerProps) {
-    const today = todayKey();
-    const days = Array.from({ length: STRIP_DAYS }, (_, index) => addDays(today, index));
-
-    const closed = isClosed(dateKey, schedule);
     const picked = slots.find((slot) => slot.minutes === slotMinutes) ?? null;
-    const free = slots.filter((slot) => slot.state === 'free').length;
+    const free = slots.filter((slot) => slot.state === 'free');
 
     return (
         <View style={styles.step}>
+            {duration}
+
             <View style={styles.section}>
                 <Text variant="eyebrow" tone="muted">
                     WHICH DAY
                 </Text>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.strip}
-                >
-                    {days.map((key) => (
-                        <Chip
-                            key={key}
-                            label={
-                                isClosed(key, schedule)
-                                    ? `${relativeDayLabel(key)} · closed`
-                                    : relativeDayLabel(key)
-                            }
-                            selected={key === dateKey}
-                            disabled={isClosed(key, schedule)}
-                            onPress={() => {
-                                onPickDate(key);
-                                onPickSlot(null);
-                            }}
-                        />
-                    ))}
-                </ScrollView>
+                {daysLoading ? (
+                    <Text variant="subhead" tone="muted">
+                        Reading the fortnight…
+                    </Text>
+                ) : days.length === 0 ? (
+                    <Text variant="subhead" tone="muted">
+                        {branchName ?? 'This branch'} has no day in the next fortnight with room for a visit
+                        this long. Try a shorter one, or another branch.
+                    </Text>
+                ) : (
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.strip}
+                    >
+                        {days.map((key) => (
+                            <Chip
+                                key={key}
+                                label={relativeDayLabel(key)}
+                                selected={key === dateKey}
+                                onPress={() => {
+                                    onPickDate(key);
+                                    onPickSlot(null);
+                                }}
+                            />
+                        ))}
+                    </ScrollView>
+                )}
             </View>
 
             <View style={styles.section}>
@@ -87,18 +109,14 @@ export function SlotPicker({
                     <Text variant="eyebrow" tone="muted">
                         WHAT TIME
                     </Text>
-                    {!closed && !loading && !error && slots.length > 0 ? (
-                        <Text variant="caption" tone="muted">
-                            {free} free
+                    {!loading && !error && slots.length > 0 ? (
+                        <Text variant="caption" weight="medium" tone="muted">
+                            {free.length} free
                         </Text>
                     ) : null}
                 </View>
 
-                {closed ? (
-                    <Callout tone="warning" title="The clinic is closed that day">
-                        Pick another day, or open the day in Settings first.
-                    </Callout>
-                ) : loading ? (
+                {loading ? (
                     <Text variant="subhead" tone="muted">
                         Reading that day…
                     </Text>
@@ -109,14 +127,16 @@ export function SlotPicker({
                         </Text>
                         <Button label="Try again" variant="text" size="md" onPress={onRetry} />
                     </View>
-                ) : slots.length === 0 ? (
+                ) : free.length === 0 ? (
                     <Text variant="subhead" tone="muted">
-                        No times that day.
+                        {slots.length === 0
+                            ? 'No times that day.'
+                            : 'Every time that day has gone — pick another day above.'}
                     </Text>
                 ) : (
                     <>
                         <View style={styles.grid}>
-                            {slots.map((slot) => (
+                            {free.map((slot) => (
                                 <SlotChip
                                     key={slot.minutes}
                                     slot={slot}

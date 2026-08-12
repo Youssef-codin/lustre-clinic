@@ -22,7 +22,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { color, size, space } from '../../theme';
+import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
 import { splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
@@ -48,6 +48,7 @@ import {
     useLocalQuery,
     type Visit,
 } from './data';
+import { dayDelay, delayLabel, delayReason } from './delay';
 import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
@@ -163,6 +164,14 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
     );
 
     const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null);
+
+    // What the chair's overrun and any walk-ins mean for everyone still to be
+    // seen. Nothing is written — `startsAt` stays the time the patient was told
+    // — and the projection unwinds by itself as the day catches up.
+    const delay = useMemo(
+        () => dayDelay(appointments, isToday ? nowMinutes : null, arrivals.data),
+        [appointments, isToday, nowMinutes, arrivals.data],
+    );
 
     // The calendar counts every branch, so a picked day carries the branch it
     // is busiest in; following it is what stops the grid promising a day the
@@ -295,6 +304,22 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
                     >
                         {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
+                        {delayLabel(delay) ? (
+                            <View style={styles.late}>
+                                <ClockIcon size={14} stroke={color.due} />
+                                <View style={styles.grow}>
+                                    <Text variant="footnote" weight="bold" tone="due">
+                                        Running {delayLabel(delay)}
+                                    </Text>
+                                    {delayReason(delay) ? (
+                                        <Text variant="caption" tone="muted">
+                                            {delayReason(delay)} — booked times below show what they now mean.
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            </View>
+                        ) : null}
+
                         {isToday ? (
                             <NowCard
                                 active={desk ?? chair}
@@ -310,6 +335,8 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
                         <UpNext
                             appointments={upcoming}
                             chairId={isToday ? (chair?.id ?? null) : null}
+                            delay={delay}
+                            nowMinutes={isToday ? nowMinutes : null}
                             relativeToNow={isToday}
                             checkingInId={checkingInId}
                             onSelect={openDetail}
@@ -410,4 +437,16 @@ const styles = StyleSheet.create({
     body: { flex: 1 },
     agenda: { paddingBottom: size.nav, gap: space[3] },
     tabs: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
+    late: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: space[2],
+        marginHorizontal: size.gutter,
+        padding: space[3],
+        borderRadius: radius.lg,
+        borderWidth: border.hair,
+        borderColor: color.dueSoft,
+        backgroundColor: color.dueSoft,
+    },
+    grow: { flex: 1, minWidth: 0, gap: space[0.5] },
 });

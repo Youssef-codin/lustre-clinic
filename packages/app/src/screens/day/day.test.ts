@@ -11,6 +11,7 @@ import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment } from './data/types';
+import { dayDelay, delayLabel, delayReason, isProjected, ON_TIME, projectedStart } from './delay';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatMoney, poundsEntry } from './money';
@@ -363,19 +364,91 @@ describe('booking slots', () => {
 
     const at = (slots: readonly Slot[], minutes: number) => slots.find((slot) => slot.minutes === minutes);
 
-    it('steps the quarter hour from opening to closing', () => {
+    it('steps the length of the visit from opening to closing', () => {
         const slots = slotsFor({
             dateKey: MONDAY,
             schedule: SCHEDULE,
             appointments: [],
+            branchId: null,
             durationMinutes: 30,
             nowMinutes: null,
         });
 
-        expect(slots).toHaveLength(8);
-        expect(slots[0]?.minutes).toBe(600);
-        expect(slots.at(-1)?.minutes).toBe(705);
+        expect(slots.map((slot) => slot.minutes)).toEqual([600, 630, 660, 690]);
         expect(slots.every((slot) => slot.state === 'free')).toBe(true);
+    });
+
+    // A desk does not say "five fifty-three" to anyone. Offering the moment each
+    // booking ends would squeeze a start into every gap at the cost of a grid
+    // full of times nobody would agree to out loud. An overrunning day is real,
+    // but it is absorbed by the day running late (`delay.ts`), not booked.
+    it('stops at closing and keeps every time on the grid', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            // Seen at 11:00 for 23 minutes: out at 11:23, off any grid.
+            appointments: [booked(660, 23, 'checked_in')],
+            branchId: null,
+            durationMinutes: 30,
+            nowMinutes: null,
+        });
+
+        expect(slots.map((slot) => slot.minutes)).toEqual([600, 630, 660, 690]);
+        expect(at(slots, 683)).toBeUndefined();
+        expect(slots.every((slot) => slot.minutes < 720)).toBe(true);
+    });
+
+    it('still offers a time whose visit would end after closing, and says so', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [],
+            branchId: null,
+            durationMinutes: 45,
+            nowMinutes: null,
+        });
+
+        expect(at(slots, 690)?.state).toBe('free');
+        expect(at(slots, 690)?.runsLate).toBe(true);
+    });
+
+    it('offers different times for different lengths', () => {
+        const timesFor = (durationMinutes: number) =>
+            slotsFor({
+                dateKey: MONDAY,
+                schedule: SCHEDULE,
+                appointments: [],
+                branchId: null,
+                durationMinutes,
+                nowMinutes: null,
+            }).map((slot) => slot.minutes);
+
+        expect(timesFor(20)).toEqual([600, 620, 640, 660, 680, 700]);
+        expect(timesFor(45)).toEqual([600, 645, 690]);
+    });
+
+    // A clinic that runs Maadi on Thursday and Nasr City on Wednesday has no
+    // clinic-wide hours: drawing the branch's grid out of another branch's day
+    // offered a full Nasr City Thursday, then found no Nasr City bookings in it
+    // and called every hour free.
+    it('draws no grid for a branch that does not work that day', () => {
+        const slots = slotsFor({
+            dateKey: MONDAY,
+            schedule: SCHEDULE,
+            appointments: [],
+            branchId: 'other',
+            durationMinutes: 30,
+            nowMinutes: null,
+        });
+
+        expect(slots).toHaveLength(0);
+        expect(isClosed(MONDAY, SCHEDULE, 'other')).toBe(true);
+        expect(isClosed(MONDAY, SCHEDULE, 'b')).toBe(false);
+    });
+
+    it('keeps the unscoped question clinic-wide, for the month grid', () => {
+        expect(isClosed(MONDAY, SCHEDULE)).toBe(false);
+        expect(openMinutes(MONDAY, SCHEDULE)).toBe(120);
     });
 
     it('offers a slot the visit would overrun closing on, and says so', () => {
@@ -383,12 +456,13 @@ describe('booking slots', () => {
             dateKey: MONDAY,
             schedule: SCHEDULE,
             appointments: [],
+            branchId: null,
             durationMinutes: 45,
             nowMinutes: null,
         });
 
         expect(at(slots, 690)?.runsLate).toBe(true);
-        expect(at(slots, 675)?.runsLate).toBe(false);
+        expect(at(slots, 645)?.runsLate).toBe(false);
         expect(at(slots, 690)?.state).toBe('free');
     });
 
@@ -396,16 +470,16 @@ describe('booking slots', () => {
         const slots = slotsFor({
             dateKey: MONDAY,
             schedule: SCHEDULE,
-            appointments: [booked(630, 30, 'booked')],
+            appointments: [booked(615, 30, 'booked')],
+            branchId: null,
             durationMinutes: 30,
             nowMinutes: null,
         });
 
-        // A 30-minute visit at 10:15 or 11:00 runs into 10:30–11:00.
-        expect(at(slots, 615)?.state).toBe('taken');
+        // 10:15–10:45 is booked. A 30-minute visit at 10:00 runs into it, and so
+        // does one at 10:30 — both ends. 11:00 is the first that clears it.
+        expect(at(slots, 600)?.state).toBe('taken');
         expect(at(slots, 630)?.state).toBe('taken');
-        expect(at(slots, 645)?.state).toBe('taken');
-        expect(at(slots, 600)?.state).toBe('free');
         expect(at(slots, 660)?.state).toBe('free');
     });
 
@@ -414,6 +488,7 @@ describe('booking slots', () => {
             dateKey: MONDAY,
             schedule: SCHEDULE,
             appointments: [booked(630, 30, 'cancelled'), booked(660, 30, 'no_show')],
+            branchId: null,
             durationMinutes: 15,
             nowMinutes: null,
         });
@@ -426,11 +501,12 @@ describe('booking slots', () => {
             dateKey: MONDAY,
             schedule: SCHEDULE,
             appointments: [],
+            branchId: null,
             durationMinutes: 30,
             nowMinutes: 11 * 60,
         });
 
-        expect(at(slots, 645)?.state).toBe('past');
+        expect(at(slots, 630)?.state).toBe('past');
         expect(at(slots, 660)?.state).toBe('free');
         expect(firstFreeSlot(slots)).toBe(660);
     });
@@ -441,6 +517,7 @@ describe('booking slots', () => {
                 dateKey: FRIDAY,
                 schedule: undefined,
                 appointments: [],
+                branchId: null,
                 durationMinutes: 30,
                 nowMinutes: null,
             }),
@@ -452,6 +529,7 @@ describe('booking slots', () => {
             dateKey: MONDAY,
             schedule: SCHEDULE,
             appointments: [booked(630, 30, 'booked')],
+            branchId: null,
             durationMinutes: 30,
             nowMinutes: null,
         });
@@ -511,5 +589,133 @@ describe('the procedure plan', () => {
     it('reads a line back the way the note and the summary print it', () => {
         expect(describeProcedure(line('a', 'UL6', 0))).toBe('Composite filling · Class II (UL6)');
         expect(describeProcedure({ ...line('b', null, 0), variant: null })).toBe('Composite filling');
+    });
+});
+
+/**
+ * A clinic day slips for two reasons — the chair overruns, and walk-ins are
+ * taken — and both push the booked day along. Nothing is written: the booked
+ * time is what the patient was told, and the projection is what it means now.
+ */
+describe('a day running late', () => {
+    const MONDAY = '2026-08-10';
+
+    const row = (
+        id: string,
+        minutes: number,
+        durationMinutes: number,
+        status: AppointmentStatus,
+        channel: 'desk' | 'walk_in' = 'desk',
+    ): Appointment =>
+        ({
+            id,
+            startsAt: isoAt(MONDAY, minutes),
+            durationMinutes,
+            status,
+            channel,
+            branchId: 'b',
+            updatedAt: isoAt(MONDAY, minutes),
+        }) as Appointment;
+
+    it('is on time when the chair is inside its slot', () => {
+        const delay = dayDelay([row('a', 600, 30, 'checked_in')], 615);
+
+        expect(delay).toEqual(ON_TIME);
+        expect(delayLabel(delay)).toBeNull();
+        expect(delayReason(delay)).toBeNull();
+    });
+
+    // The overrun is counted to the minute and reported to the minute, but what
+    // the day *slides* by is rounded up to a slot: "6:17" claims to know when
+    // the chair empties, and a column of odd minutes is harder to read than a
+    // column of clean ones while saying less.
+    it('counts the overrun to the minute and slides by the slot', () => {
+        // Seen at 10:00 for 30 minutes, and it is 10:42.
+        const delay = dayDelay([row('a', 600, 30, 'checked_in')], 642);
+
+        expect(delay.fromChair).toBe(12);
+        expect(delay.minutes).toBe(15);
+        expect(delayLabel(delay)).toBe('15 min late');
+        expect(delayReason(delay)).toBe('the chair is 12 min over');
+    });
+
+    it('counts a walk-in taken ahead of the booked day', () => {
+        const delay = dayDelay(
+            [row('chair', 600, 30, 'checked_in'), row('walk', 610, 20, 'checked_in', 'walk_in')],
+            615,
+            new Map([
+                ['chair', isoAt(MONDAY, 600)],
+                ['walk', isoAt(MONDAY, 610)],
+            ]),
+        );
+
+        expect(delay.fromChair).toBe(0);
+        expect(delay.walkIns).toBe(1);
+        expect(delay.fromWalkIns).toBe(20);
+        expect(delayReason(delay)).toBe('1 walk-in ahead');
+    });
+
+    it('adds an overrunning chair and the walk-ins behind it together', () => {
+        const delay = dayDelay(
+            [row('chair', 600, 30, 'checked_in'), row('walk', 620, 20, 'checked_in', 'walk_in')],
+            642,
+            new Map([
+                ['chair', isoAt(MONDAY, 600)],
+                ['walk', isoAt(MONDAY, 620)],
+            ]),
+        );
+
+        expect(delay.minutes).toBe(35);
+        expect(delayReason(delay)).toBe('the chair is 12 min over, 1 walk-in ahead');
+    });
+
+    // A booked patient waiting their turn already owns a slot further down the
+    // day. Counting them would count that time twice.
+    it('does not count a booked patient who is merely waiting', () => {
+        const delay = dayDelay(
+            [row('chair', 600, 30, 'checked_in'), row('early', 610, 30, 'checked_in')],
+            615,
+            new Map([
+                ['chair', isoAt(MONDAY, 600)],
+                ['early', isoAt(MONDAY, 610)],
+            ]),
+        );
+
+        expect(delay.minutes).toBe(0);
+    });
+
+    it('slides every booked time by the delay, and leaves history alone', () => {
+        const delay = dayDelay([row('chair', 600, 30, 'checked_in')], 642);
+        const later = row('later', 720, 30, 'booked');
+        const done = row('done', 540, 30, 'done');
+
+        // Booked 12:00, the day is 15 minutes behind: 12:15, on the grid.
+        expect(projectedStart(later, delay, 642)).toBe(735);
+        expect(isProjected(later, delay)).toBe(true);
+
+        expect(projectedStart(done, delay, 642)).toBe(540);
+        expect(isProjected(done, delay)).toBe(false);
+    });
+
+    it('never projects a time into the past', () => {
+        const delay = dayDelay([row('chair', 600, 30, 'checked_in')], 700);
+        // Booked 10:15, delay is 70 minutes, so the projection lands at 11:25 —
+        // but it is 11:40 and they have not been seen, so they are next, not late.
+        expect(projectedStart(row('missed', 615, 30, 'booked'), delay, 700)).toBe(700);
+    });
+
+    it('keeps every projection on the slot grid, whatever the odd minute', () => {
+        // 10:00 for 30 minutes, and it is 10:37: seven minutes over, so the day
+        // slides by ten and nothing lands on a 6:17.
+        const delay = dayDelay([row('chair', 600, 30, 'checked_in')], 637);
+
+        expect(delay.minutes).toBe(10);
+        expect(
+            [720, 750, 780].map((minutes) => projectedStart(row('x', minutes, 30, 'booked'), delay, 637)),
+        ).toEqual([730, 760, 790]);
+    });
+
+    it('cannot be late on a day the clock has not reached', () => {
+        expect(dayDelay([row('chair', 600, 30, 'checked_in')], null)).toEqual(ON_TIME);
     });
 });
