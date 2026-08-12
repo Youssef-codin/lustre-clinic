@@ -7,7 +7,7 @@
  * patient data crosses this channel. The channel is server-to-client only;
  * client messages are ignored.
  */
-import type { WsEvent } from '@mawid/shared';
+import type { WsEvent } from '@lustre/shared';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { logger } from '../logger.ts';
 

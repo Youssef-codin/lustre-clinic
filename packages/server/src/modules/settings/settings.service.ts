@@ -13,7 +13,7 @@
  * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
  * violation.
  */
-import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@mawid/shared';
+import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { clinicDays, settings } from '../../db/schema.ts';

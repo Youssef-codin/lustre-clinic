@@ -1,4 +1,4 @@
-import { WS_EVENT, type WsEvent } from '@mawid/shared';
+import { WS_EVENT, type WsEvent } from '@lustre/shared';
 import { useEffect } from 'react';
 import { api } from './client';
 import { timing, wsUrl } from './config';

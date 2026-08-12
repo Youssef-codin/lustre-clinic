@@ -13,7 +13,7 @@
  */
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
-const MAGIC = Buffer.from('MAWID1', 'ascii');
+const MAGIC = Buffer.from('LUSTR1', 'ascii');
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 const KEY_BYTES = 32;
@@ -43,7 +43,7 @@ export function decrypt(envelope: Uint8Array, key: Buffer): Buffer {
     const buf = Buffer.from(envelope);
 
     if (buf.length < MAGIC.length + IV_BYTES + TAG_BYTES || !buf.subarray(0, MAGIC.length).equals(MAGIC)) {
-        throw new Error('not a mawid backup envelope');
+        throw new Error('not a lustre backup envelope');
     }
 
     const iv = buf.subarray(MAGIC.length, MAGIC.length + IV_BYTES);

@@ -13,7 +13,7 @@
  *
  * Money is integer piastres end to end (§7.12); nothing here formats it.
  */
-import { DECIDUOUS_TEETH, PERMANENT_TEETH, type Tooth } from '@mawid/shared';
+import { DECIDUOUS_TEETH, PERMANENT_TEETH, type Tooth } from '@lustre/shared';
 
 export interface PlannedProcedure {
     /** Local to the draft — the row does not exist server-side yet. */

@@ -40,7 +40,7 @@ describe('backup file names', () => {
         const at = new Date('2026-08-03T08:41:32.000Z');
         const name = backupFileName(at);
 
-        expect(name).toBe('mawid-2026-08-03T08-41-32Z.dump');
+        expect(name).toBe('lustre-2026-08-03T08-41-32Z.dump');
         expect(parseBackupFileName(name)?.toISOString()).toBe(at.toISOString());
     });
 
@@ -55,7 +55,7 @@ describe('backup file names', () => {
     test('ignores anything that is not a dump', () => {
         expect(parseBackupFileName('last-success.json')).toBeNull();
         expect(parseBackupFileName('notes.txt')).toBeNull();
-        expect(parseBackupFileName('mawid-nonsense.dump')).toBeNull();
+        expect(parseBackupFileName('lustre-nonsense.dump')).toBeNull();
     });
 });
 
@@ -101,8 +101,8 @@ describe('retention', () => {
 
     test('keeps one of two dumps that share a name, and deletes the other', () => {
         const at = new Date('2027-01-01T00:00:00Z');
-        const first = { name: 'mawid-2027-01-01T00-00-00Z.dump', at };
-        const second = { name: 'mawid-2027-01-01T00-00-00Z.dump', at };
+        const first = { name: 'lustre-2027-01-01T00-00-00Z.dump', at };
+        const second = { name: 'lustre-2027-01-01T00-00-00Z.dump', at };
 
         const retained = selectRetained([first, second], { daily: 1, weekly: 0, monthly: 0 });
         const doomed = selectForDeletion([first, second], { daily: 1, weekly: 0, monthly: 0 });
@@ -143,7 +143,7 @@ describe('off-site listings', () => {
         const entries = [
             { name: dump, handle: 'ours' },
             { name: 'clinic-scans.zip', handle: 'theirs' },
-            { name: 'mawid-nonsense.dump.enc', handle: 'malformed' },
+            { name: 'lustre-nonsense.dump.enc', handle: 'malformed' },
             { name: 'notes.txt', handle: 'notes' },
         ];
 
@@ -222,7 +222,7 @@ describe('encryption', () => {
 
     test('refuses a file that is not an envelope', () => {
         expect(() => decrypt(new TextEncoder().encode('just a dump'), parseKey(generateKey()))).toThrow(
-            'not a mawid backup envelope',
+            'not a lustre backup envelope',
         );
     });
 });
@@ -253,7 +253,7 @@ if (!hasPgTools && Bun.env.CI) {
 }
 
 describe.skipIf(!hasPgTools)('runBackup', () => {
-    const directory = join(tmpdir(), `mawid-backup-test-${Bun.randomUUIDv7()}`);
+    const directory = join(tmpdir(), `lustre-backup-test-${Bun.randomUUIDv7()}`);
 
     beforeAll(async () => {
         await setupDatabase();

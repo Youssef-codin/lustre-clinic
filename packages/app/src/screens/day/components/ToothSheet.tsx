@@ -6,7 +6,7 @@
  * on a tooth gets a wrong one.
  */
 
-import type { Tooth } from '@mawid/shared';
+import type { Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SearchField, Sheet } from '../../../components/ui';

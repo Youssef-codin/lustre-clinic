@@ -30,7 +30,7 @@ import {
     QUESTION_KINDS,
     REMINDER_STATUSES,
     TEETH,
-} from '@mawid/shared';
+} from '@lustre/shared';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import {

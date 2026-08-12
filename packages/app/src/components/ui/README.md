@@ -12,7 +12,7 @@ import { Button, Card, Sheet, TextField } from '../components/ui';
 A `ui/` file may import from `react`, `react-native`, `../../theme`, and its own
 siblings. That is the whole list, and
 [`boundaries.test.ts`](./boundaries.test.ts) fails the build on anything else —
-`@mawid/shared`, a domain type, a tRPC client, a navigator, a screen.
+`@lustre/shared`, a domain type, a tRPC client, a navigator, a screen.
 
 It is not a style preference. Screens are built in parallel by separate agents
 against a frozen `ui/` (§9). The moment one of them can reach a domain type

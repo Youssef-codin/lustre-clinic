@@ -1,9 +1,9 @@
-// `ui/` is the design system and it knows nothing about Mawid (Component
+// `ui/` is the design system and it knows nothing about Lustre (Component
 // Inventory §2). That is what keeps screen work parallelisable: screens are built
 // against a frozen `ui/`, and if a primitive could reach a domain type, two
 // screens could disagree about what a Button is. A `ui/` file may import from
 // `react`, `react-native`, `../../theme` and its own siblings; anything else —
-// `@mawid/shared`, `../domain`, a tRPC client, a navigator — is a boundary
+// `@lustre/shared`, `../domain`, a tRPC client, a navigator — is a boundary
 // violation.
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';

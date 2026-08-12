@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';

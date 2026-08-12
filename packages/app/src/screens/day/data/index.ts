@@ -3,7 +3,7 @@
  * client (BLOCKED.md) is this folder and nothing else.
  */
 export { asRequestError, RequestError } from './client';
-export type { PatientRef } from './day';
+export type { BookedProcedure, PatientRef } from './day';
 export { api, checkInTimes, rememberVisit, visitForAppointment } from './day';
 export type { MutationResult, QueryResult, QueryStatus } from './hooks';
 export { useLocalMutation, useLocalQuery } from './hooks';

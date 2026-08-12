@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import type { AppointmentStatus } from '@mawid/shared';
+import type { AppointmentStatus } from '@lustre/shared';
 import { insertBranch, insertPatient, setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 
 /**

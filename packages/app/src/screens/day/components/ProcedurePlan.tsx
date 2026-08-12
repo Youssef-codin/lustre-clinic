@@ -16,7 +16,7 @@
  * pounds in, integer piastres held (§7.12).
  */
 
-import { PIASTRES_PER_POUND, type Tooth } from '@mawid/shared';
+import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Chevron, duration } from '../../../components/ui';

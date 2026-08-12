@@ -2,7 +2,7 @@
 // error replaces the data — a stale figure that failed to refresh must never
 // sit above current-looking numbers, because acting on a balance that has
 // moved is worse than a screen that says it is broken.
-import type { ErrorCode } from '@mawid/shared';
+import type { ErrorCode } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';

@@ -5,9 +5,8 @@
  * whenever the screen is not on today, so the fact the arrows made obvious is
  * still written down. The branch menu anchors to the pill's start edge via
  * physical left; in RTL the window width less the pill's far edge is the same
- * distance measured the other way. The mark's `letterSpacing` is 0.28em at
- * 15px written out (React Native has no `em`), with half-step padding so the
- * glyphs sit centred.
+ * distance measured the other way. The wordmark is `BrandMark`, which owns its
+ * own tracking — the mark is brand, not type the header gets to set.
  *
  * The name scrolls over when `branchId` changes under it, because it is not
  * always the user who changed it: picking a day in the calendar moves the day
@@ -25,6 +24,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, I18nManager, Pressable, StyleSheet, View } from 'react-native';
+import { BrandMark } from '../../../components/domain';
 import {
     Chevron,
     DropdownMenu,
@@ -148,9 +148,7 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
                 </View>
 
                 <View style={styles.markSlot} pointerEvents="none">
-                    <Text variant="body" weight="semibold" style={styles.mark}>
-                        MAWID
-                    </Text>
+                    <BrandMark variant="lockup" size={15} />
                 </View>
 
                 <Pressable
@@ -216,5 +214,4 @@ const styles = StyleSheet.create({
     branchClip: { maxWidth: 120, overflow: 'hidden' },
     branchLeaving: { position: 'absolute', top: 0, start: 0 },
     markSlot: { position: 'absolute', start: 0, end: 0, alignItems: 'center' },
-    mark: { letterSpacing: 4.2, paddingStart: 2.1 },
 });

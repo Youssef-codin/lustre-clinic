@@ -13,7 +13,7 @@
  * `slotProgress` measures the slot, never the patient, and is left uncapped
  * once the slot runs over.
  */
-import type { AppointmentStatus } from '@mawid/shared';
+import type { AppointmentStatus } from '@lustre/shared';
 import type { Appointment } from './data/types';
 import { formatTime, minutesOfDay, minutesToClock } from './time';
 

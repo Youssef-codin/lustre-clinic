@@ -6,7 +6,7 @@
  * wanted, they are a schema change and a real permission boundary, not a
  * settings row.
  */
-import { CLIENT_ROLES, type ClientRole } from '@mawid/shared';
+import { CLIENT_ROLES, type ClientRole } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Callout, Card, CardDivider, ConfirmSheet, Radio, Toast } from '../../components/ui';
@@ -62,7 +62,7 @@ export function UsersScreen({ role, onChangeRole, onBack }: UsersScreenProps) {
             }
         >
             <Callout tone="info" title="There are no accounts">
-                Mawid has no logins. Any phone on the clinic's tailnet can use it, and the role below is a
+                Lustre has no logins. Any phone on the clinic's tailnet can use it, and the role below is a
                 preference on this device — not a lock. Anyone holding this phone can change it.
             </Callout>
 

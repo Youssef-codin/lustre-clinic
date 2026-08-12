@@ -4,7 +4,7 @@
  * but the inference cannot reach: `packages/app` does not depend on
  * `packages/server`, and the tRPC client has not landed (BLOCKED.md). What the
  * inference *can* supply — the status, channel and method unions, the tooth
- * enum — is imported from `@mawid/shared` rather than restated. Dates are
+ * enum — is imported from `@lustre/shared` rather than restated. Dates are
  * strings: there is no transformer on the server, so a `timestamptz` arrives
  * as the ISO string JSON made of it. Money is integer piastres everywhere
  * (§9); `visit.balance` is derived, never stored (§10); and a weekday with no
@@ -12,7 +12,7 @@
  * message and a `wa.me` URL, and the user marks it sent or skipped, because
  * delivery cannot be confirmed.
  */
-import type { AppointmentChannel, AppointmentStatus, PaymentMethod, Tooth } from '@mawid/shared';
+import type { AppointmentChannel, AppointmentStatus, PaymentMethod, Tooth } from '@lustre/shared';
 
 export interface EmbeddedPatient {
     id: string;

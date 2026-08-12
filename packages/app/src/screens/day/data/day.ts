@@ -17,7 +17,7 @@
  * the waiting room by arrival, dropping a patient whose visit cannot be read
  * so the order falls back to `updatedAt` and the day still draws.
  */
-import type { PaymentMethod } from '@mawid/shared';
+import type { PaymentMethod, Tooth } from '@lustre/shared';
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 import { offsetForDate } from '../time';
 import { RequestError } from './client';
@@ -35,6 +35,19 @@ import type {
     VisitRow,
     WalkInResult,
 } from './types';
+
+/**
+ * §7 — a procedure the booking plans. No price: the visit snapshots the
+ * catalogue's at check-in, so what the client sends is what is to be done, not
+ * what it costs. `tooth` is required by §5 for a tooth-specific procedure and
+ * refused for the rest, which is why the picker asks the tooth first.
+ */
+export interface BookedProcedure {
+    procedureId: string;
+    quantity?: number;
+    tooth?: Tooth | null;
+    note?: string | null;
+}
 
 /** §7/§13: book for someone on file, or create them with the appointment. */
 export type PatientRef =
@@ -114,7 +127,7 @@ export const api = {
         patient: PatientRef;
         branchId: string;
         durationMinutes?: number;
-        typeId?: string | null;
+        procedures?: BookedProcedure[];
         note?: string | null;
         offsetMinutes: number;
     }): Promise<WalkInResult> => wrap(() => trpcClient.appointment.walkIn.mutate(input)),
@@ -124,7 +137,7 @@ export const api = {
         branchId: string;
         startsAt: string;
         durationMinutes?: number;
-        typeId?: string | null;
+        procedures?: BookedProcedure[];
         note?: string | null;
         offsetMinutes: number;
     }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.create.mutate(input)),

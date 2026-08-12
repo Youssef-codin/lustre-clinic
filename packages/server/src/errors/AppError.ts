@@ -8,7 +8,7 @@
  * off `cause`, so the SQLSTATE services switch on is usually a level or two
  * down.
  */
-import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 
 export class AppError extends Error {
     readonly code: ErrorCode;

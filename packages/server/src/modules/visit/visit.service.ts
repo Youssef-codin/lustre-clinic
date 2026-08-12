@@ -16,7 +16,7 @@
  * Checkout closes either `checked_in` (the chair) or `awaiting_payment` (the
  * desk), and zero paid is a valid checkout — the balance is derived (§10).
  */
-import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
+import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
 import { asc, eq } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {

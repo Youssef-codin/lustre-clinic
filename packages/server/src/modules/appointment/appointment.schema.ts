@@ -7,7 +7,7 @@
  * cancel and check-in have their own calls. `awaitPaymentInput` marks that the
  * doctor is finished and the patient pays at the desk (§7).
  */
-import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@mawid/shared';
+import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@lustre/shared';
 import { z } from 'zod';
 
 const duration = z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MINUTES);

@@ -1,5 +1,5 @@
 {
-    "name": "@mawid/server",
+    "name": "@lustre/server",
     "version": "0.0.0",
     "private": true,
     "type": "module",
@@ -15,7 +15,7 @@
         "restore": "bun --env-file=../../.env scripts/restore.ts"
     },
     "dependencies": {
-        "@mawid/shared": "workspace:*",
+        "@lustre/shared": "workspace:*",
         "@trpc/server": "^11.0.0",
         "drizzle-orm": "^0.45.2",
         "pino": "^10.0.0",

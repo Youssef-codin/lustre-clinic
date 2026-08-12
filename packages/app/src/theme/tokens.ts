@@ -1,4 +1,4 @@
-// Mawid design tokens — the single source of truth for the app's visual system,
+// Lustre design tokens — the single source of truth for the app's visual system,
 // resolving the two design systems (Component Inventory §7.1). Components
 // consume these through `StyleSheet.create`; nothing writes a raw hex, size or
 // family.

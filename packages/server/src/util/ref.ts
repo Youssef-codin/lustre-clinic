@@ -6,7 +6,7 @@
  * Modulo bias across the alphabet's symbols is irrelevant: uniqueness is
  * enforced by the UNIQUE constraint, not by the distribution.
  */
-import { REF_ALPHABET, REF_RANDOM_LENGTH } from '@mawid/shared';
+import { REF_ALPHABET, REF_RANDOM_LENGTH } from '@lustre/shared';
 import { refDatePart } from './time.ts';
 
 export function randomRefSuffix(): string {

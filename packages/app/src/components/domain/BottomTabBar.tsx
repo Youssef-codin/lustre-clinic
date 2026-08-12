@@ -7,7 +7,7 @@
  * carries the bottom safe-area inset itself — an absolute position would put the
  * labels under Android's own gesture bar.
  */
-import type { ClientRole } from '@mawid/shared';
+import type { ClientRole } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';

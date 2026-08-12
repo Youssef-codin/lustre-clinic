@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE, WS_EVENT } from '@mawid/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { CHECKUP_PRICE, ROOT_CANAL_PRICE, slot } from './helpers/factories.ts';
 import {
@@ -122,8 +122,8 @@ describe('every path in §13 answers', () => {
             { key: 'allergies', label: 'Known allergies', required: false, reason: 'unanswered' },
         ]);
 
-        const settings = await client.settings.update.mutate({ clinicName: 'Mawid Dental' });
-        expect(settings.clinicName).toBe('Mawid Dental');
+        const settings = await client.settings.update.mutate({ clinicName: 'Lustre Clinic' });
+        expect(settings.clinicName).toBe('Lustre Clinic');
     });
 
     test('the period summaries answer for a range', async () => {

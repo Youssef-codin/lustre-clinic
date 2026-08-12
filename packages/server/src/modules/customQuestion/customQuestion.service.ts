@@ -23,7 +23,7 @@
  * validation, patching, and auditing. Error messages name the question key,
  * never the answer, which is patient data.
  */
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { customQuestions } from '../../db/schema.ts';

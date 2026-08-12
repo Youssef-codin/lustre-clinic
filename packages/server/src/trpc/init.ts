@@ -12,7 +12,7 @@
  * controlled by reachability on the tailnet (§1), so there is nothing for a
  * protected procedure to check.
  */
-import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { ZodError } from 'zod';
 import { db } from '../db/index.ts';

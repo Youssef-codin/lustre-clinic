@@ -35,7 +35,7 @@ import {
     DEFAULT_REMINDER_TEMPLATE,
     type PaymentMethod,
     type Tooth,
-} from '@mawid/shared';
+} from '@lustre/shared';
 import { config } from '../src/config.ts';
 import { db, sql } from '../src/db/index.ts';
 import {
@@ -1027,13 +1027,13 @@ await db.transaction(async (tx) => {
         .insert(settings)
         .values({
             id: 1,
-            clinicName: 'Mawid Dental',
+            clinicName: 'Lustre Clinic',
             clinicPhone: '+20223456789',
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
         })
         .onConflictDoUpdate({
             target: settings.id,
-            set: { clinicName: 'Mawid Dental', clinicPhone: '+20223456789', updatedAt: new Date() },
+            set: { clinicName: 'Lustre Clinic', clinicPhone: '+20223456789', updatedAt: new Date() },
         });
 });
 

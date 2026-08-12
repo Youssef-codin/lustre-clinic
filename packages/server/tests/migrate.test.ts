@@ -45,7 +45,7 @@ beforeAll(async () => {
 
 describe('migrations', () => {
     test('apply to an empty database, and are idempotent', async () => {
-        const scratch = `mawid_migrate_${Date.now()}_test`;
+        const scratch = `lustre_migrate_${Date.now()}_test`;
 
         await withScratchDatabase(config.DATABASE_URL, scratch, async (scratchUrl) => {
             const client = postgres(scratchUrl, { max: 1, onnotice: () => {} });

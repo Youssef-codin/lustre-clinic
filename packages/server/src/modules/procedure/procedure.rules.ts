@@ -16,7 +16,7 @@
  * whichever query happened to land first. Callers map the result onto their own
  * row shape: a visit line adds the price snapshot, a planned one adds `sortOrder`.
  */
-import { ERROR_CODE, type Tooth } from '@mawid/shared';
+import { ERROR_CODE, type Tooth } from '@lustre/shared';
 import { AppError } from '../../errors/AppError.ts';
 import { type Procedure, procedureService } from './procedure.service.ts';
 

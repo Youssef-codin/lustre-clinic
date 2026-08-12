@@ -7,7 +7,7 @@
  * visit once checked in instead of going inert. An unknown procedure renders
  * `undefined` so the row falls back to the duration alone.
  */
-import type { AppointmentStatus } from '@mawid/shared';
+import type { AppointmentStatus } from '@lustre/shared';
 import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron } from '../../../components/ui';

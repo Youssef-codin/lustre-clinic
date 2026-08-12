@@ -7,7 +7,7 @@
  * view moves with it. Cancelled and no-show rows hold no slot, so they neither
  * make a day look busy nor pull the pick to their branch.
  */
-import { DEFAULT_DURATION_MINUTES, SLOT_HOLDING_STATUSES } from '@mawid/shared';
+import { DEFAULT_DURATION_MINUTES, SLOT_HOLDING_STATUSES } from '@lustre/shared';
 import type { Appointment, ClinicDay } from './data/types';
 import { openMinutes } from './hours';
 

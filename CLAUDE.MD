@@ -1,4 +1,4 @@
-# Agents — Mawid Development Guide
+# Agents — Lustre Development Guide
 
 The docs live on Notion: https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc
 

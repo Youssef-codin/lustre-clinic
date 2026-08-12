@@ -9,7 +9,7 @@
 // re-reads rather than patching balances locally. On an error the previous data
 // is dropped rather than left on screen. `setStubFailing` (dev-only) exercises
 // the failure states.
-import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@lustre/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface PatientBalance {

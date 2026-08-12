@@ -8,7 +8,7 @@
  * checkup line is never deleted — it is excluded from the sum and stays on the
  * visit as the record that the patient was seen.
  */
-import { ERROR_CODE, MAX_AMOUNT_PIASTRES } from '@mawid/shared';
+import { ERROR_CODE, MAX_AMOUNT_PIASTRES } from '@lustre/shared';
 import { AppError } from '../errors/AppError.ts';
 
 export function assertAmount(amount: number, what = 'amount'): number {

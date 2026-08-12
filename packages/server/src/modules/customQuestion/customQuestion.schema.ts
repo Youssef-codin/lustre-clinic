@@ -3,7 +3,7 @@
  * constrained to something that stays readable in JSON and never changes once
  * answers exist against it — which is why `updateCustomQuestionInput` omits it.
  */
-import { questionKindSchema } from '@mawid/shared';
+import { questionKindSchema } from '@lustre/shared';
 import { z } from 'zod';
 
 const key = z

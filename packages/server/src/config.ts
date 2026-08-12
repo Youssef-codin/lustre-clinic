@@ -43,7 +43,7 @@ const envSchema = z.object({
     BACKUP_S3_REGION: z.string().optional(),
     BACKUP_S3_ACCESS_KEY_ID: z.string().optional(),
     BACKUP_S3_SECRET_ACCESS_KEY: z.string().optional(),
-    BACKUP_S3_PREFIX: z.string().default('mawid'),
+    BACKUP_S3_PREFIX: z.string().default('lustre'),
 });
 
 export type Config = z.infer<typeof envSchema>;

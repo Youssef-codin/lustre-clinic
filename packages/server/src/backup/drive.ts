@@ -131,7 +131,7 @@ export function createDriveClient(options: DriveOptions): DriveClient {
         async upload(name, body, mimeType = 'application/octet-stream'): Promise<string> {
             const metadata = { name, parents: [credentials.folderId] };
 
-            const boundary = `mawid-${crypto.randomUUID()}`;
+            const boundary = `lustre-${crypto.randomUUID()}`;
             const parts = Buffer.concat([
                 Buffer.from(
                     `--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n` +

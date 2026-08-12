@@ -25,7 +25,7 @@ export function assertTestDatabase(url = config.DATABASE_URL): void {
             `refusing to run tests against "${name}": the suite truncates every table.\n` +
                 `Point DATABASE_URL at a database whose name ends in "${TEST_DATABASE_SUFFIX}" — ` +
                 `\`bun test\` reads packages/server/.env.test, which expects "${name}${TEST_DATABASE_SUFFIX}".\n` +
-                `Create it once with: docker compose exec db createdb -U mawid ${name}${TEST_DATABASE_SUFFIX}`,
+                `Create it once with: docker compose exec db createdb -U lustre ${name}${TEST_DATABASE_SUFFIX}`,
         );
     }
 }

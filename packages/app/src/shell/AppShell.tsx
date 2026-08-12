@@ -1,4 +1,4 @@
-import type { ClientRole } from '@mawid/shared';
+import type { ClientRole } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';

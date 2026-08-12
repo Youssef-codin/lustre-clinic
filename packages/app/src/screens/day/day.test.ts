@@ -5,7 +5,7 @@
  * double booking.
  */
 import { describe, expect, it } from 'bun:test';
-import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@mawid/shared';
+import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { procedureLabel, splitDay } from './agenda';
 import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';

@@ -6,7 +6,7 @@
  * than `live`, which disappears on white; a pulsing accent dot reads as the
  * chair here.
  */
-import type { AppointmentStatus } from '@mawid/shared';
+import type { AppointmentStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Dot, Tag } from '../../../components/ui';
 import { space } from '../../../theme';

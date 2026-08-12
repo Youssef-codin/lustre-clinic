@@ -6,7 +6,7 @@
  * price. `appointments` carries no `visit_id`, so the day view looks a visit up
  * by appointment.
  */
-import { MAX_AMOUNT_PIASTRES, paymentMethodSchema, toothSchema } from '@mawid/shared';
+import { MAX_AMOUNT_PIASTRES, paymentMethodSchema, toothSchema } from '@lustre/shared';
 import { z } from 'zod';
 
 const amount = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);

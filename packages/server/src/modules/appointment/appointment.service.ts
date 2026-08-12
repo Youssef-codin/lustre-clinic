@@ -22,7 +22,7 @@
  * Omitting it leaves the list alone, an empty array clears it (§13). Reads
  * batch the catalogue join once per page rather than once per row.
  */
-import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
+import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointmentProcedures, appointments, patients, procedureTypes } from '../../db/schema.ts';

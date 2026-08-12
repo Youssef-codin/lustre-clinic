@@ -6,8 +6,8 @@
  * `ج.م` and trails the figure (§7.13). Until the localization scaffold lands
  * (F4), the language is inferred from the layout direction.
  */
-import type { Locale } from '@mawid/shared';
-import { PIASTRES_PER_POUND } from '@mawid/shared';
+import type { Locale } from '@lustre/shared';
+import { PIASTRES_PER_POUND } from '@lustre/shared';
 import { I18nManager, StyleSheet, View } from 'react-native';
 import type { TextTone, TextVariant } from '../../theme';
 import { space, Text } from '../../theme';

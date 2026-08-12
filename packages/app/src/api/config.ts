@@ -1,4 +1,4 @@
-import { TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
+import { TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
 import Constants from 'expo-constants';
 
 // Server addressing lives entirely here (SPEC §14). The server is a PC in the

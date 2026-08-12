@@ -9,7 +9,7 @@
  * `setDay` would silently shift it; both are zero-padded, so comparing them as
  * strings orders them by time.
  */
-import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@mawid/shared';
+import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@lustre/shared';
 import { z } from 'zod';
 
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'expected HH:MM');

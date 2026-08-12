@@ -8,7 +8,7 @@
  * standing in front of the patient has to know the slot is gone, not that
  * "something went wrong", or she tells them they are booked and they are not.
  */
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import type { RequestError } from './data';
 
 export interface ErrorMessage {

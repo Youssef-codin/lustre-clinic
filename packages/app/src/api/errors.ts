@@ -1,4 +1,4 @@
-import { ERROR_CODE, type ErrorCode, isErrorCode } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode, isErrorCode } from '@lustre/shared';
 import { TRPCClientError } from '@trpc/client';
 import { ServerUnreachableError } from './connection';
 

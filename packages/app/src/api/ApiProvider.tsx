@@ -1,4 +1,4 @@
-import type { AppRouter } from '@mawid/server/src/trpc/router.ts';
+import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
 import type { ReactNode } from 'react';

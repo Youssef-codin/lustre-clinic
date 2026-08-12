@@ -8,7 +8,7 @@
  * changing it would invalidate the stored answers. Labels need no direction
  * handling; `Text` detects the Arabic script per string.
  */
-import type { QuestionKind } from '@mawid/shared';
+import type { QuestionKind } from '@lustre/shared';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {

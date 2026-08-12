@@ -19,7 +19,7 @@ const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const PUBLIC_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 
 const credentials: DriveCredentials = {
-    clientEmail: 'mawid-backup@example.iam.gserviceaccount.com',
+    clientEmail: 'lustre-backup@example.iam.gserviceaccount.com',
     privateKey: PEM,
     folderId: 'folder-123',
 };
@@ -108,7 +108,7 @@ describe('createDriveClient', () => {
         });
 
         const client = createDriveClient({ credentials, fetchImpl: impl });
-        const id = await client.upload('mawid-2026-08-03T09-00-00Z.dump.enc', new Uint8Array([1, 2, 3]));
+        const id = await client.upload('lustre-2026-08-03T09-00-00Z.dump.enc', new Uint8Array([1, 2, 3]));
 
         expect(id).toBe('file-1');
 
@@ -120,7 +120,7 @@ describe('createDriveClient', () => {
 
         const text = uploadBody?.toString('binary') ?? '';
         expect(text).toContain('"parents":["folder-123"]');
-        expect(text).toContain('mawid-2026-08-03T09-00-00Z.dump.enc');
+        expect(text).toContain('lustre-2026-08-03T09-00-00Z.dump.enc');
         expect(uploadBody?.includes(Buffer.from([1, 2, 3]))).toBe(true);
     });
 

@@ -7,7 +7,7 @@
  * label is English until the localization scaffold lands (F4); `label`
  * overrides it.
  */
-import type { AppointmentStatus } from '@mawid/shared';
+import type { AppointmentStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import type { TextTone } from '../../theme';
 import { color, radius, space, Text } from '../../theme';

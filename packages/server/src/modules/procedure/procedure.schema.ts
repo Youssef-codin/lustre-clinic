@@ -3,7 +3,7 @@
  * makes a row a category root (one level of nesting only); `isToothSpecific`
  * means lines for the procedure must name a tooth, and others must not.
  */
-import { MAX_AMOUNT_PIASTRES } from '@mawid/shared';
+import { MAX_AMOUNT_PIASTRES } from '@lustre/shared';
 import { z } from 'zod';
 
 const price = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);
