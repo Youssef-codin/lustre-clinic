@@ -751,6 +751,15 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
 
     let placed = 0;
     while (minute + 20 <= closingMinute && placed < maxBookings) {
+        // The start can land inside a booking that began earlier — the jittered
+        // opening, or a hand-written appointment mid-visit. `nextTaken` only
+        // sees slots starting from here on, so step over that one first.
+        const covering = takenSlots.find((slot) => slot.start <= minute && minute < slot.end);
+        if (covering) {
+            minute = covering.end;
+            continue;
+        }
+
         const nextTaken = takenSlots
             .filter((slot) => slot.start >= minute)
             .reduce((soonest, slot) => Math.min(soonest, slot.start), closingMinute);
