@@ -156,6 +156,50 @@ describe('appointment.walkIn', () => {
         expect(await patientService.search({ q: 'Second', limit: 25 })).toHaveLength(1);
     });
 
+    // Four desks answering at once is not the clinic, but it is the only way to
+    // put four transactions inside each other's window on purpose. Under READ
+    // COMMITTED they plan against the same committed day and all but one lose
+    // the insert to `appointments_no_overlap`; the loser's answer is stale, not
+    // wrong, so it re-reads and queues rather than turning a patient away.
+    test('walk-ins taken at the same moment queue instead of refusing each other', async () => {
+        const fixtures = await clinic();
+
+        // `allSettled`, not `all`: a rejection must not let the test return
+        // while the other three transactions are still open, or the next
+        // `truncateAll` deadlocks against them and takes the rest of the file
+        // down with it.
+        const settled = await Promise.allSettled(
+            [1, 2, 3, 4].map((n) =>
+                appointmentService.walkIn({
+                    patient: { kind: 'new', name: `Rush ${n}`, phone: `0107777777${n}` },
+                    branchId: fixtures.branch.id,
+                    offsetMinutes: 0,
+                }),
+            ),
+        );
+
+        const refused = settled.filter((r) => r.status === 'rejected');
+        expect(refused.map((r) => String(r.reason))).toEqual([]);
+
+        // Read the day back rather than trusting what each call returned: a
+        // walk-in taken later pushes the ones already placed, so the row a
+        // caller was handed can be out of date by the time all four are in.
+        // The clients are told by the APPOINTMENT_UPDATED each move broadcasts.
+        const rows = await sql<{ starts_at: string; duration_minutes: number }[]>`
+            SELECT starts_at, duration_minutes FROM appointments ORDER BY starts_at
+        `;
+        expect(rows).toHaveLength(4);
+
+        const starts = rows.map((row) => new Date(row.starts_at).getTime());
+
+        // Every one of them got a slot, and no two share one.
+        expect(new Set(starts).size).toBe(4);
+
+        // Back to back, in the duration the settings gave them.
+        const gaps = starts.slice(1).map((start, i) => start - (starts[i] ?? 0));
+        expect(gaps).toEqual(rows.slice(0, -1).map((row) => row.duration_minutes * 60_000));
+    });
+
     test('a successful walk-in leaves its reminder skipped, not pending', async () => {
         // The patient is standing at the desk, so the reminder is created and
         // immediately retired in the same transaction. A pending row here would
