@@ -10,7 +10,7 @@ import { procedureLabel, splitDay } from './agenda';
 import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';
 import { RequestError } from './data/client';
-import type { Appointment } from './data/types';
+import type { Appointment, ProcedureCategory } from './data/types';
 import { dayDelay, delayLabel, delayReason, isProjected, ON_TIME, projectedStart } from './delay';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
@@ -29,6 +29,7 @@ import {
     bookedProcedures,
     describeProcedure,
     groupByTooth,
+    offeredFor,
     type PlannedProcedure,
     QUADRANTS,
     toothPosition,
@@ -756,7 +757,12 @@ describe('a day running late', () => {
         expect(delayReason(delay)).toBe('the chair is 12 min over');
     });
 
-    it('counts a walk-in taken ahead of the booked day', () => {
+    // Taking the walk-in already moved the booked day: the server seated it at
+    // 10:10 and pushed everyone it ran into past 10:30, so those 20 minutes are
+    // inside their `startsAt` before this function ever sees them. Counting
+    // them here too would put every projection below 20 minutes further out
+    // than the day actually is.
+    it('does not count a waiting walk-in, whose minutes are already in the layout', () => {
         const delay = dayDelay(
             [row('chair', 600, 30, 'checked_in'), row('walk', 610, 20, 'checked_in', 'walk_in')],
             615,
@@ -766,13 +772,12 @@ describe('a day running late', () => {
             ]),
         );
 
-        expect(delay.fromChair).toBe(0);
-        expect(delay.walkIns).toBe(1);
-        expect(delay.fromWalkIns).toBe(20);
-        expect(delayReason(delay)).toBe('1 walk-in ahead');
+        expect(delay).toEqual(ON_TIME);
+        expect(delayLabel(delay)).toBeNull();
+        expect(delayReason(delay)).toBeNull();
     });
 
-    it('adds an overrunning chair and the walk-ins behind it together', () => {
+    it('slides by the chair alone when a walk-in is waiting behind it', () => {
         const delay = dayDelay(
             [row('chair', 600, 30, 'checked_in'), row('walk', 620, 20, 'checked_in', 'walk_in')],
             642,
@@ -782,8 +787,31 @@ describe('a day running late', () => {
             ]),
         );
 
-        expect(delay.minutes).toBe(35);
-        expect(delayReason(delay)).toBe('the chair is 12 min over, 1 walk-in ahead');
+        expect(delay.fromChair).toBe(12);
+        expect(delay.minutes).toBe(15);
+        expect(delayReason(delay)).toBe('the chair is 12 min over');
+    });
+
+    // The reviewer's case, as the desk sees it: the chair is on time and ends
+    // at 12:30, the walk-in has 12:30–13:00, and the booked patient the server
+    // already pushed reads 13:00. At 12:15 that 13:00 must not project to 13:30.
+    it('leaves a pushed booking reading the time the server moved it to', () => {
+        const appointments = [
+            row('chair', 720, 30, 'checked_in'),
+            row('walk', 750, 30, 'checked_in', 'walk_in'),
+            row('booked', 780, 30, 'booked'),
+        ];
+        const delay = dayDelay(
+            appointments,
+            735,
+            new Map([
+                ['chair', isoAt(MONDAY, 720)],
+                ['walk', isoAt(MONDAY, 750)],
+            ]),
+        );
+
+        expect(delay.minutes).toBe(0);
+        expect(projectedStart(appointments[2] as Appointment, delay, 735)).toBe(780);
     });
 
     // A booked patient waiting their turn already owns a slot further down the
@@ -834,5 +862,67 @@ describe('a day running late', () => {
 
     it('cannot be late on a day the clock has not reached', () => {
         expect(dayDelay([row('chair', 600, 30, 'checked_in')], null)).toEqual(ON_TIME);
+    });
+});
+
+describe('what the catalogue offers', () => {
+    const category = (
+        id: string,
+        isToothSpecific: boolean,
+        children: { id: string; isToothSpecific: boolean }[] = [],
+    ) =>
+        ({
+            id,
+            name: id,
+            parentId: null,
+            defaultPrice: 0,
+            hasQuantity: false,
+            isToothSpecific,
+            isCheckup: false,
+            active: true,
+            sortOrder: 0,
+            selectable: children.length === 0,
+            children: children.map((child) => ({
+                ...child,
+                name: child.id,
+                parentId: id,
+                defaultPrice: 0,
+                hasQuantity: false,
+                isCheckup: false,
+                active: true,
+                sortOrder: 0,
+            })),
+        }) as ProcedureCategory;
+
+    // The server refuses both pairings, so a plan that can be built here but
+    // not booked is a dead end found at the confirm step with a patient waiting.
+    it('offers only tooth work once a tooth is chosen', () => {
+        const offered = offeredFor([category('extraction', true), category('scaling', false)], true);
+
+        expect(offered.map((row) => row.id)).toEqual(['extraction']);
+    });
+
+    it('offers only mouth work when no tooth is assigned', () => {
+        const offered = offeredFor([category('extraction', true), category('scaling', false)], false);
+
+        expect(offered.map((row) => row.id)).toEqual(['scaling']);
+    });
+
+    it('keeps a heading only for the variants that fit', () => {
+        const filling = category('filling', false, [
+            { id: 'class-i', isToothSpecific: true },
+            { id: 'whitening', isToothSpecific: false },
+        ]);
+
+        const offered = offeredFor([filling], true);
+
+        expect(offered.map((row) => row.id)).toEqual(['filling']);
+        expect(offered[0]?.children.map((child) => child.id)).toEqual(['class-i']);
+    });
+
+    it('drops a heading whose every variant is the wrong kind', () => {
+        const filling = category('filling', false, [{ id: 'class-i', isToothSpecific: true }]);
+
+        expect(offeredFor([filling], false)).toEqual([]);
     });
 });

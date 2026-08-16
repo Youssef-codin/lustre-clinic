@@ -6,13 +6,14 @@
  * question — and the price is on every row, because "how much is a zirconia
  * crown" is asked at the same moment as "add a crown".
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron, Sheet } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { ProcedureCategory, ProcedureRow, RequestError } from '../data';
 import { describeError } from '../errors';
 import { formatMoney } from '../money';
+import { offeredFor } from '../procedures';
 
 export type PickedProcedure = {
     procedureId: string;
@@ -45,6 +46,8 @@ export function ProcedureSheet({
 }: ProcedureSheetProps) {
     const [openId, setOpenId] = useState<string | null>(null);
 
+    const offered = useMemo(() => offeredFor(categories, tooth !== null), [categories, tooth]);
+
     return (
         <Sheet
             visible={visible}
@@ -68,9 +71,15 @@ export function ProcedureSheet({
                 <Text variant="subhead" tone="muted">
                     The clinic has no procedures set up yet. Settings → Procedures.
                 </Text>
+            ) : offered.length === 0 ? (
+                <Text variant="subhead" tone="muted">
+                    {tooth
+                        ? `Nothing in the catalogue is done to a single tooth, so there is nothing to add to ${tooth}.`
+                        : 'Every procedure in the catalogue is done to a tooth. Pick one first.'}
+                </Text>
             ) : (
                 <View style={styles.list}>
-                    {categories.map((category) => {
+                    {offered.map((category) => {
                         const open = openId === category.id;
 
                         if (category.selectable) {

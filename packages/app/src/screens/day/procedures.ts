@@ -15,7 +15,7 @@
  * Money is integer piastres end to end (§7.12); nothing here formats it.
  */
 import { DECIDUOUS_TEETH, PERMANENT_TEETH, type Tooth } from '@lustre/shared';
-import type { BookedProcedure } from './data';
+import type { BookedProcedure, ProcedureCategory } from './data';
 
 export interface PlannedProcedure {
     /** Local to the draft — the row does not exist server-side yet. */
@@ -117,4 +117,26 @@ export function bookedProcedures(plan: readonly PlannedProcedure[]): BookedProce
 export function describeProcedure(procedure: PlannedProcedure): string {
     const label = procedure.variant ? `${procedure.name} · ${procedure.variant}` : procedure.name;
     return procedure.tooth ? `${label} (${procedure.tooth})` : label;
+}
+
+/**
+ * Only what can actually go where the secretary is putting it. A tooth was
+ * chosen, so the list is the procedures done *to* a tooth; "no tooth assigned"
+ * is the list of those done to the mouth. The server refuses the other pairing
+ * either way (§5 — TOOTH_REQUIRED, TOOTH_NOT_APPLICABLE), so offering it here
+ * only holds the refusal back until confirm, with the whole plan already built
+ * and the patient waiting on it.
+ *
+ * A heading keeps only the variants that fit, and a heading with none left is
+ * not a heading worth opening.
+ */
+export function offeredFor(categories: readonly ProcedureCategory[], hasTooth: boolean): ProcedureCategory[] {
+    return categories.flatMap((category) => {
+        if (category.selectable) {
+            return category.isToothSpecific === hasTooth ? [category] : [];
+        }
+
+        const children = category.children.filter((child) => child.isToothSpecific === hasTooth);
+        return children.length > 0 ? [{ ...category, children }] : [];
+    });
 }

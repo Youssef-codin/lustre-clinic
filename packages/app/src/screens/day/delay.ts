@@ -1,20 +1,24 @@
 /**
  * How late the day is running, and what every booked time means because of it.
  *
- * A clinic day slips for two reasons and they are not the same reason. The
- * patient in the chair stays longer than the slot allowed for — that is time
- * already spent, measured against the clock. And someone walks in and is taken
- * — that is time about to be spent, which nobody's booked slot ever accounted
- * for. Both push everyone after them along, so both are counted here and the
- * split is kept, because "the chair is 12 minutes over" and "there are two
- * walk-ins ahead of you" are different sentences to say to a waiting patient.
+ * One thing slips a day, and it is the chair: the patient in it stays longer
+ * than the slot allowed for. That is time already spent, measured against the
+ * clock, and nothing in the layout knows about it yet.
+ *
+ * A walk-in is not the second reason, though it looks like one. Taking a
+ * walk-in *writes* — the server seats it and pushes every booked row it runs
+ * into past its end (`makeRoomForWalkIn`) — so by the time the day is drawn,
+ * those minutes are already inside the `startsAt` of everyone after it. Adding
+ * them again here would count them twice and overstate every projection below
+ * by the whole walk-in. It is the same rule that keeps a merely-waiting booked
+ * patient out of the sum: anything owning a slot in the day is already in the
+ * day.
  *
  * Nothing here writes. `startsAt` stays the time the patient was told on the
  * phone — rewriting thirty rows because the chair overran is a lie the moment
  * the day catches up, and the day usually does. The projection is drawn beside
  * the booked time, never instead of it, and unwinds by itself as the chair
- * empties. A booked patient who is already waiting adds nothing: they own a
- * slot further down the day, so counting them would count that time twice.
+ * empties.
  *
  * The delay is rounded up to `MIN_SLOT_STEP`, so every projection lands on the
  * same grid the booking grid tiles by. "6:17" is a false precision — the chair
@@ -39,12 +43,9 @@ export interface DayDelay {
     minutes: number;
     /** What the patient in the chair has overrun their slot by, to the minute. */
     fromChair: number;
-    /** The walk-ins taken ahead of the booked day, to the minute. */
-    fromWalkIns: number;
-    walkIns: number;
 }
 
-export const ON_TIME: DayDelay = { minutes: 0, fromChair: 0, fromWalkIns: 0, walkIns: 0 };
+export const ON_TIME: DayDelay = { minutes: 0, fromChair: 0 };
 
 /**
  * `checkedInAt` is the same map the chair reads, so both agree on who is
@@ -59,22 +60,13 @@ export function dayDelay(
 ): DayDelay {
     if (nowMinutes === null) return ON_TIME;
 
-    const { chair, waiting } = arrivalQueue(appointments, checkedInAt);
+    const { chair } = arrivalQueue(appointments, checkedInAt);
 
     const fromChair = chair
         ? Math.max(0, nowMinutes - (minutesOfDay(chair.startsAt) + chair.durationMinutes))
         : 0;
 
-    // Only walk-ins. A booked patient waiting their turn is already in the day.
-    const walkingIn = waiting.filter((row) => row.channel === 'walk_in');
-    const fromWalkIns = walkingIn.reduce((total, row) => total + row.durationMinutes, 0);
-
-    return {
-        minutes: toSlot(fromChair + fromWalkIns),
-        fromChair,
-        fromWalkIns,
-        walkIns: walkingIn.length,
-    };
+    return { minutes: toSlot(fromChair), fromChair };
 }
 
 /**
@@ -110,10 +102,5 @@ export function delayLabel(delay: DayDelay): string | null {
 
 /** Why the day is late, in the words the desk would use to explain it. */
 export function delayReason(delay: DayDelay): string | null {
-    const parts: string[] = [];
-    if (delay.fromChair > 0) parts.push(`the chair is ${delay.fromChair} min over`);
-    if (delay.walkIns > 0) {
-        parts.push(`${delay.walkIns} walk-in${delay.walkIns === 1 ? '' : 's'} ahead`);
-    }
-    return parts.length === 0 ? null : parts.join(', ');
+    return delay.fromChair > 0 ? `the chair is ${delay.fromChair} min over` : null;
 }
