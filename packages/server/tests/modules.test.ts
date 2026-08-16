@@ -1265,6 +1265,37 @@ describe('appointment procedures', () => {
         expect(visit.procedures.map((l) => l.name).sort()).toEqual(['Checkup', 'Extraction']);
     });
 
+    // The chair is occupied at the moment the patient arrives, which is what a
+    // running-late day looks like from the desk. The slot in progress is not
+    // interrupted, and the walk-in is not refused for it: it starts at the end
+    // of the one already in the chair. Before, the row was never considered and
+    // the insert died on `appointments_no_overlap` as SLOT_OVERLAP.
+    test('a walk-in arriving mid-procedure is seated after it, not turned away', async () => {
+        const { branch, patient } = await fixtures();
+
+        const running = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+            offsetMinutes: 0,
+            durationMinutes: 30,
+        });
+
+        const { appointment } = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+        });
+
+        expect(appointment.status).toBe('checked_in');
+        expect(appointment.startsAt.getTime()).toBe(running.startsAt.getTime() + 30 * 60_000);
+
+        // And the one in the chair stayed exactly where it was.
+        expect((await appointmentService.byId(running.id)).startsAt.getTime()).toBe(
+            running.startsAt.getTime(),
+        );
+    });
+
     test('a refused walk-in leaves neither the booking nor its procedures behind', async () => {
         const { branch, patient, extraction } = await fixtures();
 

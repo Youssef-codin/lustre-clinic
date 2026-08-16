@@ -3,8 +3,9 @@
  * look before anything is written. The FAB used to open a walk-in and nothing
  * else, which made the day view a screen you could only add to *now* — the
  * phone call asking for Thursday had nowhere to go. So the walk-in became one
- * answer to "when" (`appointment.walkIn`, booked and checked in at `now`) and a
- * time on a later day became the other (`appointment.create`).
+ * answer to "when" (`appointment.walkIn`, booked and checked in on arrival —
+ * seated now, or at the end of the procedure already in the chair) and a time
+ * on a later day became the other (`appointment.create`).
  *
  * A page rather than a sheet: a plan of procedures, a fortnight of days and a
  * grid of times do not fit above a keyboard. Who it is for is still asked in a
@@ -42,6 +43,7 @@ import {
     offsetForDate,
     parseKey,
     relativeDayLabel,
+    time12,
     todayKey,
 } from '../time';
 import { CheckIcon } from './icons';
@@ -222,14 +224,27 @@ export function BookingScreen({
                     // A walk-in is never refused for want of room — the booked
                     // day moves out of its way — so the desk is told when it
                     // did, because those are patients who were given a time.
+                    //
+                    // It is also told when the walk-in did not get the chair
+                    // straight away: one procedure is already under way and is
+                    // not interrupted, so this patient waits, and the person
+                    // saying "you're checked in" needs to be able to say until
+                    // when in the same breath.
                     onSuccess: (result) => {
                         const pushed = result.moved.length;
                         const who = name ? `${name} is checked in` : 'Walk-in checked in';
-                        onBooked(
-                            pushed === 0
-                                ? who
-                                : `${who} — ${pushed} appointment${pushed === 1 ? '' : 's'} moved back`,
-                        );
+                        const seated = time12(result.appointment.startsAt);
+                        // A minute of slack: the round trip alone puts the
+                        // start a few seconds behind the clock, and that is
+                        // still "now" to the person at the desk.
+                        const waits = new Date(result.appointment.startsAt).getTime() > Date.now() + 60_000;
+
+                        const parts = [
+                            waits ? `${who}, seen at ${seated.time} ${seated.meridiem}` : who,
+                            pushed > 0 ? `${pushed} appointment${pushed === 1 ? '' : 's'} moved back` : null,
+                        ].filter((part) => part !== null);
+
+                        onBooked(parts.join(' — '));
                     },
                 },
             );

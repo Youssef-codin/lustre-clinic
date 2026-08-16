@@ -123,12 +123,14 @@ describe('appointment.create', () => {
 });
 
 describe('appointment.walkIn', () => {
-    test('an overlap leaves no appointment, visit, reminder or patient', async () => {
+    test('a second walk-in queues behind the first rather than being refused', async () => {
         // The widest transaction in the app: four tables, plus the seeded
-        // checkup line. `starts_at` is now, so a walk-in collides with anything
-        // already in progress.
+        // checkup line. `starts_at` is now, so the first walk-in is still in the
+        // chair when the second arrives — and §7 says the second is taken
+        // anyway, seated at the end of the first, with its whole set of rows
+        // written. It is not an overlap, so there is nothing to roll back.
         const fixtures = await clinic();
-        await appointmentService.walkIn({
+        const first = await appointmentService.walkIn({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
             offsetMinutes: 0,
@@ -136,16 +138,22 @@ describe('appointment.walkIn', () => {
 
         const before = await snapshot();
 
-        await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
-            appointmentService.walkIn({
-                patient: { kind: 'new', name: 'Second Walk-up', phone: '01066666666' },
-                branchId: fixtures.branch.id,
-                offsetMinutes: 0,
-            }),
+        const second = await appointmentService.walkIn({
+            patient: { kind: 'new', name: 'Second Walk-up', phone: '01066666666' },
+            branchId: fixtures.branch.id,
+            offsetMinutes: 0,
+        });
+
+        expect(second.appointment.startsAt.getTime()).toBe(
+            first.appointment.startsAt.getTime() + first.appointment.durationMinutes * 60_000,
         );
 
-        expect(await snapshot()).toEqual(before);
-        expect(await patientService.search({ q: 'Second', limit: 25 })).toEqual([]);
+        const after = await snapshot();
+        expect(after.patients).toBe(before.patients + 1);
+        expect(after.appointments).toBe(before.appointments + 1);
+        expect(after.reminders).toBe(before.reminders + 1);
+        expect(after.visits).toBe(before.visits + 1);
+        expect(await patientService.search({ q: 'Second', limit: 25 })).toHaveLength(1);
     });
 
     test('a successful walk-in leaves its reminder skipped, not pending', async () => {

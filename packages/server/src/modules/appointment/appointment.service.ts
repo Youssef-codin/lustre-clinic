@@ -185,14 +185,27 @@ export interface Moved {
     to: Date;
 }
 
+/** Where the walk-in ended up, and who moved for it. */
+export interface WalkInRoom {
+    startsAt: Date;
+    moved: Moved[];
+}
+
 /**
  * A walk-in is someone standing at the desk, so it is never refused for want of
- * room — it is taken now and the booked day moves out of its way (§7). Only the
+ * room — it is taken and the booked day moves out of its way (§7). Only the
  * rows it actually runs into move, and only as far as they must: the walk-in's
  * end becomes a cursor, each later slot-holding row that starts before the
  * cursor is pushed to it, and the first row that already clears the cursor
  * stops the ripple. A clinic's natural gaps therefore absorb the walk-in
  * instead of the whole afternoon sliding.
+ *
+ * It is taken *now* only if the chair is free now. There is one practitioner
+ * (§5), so a slot still running when the patient arrives — the running-late
+ * case — cannot be pushed aside without interrupting a procedure already in
+ * progress. That row stays; the walk-in starts when it ends, and the cascade
+ * runs from there. Nobody is refused, and nobody is pulled out of the chair.
+ * At most one row can be running: the exclusion constraint sees to that.
  *
  * The rows are written *last one first*. Every move is forwards, so ascending
  * order would push one appointment onto the next before that next one has
@@ -208,7 +221,26 @@ export async function makeRoomForWalkIn(
     at: Date,
     durationMinutes: number,
     offsetMinutes: number,
-): Promise<Moved[]> {
+): Promise<WalkInRoom> {
+    const [running] = await tx
+        .select({
+            startsAt: appointments.startsAt,
+            durationMinutes: appointments.durationMinutes,
+        })
+        .from(appointments)
+        .where(
+            and(
+                // The same span the constraint indexes, so this reads the gist
+                // index and agrees with it by construction. Half-open, so a row
+                // ending exactly as the patient arrives is already out of the chair.
+                sql`appointment_span(${appointments.startsAt}, ${appointments.durationMinutes}) @> ${at.toISOString()}::timestamptz`,
+                inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
+            ),
+        )
+        .limit(1);
+
+    const startsAt = running ? new Date(running.startsAt.getTime() + running.durationMinutes * 60_000) : at;
+
     const { to } = dayRange(dayKeyOf(at, offsetMinutes), offsetMinutes);
 
     const later = await tx
@@ -220,14 +252,14 @@ export async function makeRoomForWalkIn(
         .from(appointments)
         .where(
             and(
-                gte(appointments.startsAt, at),
+                gte(appointments.startsAt, startsAt),
                 lt(appointments.startsAt, to),
                 inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
             ),
         )
         .orderBy(asc(appointments.startsAt));
 
-    let cursor = at.getTime() + durationMinutes * 60_000;
+    let cursor = startsAt.getTime() + durationMinutes * 60_000;
     const moves: Moved[] = [];
 
     for (const row of later) {
@@ -246,7 +278,7 @@ export async function makeRoomForWalkIn(
         await tx.update(appointments).set({ startsAt: move.to }).where(eq(appointments.id, move.id));
     }
 
-    return moves;
+    return { startsAt, moved: moves };
 }
 
 /** Which calendar day a moment falls on, in the clinic's offset. */
@@ -354,7 +386,7 @@ export const appointmentService = {
     ): Promise<{ appointment: AppointmentRow; visitId: string; moved: Moved[] }> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const { reminderLeadHours } = await settingsService.get();
-        const startsAt = new Date();
+        const arrivedAt = new Date();
         const resolved = await resolveProcedureLines(input.procedures ?? []);
 
         const { visitService } = await import('../visit/visit.service.ts');
@@ -363,8 +395,14 @@ export const appointmentService = {
             const patientId = await resolvePatient(tx, input.patient);
 
             // Before the insert, not after: the walk-in cannot be written into
-            // a slot something else still holds.
-            const moved = await makeRoomForWalkIn(tx, startsAt, durationMinutes, input.offsetMinutes);
+            // a slot something else still holds. This also decides when it
+            // starts — now, or when the chair frees.
+            const { startsAt, moved } = await makeRoomForWalkIn(
+                tx,
+                arrivedAt,
+                durationMinutes,
+                input.offsetMinutes,
+            );
 
             const appointment = await insertWithRef(
                 tx,

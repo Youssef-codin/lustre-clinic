@@ -9,7 +9,9 @@ import { insertBranch, insertPatient, setupDatabase, sql, truncateAll, uuid } fr
  * room: the booked day moves out of its way (§7). What is asserted here is that
  * it moves as little as it can — only the rows actually run into, only as far
  * as the walk-in's end, and a natural gap stops the ripple rather than the
- * whole afternoon sliding.
+ * whole afternoon sliding. The one row it will not move is the one already in
+ * the chair: the walk-in waits for it instead, which is the difference between
+ * waiting and being turned away.
  *
  * Times are UTC and the clinic offset is zero, so a minute here is a minute on
  * the wall. The database is the referee throughout: `appointments_no_overlap`
@@ -48,8 +50,12 @@ async function startOf(id: string): Promise<number> {
     return minutesOf(new Date(row?.starts_at as string));
 }
 
-const makeRoom = (startMinutes: number, durationMinutes: number) =>
+const room = (startMinutes: number, durationMinutes: number) =>
     makeRoomForWalkIn(db, at(startMinutes), durationMinutes, 0);
+
+/** Who moved. Most of these are about the cascade, not about where the walk-in landed. */
+const makeRoom = async (startMinutes: number, durationMinutes: number) =>
+    (await room(startMinutes, durationMinutes)).moved;
 
 beforeAll(async () => {
     await setupDatabase();
@@ -123,11 +129,57 @@ describe('a walk-in making room', () => {
         expect(await startOf(missed)).toBe(20);
     });
 
-    test('pushes a patient already in the chair, who also holds a slot', async () => {
+    test('pushes a checked-in patient whose slot has not started, who also holds a slot', async () => {
         const seated = await book(20, 30, 'checked_in');
 
         expect(await makeRoom(0, 30)).toHaveLength(1);
         expect(await startOf(seated)).toBe(30);
+    });
+
+    // One practitioner: a procedure already under way is not interrupted, so
+    // the walk-in waits for the chair rather than being refused for it.
+    test('starts when the chair frees, leaving the running slot alone', async () => {
+        const running = await book(-10, 30, 'checked_in');
+
+        const { startsAt, moved } = await room(0, 30);
+
+        expect(minutesOf(startsAt)).toBe(20);
+        expect(moved).toEqual([]);
+        expect(await startOf(running)).toBe(-10);
+    });
+
+    test('cascades from the freed chair, not from the arrival', async () => {
+        const running = await book(-10, 30, 'checked_in');
+        const next = await book(30, 30);
+        const afterGap = await book(120, 30);
+
+        const { startsAt, moved } = await room(0, 30);
+
+        expect(minutesOf(startsAt)).toBe(20);
+        expect(moved.map((move) => move.id)).toEqual([next]);
+        expect(await startOf(running)).toBe(-10);
+        expect(await startOf(next)).toBe(50);
+        expect(await startOf(afterGap)).toBe(120);
+    });
+
+    test('takes the chair the moment a slot ends, not a minute after', async () => {
+        const justEnded = await book(-30, 30, 'checked_in');
+
+        const { startsAt, moved } = await room(0, 30);
+
+        expect(minutesOf(startsAt)).toBe(0);
+        expect(moved).toEqual([]);
+        expect(await startOf(justEnded)).toBe(-30);
+    });
+
+    test('ignores a running slot that holds no chair', async () => {
+        const cancelled = await book(-10, 30, 'cancelled');
+
+        const { startsAt, moved } = await room(0, 30);
+
+        expect(minutesOf(startsAt)).toBe(0);
+        expect(moved).toEqual([]);
+        expect(await startOf(cancelled)).toBe(-10);
     });
 
     test('never pushes anything into tomorrow', async () => {
