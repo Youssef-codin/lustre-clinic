@@ -1,5 +1,5 @@
-// Monorepo setup: Metro must watch the workspace root so `@mawid/shared` and
-// the `AppRouter` type from `@mawid/server` resolve from packages/, and must
+// Monorepo setup: Metro must watch the workspace root so `@lustre/shared` and
+// the `AppRouter` type from `@lustre/server` resolve from packages/, and must
 // resolve modules from both the package and the root node_modules.
 //
 // Hierarchical lookup must stay ON. Bun installs are isolated, so a package's

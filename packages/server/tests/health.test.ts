@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { ERROR_CODE, TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
+import { ERROR_CODE, TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
 import { setupDatabase } from './helpers/db.ts';
 import { startTestServer, type TestServer } from './helpers/trpc.ts';
 

@@ -11,13 +11,25 @@
  * fall back to the same default hours, but the second is the clinic's own
  * guess while the first is this screen's.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, SegmentedControl, Toast } from '../../components/ui';
-import { color, size, space } from '../../theme';
+import {
+    Banner,
+    Button,
+    PushView,
+    RefreshView,
+    SegmentedControl,
+    Toast,
+    usePullToRefresh,
+} from '../../components/ui';
+import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
+import { splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
+import { BookFab } from './components/BookFab';
+import { BookingScreen } from './components/BookingScreen';
+import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { CheckoutSheet } from './components/CheckoutSheet';
 import { ClosedDay } from './components/ClosedDay';
@@ -26,22 +38,43 @@ import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { ChatIcon, ClockIcon } from './components/icons';
 import { NowCard } from './components/NowCard';
 import { Reminders } from './components/Reminders';
-import { WalkInFab } from './components/WalkInFab';
-import { WalkInSheet } from './components/WalkInSheet';
-import { type Appointment, api, rememberVisit, useLocalMutation, useLocalQuery, type Visit } from './data';
+import {
+    type Appointment,
+    api,
+    checkInTimes,
+    rememberVisit,
+    useLocalMutation,
+    useLocalQuery,
+    type Visit,
+} from './data';
+import { dayDelay, delayLabel, delayReason } from './delay';
 import { describeError } from './errors';
 import { isClosed } from './hours';
-import { minutesOfDay, todayKey } from './time';
+import { busiestBranch, holdsSlot } from './month';
+import type { PatientDraft } from './patientDraft';
+import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
 
-export function DayScreen() {
+export type DayScreenProps = {
+    /** The booking page covers the day pane; the shell lights the Patients tab
+     * while it is up, because a booking belongs to the patient, not to today. */
+    onBookingChange?: (open: boolean) => void;
+};
+
+export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
-    const [walkIn, setWalkIn] = useState({ open: false, seq: 0 });
+    const [booking, setBooking] = useState({ open: false, seq: 0 });
+    // Who it is for is a sheet; the rest of the booking is a page pushed over
+    // the day (`PushView`), so the day keeps its date, branch and scroll and
+    // the tab bar stays where it is. The draft outlives the page's exit
+    // animation — clearing it on Back would unmount the pane mid-slide.
+    const [page, setPage] = useState<{ patient: PatientDraft; seq: number } | null>(null);
+    const [pageOpen, setPageOpen] = useState(false);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
         open: false,
@@ -58,10 +91,15 @@ export function DayScreen() {
     const schedule = useLocalQuery('schedule', api.schedule);
     const settings = useLocalQuery('settings', api.settings);
     const branches = useLocalQuery('branches', api.branches);
-    const branch = branchId ?? branches.data?.[0]?.id ?? null;
-    const day = useLocalQuery(`day:${dateKey}:${branch ?? 'all'}`, () =>
-        api.byDate(dateKey, branch ?? undefined),
-    );
+    // The day is fetched for the whole clinic and split here, so the screen can
+    // open on the branch holding most of it: `branches[0]` drew an empty Maadi
+    // while Nasr City had the day, and the emptiness read as a broken fetch. A
+    // branch the user picked wins over the count, and holds until they pick
+    // another.
+    const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const clinicDay = day.data ?? [];
+    const branch =
+        branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
 
     const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
     const reminderCount = reminders.data?.length ?? 0;
@@ -69,28 +107,81 @@ export function DayScreen() {
     const checkIn = useLocalMutation(api.checkIn);
     const noShow = useLocalMutation(api.markNoShow);
 
-    const appointments = day.data ?? [];
+    const appointments = clinicDay.filter((row) => row.branchId === branch);
     const closed = isClosed(dateKey, schedule.data);
+
+    // An empty branch on a day the clinic is working says so, and offers the
+    // branch working it — the same fetch already has the rows, and "Nothing
+    // booked" over a full Nasr City is the thing that reads as a broken app.
+    const away = clinicDay.filter((row) => row.branchId !== branch && holdsSlot(row));
+    const awayId = busiestBranch(away, null);
+    const awayName = (branches.data ?? []).find((row) => row.id === awayId)?.name;
+    const elsewhere =
+        awayId && awayName
+            ? {
+                  name: awayName,
+                  count: away.filter((row) => row.branchId === awayId).length,
+                  onGo: () => setBranchId(awayId),
+              }
+            : undefined;
     const isToday = dateKey === todayKey();
 
-    const inChair = appointments.filter((row) => row.status === 'checked_in');
-    const active =
-        inChair.find((row) => {
-            const startMinutes = minutesOfDay(row.startsAt);
-            return nowMinutes >= startMinutes && nowMinutes < startMinutes + row.durationMinutes;
-        }) ??
-        [...inChair].sort((a, b) => b.startsAt.localeCompare(a.startsAt))[0] ??
-        appointments.find((row) => row.status === 'awaiting_payment') ??
-        null;
+    const checkedInIds = useMemo(
+        () =>
+            appointments
+                .filter((row) => row.status === 'checked_in')
+                .map((row) => row.id)
+                .sort(),
+        [appointments],
+    );
+    const arrivals = useLocalQuery(`arrivals:${checkedInIds.join(',')}`, () => checkInTimes(checkedInIds), {
+        enabled: checkedInIds.length > 0,
+    });
 
-    const next =
-        appointments
-            .filter((row) => row.status === 'booked')
-            .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0] ?? null;
+    // A pull re-asks for this screen's five reads and nothing else. The other
+    // tabs are mounted behind this one and refetching them from here would put
+    // three screens' worth of traffic on the tunnel for a screen nobody is
+    // looking at — `/ws` is what keeps those fresh. A failed refresh keeps the
+    // day on screen behind its banner, so the gesture is safe on a bad signal.
+    const reads = [day, schedule, branches, reminders, arrivals];
+    const refreshControl = usePullToRefresh(
+        () => {
+            day.refetch();
+            schedule.refetch();
+            branches.refetch();
+            reminders.refetch();
+            if (checkedInIds.length > 0) arrivals.refetch();
+        },
+        reads.some((read) => read.refreshing || read.status === 'loading'),
+    );
 
-    const { past, upcoming } = splitDay(appointments, isToday ? (active?.id ?? null) : null);
+    // The chair is the queue's head, not whoever's slot the clock happens to be
+    // inside — the doctor's screen reads it the same way, and picking by slot
+    // was what had the two screens seating different patients.
+    const { chair, waiting, desk, next, card } = useMemo(
+        () => splitDeskDay(appointments, arrivals.data),
+        [appointments, arrivals.data],
+    );
 
-    const openWalkIn = () => setWalkIn((current) => ({ open: true, seq: current.seq + 1 }));
+    const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null);
+
+    // What the chair's overrun and any walk-ins mean for everyone still to be
+    // seen. Nothing is written — `startsAt` stays the time the patient was told
+    // — and the projection unwinds by itself as the day catches up.
+    const delay = useMemo(
+        () => dayDelay(appointments, isToday ? nowMinutes : null, arrivals.data),
+        [appointments, isToday, nowMinutes, arrivals.data],
+    );
+
+    // The calendar counts every branch, so a picked day carries the branch it
+    // is busiest in; following it is what stops the grid promising a day the
+    // day view then draws empty. A day with nothing booked carries no branch.
+    const pickDay = (nextDate: string, nextBranch: string | null) => {
+        setDateKey(nextDate);
+        if (nextBranch) setBranchId(nextBranch);
+    };
+
+    const openBooking = () => setBooking((current) => ({ open: true, seq: current.seq + 1 }));
     const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
 
     const checkingInId = checkIn.pending ? checkingIn : null;
@@ -100,7 +191,13 @@ export function DayScreen() {
         checkIn.mutate(appointment.id, {
             onSuccess: (visit) => {
                 rememberVisit(appointment.id, visit.id);
-                setToast(`${appointment.patient.name} is in the chair`);
+                // Checking in no longer means going in: with the chair taken
+                // they join the queue, and the toast has to say which happened.
+                setToast(
+                    chair
+                        ? `${appointment.patient.name} is waiting — ${waiting.length + 1} ahead of them`
+                        : `${appointment.patient.name} is in the chair`,
+                );
                 day.refetch();
             },
         });
@@ -180,29 +277,55 @@ export function DayScreen() {
 
             <View style={styles.body}>
                 {tab === 'reminders' ? (
-                    <Reminders query={reminders} />
+                    <Reminders query={reminders} refreshControl={refreshControl} />
                 ) : day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <DayError error={day.error} onRetry={day.refetch} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayError error={day.error} onRetry={day.refetch} />
+                    </RefreshView>
                 ) : closed ? (
-                    <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
+                    <ClosedDay
+                        dateKey={dateKey}
+                        appointments={appointments}
+                        onSelect={openDetail}
+                        refreshControl={refreshControl}
+                    />
                 ) : appointments.length === 0 ? (
-                    <DayEmpty past={dateKey < todayKey()} onWalkIn={openWalkIn} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayEmpty past={dateKey < todayKey()} onBook={openBooking} elsewhere={elsewhere} />
+                    </RefreshView>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={refreshControl}
                         testID="day-agenda"
                     >
                         {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
+                        {delayLabel(delay) ? (
+                            <View style={styles.late}>
+                                <ClockIcon size={14} stroke={color.due} />
+                                <View style={styles.grow}>
+                                    <Text variant="footnote" weight="bold" tone="due">
+                                        Running {delayLabel(delay)}
+                                    </Text>
+                                    {delayReason(delay) ? (
+                                        <Text variant="caption" tone="muted">
+                                            {delayReason(delay)} — booked times below show what they now mean.
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            </View>
+                        ) : null}
+
                         {isToday ? (
                             <NowCard
-                                active={active}
+                                active={desk ?? chair}
                                 next={next}
                                 nowMinutes={nowMinutes}
-                                procedure={active ? procedureLabel(active) : undefined}
+                                procedure={card ? procedureLabel(card) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}
@@ -211,44 +334,69 @@ export function DayScreen() {
 
                         <UpNext
                             appointments={upcoming}
-                            chairBusy={active?.status === 'checked_in'}
+                            chairId={isToday ? (chair?.id ?? null) : null}
+                            delay={delay}
+                            nowMinutes={isToday ? nowMinutes : null}
                             relativeToNow={isToday}
                             checkingInId={checkingInId}
                             onSelect={openDetail}
                             onCheckIn={checkInFrom}
                             onNoShow={markNoShow}
-                            onBlocked={() =>
-                                setToast('Finish the visit in the chair before checking anyone else in')
-                            }
                         />
                     </ScrollView>
                 )}
             </View>
 
-            {isToday && tab === 'day' ? <WalkInFab onPress={openWalkIn} /> : null}
+            {tab === 'day' ? <BookFab onPress={openBooking} /> : null}
 
             <CalendarSheet
                 key={`calendar:${calendar.seq}`}
                 visible={calendar.open}
                 selected={dateKey}
                 schedule={schedule.data}
-                branchName={(branches.data ?? []).find((row) => row.id === branch)?.name}
-                onPick={setDateKey}
+                branches={branches.data ?? []}
+                branchId={branch}
+                onPick={pickDay}
                 onClose={() => setCalendar((current) => ({ ...current, open: false }))}
             />
 
-            <WalkInSheet
-                key={`walk-in:${walkIn.seq}`}
-                visible={walkIn.open}
-                branchId={branch}
-                durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
-                defaultDuration={settings.data?.defaultDuration ?? 30}
-                onClose={() => setWalkIn((current) => ({ ...current, open: false }))}
-                onCreated={(message) => {
-                    setToast(message);
-                    day.refetch();
+            <BookPatientSheet
+                key={`book-patient:${booking.seq}`}
+                visible={booking.open}
+                onClose={() => setBooking((current) => ({ ...current, open: false }))}
+                onPicked={(patient) => {
+                    setBooking((current) => ({ ...current, open: false }));
+                    setPage((current) => ({ patient, seq: (current?.seq ?? 0) + 1 }));
+                    setPageOpen(true);
+                    onBookingChange?.(true);
                 }}
             />
+
+            <PushView visible={pageOpen} testID="booking-page">
+                {page ? (
+                    <BookingScreen
+                        key={`booking:${page.seq}`}
+                        patient={page.patient}
+                        branchId={branch}
+                        branches={branches.data ?? []}
+                        schedule={schedule.data}
+                        durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
+                        defaultDuration={settings.data?.defaultDuration ?? 30}
+                        dateKey={dateKey}
+                        nowMinutes={nowMinutes}
+                        onBack={() => {
+                            setPageOpen(false);
+                            onBookingChange?.(false);
+                        }}
+                        onBooked={(message) => {
+                            setPageOpen(false);
+                            onBookingChange?.(false);
+                            setToast(message);
+                            day.refetch();
+                        }}
+                    />
+                ) : null}
+            </PushView>
 
             <AppointmentDetailSheet
                 key={`detail:${selected.appointment?.id ?? 'none'}`}
@@ -289,4 +437,16 @@ const styles = StyleSheet.create({
     body: { flex: 1 },
     agenda: { paddingBottom: size.nav, gap: space[3] },
     tabs: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
+    late: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: space[2],
+        marginHorizontal: size.gutter,
+        padding: space[3],
+        borderRadius: radius.lg,
+        borderWidth: border.hair,
+        borderColor: color.dueSoft,
+        backgroundColor: color.dueSoft,
+    },
+    grow: { flex: 1, minWidth: 0, gap: space[0.5] },
 });

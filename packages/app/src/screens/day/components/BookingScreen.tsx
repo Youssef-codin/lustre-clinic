@@ -1,0 +1,904 @@
+/**
+ * A booking, once the patient is known: what it is for, when it is, and a last
+ * look before anything is written. The FAB used to open a walk-in and nothing
+ * else, which made the day view a screen you could only add to *now* — the
+ * phone call asking for Thursday had nowhere to go. So the walk-in became one
+ * answer to "when" (`appointment.walkIn`, booked and checked in on arrival —
+ * seated now, or at the end of the procedure already in the chair) and a time
+ * on a later day became the other (`appointment.create`).
+ *
+ * A page rather than a sheet: a plan of procedures, a fortnight of days and a
+ * grid of times do not fit above a keyboard. Who it is for is still asked in a
+ * sheet (`BookPatientSheet`) — a search box and a short list is what a sheet is
+ * good at — and answering it pushes this. The pane sits inside the day tab, so
+ * Back returns to the day with its date, branch and scroll intact; the shell
+ * lights the Patients tab while it is open, because that is the part of the
+ * app this belongs to.
+ *
+ * The order of the questions is the order of the conversation at the desk:
+ * what needs doing, then when they can come, then read it back. Nothing is
+ * written until the last step's button. The clinic PC is across Tailscale, so a
+ * refusal lands above that button in the words of what was being attempted
+ * (§4/§14) — never a toast that slides away while the patient is standing there.
+ */
+import { PIASTRES_PER_POUND } from '@lustre/shared';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
+import { border, color, radius, size, space, Text } from '../../../theme';
+import { type Slot, slotIsFree, slotsFor } from '../booking';
+import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
+import { describeError } from '../errors';
+import { isClosed } from '../hours';
+import { formatMoney } from '../money';
+import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '../patientDraft';
+import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
+import {
+    addDays,
+    clock12,
+    formatDate,
+    isoAt,
+    localOffsetMinutes,
+    monthShort,
+    offsetForDate,
+    parseKey,
+    relativeDayLabel,
+    time12,
+    todayKey,
+} from '../time';
+import { CheckIcon } from './icons';
+import { ProcedurePlan } from './ProcedurePlan';
+import { SlotPicker } from './SlotPicker';
+
+export type BookingScreenProps = {
+    /** Answered by `BookPatientSheet`, or handed straight in by a screen that
+     * already has the patient — the patient record books this way. */
+    patient: PatientDraft;
+    branchId: string | null;
+    branches: readonly Branch[];
+    schedule: readonly ClinicDay[] | undefined;
+    durationOptions: readonly number[];
+    defaultDuration: number;
+    /** The day the screen behind is on — where a scheduled booking opens. */
+    dateKey: string;
+    /** Minutes into today: what "now" means, and which times have gone. */
+    nowMinutes: number;
+    onBack: () => void;
+    onBooked: (message: string) => void;
+};
+
+/** How far ahead the day strip offers. */
+const STRIP_DAYS = 14;
+
+type Step = 'what' | 'when' | 'confirm';
+type Timing = 'now' | 'later';
+
+const STEPS: { key: Step; label: string }[] = [
+    { key: 'what', label: 'Procedures' },
+    { key: 'when', label: 'When' },
+    { key: 'confirm', label: 'Confirm' },
+];
+
+export function BookingScreen({
+    patient,
+    branchId,
+    branches,
+    schedule,
+    durationOptions,
+    defaultDuration,
+    dateKey,
+    nowMinutes,
+    onBack,
+    onBooked,
+}: BookingScreenProps) {
+    const today = todayKey();
+
+    const [index, setIndex] = useState(0);
+    const [plan, setPlan] = useState<PlannedProcedure[]>([]);
+    const [timing, setTiming] = useState<Timing>(
+        !isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later',
+    );
+    const [date, setDate] = useState(dateKey < today ? today : dateKey);
+    const [slotMinutes, setSlotMinutes] = useState<number | null>(null);
+    const [duration, setDuration] = useState(defaultDuration);
+    const [note, setNote] = useState('');
+    const [branch, setBranch] = useState<string | null>(branchId);
+
+    // A walk-in is always "now", whatever day the screen behind is on — the only
+    // thing that rules it out is a branch that is not working today. It moves
+    // with the branch, because Maadi being open is not Nasr City being open.
+    const canWalkIn = !isClosed(today, schedule, branch);
+    const branchName = branches.find((row) => row.id === branch)?.name ?? null;
+
+    const walkIn = useLocalMutation(api.walkIn);
+    const create = useLocalMutation(api.create);
+
+    const step = STEPS[index]?.key ?? 'confirm';
+    // Picking a branch that is not working today takes the walk-in away under
+    // the choice already made, so "now" falls back to a time rather than
+    // leaving a booking with no when at all.
+    const scheduled = timing === 'later' || !canWalkIn;
+    const pending = walkIn.pending || create.pending;
+    const error = scheduled ? create.error : walkIn.error;
+    const failure = error ? describeError(error, scheduled ? 'booking' : 'walk-in') : null;
+
+    const ref = patientRefOf(patient);
+    const name = patientNameOf(patient);
+
+    const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
+
+    // Every day the branch works in the fortnight ahead, not just the one on
+    // screen: "which days can take a 45-minute visit" cannot be answered from a
+    // single day, and a strip offering a day whose every time is gone is the
+    // same lie the slot grid used to tell. One request either way — `byDates`
+    // batches over `httpBatchLink` — and the day being booked reads its times
+    // out of the same answer, so the grid and the Book button cannot disagree.
+    const workingDays = useMemo(
+        () =>
+            Array.from({ length: STRIP_DAYS }, (_, index) => addDays(today, index)).filter(
+                (key) => !isClosed(key, schedule, branch),
+            ),
+        [today, schedule, branch],
+    );
+
+    const fortnight = useLocalQuery(
+        `booking-days:${branch}:${workingDays.join(',')}`,
+        () => api.byDates(workingDays),
+        { enabled: scheduled && workingDays.length > 0 },
+    );
+
+    // A day that has not answered yet has no taken times *to* know about, and
+    // `slotsFor([])` says every hour is free — which is how the grid came to
+    // offer a slot someone else is already in. `enabled: false` leaves the query
+    // at `success` with no data, and a key change clears data a frame before the
+    // fetch starts, so neither status alone is the question: the question is
+    // whether the rows are in hand. Until they are, nothing is offered.
+    const fetched = fortnight.data;
+
+    const slotsByDay = useMemo(() => {
+        const byDay = new Map<string, Slot[]>();
+        if (!fetched) return byDay;
+
+        workingDays.forEach((key, index) => {
+            byDay.set(
+                key,
+                slotsFor({
+                    dateKey: key,
+                    schedule,
+                    appointments: (fetched[index] ?? []).filter((row) => row.branchId === branch),
+                    branchId: branch,
+                    durationMinutes: duration,
+                    nowMinutes: key === today ? nowMinutes : null,
+                }),
+            );
+        });
+
+        return byDay;
+    }, [fetched, workingDays, schedule, branch, duration, today, nowMinutes]);
+
+    // Only the days that can actually take a visit this long. Asking for 45
+    // minutes on a full Thursday should take Thursday off the strip, not leave
+    // it there to be tapped and found empty.
+    const openDays = useMemo(
+        () => workingDays.filter((key) => (slotsByDay.get(key) ?? []).some((slot) => slot.state === 'free')),
+        [workingDays, slotsByDay],
+    );
+
+    const slots = slotsByDay.get(date) ?? [];
+
+    // Asking for a longer visit can take the day in hand off the strip. Landing
+    // on the first day that can still take it beats leaving the picker pointing
+    // at a day it no longer offers, with a grid that says nothing is left.
+    useEffect(() => {
+        if (openDays.length === 0 || openDays.includes(date)) return;
+        setDate(openDays[0] as string);
+        setSlotMinutes(null);
+    }, [openDays, date]);
+
+    const timeIsFree = !scheduled || slotIsFree(slots, slotMinutes);
+    const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
+    const ready = ref !== null && branch !== null && whenAnswered;
+
+    function reset() {
+        walkIn.reset();
+        create.reset();
+    }
+
+    function book() {
+        if (!ref || !branch || !ready) return;
+
+        const procedures = bookedProcedures(plan);
+        const body = note.trim() || null;
+
+        if (!scheduled) {
+            walkIn.mutate(
+                {
+                    patient: ref,
+                    branchId: branch,
+                    durationMinutes: duration,
+                    procedures,
+                    note: body,
+                    offsetMinutes: localOffsetMinutes(),
+                },
+                {
+                    // A walk-in is never refused for want of room — the booked
+                    // day moves out of its way — so the desk is told when it
+                    // did, because those are patients who were given a time.
+                    //
+                    // It is also told when the walk-in did not get the chair
+                    // straight away: one procedure is already under way and is
+                    // not interrupted, so this patient waits, and the person
+                    // saying "you're checked in" needs to be able to say until
+                    // when in the same breath.
+                    onSuccess: (result) => {
+                        const pushed = result.moved.length;
+                        const who = name ? `${name} is checked in` : 'Walk-in checked in';
+                        const seated = time12(result.appointment.startsAt);
+                        // A minute of slack: the round trip alone puts the
+                        // start a few seconds behind the clock, and that is
+                        // still "now" to the person at the desk.
+                        const waits = new Date(result.appointment.startsAt).getTime() > Date.now() + 60_000;
+
+                        const parts = [
+                            waits ? `${who}, seen at ${seated.time} ${seated.meridiem}` : who,
+                            pushed > 0 ? `${pushed} appointment${pushed === 1 ? '' : 's'} moved back` : null,
+                        ].filter((part) => part !== null);
+
+                        onBooked(parts.join(' — '));
+                    },
+                },
+            );
+            return;
+        }
+
+        if (slotMinutes === null) return;
+
+        create.mutate(
+            {
+                patient: ref,
+                branchId: branch,
+                startsAt: isoAt(date, slotMinutes),
+                durationMinutes: duration,
+                procedures,
+                note: body,
+                offsetMinutes: offsetForDate(date),
+            },
+            { onSuccess: () => onBooked(`${name} — ${dayLabel(date)} at ${timeLabel(slotMinutes)}`) },
+        );
+    }
+
+    // How long is asked before what time, because the grid tiles the day by it.
+    // A walk-in has no grid, so it gets the same control on its own.
+    const howLong = (
+        <View style={styles.section}>
+            <Text variant="eyebrow" tone="muted">
+                HOW LONG
+            </Text>
+            <View style={styles.row}>
+                {durationOptions.map((option) => (
+                    <Chip
+                        key={option}
+                        label={`${option} min`}
+                        grow
+                        selected={duration === option}
+                        onPress={() => {
+                            setDuration(option);
+                            // A new length is a new set of start times, and the
+                            // old pick is usually not one of them.
+                            setSlotMinutes(null);
+                            reset();
+                        }}
+                    />
+                ))}
+            </View>
+        </View>
+    );
+
+    const last = step === 'confirm';
+    const stepReady = step === 'when' ? whenAnswered && branch !== null : true;
+
+    return (
+        <View style={styles.screen} testID="booking-screen">
+            <View style={styles.topbar}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={index === 0 ? 'Back to the day' : 'Back a step'}
+                    disabled={pending}
+                    onPress={() => {
+                        if (index === 0) {
+                            onBack();
+                            return;
+                        }
+                        reset();
+                        if (scheduled) fortnight.refetch();
+                        setIndex(index - 1);
+                    }}
+                    style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
+                >
+                    <Chevron direction="back" size={10} tone="ink" />
+                </Pressable>
+                <Text variant="eyebrow" tone="muted">
+                    NEW BOOKING
+                </Text>
+            </View>
+
+            <View style={styles.identity}>
+                <View style={styles.tile}>
+                    {scheduled ? (
+                        <>
+                            <Text variant="title2" script="sans" weight="bold" tone="inverse">
+                                {parseKey(date).getDate()}
+                            </Text>
+                            <Text variant="eyebrow" tone="inverse" style={styles.tileMonth}>
+                                {monthShort(date).toUpperCase()}
+                            </Text>
+                        </>
+                    ) : (
+                        <Text variant="eyebrow" tone="inverse">
+                            NOW
+                        </Text>
+                    )}
+                </View>
+
+                <View style={styles.who}>
+                    <Text variant="title2" weight="bold" numberOfLines={1}>
+                        {name}
+                    </Text>
+                    <Text variant="footnote" tone="muted" numberOfLines={1}>
+                        {patientPhoneOf(patient) || 'No phone on file'}
+                    </Text>
+                    <View style={styles.chip}>
+                        <Text variant="footnote" weight="bold" tone="ink2">
+                            {scheduled
+                                ? slotMinutes === null
+                                    ? `${dayLabel(date)} · no time yet`
+                                    : `${dayLabel(date)} · ${timeLabel(slotMinutes)}`
+                                : 'Walk-in · starting now'}
+                        </Text>
+                    </View>
+                </View>
+            </View>
+
+            <Steps index={index} />
+
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.body}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+            >
+                {step === 'what' ? (
+                    <>
+                        <ProcedurePlan
+                            value={plan}
+                            onChange={setPlan}
+                            categories={catalogue.data ?? []}
+                            loading={catalogue.status === 'loading'}
+                            error={catalogue.status === 'error' ? catalogue.error : null}
+                            onRetry={catalogue.refetch}
+                        />
+
+                        <Textarea
+                            label="Note"
+                            value={note}
+                            onChangeText={setNote}
+                            placeholder="Anything the doctor should know."
+                        />
+                    </>
+                ) : step === 'when' ? (
+                    <>
+                        <View style={styles.section}>
+                            <Text variant="eyebrow" tone="muted">
+                                WHEN
+                            </Text>
+
+                            {branches.length > 1 ? (
+                                <Select
+                                    label="Branch"
+                                    options={branches.map((row) => ({
+                                        value: row.id,
+                                        label: row.name,
+                                    }))}
+                                    value={branch}
+                                    onChange={(next) => {
+                                        setBranch(next);
+                                        setSlotMinutes(null);
+                                        // Branches keep different working days, so
+                                        // the day in hand may not be one of the new
+                                        // one's. Landing on its next working day
+                                        // beats a strip with nothing in it.
+                                        setDate(nextWorkingDay(date, schedule, next));
+                                        reset();
+                                    }}
+                                    sheetTitle="Which branch"
+                                />
+                            ) : null}
+
+                            <View style={styles.row}>
+                                <Chip
+                                    label="Now — walk-in"
+                                    grow
+                                    selected={!scheduled}
+                                    disabled={!canWalkIn}
+                                    onPress={() => {
+                                        setTiming('now');
+                                        reset();
+                                    }}
+                                />
+                                <Chip
+                                    label="Another time"
+                                    grow
+                                    selected={scheduled}
+                                    onPress={() => {
+                                        setTiming('later');
+                                        reset();
+                                    }}
+                                />
+                            </View>
+
+                            {!canWalkIn ? (
+                                <Text variant="caption" tone="muted">
+                                    {branchName ?? 'The clinic'} is not working today, so there is no walk-in
+                                    to take.
+                                </Text>
+                            ) : !scheduled && dateKey !== today ? (
+                                <Text variant="caption" tone="muted">
+                                    A walk-in starts now, so it lands on today — not the day on screen.
+                                </Text>
+                            ) : !scheduled ? (
+                                <Text variant="subhead" tone="muted">
+                                    Booked and checked in at once, the same as anyone already in the waiting
+                                    room.
+                                </Text>
+                            ) : null}
+                        </View>
+
+                        {scheduled ? (
+                            <SlotPicker
+                                dateKey={date}
+                                days={openDays}
+                                daysLoading={fetched === undefined && fortnight.status !== 'error'}
+                                onPickDate={setDate}
+                                slotMinutes={slotMinutes}
+                                onPickSlot={(next) => {
+                                    setSlotMinutes(next);
+                                    reset();
+                                }}
+                                slots={slots}
+                                loading={fetched === undefined && fortnight.status !== 'error'}
+                                error={fortnight.status === 'error' ? fortnight.error : null}
+                                onRetry={fortnight.refetch}
+                                branchName={branchName}
+                                duration={howLong}
+                            />
+                        ) : (
+                            howLong
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <View style={styles.card}>
+                            <SummaryRow
+                                label="When"
+                                value={
+                                    scheduled && slotMinutes !== null
+                                        ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
+                                        : 'Now — walk-in'
+                                }
+                                lead
+                            />
+                            <SummaryRow label="How long" value={`${duration} min`} />
+                            {branches.length > 1 ? (
+                                <SummaryRow
+                                    label="Branch"
+                                    value={branches.find((row) => row.id === branch)?.name ?? '—'}
+                                />
+                            ) : null}
+                            <SummaryRow
+                                label="Patient"
+                                value={patient.mode === 'new' ? `${name} · new record` : name}
+                            />
+                        </View>
+
+                        <View style={styles.section}>
+                            <View style={styles.head}>
+                                <Text variant="eyebrow" tone="muted">
+                                    WHAT IS PLANNED
+                                </Text>
+                                <Text variant="caption" weight="medium" tone="muted">
+                                    {plan.length === 0
+                                        ? 'Nothing yet'
+                                        : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+                                </Text>
+                            </View>
+
+                            {plan.length === 0 ? (
+                                <View style={styles.emptyPlan}>
+                                    <Text variant="subhead" tone="muted">
+                                        No procedures planned — it will be decided in the chair.
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View style={styles.groups}>
+                                    {groupByTooth(plan).map((group) => (
+                                        <View key={group.tooth ?? 'none'} style={styles.group}>
+                                            <View style={styles.groupHead}>
+                                                <View
+                                                    style={[styles.badge, !group.tooth && styles.badgeNone]}
+                                                >
+                                                    <Text
+                                                        variant="caption"
+                                                        script="sans"
+                                                        weight="bold"
+                                                        tone={group.tooth ? 'ink' : 'muted'}
+                                                    >
+                                                        {group.tooth ?? '—'}
+                                                    </Text>
+                                                </View>
+
+                                                <Text
+                                                    variant="subhead"
+                                                    tone="muted"
+                                                    numberOfLines={1}
+                                                    style={styles.grow}
+                                                >
+                                                    {toothPosition(group.tooth)}
+                                                </Text>
+
+                                                <Text variant="headline" weight="bold">
+                                                    {formatMoney(group.subtotal)}
+                                                </Text>
+                                            </View>
+
+                                            {group.items.map((item) => (
+                                                <View key={item.id} style={styles.line}>
+                                                    <View style={styles.grow}>
+                                                        <Text
+                                                            variant="body"
+                                                            weight="semibold"
+                                                            numberOfLines={1}
+                                                        >
+                                                            {item.name}
+                                                        </Text>
+                                                        {item.variant ? (
+                                                            <Text variant="caption" tone="muted">
+                                                                {item.variant}
+                                                            </Text>
+                                                        ) : null}
+                                                    </View>
+
+                                                    <Text variant="caption" tone="muted">
+                                                        EGP
+                                                    </Text>
+                                                    <Text variant="body" weight="bold">
+                                                        {Math.round(item.price / PIASTRES_PER_POUND)}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    ))}
+
+                                    <View style={styles.total}>
+                                        <Text variant="subhead" tone="muted">
+                                            Estimated total
+                                        </Text>
+                                        <Text variant="title3" weight="bold">
+                                            {formatMoney(totalOf(plan))}
+                                        </Text>
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+
+                        {note.trim() ? (
+                            <View style={styles.section}>
+                                <Text variant="eyebrow" tone="muted">
+                                    NOTE
+                                </Text>
+                                <View style={styles.noteCard}>
+                                    <Text variant="callout" tone="ink2">
+                                        {note.trim()}
+                                    </Text>
+                                </View>
+                            </View>
+                        ) : null}
+                    </>
+                )}
+            </ScrollView>
+
+            {branch === null ? (
+                <View style={styles.notice}>
+                    <Callout tone="warning" title="No branch to book into">
+                        The clinic’s branches could not be loaded, so there is nowhere to put this booking.
+                    </Callout>
+                </View>
+            ) : null}
+
+            {failure ? (
+                <View style={styles.notice}>
+                    <Callout tone="warning" title={failure.title}>
+                        {failure.body ?? ''}
+                    </Callout>
+                </View>
+            ) : null}
+
+            <View style={styles.bar}>
+                <Button
+                    label={last ? (scheduled ? 'Book it' : 'Start the visit') : 'Next'}
+                    block
+                    loading={pending}
+                    disabled={last ? !ready : !stepReady}
+                    onPress={() => {
+                        if (last) {
+                            book();
+                            return;
+                        }
+                        reset();
+                        setIndex(index + 1);
+                    }}
+                    testID="booking-next"
+                />
+            </View>
+        </View>
+    );
+}
+
+/** Which of the three questions this is — the page's own progress. */
+function Steps({ index }: { index: number }) {
+    return (
+        <View
+            accessibilityLabel={`Step ${index + 1} of ${STEPS.length}`}
+            style={styles.steps}
+            testID="booking-steps"
+        >
+            {STEPS.map((step, at) => {
+                const done = at < index;
+                const here = at === index;
+
+                return (
+                    <View key={step.key} style={styles.step}>
+                        <View style={styles.stepRow}>
+                            <View
+                                style={[
+                                    styles.stepDot,
+                                    done && styles.stepDotDone,
+                                    here && styles.stepDotHere,
+                                ]}
+                            >
+                                {done ? (
+                                    <CheckIcon size={11} stroke={color.inverse} />
+                                ) : (
+                                    <Text
+                                        variant="caption"
+                                        script="sans"
+                                        weight="bold"
+                                        tone={here ? 'inverse' : 'muted'}
+                                    >
+                                        {at + 1}
+                                    </Text>
+                                )}
+                            </View>
+                            <Text
+                                variant="footnote"
+                                weight={here ? 'bold' : 'medium'}
+                                tone={here ? 'ink' : 'muted'}
+                                numberOfLines={1}
+                                style={styles.grow}
+                            >
+                                {step.label}
+                            </Text>
+                        </View>
+                        <View style={[styles.stepBar, at <= index && styles.stepBarDone]} />
+                    </View>
+                );
+            })}
+        </View>
+    );
+}
+
+/** `lead` is the one row the eye should land on first — the time it is booked for. */
+function SummaryRow({ label, value, lead = false }: { label: string; value: string; lead?: boolean }) {
+    return (
+        <View style={styles.summaryLine}>
+            <Text variant="subhead" tone="muted" style={styles.grow}>
+                {label}
+            </Text>
+            <Text
+                variant={lead ? 'headline' : 'callout'}
+                weight={lead ? 'bold' : 'semibold'}
+                numberOfLines={1}
+            >
+                {value}
+            </Text>
+        </View>
+    );
+}
+
+/**
+ * The first day from `from` the branch actually works, within the fortnight the
+ * strip offers. A branch with no working day at all keeps the day it was on —
+ * there is nowhere better to go, and the picker says so in words.
+ */
+function nextWorkingDay(
+    from: string,
+    schedule: readonly ClinicDay[] | undefined,
+    branchId: string | null,
+): string {
+    for (let ahead = 0; ahead < 14; ahead += 1) {
+        const key = addDays(from, ahead);
+        if (!isClosed(key, schedule, branchId)) return key;
+    }
+    return from;
+}
+
+/** "today"/"tomorrow" read as words in a sentence; a date keeps its capitals. */
+function dayLabel(key: string): string {
+    const label = relativeDayLabel(key);
+    return label === formatDate(key) ? label : label.toLowerCase();
+}
+
+function timeLabel(minutes: number): string {
+    const { time, meridiem } = clock12(minutes);
+    return `${time} ${meridiem.toLowerCase()}`;
+}
+
+const styles = StyleSheet.create({
+    screen: { flex: 1, backgroundColor: color.canvas },
+
+    topbar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[2.5],
+        paddingHorizontal: space[3],
+        paddingTop: space[2],
+        paddingBottom: space[1],
+    },
+    back: {
+        width: 34,
+        height: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.full,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    backPressed: { backgroundColor: color.surface2 },
+
+    identity: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: space[3.5],
+        paddingHorizontal: size.gutter,
+        paddingTop: space[2],
+        paddingBottom: space[4],
+    },
+    tile: {
+        width: 56,
+        height: 56,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.xl2,
+        backgroundColor: color.ink,
+    },
+    tileMonth: { opacity: 0.62 },
+    who: { flex: 1, minWidth: 0, gap: space[1], alignItems: 'flex-start' },
+    chip: {
+        paddingHorizontal: space[2.5],
+        paddingVertical: space[1],
+        borderRadius: radius.full,
+        backgroundColor: color.surface2,
+    },
+
+    steps: {
+        flexDirection: 'row',
+        gap: space[2],
+        paddingHorizontal: size.gutter,
+        paddingBottom: space[3.5],
+    },
+    step: { flex: 1, gap: space[2] },
+    stepRow: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+    stepDot: {
+        width: 22,
+        height: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radius.full,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    stepDotHere: { backgroundColor: color.ink, borderColor: color.ink },
+    stepDotDone: { backgroundColor: color.ink2, borderColor: color.ink2 },
+    stepBar: { height: 4, borderRadius: radius.full, backgroundColor: color.line },
+    stepBarDone: { backgroundColor: color.ink },
+
+    scroll: { flex: 1 },
+    body: { paddingHorizontal: size.gutter, paddingBottom: space[8], gap: space[5] },
+    section: { gap: space[2.5] },
+    row: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+    grow: { flex: 1, minWidth: 0 },
+
+    head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+
+    card: {
+        gap: space[3],
+        padding: space[4],
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    summaryLine: { flexDirection: 'row', alignItems: 'baseline', gap: space[3] },
+
+    emptyPlan: {
+        padding: space[4],
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderStyle: 'dashed',
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    groups: { gap: space[3] },
+    group: {
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+        overflow: 'hidden',
+    },
+    groupHead: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[2.5],
+        minHeight: 54,
+        paddingHorizontal: space[3],
+    },
+    badge: {
+        minWidth: 46,
+        height: 37,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: space[1.5],
+        borderRadius: radius.md,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    badgeNone: { borderStyle: 'dashed' },
+    line: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[2],
+        paddingStart: space[3.5],
+        paddingEnd: space[3.5],
+        paddingVertical: space[2.5],
+        borderTopWidth: border.hair,
+        borderTopColor: color.hair,
+    },
+    total: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: space[3.5],
+        borderRadius: radius.lg,
+        backgroundColor: color.surface2,
+    },
+    noteCard: {
+        padding: space[3.5],
+        borderRadius: radius.lg,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+
+    notice: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
+    bar: {
+        paddingHorizontal: size.gutter,
+        paddingTop: space[3],
+        paddingBottom: space[4],
+        borderTopWidth: border.hair,
+        borderTopColor: color.hair,
+        backgroundColor: color.surface,
+    },
+});

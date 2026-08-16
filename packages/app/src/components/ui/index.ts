@@ -1,10 +1,10 @@
-// The design system. Knows nothing about Mawid — no visits, no patients, no
+// The design system. Knows nothing about Lustre — no visits, no patients, no
 // balances, and no tRPC. Component Inventory §2: the moment a component needs to
 // know that a visit has procedures, it belongs in `domain/` instead.
 //
 // The one import rule, enforced by `boundaries.test.ts`: a file in `ui/` may
 // import from `react`, `react-native`, `../../theme` and its own siblings. Not
-// from `@mawid/shared`, not from `domain/`, not from `screens/`, not from an
+// from `@lustre/shared`, not from `domain/`, not from `screens/`, not from an
 // inferred `AppRouter` type.
 
 export type { ActionBarProps } from './ActionBar';
@@ -48,6 +48,8 @@ export type { MenuAnchor, MenuItem, PopoverMenuProps } from './PopoverMenu';
 export { MenuSurface, PopoverMenu } from './PopoverMenu';
 export type { ProgressBarProps, ProgressTone } from './ProgressBar';
 export { ProgressBar } from './ProgressBar';
+export type { RefreshControlElement, RefreshViewProps } from './PullToRefresh';
+export { RefreshView, usePullToRefresh } from './PullToRefresh';
 export type { PushViewProps } from './PushView';
 export { PushView } from './PushView';
 export type { RadioProps } from './Radio';

@@ -11,7 +11,7 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { REMINDER_PLACEHOLDERS } from '@mawid/shared';
+import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, reminders } from '../../db/schema.ts';

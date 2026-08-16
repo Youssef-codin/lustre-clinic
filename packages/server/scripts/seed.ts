@@ -35,7 +35,7 @@ import {
     DEFAULT_REMINDER_TEMPLATE,
     type PaymentMethod,
     type Tooth,
-} from '@mawid/shared';
+} from '@lustre/shared';
 import { config } from '../src/config.ts';
 import { db, sql } from '../src/db/index.ts';
 import {
@@ -735,7 +735,9 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
     const [closeHour] = day.closesAt.split(':').map(Number);
     const past = dayOffset < 0;
 
-    let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 30));
+    // Days don't all start dead on the hour, but the desk books on a five-minute
+    // grid — a 10:41 start is a time nobody would say out loud.
+    let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 6) * 5);
     const closingMinute = (closeHour ?? 18) * 60;
 
     const dayStart = at(dayOffset, '00:00').getTime();
@@ -749,6 +751,15 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
 
     let placed = 0;
     while (minute + 20 <= closingMinute && placed < maxBookings) {
+        // The start can land inside a booking that began earlier — the jittered
+        // opening, or a hand-written appointment mid-visit. `nextTaken` only
+        // sees slots starting from here on, so step over that one first.
+        const covering = takenSlots.find((slot) => slot.start <= minute && minute < slot.end);
+        if (covering) {
+            minute = covering.end;
+            continue;
+        }
+
         const nextTaken = takenSlots
             .filter((slot) => slot.start >= minute)
             .reduce((soonest, slot) => Math.min(soonest, slot.start), closingMinute);
@@ -1027,13 +1038,13 @@ await db.transaction(async (tx) => {
         .insert(settings)
         .values({
             id: 1,
-            clinicName: 'Mawid Dental',
+            clinicName: 'Lustre Clinic',
             clinicPhone: '+20223456789',
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
         })
         .onConflictDoUpdate({
             target: settings.id,
-            set: { clinicName: 'Mawid Dental', clinicPhone: '+20223456789', updatedAt: new Date() },
+            set: { clinicName: 'Lustre Clinic', clinicPhone: '+20223456789', updatedAt: new Date() },
         });
 });
 

@@ -10,7 +10,7 @@
  * overpayment. `poundsEntry` sanitises on the way in so a typed `12.5` can
  * never be read as 125 with the field still showing `12.5`.
  */
-import { PIASTRES_PER_POUND } from '@mawid/shared';
+import { PIASTRES_PER_POUND } from '@lustre/shared';
 
 export type CurrencyPosition = 'lead' | 'trail';
 

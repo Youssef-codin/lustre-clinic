@@ -31,6 +31,7 @@ import {
     Tag,
     TextField,
     Toast,
+    usePullToRefresh,
 } from '../../components/ui';
 import { color, size, space, Text } from '../../theme';
 import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
@@ -63,11 +64,19 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const nodes = tree.data ?? [];
     const empty = nodes.length === 0;
 
+    // Not while reordering: the rows are being dragged against the order this
+    // would replace, and a price list that reshuffles under a finger is worse
+    // than a stale one.
+    const refreshControl = usePullToRefresh(() => {
+        if (!reordering) tree.reload();
+    }, tree.loading || tree.reloading);
+
     return (
         <>
             <Pane
                 title="Procedures and prices"
                 onBack={reordering ? () => setReordering(false) : onBack}
+                refreshControl={refreshControl}
                 trailing={
                     empty ? null : (
                         <Button

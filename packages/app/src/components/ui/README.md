@@ -12,7 +12,7 @@ import { Button, Card, Sheet, TextField } from '../components/ui';
 A `ui/` file may import from `react`, `react-native`, `../../theme`, and its own
 siblings. That is the whole list, and
 [`boundaries.test.ts`](./boundaries.test.ts) fails the build on anything else —
-`@mawid/shared`, a domain type, a tRPC client, a navigator, a screen.
+`@lustre/shared`, a domain type, a tRPC client, a navigator, a screen.
 
 It is not a style preference. Screens are built in parallel by separate agents
 against a frozen `ui/` (§9). The moment one of them can reach a domain type
@@ -71,8 +71,8 @@ in the content.
 | Fields | `Field` `TextField` `Textarea` `NumericField` `SearchField` `Select` `InlineEditor` `ListEditor` `Placeholder` |
 | Surfaces | `Card` `CardDivider` `SectionLabel` `Tag` `Dot` `ProgressBar` `Chevron` |
 | Overlays | `Sheet` `ConfirmSheet` `Scrim` `PopoverMenu` `DropdownMenu` |
-| Feedback | `Toast` `Callout` `Banner` `EmptyState` |
-| Hooks | `useKeyboardHeight` `useReducedMotion` |
+| Feedback | `Toast` `Callout` `Banner` `EmptyState` `RefreshView` |
+| Hooks | `useKeyboardHeight` `useReducedMotion` `usePullToRefresh` |
 | Motion | `duration` `easing` `PULSE` |
 
 `DeviceFrame` and `StatusBar` from §4.1 are prototype scaffolding and are not
@@ -106,6 +106,14 @@ ported. `HomeIndicator` is the device's, not ours.
   root, never inside scrolling content — nested, it lands wherever that content
   happens to have scrolled to, which is how it ended up mid-screen over the
   buttons that raised it.
+- **`usePullToRefresh` is per screen, not per app.** It returns the
+  `refreshControl` element and takes the screen's own `busy` flag; every screen
+  refetches its own reads and nobody else's. The tabs stay mounted behind each
+  other (`AppShell`), so one gesture refreshing all of them would put three
+  screens of traffic on the tunnel for a screen nobody is looking at — `/ws` is
+  what keeps the others fresh. `RefreshView` is the same gesture for a state
+  that does not scroll (an empty day, a failed read), which is exactly where a
+  refresh is most wanted.
 - **Placeholders are drawn by us, not by `TextInput`.** Android renders the
   native hint in the system typeface whatever `fontFamily` the input carries — on
   a Samsung the placeholder came out in One UI's face beside a label in

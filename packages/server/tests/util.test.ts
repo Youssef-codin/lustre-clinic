@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { REF_PATTERN } from '@mawid/shared';
+import { REF_PATTERN } from '@lustre/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { computeTotal } from '../src/util/money.ts';
 import { normalizePhone, toWhatsAppNumber } from '../src/util/phone.ts';

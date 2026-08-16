@@ -6,7 +6,7 @@
  * There is no public ingress and no TLS: Tailscale is the transport and the
  * security boundary (§1).
  */
-import { TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
+import { TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import type { Server } from 'bun';
 import { config } from './config.ts';

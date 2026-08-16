@@ -28,22 +28,45 @@ const DEFAULTS: Readonly<Record<number, DayHours | null>> = {
     6: { opens: 10 * 60, closes: 22 * 60 },
 };
 
-export function hoursFor(dateKey: string, schedule: readonly ClinicDay[] | undefined): DayHours | null {
+/**
+ * `branchId` narrows the question from "is the clinic working" to "is *this*
+ * branch working" — `clinic_days` carries a branch per row, and a clinic that
+ * runs Maadi on Thursday and Nasr City on Wednesday has no clinic-wide answer.
+ * Asking unscoped is still right for the month grid, which counts every branch
+ * on purpose; asking scoped is what anything booking into a branch must do,
+ * because the unscoped answer draws a Nasr City grid out of Maadi's hours and
+ * then finds no Maadi bookings in it, so every slot reads free.
+ */
+export function hoursFor(
+    dateKey: string,
+    schedule: readonly ClinicDay[] | undefined,
+    branchId?: string | null,
+): DayHours | null {
     const weekday = weekdayOf(dateKey);
 
     if (schedule !== undefined && schedule.length > 0) {
-        const day = schedule.find((row) => row.weekday === weekday);
+        const day = schedule.find(
+            (row) => row.weekday === weekday && (!branchId || row.branchId === branchId),
+        );
         return day ? { opens: clockToMinutes(day.opensAt), closes: clockToMinutes(day.closesAt) } : null;
     }
 
     return DEFAULTS[weekday] ?? null;
 }
 
-export function isClosed(dateKey: string, schedule: readonly ClinicDay[] | undefined): boolean {
-    return hoursFor(dateKey, schedule) === null;
+export function isClosed(
+    dateKey: string,
+    schedule: readonly ClinicDay[] | undefined,
+    branchId?: string | null,
+): boolean {
+    return hoursFor(dateKey, schedule, branchId) === null;
 }
 
-export function openMinutes(dateKey: string, schedule: readonly ClinicDay[] | undefined): number {
-    const hours = hoursFor(dateKey, schedule);
+export function openMinutes(
+    dateKey: string,
+    schedule: readonly ClinicDay[] | undefined,
+    branchId?: string | null,
+): number {
+    const hours = hoursFor(dateKey, schedule, branchId);
     return hours ? hours.closes - hours.opens : 0;
 }

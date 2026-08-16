@@ -57,6 +57,10 @@ export function Sheet({
     const progress = useRef(new Animated.Value(0)).current;
     const [mounted, setMounted] = useState(visible);
     const [sheetHeight, setSheetHeight] = useState(0);
+    const [head, setHead] = useState(0);
+    const [foot, setFoot] = useState(0);
+    const body = useRef(new Animated.Value(0)).current;
+    const bodyMeasured = useRef(0);
     const keyboard = useKeyboardHeight();
     const reducedMotion = useReducedMotion();
     const window = useWindowDimensions();
@@ -84,10 +88,44 @@ export function Sheet({
         onClose();
     }
 
+    /**
+     * A sheet whose content changes size — a step that swaps a search box for a
+     * form — used to jump: its height is its content's, and the top edge moved a
+     * screen's worth between two frames. So the scrolling part is given a height
+     * of its own and eased to the next one, which is what makes the sheet ride
+     * up and down instead of teleporting.
+     *
+     * `onContentSizeChange` is the measurement, and the reason this works where
+     * measuring a clipped child does not: a scroll view reports what its content
+     * wants, not what it was allowed. The cap is the sheet's own maximum less
+     * everything that is not scrolling, and `maxHeight` repeats it in layout so
+     * a keyboard opening under a tall sheet cannot push the body past the frame.
+     */
+    function measureBody(content: number, cap: number) {
+        const next = Math.min(Math.round(content), Math.max(0, Math.round(cap)));
+        if (next === bodyMeasured.current) return;
+
+        const first = bodyMeasured.current === 0;
+        bodyMeasured.current = next;
+
+        if (first || reducedMotion) {
+            body.setValue(next);
+            return;
+        }
+
+        Animated.timing(body, {
+            toValue: next,
+            duration: duration.fade,
+            easing: easing.sheet,
+            useNativeDriver: false,
+        }).start();
+    }
+
     if (!mounted) return null;
 
     const travel = sheetHeight > 0 ? sheetHeight * 1.02 : window.height;
     const availableHeight = window.height - (Platform.OS === 'ios' ? keyboard : 0);
+    const bodyCap = availableHeight * maxHeightRatio - head - foot - space[6];
 
     return (
         <Modal
@@ -123,32 +161,44 @@ export function Sheet({
                             },
                         ]}
                     >
-                        <View style={styles.handleRow}>
-                            <View style={styles.handle} />
+                        <View onLayout={(event) => setHead(event.nativeEvent.layout.height)}>
+                            <View style={styles.handleRow}>
+                                <View style={styles.handle} />
+                            </View>
+
+                            {title ? (
+                                <View style={styles.header}>
+                                    <Text variant="title3">{title}</Text>
+                                    {subtitle ? (
+                                        <Text variant="subhead" tone="muted">
+                                            {subtitle}
+                                        </Text>
+                                    ) : null}
+                                </View>
+                            ) : null}
                         </View>
 
-                        {title ? (
-                            <View style={styles.header}>
-                                <Text variant="title3">{title}</Text>
-                                {subtitle ? (
-                                    <Text variant="subhead" tone="muted">
-                                        {subtitle}
-                                    </Text>
-                                ) : null}
+                        <Animated.View style={{ height: body, maxHeight: Math.max(0, bodyCap) }}>
+                            <ScrollView
+                                style={styles.scroll}
+                                contentContainerStyle={styles.scrollContent}
+                                onContentSizeChange={(_width, height) => measureBody(height, bodyCap)}
+                                keyboardShouldPersistTaps="handled"
+                                keyboardDismissMode="interactive"
+                                alwaysBounceVertical={false}
+                            >
+                                {children}
+                            </ScrollView>
+                        </Animated.View>
+
+                        {footer ? (
+                            <View
+                                onLayout={(event) => setFoot(event.nativeEvent.layout.height)}
+                                style={styles.footer}
+                            >
+                                {footer}
                             </View>
                         ) : null}
-
-                        <ScrollView
-                            style={styles.scroll}
-                            contentContainerStyle={styles.scrollContent}
-                            keyboardShouldPersistTaps="handled"
-                            keyboardDismissMode="interactive"
-                            alwaysBounceVertical={false}
-                        >
-                            {children}
-                        </ScrollView>
-
-                        {footer ? <View style={styles.footer}>{footer}</View> : null}
                     </Animated.View>
                 </KeyboardAvoidingView>
             </View>

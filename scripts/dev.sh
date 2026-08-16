@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 
 PORT=$(sed -n 's/^[[:space:]]*PORT[[:space:]]*=[[:space:]]*\([0-9]\{1,\}\).*/\1/p' .env 2>/dev/null | tail -1)
 PORT="${PORT:-3000}"
-log="${TMPDIR:-/tmp}/mawid-server.log"
+log="${TMPDIR:-/tmp}/lustre-server.log"
 
 port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 

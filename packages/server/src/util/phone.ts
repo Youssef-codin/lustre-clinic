@@ -8,7 +8,7 @@
  * This is deliberately not a full libphonenumber — it validates shape, not
  * whether an operator has issued the number.
  */
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { AppError } from '../errors/AppError.ts';
 
 const DEFAULT_COUNTRY_CODE = '20';

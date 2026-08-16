@@ -1,6 +1,6 @@
 # Theme
 
-The design tokens for Mawid. Every value lives in [`tokens.ts`](./tokens.ts) and
+The design tokens for Lustre. Every value lives in [`tokens.ts`](./tokens.ts) and
 is consumed through `StyleSheet.create`. This file records where each token came
 from.
 

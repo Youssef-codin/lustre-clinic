@@ -1,5 +1,5 @@
-import type { AppRouter } from '@mawid/server/src/trpc/router.ts';
-import { TRPC_ENDPOINT } from '@mawid/shared';
+import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
+import { TRPC_ENDPOINT } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
 import { timing } from './config';

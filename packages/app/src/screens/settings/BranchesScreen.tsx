@@ -23,6 +23,7 @@ import {
     Textarea,
     TextField,
     Toast,
+    usePullToRefresh,
 } from '../../components/ui';
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
@@ -39,11 +40,17 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
     const active = branches.data?.filter((b) => b.active) ?? [];
     const inactive = branches.data?.filter((b) => !b.active) ?? [];
 
+    // Settings are read once when the pane opens, so a branch added on the
+    // doctor's phone is invisible here until something asks again. The editor
+    // is a pane of its own, so a pull can never land under a half-typed draft.
+    const refreshControl = usePullToRefresh(branches.reload, branches.loading || branches.reloading);
+
     return (
         <>
             <Pane
                 title="Branches"
                 onBack={onBack}
+                refreshControl={refreshControl}
                 overlay={
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }

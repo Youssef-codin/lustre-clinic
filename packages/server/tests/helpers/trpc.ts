@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { type ErrorCode, TRPC_ENDPOINT, WS_PATH } from '@mawid/shared';
+import { type ErrorCode, TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client';
 import type { Server } from 'bun';
 import { createServer } from '../../src/server.ts';

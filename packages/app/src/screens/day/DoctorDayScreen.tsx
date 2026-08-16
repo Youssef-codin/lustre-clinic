@@ -11,7 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, Toast } from '../../components/ui';
+import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { procedureLabel } from './agenda';
 import { splitDoctorDay } from './chair';
@@ -27,6 +27,7 @@ import { AfterThis } from './components/DoctorAgenda';
 import { type Appointment, api, checkInTimes, useLocalMutation, useLocalQuery, type Visit } from './data';
 import { describeError } from './errors';
 import { isClosed } from './hours';
+import { busiestBranch, holdsSlot } from './month';
 import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
@@ -48,14 +49,32 @@ export function DoctorDayScreen() {
 
     const schedule = useLocalQuery('schedule', api.schedule);
     const branches = useLocalQuery('branches', api.branches);
-    const branch = branchId ?? branches.data?.[0]?.id ?? null;
-    const day = useLocalQuery(`day:${dateKey}:${branch ?? 'all'}`, () =>
-        api.byDate(dateKey, branch ?? undefined),
-    );
+    // Fetched for the whole clinic and split here, so the screen opens on the
+    // branch holding most of the day rather than on `branches[0]` — see
+    // `DayScreen`. A branch the user picked wins over the count.
+    const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
+    const clinicDay = day.data ?? [];
+    const branch =
+        branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
 
-    const appointments = day.data ?? [];
+    const appointments = useMemo(
+        () => clinicDay.filter((row) => row.branchId === branch),
+        [clinicDay, branch],
+    );
     const closed = isClosed(dateKey, schedule.data);
     const isToday = dateKey === todayKey();
+
+    const away = clinicDay.filter((row) => row.branchId !== branch && holdsSlot(row));
+    const awayId = busiestBranch(away, null);
+    const awayName = (branches.data ?? []).find((row) => row.id === awayId)?.name;
+    const elsewhere =
+        awayId && awayName
+            ? {
+                  name: awayName,
+                  count: away.filter((row) => row.branchId === awayId).length,
+                  onGo: () => setBranchId(awayId),
+              }
+            : undefined;
 
     const checkedInIds = useMemo(
         () =>
@@ -68,6 +87,19 @@ export function DoctorDayScreen() {
     const arrivals = useLocalQuery(`arrivals:${checkedInIds.join(',')}`, () => checkInTimes(checkedInIds), {
         enabled: checkedInIds.length > 0,
     });
+
+    // This screen's reads only — see `DayScreen`. The doctor has no reminders
+    // tab and no settings read, so it is four queries rather than six.
+    const reads = [day, schedule, branches, arrivals];
+    const refreshControl = usePullToRefresh(
+        () => {
+            day.refetch();
+            schedule.refetch();
+            branches.refetch();
+            if (checkedInIds.length > 0) arrivals.refetch();
+        },
+        reads.some((read) => read.refreshing || read.status === 'loading'),
+    );
 
     const { chair, headline, strip, list, past } = useMemo(
         () => splitDoctorDay(appointments, arrivals.data),
@@ -88,6 +120,13 @@ export function DoctorDayScreen() {
                 : 'next';
 
     const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
+
+    // The calendar counts every branch; the picked day carries the one it is
+    // busiest in, so the day it promised is the day this draws.
+    const pickDay = (nextDate: string, nextBranch: string | null) => {
+        setDateKey(nextDate);
+        if (nextBranch) setBranchId(nextBranch);
+    };
 
     function finishVisit(appointment: Appointment) {
         setFinishing(appointment.id);
@@ -137,15 +176,25 @@ export function DoctorDayScreen() {
                 {day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <DayError error={day.error} onRetry={day.refetch} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayError error={day.error} onRetry={day.refetch} />
+                    </RefreshView>
                 ) : closed ? (
-                    <ClosedDay dateKey={dateKey} appointments={appointments} onSelect={openDetail} />
+                    <ClosedDay
+                        dateKey={dateKey}
+                        appointments={appointments}
+                        onSelect={openDetail}
+                        refreshControl={refreshControl}
+                    />
                 ) : appointments.length === 0 ? (
-                    <DayEmpty past={dateKey < todayKey()} />
+                    <RefreshView refreshControl={refreshControl}>
+                        <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
+                    </RefreshView>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
                         showsVerticalScrollIndicator={false}
+                        refreshControl={refreshControl}
                         testID="doctor-agenda"
                     >
                         {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
@@ -188,8 +237,9 @@ export function DoctorDayScreen() {
                 visible={calendar.open}
                 selected={dateKey}
                 schedule={schedule.data}
-                branchName={(branches.data ?? []).find((row) => row.id === branch)?.name}
-                onPick={setDateKey}
+                branches={branches.data ?? []}
+                branchId={branch}
+                onPick={pickDay}
                 onClose={() => setCalendar((current) => ({ ...current, open: false }))}
             />
 

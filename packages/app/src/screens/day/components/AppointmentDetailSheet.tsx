@@ -4,9 +4,12 @@
  * button that caused it — never a toast that fades. Destructive steps confirm
  * inline because `Sheet` is a `Modal`, and a modal over a modal is how
  * Android's back button ends up cancelling a write already in flight. The
- * Check out button is disabled without a visit because (BLOCKED.md) the id is
- * only known for a visit this session checked in.
+ * inline confirm takes the footer with it: leaving Check in under "Cancel this
+ * appointment?" offers two answers to one question. The Check out button is
+ * disabled without a visit because (BLOCKED.md) the id is only known for a
+ * visit this session checked in.
  */
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Callout, CardDivider, Sheet, Tag } from '../../../components/ui';
@@ -34,6 +37,13 @@ export type AppointmentDetailSheetProps = {
 };
 
 type Confirming = 'cancel' | 'no-show' | null;
+
+/** Statuses that are over: one line saying so, and nothing to press. */
+const TAIL: Partial<Record<Appointment['status'], string>> = {
+    done: 'This visit is finished.',
+    cancelled: 'This appointment was cancelled. The slot is free.',
+    no_show: 'Marked as a no-show. The slot is free.',
+};
 
 export function AppointmentDetailSheet({
     visible,
@@ -67,8 +77,15 @@ export function AppointmentDetailSheet({
         onClose();
     }
 
+    // A confirm left open would come back with the next appointment, and the
+    // footer is hidden while one is up — the sheet would reopen with no way in.
+    function close() {
+        setConfirming(null);
+        onClose();
+    }
+
     if (!appointment) {
-        return <Sheet visible={visible} onClose={onClose} title="Appointment" />;
+        return <Sheet visible={visible} onClose={close} title="Appointment" />;
     }
 
     const startMinutes = minutesOfDay(appointment.startsAt);
@@ -76,7 +93,7 @@ export function AppointmentDetailSheet({
     return (
         <Sheet
             visible={visible}
-            onClose={onClose}
+            onClose={close}
             dismissable={!writing}
             title={appointment.patient.name}
             subtitle={`${formatTime(appointment.startsAt)} – ${minutesToClock(
@@ -84,34 +101,41 @@ export function AppointmentDetailSheet({
             )} · ${appointment.durationMinutes} min`}
             testID="appointment-detail"
             footer={
-                <PrimaryAction
-                    appointment={appointment}
-                    visit={visit.data ?? null}
-                    visitLoading={visit.status === 'loading'}
-                    checkingIn={checkIn.pending}
-                    onCheckIn={() =>
-                        checkIn.mutate(appointment.id, {
-                            onSuccess: (row) => {
-                                rememberVisit(appointment.id, row.id);
-                                after();
-                            },
-                        })
-                    }
-                    onCheckOut={(loaded) => onCheckOut(appointment, loaded)}
-                />
+                confirming ? null : (
+                    <PrimaryAction
+                        appointment={appointment}
+                        visit={visit.data ?? null}
+                        visitLoading={visit.status === 'loading'}
+                        checkingIn={checkIn.pending}
+                        onCheckIn={() =>
+                            checkIn.mutate(appointment.id, {
+                                onSuccess: (row) => {
+                                    rememberVisit(appointment.id, row.id);
+                                    after();
+                                },
+                            })
+                        }
+                        onCheckOut={(loaded) => onCheckOut(appointment, loaded)}
+                    />
+                )
             }
         >
             <View style={styles.headline}>
                 <_LocalStatusPill status={appointment.status} withDot />
                 {appointment.channel === 'walk_in' ? <Tag tone="muted">WALK-IN</Tag> : null}
-                <Text variant="caption" tone="muted">
+                <Text variant="footnote" script="mono" weight="medium" tone="muted">
                     {appointment.ref}
                 </Text>
             </View>
 
             <View style={styles.facts}>
-                <Fact label="Phone" value={appointment.patient.phone} />
-                {appointment.note ? <Fact label="Note" value={appointment.note} /> : null}
+                <Fact label="Phone" value={appointment.patient.phone} mono />
+                {appointment.note ? (
+                    <>
+                        <CardDivider />
+                        <Note text={appointment.note} />
+                    </>
+                ) : null}
             </View>
 
             {hasVisit ? (
@@ -124,14 +148,10 @@ export function AppointmentDetailSheet({
             ) : null}
 
             {writeError ? (
-                <View style={styles.error}>
-                    <Callout tone="warning" title={describeError(writeError, 'check-in').title}>
-                        {describeError(writeError, 'check-in').body ?? ''}
-                    </Callout>
-                </View>
+                <Callout tone="warning" title={describeError(writeError, 'check-in').title}>
+                    {describeError(writeError, 'check-in').body ?? ''}
+                </Callout>
             ) : null}
-
-            <CardDivider />
 
             <SecondaryActions
                 appointment={appointment}
@@ -205,12 +225,15 @@ function SecondaryActions({
     onCancel: () => void;
     onNoShow: () => void;
 }) {
-    if (appointment.status === 'checked_in') {
+    const status = appointment.status;
+
+    if (status === 'checked_in') {
         return (
-            <View style={styles.actions}>
+            <Group>
                 <Button
                     label="Send to the desk"
                     variant="secondary"
+                    size="md"
                     block
                     loading={sendingToDesk}
                     onPress={onSendToDesk}
@@ -218,32 +241,29 @@ function SecondaryActions({
                 <Text variant="caption" tone="muted">
                     The chair is free while they pay. It does not settle anything.
                 </Text>
-            </View>
+            </Group>
         );
     }
 
-    if (appointment.status !== 'booked') {
-        return (
-            <Text variant="subhead" tone="muted" style={styles.tail}>
-                {appointment.status === 'done'
-                    ? 'This visit is finished.'
-                    : appointment.status === 'cancelled'
-                      ? 'This appointment was cancelled. The slot is free.'
-                      : appointment.status === 'no_show'
-                        ? 'Marked as a no-show. The slot is free.'
-                        : ''}
-            </Text>
-        );
+    if (status !== 'booked') {
+        const tail = TAIL[status];
+        return tail ? (
+            <Group>
+                <Text variant="subhead" tone="muted">
+                    {tail}
+                </Text>
+            </Group>
+        ) : null;
     }
 
     if (confirming) {
         const isCancel = confirming === 'cancel';
         return (
-            <View style={styles.actions}>
+            <Group>
                 <Text variant="headline" weight="semibold">
                     {isCancel ? 'Cancel this appointment?' : 'Mark this a no-show?'}
                 </Text>
-                <Text variant="subhead" tone="muted">
+                <Text variant="subhead" tone="muted" style={styles.confirmBody}>
                     {isCancel
                         ? 'The slot goes back on the day and the patient keeps their record. Nothing is deleted.'
                         : 'They did not come. The slot goes back on the day and the visit is left unbooked.'}
@@ -251,7 +271,7 @@ function SecondaryActions({
                 <View style={styles.confirmRow}>
                     <Button
                         label="Keep it"
-                        variant="secondary"
+                        variant="ghost"
                         onPress={() => setConfirming(null)}
                         style={styles.confirmKeep}
                     />
@@ -263,14 +283,41 @@ function SecondaryActions({
                         style={styles.confirmGo}
                     />
                 </View>
-            </View>
+            </Group>
         );
     }
 
     return (
-        <View style={styles.actions}>
-            <Button label="Mark no-show" variant="secondary" block onPress={() => setConfirming('no-show')} />
-            <Button label="Cancel appointment" variant="text" onPress={() => setConfirming('cancel')} />
+        <Group>
+            <Button
+                label="Mark no-show"
+                variant="secondary"
+                size="md"
+                block
+                onPress={() => setConfirming('no-show')}
+            />
+            <Button
+                label="Cancel appointment"
+                variant="dangerText"
+                size="md"
+                block
+                onPress={() => setConfirming('cancel')}
+            />
+        </Group>
+    );
+}
+
+/**
+ * Everything below the record is one group behind one rule: a hairline, then the
+ * actions. It carries its own divider so a status with nothing to say — at the
+ * desk, waiting on the checkout — ends the sheet at the record instead of on a
+ * rule with an empty row under it.
+ */
+function Group({ children }: { children: ReactNode }) {
+    return (
+        <View style={styles.group}>
+            <CardDivider />
+            <View style={styles.actions}>{children}</View>
         </View>
     );
 }
@@ -344,14 +391,39 @@ function VisitPanel({
     );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+/**
+ * Label and value on one line, not a label column — a fixed column left the
+ * phone number stranded in the middle of the sheet with nothing to align to.
+ * The number is mono: it is read off the screen onto a keypad.
+ */
+function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
     return (
         <View style={styles.fact}>
-            <Text variant="subhead" tone="muted" style={styles.factLabel}>
+            <Text variant="subhead" tone="muted">
                 {label}
             </Text>
-            <Text variant="body" style={styles.factValue}>
+            <Text
+                variant="body"
+                weight={mono ? 'medium' : 'regular'}
+                script={mono ? 'mono' : undefined}
+                style={styles.factValue}
+                selectable
+            >
                 {value}
+            </Text>
+        </View>
+    );
+}
+
+/** The note is prose and gets the full width; a value column would ladder it. */
+function Note({ text }: { text: string }) {
+    return (
+        <View style={styles.note}>
+            <Text variant="subhead" tone="muted">
+                Note
+            </Text>
+            <Text variant="body" tone="ink2">
+                {text}
             </Text>
         </View>
     );
@@ -359,22 +431,27 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
     headline: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
-    facts: { marginTop: space[4], gap: space[2] },
-    fact: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3], minHeight: space[6] },
-    factLabel: { width: 96 },
-    factValue: { flex: 1 },
+    facts: { marginTop: space[1] },
+    fact: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: space[4],
+        minHeight: size.row,
+    },
+    factValue: { flexShrink: 1 },
+    note: { paddingVertical: space[2.5], gap: space[1] },
     panel: {
-        marginTop: space[4],
-        padding: space[3],
+        padding: space[3.5],
         gap: space[2],
         backgroundColor: color.canvas,
         borderRadius: radius.xl,
     },
     money: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    error: { marginTop: space[4] },
-    actions: { marginTop: space[4], gap: space[3] },
-    confirmRow: { flexDirection: 'row', gap: space[3] },
+    group: { marginTop: space[2], gap: space[4] },
+    actions: { gap: space[2] },
+    confirmBody: { marginBottom: space[1] },
+    confirmRow: { flexDirection: 'row', gap: space[2] },
     confirmKeep: { flex: 1 },
     confirmGo: { flex: 1.4 },
-    tail: { marginTop: space[4], minHeight: size.row },
 });

@@ -9,7 +9,7 @@
  * fields route through the same clamp because the amount due moves with the
  * charge.
  */
-import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@mawid/shared';
+import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';

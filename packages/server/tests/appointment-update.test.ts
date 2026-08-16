@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { APPOINTMENT_TRANSITIONS, type AppointmentStatus, ERROR_CODE } from '@mawid/shared';
+import { APPOINTMENT_TRANSITIONS, type AppointmentStatus, ERROR_CODE } from '@lustre/shared';
 import { eq } from 'drizzle-orm';
 import { db } from '../src/db/index.ts';
 import { reminders } from '../src/db/schema.ts';

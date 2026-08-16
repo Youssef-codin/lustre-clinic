@@ -18,7 +18,7 @@
 # is that, and `--build` is the fix.
 set -euo pipefail
 
-AVD="${MAWID_AVD:-mawid_note}"
+AVD="${LUSTRE_AVD:-lustre_note}"
 METRO_PORT="${METRO_PORT:-8081}"
 BOOT_TIMEOUT="${BOOT_TIMEOUT:-180}"
 
@@ -76,14 +76,14 @@ if [ -z "$serial" ]; then
         echo "No AVD named '$AVD'. Available:" >&2
         emulator -list-avds >&2
         echo >&2
-        echo "Create one in Android Studio, or point this at another with MAWID_AVD=<name>." >&2
+        echo "Create one in Android Studio, or point this at another with LUSTRE_AVD=<name>." >&2
         exit 1
     fi
 
     echo "Booting $AVD…"
     # Detached, and its log kept: the emulator outlives this script, so the next
     # run is a warm start, and a GPU failure is findable afterwards.
-    log="${TMPDIR:-/tmp}/mawid-emulator-${AVD}.log"
+    log="${TMPDIR:-/tmp}/lustre-emulator-${AVD}.log"
     nohup emulator -avd "$AVD" -gpu auto -no-boot-anim >"$log" 2>&1 &
     disown || true
 
@@ -158,12 +158,12 @@ fi
 # Native changes (a new native dependency, an app.json edit that touches the
 # native project) still need `--build`. Nothing here can detect those.
 if [ "$mode" = "run" ]; then
-    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx 'package:com.mawid.clinic'; then
-        echo "com.mawid.clinic is already installed — starting the bundler only."
+    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx 'package:com.lustre.clinic'; then
+        echo "com.lustre.clinic is already installed — starting the bundler only."
         echo "Use --build if you changed anything native."
         mode="start"
     else
-        echo "com.mawid.clinic is not installed on $serial — building it."
+        echo "com.lustre.clinic is not installed on $serial — building it."
     fi
 fi
 

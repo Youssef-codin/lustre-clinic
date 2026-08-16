@@ -1,5 +1,5 @@
 /**
- * `@mawid/shared` holds what tRPC inference cannot provide (SPEC §3): the
+ * `@lustre/shared` holds what tRPC inference cannot provide (SPEC §3): the
  * `ERROR_CODE` enum, domain enums, constants, and any Zod schema used by both
  * sides.
  *

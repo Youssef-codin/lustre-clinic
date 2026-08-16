@@ -21,6 +21,7 @@ import {
     Switch,
     Tag,
     Toast,
+    usePullToRefresh,
 } from '../../components/ui';
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
@@ -54,10 +55,15 @@ export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
         branches.reload();
     }
 
+    // Both reads: a day names a branch, so a stale branch list draws a day
+    // against "Unknown branch".
+    const refreshControl = usePullToRefresh(reload, loading || schedule.reloading || branches.reloading);
+
     return (
         <Pane
             title="Working hours"
             onBack={onBack}
+            refreshControl={refreshControl}
             overlay={
                 <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
             }

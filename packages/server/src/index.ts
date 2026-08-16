@@ -37,7 +37,7 @@ const backupJob = startBackupJob();
 
 const server = createServer();
 
-logger.info({ port: server.port }, 'mawid server listening');
+logger.info({ port: server.port }, 'lustre server listening');
 
 function shutdown(signal: string) {
     logger.info({ signal }, 'shutting down');

@@ -6,9 +6,10 @@
  * is its own stack via `ui/PushView`; lifting the panes into a real navigator
  * is `setRoute` → `navigate`.
  */
-import type { ClientRole } from '@mawid/shared';
+import type { ClientRole } from '@lustre/shared';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { BrandMark } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader } from '../../components/ui';
 import { color, size, space, Text } from '../../theme';
 import { BranchesScreen } from './BranchesScreen';
@@ -45,11 +46,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
                 <ScreenHeader
                     title="Settings"
                     subtitle={isDoctor ? 'Doctor' : 'Secretary'}
-                    trailing={
-                        <Text variant="eyebrow" tone="muted">
-                            MAWID
-                        </Text>
-                    }
+                    trailing={<BrandMark variant="lockup" size={13} tone="muted" />}
                 />
 
                 <View style={styles.group}>

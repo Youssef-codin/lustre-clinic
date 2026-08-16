@@ -218,14 +218,14 @@ bundles clean, 754 modules. Not yet seen on a physical device.
 
 **Edited a shared file** — flagged here because §10 says not to.
 
-`@mawid/shared` is source, not a build artefact, and `index.ts` re-exports its
+`@lustre/shared` is source, not a build artefact, and `index.ts` re-exports its
 siblings with explicit `.ts` extensions. The app's tsconfig extends
 `expo/tsconfig.base` rather than the repo's `tsconfig.base.json`, so it did not
 carry the flag, and the **first** app file to import the contract fails to
 typecheck. That is every cluster, not just this one. One line, and the merge is
 identical in all four branches.
 
-Related, not fixed: importing `@mawid/shared` pulls **zod** into the RN bundle,
+Related, not fixed: importing `@lustre/shared` pulls **zod** into the RN bundle,
 because `enums.ts` builds its schemas at module scope. The app only wants the
 tuples and the types. Worth a `shared/enums` entry point that carries no zod, or
 accepting ~50KB.
@@ -295,7 +295,7 @@ shared. Promote if a second cluster wants one:
   the bottom of the shell and carries the bottom safe-area inset, so Android's
   gesture bar does not land on the labels.
 - **`domain/BrandWordmark`** — also cross-cluster (day view). The settings header
-  renders "MAWID" as an eyebrow `Text` rather than claiming the name.
+  renders the Lustre mark rather than claiming the name.
 - **`domain/ConnectionStatus`** — needs the connection hook, which §10 freezes
   and which does not exist. Building it would mean inventing the two-address
   probe from SPEC §14. The settings index has no connection row as a result.

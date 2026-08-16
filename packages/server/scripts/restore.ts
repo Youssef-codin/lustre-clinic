@@ -1,9 +1,9 @@
 /**
  * Restores a dump (SPEC §16 — "test the restore procedure before go-live").
  *
- *   bun packages/server/scripts/restore.ts backups/mawid-....dump
- *   bun packages/server/scripts/restore.ts backups/mawid-....dump.enc --key <base64>
- *   bun packages/server/scripts/restore.ts <file> --into mawid_restore_test
+ *   bun packages/server/scripts/restore.ts backups/lustre-....dump
+ *   bun packages/server/scripts/restore.ts backups/lustre-....dump.enc --key <base64>
+ *   bun packages/server/scripts/restore.ts <file> --into lustre_restore_test
  *
  * By default it restores into a scratch database and drops it again, which
  * verifies the file without touching the live one. `--into <name>` restores

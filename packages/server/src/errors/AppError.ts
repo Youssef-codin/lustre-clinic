@@ -8,7 +8,7 @@
  * off `cause`, so the SQLSTATE services switch on is usually a level or two
  * down.
  */
-import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 
 export class AppError extends Error {
     readonly code: ErrorCode;
@@ -39,6 +39,15 @@ export const PG_ERROR = {
     EXCLUSION_VIOLATION: '23P01',
     CHECK_VIOLATION: '23514',
     FOREIGN_KEY_VIOLATION: '23503',
+    /**
+     * Class 40 — the transaction lost a race and Postgres rolled it back
+     * whole. Nothing is wrong with the request; running it again against the
+     * winner's committed rows is the documented remedy. Two overlapping
+     * inserts reach this rather than 23P01 whenever each ends up waiting on
+     * the other's transaction, which the walk-in cascade's updates make easy.
+     */
+    SERIALIZATION_FAILURE: '40001',
+    DEADLOCK_DETECTED: '40P01',
 } as const;
 
 export function pgErrorCode(err: unknown): string | undefined {

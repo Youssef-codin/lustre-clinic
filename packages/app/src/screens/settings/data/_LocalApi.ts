@@ -11,7 +11,7 @@
  * default to active-only, with the settings list the caller that passes
  * `includeInactive`.
  */
-import { ERROR_CODE, type ErrorCode } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import type { Branch, ClinicDay, CustomQuestion, Procedure, ProcedureNode } from './types';
 
 export class ApiError extends Error {

@@ -8,7 +8,7 @@
  * changing it would invalidate the stored answers. Labels need no direction
  * handling; `Text` detects the Arabic script per string.
  */
-import type { QuestionKind } from '@mawid/shared';
+import type { QuestionKind } from '@lustre/shared';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
@@ -30,6 +30,7 @@ import {
     Tag,
     TextField,
     Toast,
+    usePullToRefresh,
 } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
@@ -73,11 +74,17 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
         questions.reload();
     }
 
+    // Not while reordering — the same reason as `ProceduresScreen`.
+    const refreshControl = usePullToRefresh(() => {
+        if (!reordering) questions.reload();
+    }, questions.loading || questions.reloading);
+
     return (
         <>
             <Pane
                 title="Patient fields"
                 onBack={reordering ? () => setReordering(false) : onBack}
+                refreshControl={refreshControl}
                 trailing={
                     active.length > 1 ? (
                         <Button

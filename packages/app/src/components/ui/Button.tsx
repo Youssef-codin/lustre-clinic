@@ -1,7 +1,10 @@
 /**
  * `primary` is an ink fill, not blue (Component Inventory §3.1); `accent` is the
  * handful of places that really are blue-filled, and `inverse` a white fill on
- * the black chair card. `loading` is a hard requirement: every write crosses
+ * the black chair card. `text` is the quiet affirmative — Try again, Answer —
+ * and stays blue; `dangerText` is its destructive twin at the same weight, so a
+ * step that undoes something never wears the colour of Try again. `loading` is
+ * a hard requirement: every write crosses
  * Tailscale to the clinic PC, and a button that looks idle mid-flight gets
  * tapped again — a second tap on Book is a second booking. The label stays
  * mounted and keeps its width while loading; `pressLockMs` covers the frame
@@ -23,6 +26,7 @@ export type ButtonVariant =
     | 'ghost'
     | 'text'
     | 'danger'
+    | 'dangerText'
     | 'whatsapp';
 export type ButtonSize = 'lg' | 'md';
 
@@ -49,6 +53,7 @@ const LABEL_TONE: Record<ButtonVariant, TextTone> = {
     ghost: 'ink',
     text: 'accent',
     danger: 'danger',
+    dangerText: 'danger',
     whatsapp: 'inverse',
 };
 
@@ -61,6 +66,7 @@ const SPINNER: Record<ButtonVariant, string> = {
     ghost: color.ink,
     text: color.accent,
     danger: color.danger,
+    dangerText: color.danger,
     whatsapp: color.inverse,
 };
 
@@ -150,6 +156,7 @@ const styles = StyleSheet.create({
     },
     text: { paddingHorizontal: space[2], minHeight: size.row },
     danger: { borderWidth: border.thick, borderColor: color.danger, backgroundColor: color.surface },
+    dangerText: { paddingHorizontal: space[2], minHeight: size.row },
     whatsapp: { backgroundColor: color.wa },
 
     content: { flexDirection: 'row', alignItems: 'center', gap: space[2] },

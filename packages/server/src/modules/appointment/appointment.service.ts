@@ -7,7 +7,11 @@
  * someone to resolve (§7).
  *
  * `insertWithRef` retries only when the generated `ref` collided; an overlap is
- * a real answer and is not retried. The walk-in path imports the visit module
+ * a real answer there and is not retried. Every path that writes a span takes
+ * `lockDay` first, so the planners queue rather than deadlock, and the walk-in
+ * alone retries the whole transaction on the residue (`retryOnStaleDay`) —
+ * being refused for want of room is the one answer a walk-in may not get.
+ * The walk-in path imports the visit module
  * lazily to avoid an import cycle (visit reads appointments). `awaitPayment`
  * repeats the status in the UPDATE's predicate, so the write itself decides: a
  * checkout committing `done` in between would otherwise leave a settled visit
@@ -22,7 +26,7 @@
  * Omitting it leaves the list alone, an empty array clears it (§13). Reads
  * batch the catalogue join once per page rather than once per row.
  */
-import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@mawid/shared';
+import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, type Tooth, WS_EVENT } from '@lustre/shared';
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointmentProcedures, appointments, patients, procedureTypes } from '../../db/schema.ts';
@@ -86,7 +90,8 @@ async function resolvePatient(executor: Executor, ref: PatientRefInput): Promise
         await patientService.requireExists(ref.patientId);
         return ref.patientId;
     }
-    const created = await patientService.createMinimal(ref.name, ref.phone, executor);
+    const { kind: _kind, ...details } = ref;
+    const created = await patientService.createMinimal(details, executor);
     return created.id;
 }
 
@@ -177,6 +182,199 @@ async function insertWithRef(
     throw new AppError(ERROR_CODE.REF_GENERATION_FAILED, 'could not allocate a unique ref', 500);
 }
 
+/** A booked appointment the walk-in pushed, and where it went. */
+export interface Moved {
+    id: string;
+    from: Date;
+    to: Date;
+}
+
+/** Where the walk-in ended up, and who moved for it. */
+export interface WalkInRoom {
+    startsAt: Date;
+    moved: Moved[];
+}
+
+/** Arbitrary, and only has to be ours: advisory locks share one global space. */
+const DAY_LOCK_NAMESPACE = 7301;
+
+/**
+ * Every path that writes a span takes this before it reads the day, so the
+ * planners queue instead of racing. Without it two walk-ins read the same
+ * layout, plan the same slot, and then sit on each other: checking an exclusion
+ * constraint waits on the conflicting row's transaction, so the collision is
+ * not a fast 23P01 but a lock wait that costs a full `deadlock_timeout` — one
+ * second by default — before Postgres even looks for a cycle, and the cascade's
+ * updates make a real cycle likely. Serialising the planners is far cheaper
+ * than detecting the pile-up afterwards.
+ *
+ * Transaction-scoped: released on commit or rollback, so there is nothing to
+ * unlock by hand and a failed booking cannot strand the day.
+ *
+ * Keyed on the UTC day of the span's start, which every writer derives the same
+ * way. That is a bucket, not the clinic's day — it does not need to agree with
+ * `dayRange`, only to be a value any two conflicting writes both compute. The
+ * one gap is a span straddling UTC midnight, whose neighbours sit in different
+ * buckets; the constraint still refuses those, and `retryOnStaleDay` still
+ * picks them up, so the lock is what makes contention cheap rather than what
+ * makes it correct.
+ */
+function lockDay(tx: Executor, spanStart: Date): Promise<unknown> {
+    const bucket = Math.floor(spanStart.getTime() / 86_400_000);
+    return tx.execute(sql`SELECT pg_advisory_xact_lock(${DAY_LOCK_NAMESPACE}, ${bucket})`);
+}
+
+const WALK_IN_ATTEMPTS = 5;
+
+/**
+ * `makeRoomForWalkIn` reads the day and the insert writes it, and between those
+ * two the layout it read can stop being true: READ COMMITTED shows each
+ * statement the rows committed when *it* began, so two walk-ins taken at the
+ * same moment — or a walk-in and a phone booking — both plan against the same
+ * day and the loser's insert lands on a slot that was free when it looked. The
+ * constraint catches it, which is the point of having it, but the failure here
+ * does not mean "that slot is taken", it means "the answer was computed from a
+ * stale day".
+ *
+ * It arrives two ways. If the loser simply waits for the winner, it is 23P01,
+ * already mapped to SLOT_OVERLAP. If each ends up waiting on the other — which
+ * the cascade's updates make easy, since checking an exclusion constraint takes
+ * a lock on the conflicting row's transaction — Postgres breaks the cycle with
+ * 40P01 and neither is at fault. Both are retried, and so is 40001, which the
+ * same race raises under a stricter isolation level.
+ *
+ * The loser re-reads and queues behind the winner instead of refusing a patient
+ * who is standing at the desk. The whole transaction is retried, because a
+ * failed statement aborts it and nothing inside it can be reused. That is safe
+ * precisely because everything it did is rolled back: the patient, the
+ * appointment, the reminder, the visit and the moves all go, and the broadcasts
+ * have not happened yet.
+ *
+ * Bounded, so a genuine impossibility cannot spin. Exhausting the attempts is
+ * reported as whatever the last failure was — with one practitioner and a desk
+ * or two, five rounds is far past what contention can plausibly produce.
+ *
+ * Only the walk-in path retries. For `create`, SLOT_OVERLAP is the honest
+ * answer to "book me at four o'clock" and must reach the secretary unchanged.
+ */
+function isStaleDay(err: unknown): boolean {
+    if (err instanceof AppError && err.code === ERROR_CODE.SLOT_OVERLAP) return true;
+
+    const code = pgErrorCode(err);
+    return code === PG_ERROR.DEADLOCK_DETECTED || code === PG_ERROR.SERIALIZATION_FAILURE;
+}
+
+async function retryOnStaleDay<T>(run: () => Promise<T>): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            return await run();
+        } catch (err) {
+            if (!isStaleDay(err) || attempt >= WALK_IN_ATTEMPTS) throw err;
+
+            // A deadlock's loser is chosen by the server, so two callers can be
+            // sent back at the same instant to collide again. A short random
+            // wait separates them; it grows so a genuine pile-up still drains.
+            const backoff = Math.random() * 10 * 2 ** attempt;
+            await Bun.sleep(backoff);
+        }
+    }
+}
+
+/**
+ * A walk-in is someone standing at the desk, so it is never refused for want of
+ * room — it is taken and the booked day moves out of its way (§7). Only the
+ * rows it actually runs into move, and only as far as they must: the walk-in's
+ * end becomes a cursor, each later slot-holding row that starts before the
+ * cursor is pushed to it, and the first row that already clears the cursor
+ * stops the ripple. A clinic's natural gaps therefore absorb the walk-in
+ * instead of the whole afternoon sliding.
+ *
+ * It is taken *now* only if the chair is free now. There is one practitioner
+ * (§5), so a slot still running when the patient arrives — the running-late
+ * case — cannot be pushed aside without interrupting a procedure already in
+ * progress. That row stays; the walk-in starts when it ends, and the cascade
+ * runs from there. Nobody is refused, and nobody is pulled out of the chair.
+ * At most one row can be running: the exclusion constraint sees to that.
+ *
+ * The rows are written *last one first*. Every move is forwards, so ascending
+ * order would push one appointment onto the next before that next one has
+ * moved, and `appointments_no_overlap` — which is not deferrable — would refuse
+ * the write halfway through a legal rearrangement.
+ *
+ * Cancelled and no-show rows hold no slot and are left where they are. The
+ * cascade is bounded to the walk-in's own day: a clinic that runs to midnight
+ * pushes nothing into tomorrow.
+ */
+export async function makeRoomForWalkIn(
+    tx: Executor,
+    at: Date,
+    durationMinutes: number,
+    offsetMinutes: number,
+): Promise<WalkInRoom> {
+    const [running] = await tx
+        .select({
+            startsAt: appointments.startsAt,
+            durationMinutes: appointments.durationMinutes,
+        })
+        .from(appointments)
+        .where(
+            and(
+                // The same span the constraint indexes, so this reads the gist
+                // index and agrees with it by construction. Half-open, so a row
+                // ending exactly as the patient arrives is already out of the chair.
+                sql`appointment_span(${appointments.startsAt}, ${appointments.durationMinutes}) @> ${at.toISOString()}::timestamptz`,
+                inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
+            ),
+        )
+        .limit(1);
+
+    const startsAt = running ? new Date(running.startsAt.getTime() + running.durationMinutes * 60_000) : at;
+
+    const { to } = dayRange(dayKeyOf(at, offsetMinutes), offsetMinutes);
+
+    const later = await tx
+        .select({
+            id: appointments.id,
+            startsAt: appointments.startsAt,
+            durationMinutes: appointments.durationMinutes,
+        })
+        .from(appointments)
+        .where(
+            and(
+                gte(appointments.startsAt, startsAt),
+                lt(appointments.startsAt, to),
+                inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
+            ),
+        )
+        .orderBy(asc(appointments.startsAt));
+
+    let cursor = startsAt.getTime() + durationMinutes * 60_000;
+    const moves: Moved[] = [];
+
+    for (const row of later) {
+        const start = row.startsAt.getTime();
+
+        if (start >= cursor) {
+            cursor = start + row.durationMinutes * 60_000;
+            continue;
+        }
+
+        moves.push({ id: row.id, from: row.startsAt, to: new Date(cursor) });
+        cursor += row.durationMinutes * 60_000;
+    }
+
+    for (const move of [...moves].reverse()) {
+        await tx.update(appointments).set({ startsAt: move.to }).where(eq(appointments.id, move.id));
+    }
+
+    return { startsAt, moved: moves };
+}
+
+/** Which calendar day a moment falls on, in the clinic's offset. */
+function dayKeyOf(at: Date, offsetMinutes: number): string {
+    return new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
+}
+
 export const appointmentService = {
     async byDate(input: ByDateInput): Promise<AppointmentWithPatient[]> {
         const { from, to } = dayRange(input.date, input.offsetMinutes);
@@ -248,6 +446,11 @@ export const appointmentService = {
         const resolved = await resolveProcedureLines(input.procedures ?? []);
 
         const row = await db.transaction(async (tx) => {
+            // A booking races the walk-in taken at the same moment. It does not
+            // retry — SLOT_OVERLAP is the honest answer to "book me at four" —
+            // but it must not turn that answer into a deadlock either.
+            await lockDay(tx, startsAt);
+
             const patientId = await resolvePatient(tx, input.patient);
 
             const appointment = await insertWithRef(
@@ -272,47 +475,68 @@ export const appointmentService = {
         return row;
     },
 
-    async walkIn(input: WalkInInput): Promise<{ appointment: AppointmentRow; visitId: string }> {
+    async walkIn(
+        input: WalkInInput,
+    ): Promise<{ appointment: AppointmentRow; visitId: string; moved: Moved[] }> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const { reminderLeadHours } = await settingsService.get();
-        const startsAt = new Date();
+        const arrivedAt = new Date();
         const resolved = await resolveProcedureLines(input.procedures ?? []);
 
         const { visitService } = await import('../visit/visit.service.ts');
 
-        const result = await db.transaction(async (tx) => {
-            const patientId = await resolvePatient(tx, input.patient);
+        const attempt = () =>
+            db.transaction(async (tx) => {
+                await lockDay(tx, arrivedAt);
 
-            const appointment = await insertWithRef(
-                tx,
-                {
-                    patientId,
-                    branchId: input.branchId,
-                    startsAt,
+                const patientId = await resolvePatient(tx, input.patient);
+
+                // Before the insert, not after: the walk-in cannot be written into
+                // a slot something else still holds. This also decides when it
+                // starts — now, or when the chair frees.
+                const { startsAt, moved } = await makeRoomForWalkIn(
+                    tx,
+                    arrivedAt,
                     durationMinutes,
-                    note: input.note ?? null,
-                    channel: 'walk_in',
-                },
-                input.offsetMinutes,
-            );
+                    input.offsetMinutes,
+                );
 
-            await replaceProcedures(tx, appointment.id, resolved);
+                const appointment = await insertWithRef(
+                    tx,
+                    {
+                        patientId,
+                        branchId: input.branchId,
+                        startsAt,
+                        durationMinutes,
+                        note: input.note ?? null,
+                        channel: 'walk_in',
+                    },
+                    input.offsetMinutes,
+                );
 
-            await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
-            await reminderService.skipFor(tx, appointment.id);
+                await replaceProcedures(tx, appointment.id, resolved);
 
-            const visit = await visitService.checkIn({ appointmentId: appointment.id }, tx);
+                await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
+                await reminderService.skipFor(tx, appointment.id);
 
-            const [current] = await tx
-                .select()
-                .from(appointments)
-                .where(eq(appointments.id, appointment.id))
-                .limit(1);
+                const visit = await visitService.checkIn({ appointmentId: appointment.id }, tx);
 
-            return { appointment: current ?? appointment, visitId: visit.id };
-        });
+                const [current] = await tx
+                    .select()
+                    .from(appointments)
+                    .where(eq(appointments.id, appointment.id))
+                    .limit(1);
+
+                return { appointment: current ?? appointment, visitId: visit.id, moved };
+            });
+
+        const result = await retryOnStaleDay(attempt);
 
         broadcast(WS_EVENT.APPOINTMENT_CREATED, { id: result.appointment.id });
+        // Everyone who moved changed on someone else's screen too.
+        for (const move of result.moved) {
+            broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: move.id });
+        }
         return result;
     },
 
@@ -334,6 +558,10 @@ export const appointmentService = {
         const resolved = procedures === undefined ? undefined : await resolveProcedureLines(procedures);
 
         const row = await db.transaction(async (tx) => {
+            // Rescheduling and re-timing both move a span, so this contends
+            // with the other two writers on the day it is moving into.
+            await lockDay(tx, startsAt ?? current.startsAt);
+
             let updated: AppointmentRow | undefined;
             try {
                 [updated] = await tx

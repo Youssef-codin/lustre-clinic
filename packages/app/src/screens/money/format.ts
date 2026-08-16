@@ -3,7 +3,7 @@
 // "Card" because that is what the desk calls it; the stored value is untouched.
 // The client switches on `ERROR_CODE` and never parses the server's message,
 // and this one map is where a localisation scaffold will land.
-import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@mawid/shared';
+import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@lustre/shared';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const;
 

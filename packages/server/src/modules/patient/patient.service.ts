@@ -10,8 +10,9 @@
  * finds `+20101…`. `create` validates the full questionnaire (a new record is
  * the form answered in one sitting), while `update` merges a partial `custom`
  * patch and does not re-check answers the caller left out. `createMinimal`
- * (used by appointment booking) deliberately skips questionnaire validation —
- * the secretary is on the phone, and the form is filled in at the desk.
+ * (used by appointment booking) takes whatever of the record the booking
+ * collected and deliberately skips questionnaire validation — the secretary is
+ * on the phone, and the questions are answered at the desk.
  */
 import { desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
@@ -24,6 +25,9 @@ import { customQuestionService } from '../customQuestion/customQuestion.service.
 import type { CreatePatientInput, SearchPatientInput, UpdatePatientInput } from './patient.schema.ts';
 
 export type PatientRow = typeof patients.$inferSelect;
+
+/** What a booking knows about a patient it is creating — `createPatientInput` less the questionnaire. */
+export type MinimalPatientInput = Omit<CreatePatientInput, 'custom'>;
 
 export interface Patient extends PatientRow {
     age: number | null;
@@ -161,10 +165,18 @@ export const patientService = {
         return toPatient(row);
     },
 
-    async createMinimal(name: string, phone: string, executor: Executor = db): Promise<PatientRow> {
+    async createMinimal(input: MinimalPatientInput, executor: Executor = db): Promise<PatientRow> {
         const [row] = await executor
             .insert(patients)
-            .values({ id: Bun.randomUUIDv7(), name, phone: normalizePhone(phone) })
+            .values({
+                id: Bun.randomUUIDv7(),
+                name: input.name,
+                phone: normalizePhone(input.phone),
+                email: input.email ?? null,
+                birthDate: input.birthDate ?? null,
+                gender: input.gender ?? null,
+                notes: input.notes ?? null,
+            })
             .returning();
 
         if (!row) throw AppError.internal('patient insert returned nothing');

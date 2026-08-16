@@ -2,7 +2,7 @@
 
 <!-- impeccable:product-schema 1 -->
 
-Product truth for Mawid. Repo-wide: `packages/app` inherits this file. The
+Product truth for Lustre. Repo-wide: `packages/app` inherits this file. The
 narrative source is the PRD and the technical contract is the spec, both on
 [Notion](https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc). This file
 records the durable facts design work must not re-derive or contradict.
@@ -146,7 +146,7 @@ secretary before becoming a record.
 
 ## Brand Commitments
 
-Name: **Mawid** (موعد — "appointment"). Package `com.mawid.clinic`.
+Name: **Lustre Clinic**. Package `com.lustre.clinic`.
 
 The assets in `packages/app/assets/` and the `#E6F4FE` adaptive-icon background
 are **placeholders, explicitly not binding**. A later visual world may replace

@@ -92,6 +92,7 @@ function Buttons() {
                 <Button label="Text" variant="text" onPress={noop} />
             </Row>
             <Row>
+                <Button label="Cancel it" variant="dangerText" onPress={noop} />
                 <Button label="Medium" size="md" onPress={noop} />
                 <Button label="Disabled" disabled onPress={noop} />
                 <Button label="Loading" loading onPress={noop} />

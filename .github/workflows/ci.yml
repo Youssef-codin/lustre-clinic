@@ -28,21 +28,21 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: mawid
-          POSTGRES_PASSWORD: mawid
+          POSTGRES_USER: lustre
+          POSTGRES_PASSWORD: lustre
           # Matches packages/server/.env.test. `assertTestDatabase` refuses to
           # truncate anything whose name does not end in `_test`.
-          POSTGRES_DB: mawid_test
+          POSTGRES_DB: lustre_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U mawid -d mawid_test"
+          --health-cmd "pg_isready -U lustre -d lustre_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
 
     env:
-      DATABASE_URL: postgres://mawid:mawid@localhost:5432/mawid_test
+      DATABASE_URL: postgres://lustre:lustre@localhost:5432/lustre_test
       LOG_LEVEL: silent
       # `backup.test.ts` turns a missing pg_dump into a failure rather than a
       # skip when this is set. Actions sets it too; naming it here keeps the

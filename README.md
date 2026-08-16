@@ -1,4 +1,4 @@
-# Mawid
+# Lustre
 
 Clinic management app for a dental practice. React Native client, on-prem server,
 Tailscale-only network.
@@ -54,7 +54,7 @@ Postgres enforces — and it **truncates every table between tests**. It therefo
 runs against its own database, never the one `.env` points at. Create it once:
 
 ```sh
-docker compose exec db createdb -U mawid mawid_test
+docker compose exec db createdb -U lustre lustre_test
 ```
 
 `bun test` loads `packages/server/.env.test` through a preload
@@ -71,8 +71,8 @@ outright in CI rather than skipping silently.
 
 ```sh
 bun backup                              # dump, verify by restoring, prune
-bun restore backups/mawid-....dump      # restore into a scratch db and drop it
-bun restore backups/mawid-....dump.enc --key <base64>
+bun restore backups/lustre-....dump      # restore into a scratch db and drop it
+bun restore backups/lustre-....dump.enc --key <base64>
 ```
 
 `pg_dump` and `pg_restore` must be on PATH and must be version 17. The server

@@ -6,7 +6,7 @@ export default defineConfig({
     schema: './src/db/schema.ts',
     out: './src/db/migrations',
     dbCredentials: {
-        url: process.env.DATABASE_URL ?? 'postgres://mawid:mawid@localhost:5432/mawid',
+        url: process.env.DATABASE_URL ?? 'postgres://lustre:lustre@localhost:5432/lustre',
     },
     casing: 'snake_case',
     verbose: true,

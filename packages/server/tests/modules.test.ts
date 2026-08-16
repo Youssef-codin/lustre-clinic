@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
@@ -738,6 +738,39 @@ describe('appointment', () => {
         const found = await patientService.search({ q: 'Wael', limit: 25 });
         expect(found[0]?.id).toBe(appointment.patientId);
         expect(found[0]?.phone).toBe('+201099999999');
+        expect(found[0]?.email).toBeNull();
+        expect(found[0]?.birthDate).toBeNull();
+    });
+
+    // The desk is not always on the phone — when the card is in her hand, the
+    // details go on the record with the booking rather than in a second visit
+    // to it. The questionnaire is still not asked here (§7.8).
+    test('keeps the details the booking collected about a new patient', async () => {
+        const { branch } = await fixtures();
+
+        const appointment = await appointmentService.create({
+            patient: {
+                kind: 'new',
+                name: 'Detailed Dalia',
+                phone: '01098765432',
+                email: 'dalia@example.com',
+                birthDate: '1990-11-05',
+                gender: 'female',
+                notes: 'Anxious about the drill.',
+            },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+
+        const found = await patientService.search({ q: 'Dalia', limit: 25 });
+        expect(found[0]?.id).toBe(appointment.patientId);
+        expect(found[0]?.email).toBe('dalia@example.com');
+        expect(found[0]?.birthDate).toBe('1990-11-05');
+        expect(found[0]?.gender).toBe('female');
+        expect(found[0]?.notes).toBe('Anxious about the drill.');
+        expect(found[0]?.age).not.toBeNull();
+        expect(found[0]?.custom).toEqual({});
     });
 
     test('reports an overlap as SLOT_OVERLAP rather than a database error', async () => {
@@ -1230,6 +1263,37 @@ describe('appointment procedures', () => {
 
         const visit = await visitService.byId(visitId);
         expect(visit.procedures.map((l) => l.name).sort()).toEqual(['Checkup', 'Extraction']);
+    });
+
+    // The chair is occupied at the moment the patient arrives, which is what a
+    // running-late day looks like from the desk. The slot in progress is not
+    // interrupted, and the walk-in is not refused for it: it starts at the end
+    // of the one already in the chair. Before, the row was never considered and
+    // the insert died on `appointments_no_overlap` as SLOT_OVERLAP.
+    test('a walk-in arriving mid-procedure is seated after it, not turned away', async () => {
+        const { branch, patient } = await fixtures();
+
+        const running = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+            offsetMinutes: 0,
+            durationMinutes: 30,
+        });
+
+        const { appointment } = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+        });
+
+        expect(appointment.status).toBe('checked_in');
+        expect(appointment.startsAt.getTime()).toBe(running.startsAt.getTime() + 30 * 60_000);
+
+        // And the one in the chair stayed exactly where it was.
+        expect((await appointmentService.byId(running.id)).startsAt.getTime()).toBe(
+            running.startsAt.getTime(),
+        );
     });
 
     test('a refused walk-in leaves neither the booking nor its procedures behind', async () => {

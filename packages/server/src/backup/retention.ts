@@ -15,7 +15,7 @@
  * file so a destination's own fields (an off-site handle) survive the trip and
  * a doomed file is never looked back up by name.
  */
-const FILE_PREFIX = 'mawid-';
+const FILE_PREFIX = 'lustre-';
 const FILE_SUFFIX = '.dump';
 
 export function backupFileName(at: Date): string {

@@ -8,7 +8,7 @@
 // Modal, so a toast raised while it is open would render behind it.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Card, EmptyState, SectionLabel, Toast, TopBar } from '../../components/ui';
+import { Button, Card, EmptyState, SectionLabel, Toast, TopBar, usePullToRefresh } from '../../components/ui';
 import { size, space, Text } from '../../theme';
 import { type RecordPaymentInput, useRecordPayment, useVisit } from './_LocalMoneyApi';
 import { DueCard } from './components/DueCard';
@@ -53,11 +53,14 @@ export function VisitPaymentsScreen({
 
     const settled = visit.data ? visit.data.balance <= 0 : false;
 
+    // One visit, one read — a payment taken on the other phone shows up here.
+    const refreshControl = usePullToRefresh(() => visit.refetch(), visit.isLoading);
+
     return (
         <View style={styles.screen} testID="money-visit-screen">
             <TopBar title={visitRef} subtitle={patientName} onBack={onBack} divider />
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={styles.content} refreshControl={refreshControl}>
                 <View style={styles.gutter}>
                     <LoadState
                         isLoading={visit.isLoading}

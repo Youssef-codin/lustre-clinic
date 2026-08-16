@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
@@ -123,12 +123,14 @@ describe('appointment.create', () => {
 });
 
 describe('appointment.walkIn', () => {
-    test('an overlap leaves no appointment, visit, reminder or patient', async () => {
+    test('a second walk-in queues behind the first rather than being refused', async () => {
         // The widest transaction in the app: four tables, plus the seeded
-        // checkup line. `starts_at` is now, so a walk-in collides with anything
-        // already in progress.
+        // checkup line. `starts_at` is now, so the first walk-in is still in the
+        // chair when the second arrives — and §7 says the second is taken
+        // anyway, seated at the end of the first, with its whole set of rows
+        // written. It is not an overlap, so there is nothing to roll back.
         const fixtures = await clinic();
-        await appointmentService.walkIn({
+        const first = await appointmentService.walkIn({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
             offsetMinutes: 0,
@@ -136,16 +138,66 @@ describe('appointment.walkIn', () => {
 
         const before = await snapshot();
 
-        await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
-            appointmentService.walkIn({
-                patient: { kind: 'new', name: 'Second Walk-up', phone: '01066666666' },
-                branchId: fixtures.branch.id,
-                offsetMinutes: 0,
-            }),
+        const second = await appointmentService.walkIn({
+            patient: { kind: 'new', name: 'Second Walk-up', phone: '01066666666' },
+            branchId: fixtures.branch.id,
+            offsetMinutes: 0,
+        });
+
+        expect(second.appointment.startsAt.getTime()).toBe(
+            first.appointment.startsAt.getTime() + first.appointment.durationMinutes * 60_000,
         );
 
-        expect(await snapshot()).toEqual(before);
-        expect(await patientService.search({ q: 'Second', limit: 25 })).toEqual([]);
+        const after = await snapshot();
+        expect(after.patients).toBe(before.patients + 1);
+        expect(after.appointments).toBe(before.appointments + 1);
+        expect(after.reminders).toBe(before.reminders + 1);
+        expect(after.visits).toBe(before.visits + 1);
+        expect(await patientService.search({ q: 'Second', limit: 25 })).toHaveLength(1);
+    });
+
+    // Four desks answering at once is not the clinic, but it is the only way to
+    // put four transactions inside each other's window on purpose. Under READ
+    // COMMITTED they plan against the same committed day and all but one lose
+    // the insert to `appointments_no_overlap`; the loser's answer is stale, not
+    // wrong, so it re-reads and queues rather than turning a patient away.
+    test('walk-ins taken at the same moment queue instead of refusing each other', async () => {
+        const fixtures = await clinic();
+
+        // `allSettled`, not `all`: a rejection must not let the test return
+        // while the other three transactions are still open, or the next
+        // `truncateAll` deadlocks against them and takes the rest of the file
+        // down with it.
+        const settled = await Promise.allSettled(
+            [1, 2, 3, 4].map((n) =>
+                appointmentService.walkIn({
+                    patient: { kind: 'new', name: `Rush ${n}`, phone: `0107777777${n}` },
+                    branchId: fixtures.branch.id,
+                    offsetMinutes: 0,
+                }),
+            ),
+        );
+
+        const refused = settled.filter((r) => r.status === 'rejected');
+        expect(refused.map((r) => String(r.reason))).toEqual([]);
+
+        // Read the day back rather than trusting what each call returned: a
+        // walk-in taken later pushes the ones already placed, so the row a
+        // caller was handed can be out of date by the time all four are in.
+        // The clients are told by the APPOINTMENT_UPDATED each move broadcasts.
+        const rows = await sql<{ starts_at: string; duration_minutes: number }[]>`
+            SELECT starts_at, duration_minutes FROM appointments ORDER BY starts_at
+        `;
+        expect(rows).toHaveLength(4);
+
+        const starts = rows.map((row) => new Date(row.starts_at).getTime());
+
+        // Every one of them got a slot, and no two share one.
+        expect(new Set(starts).size).toBe(4);
+
+        // Back to back, in the duration the settings gave them.
+        const gaps = starts.slice(1).map((start, i) => start - (starts[i] ?? 0));
+        expect(gaps).toEqual(rows.slice(0, -1).map((row) => row.duration_minutes * 60_000));
     });
 
     test('a successful walk-in leaves its reminder skipped, not pending', async () => {

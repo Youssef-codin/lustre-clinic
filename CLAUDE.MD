@@ -1,4 +1,4 @@
-# Agents — Mawid Development Guide
+# Agents — Lustre Development Guide
 
 The docs live on Notion: https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc
 
@@ -44,6 +44,11 @@ push it, open the PR from there against `main`.
 - **Request/response types are never hand-written.** They are inferred from
   `AppRouter`. Only what inference cannot provide (`ERROR_CODE`, domain enums,
   constants, shared Zod schemas) lives in `packages/shared`.
+- **Always use the logger, never `console.*`.** On the server that is the pino
+  `logger` from `packages/server/src/logger.ts`, which carries the level and the
+  redaction list; `console.log` bypasses both. This includes logging added while
+  debugging — it goes through the logger too, and is removed before the work is
+  reported done. `console.log` must never reach a commit.
 - **Never log patient data** — no names, phone numbers, notes, or amounts. IDs
   and error codes only. This applies to pino, to Discord alerts, and to
   everything the client sends GlitchTip (§17 — allow-list, never strip).

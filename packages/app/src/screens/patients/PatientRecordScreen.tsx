@@ -20,10 +20,12 @@ import {
     CardDivider,
     Dot,
     EmptyState,
+    RefreshView,
     SectionLabel,
     SegmentedControl,
     Toast,
     TopBar,
+    usePullToRefresh,
 } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
 import { _LocalMoneyValue } from './components/_LocalMoneyValue';
@@ -60,6 +62,13 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
 
     const patient = record.data?.patient;
 
+    // The record is one payload, so a pull is one round trip — plus the
+    // question list, which is what decides whether an answer is a gap.
+    const refreshControl = usePullToRefresh(() => {
+        record.refetch();
+        questions.refetch();
+    }, record.loading || questions.loading);
+
     const onSave = async (patch: Answers) => {
         const saved = await save.mutate(patch);
         if (!saved) return;
@@ -85,15 +94,21 @@ export function PatientRecordScreen({ patientId, onBack }: PatientRecordScreenPr
             {record.loading && !record.data ? (
                 <SkeletonRows count={5} gutter={size.gutter} />
             ) : record.error && !record.data ? (
-                <EmptyState
-                    title="Could not open this record"
-                    body={errorText(record.error)}
-                    actionLabel="Try again"
-                    onAction={record.refetch}
-                    weight="panel"
-                />
+                <RefreshView refreshControl={refreshControl}>
+                    <EmptyState
+                        title="Could not open this record"
+                        body={errorText(record.error)}
+                        actionLabel="Try again"
+                        onAction={record.refetch}
+                        weight="panel"
+                    />
+                </RefreshView>
             ) : record.data && patient ? (
-                <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    keyboardShouldPersistTaps="handled"
+                    refreshControl={refreshControl}
+                >
                     <View style={styles.tabs}>
                         <SegmentedControl
                             segments={TABS}

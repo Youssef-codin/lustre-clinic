@@ -7,10 +7,10 @@ Component Inventory §2 and §5.
 import { MoneyValue, PatientRow, StatusPill } from '../components/domain';
 ```
 
-`ui/` is the design system and knows nothing about Mawid; the moment a component
+`ui/` is the design system and knows nothing about Lustre; the moment a component
 needs to know that an appointment has a status or that a balance is in piastres,
 it lives here. `domain/` composes `ui/` and the theme, and may import
-`@mawid/shared` and types inferred from `AppRouter`. The barrel is the only entry
+`@lustre/shared` and types inferred from `AppRouter`. The barrel is the only entry
 point.
 
 Three components are here because three of the four screen clusters need them.

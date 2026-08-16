@@ -7,7 +7,7 @@
  * deactivated subtype must not make its category look selectable to a picker.
  * `findCheckup` supplies the line seeded on check-in (§8).
  */
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { and, asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { procedureTypes } from '../../db/schema.ts';

@@ -4,6 +4,8 @@
 
 export type { BottomTabBarProps, TabKey } from './BottomTabBar';
 export { BottomTabBar } from './BottomTabBar';
+export type { BrandMarkProps } from './BrandMark';
+export { BrandMark } from './BrandMark';
 export type { MoneyValueProps } from './MoneyValue';
 export { formatAmount, formatMoney, MoneyValue } from './MoneyValue';
 export type { PatientRowProps, PatientSummary } from './PatientRow';

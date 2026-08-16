@@ -7,7 +7,7 @@
  * on unmount. `run` never rejects — errors surface via `error` so the editor
  * stays open. Messages localize from `ERROR_CODE`, never the server's text.
  */
-import { ERROR_CODE } from '@mawid/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './_LocalApi';
 

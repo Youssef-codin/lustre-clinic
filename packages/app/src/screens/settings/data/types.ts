@@ -8,7 +8,7 @@
  * because the column is `jsonb` (read via `optionsOf`); a weekday with no row
  * is closed, `0` = Sunday.
  */
-import type { QuestionKind } from '@mawid/shared';
+import type { QuestionKind } from '@lustre/shared';
 
 export interface Branch {
     id: string;

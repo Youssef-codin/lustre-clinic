@@ -1,4 +1,4 @@
-import type { AppRouter } from '@mawid/server/src/trpc/router.ts';
+import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 
 // The shapes of every procedure's input and output, inferred from the server's

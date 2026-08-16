@@ -14,7 +14,7 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, EmptyState } from '../../../components/ui';
+import { Banner, Button, EmptyState, type RefreshControlElement, RefreshView } from '../../../components/ui';
 import { border, color, size, space, Text } from '../../../theme';
 import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
@@ -24,9 +24,11 @@ import { CloseIcon } from './icons';
 
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
+    /** The day screen's pull-to-refresh, shared so the tab re-reads with it. */
+    refreshControl?: RefreshControlElement;
 };
 
-export function Reminders({ query }: RemindersProps) {
+export function Reminders({ query, refreshControl }: RemindersProps) {
     const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
     const [failed, setFailed] = useState<string | null>(null);
 
@@ -72,17 +74,23 @@ export function Reminders({ query }: RemindersProps) {
     if (query.status === 'error' && query.error && pending.length === 0) {
         const described = describeError(query.error);
         return (
-            <EmptyState
-                title={described.title}
-                body={described.body}
-                actionLabel="Try again"
-                onAction={query.refetch}
-            />
+            <RefreshView refreshControl={refreshControl}>
+                <EmptyState
+                    title={described.title}
+                    body={described.body}
+                    actionLabel="Try again"
+                    onAction={query.refetch}
+                />
+            </RefreshView>
         );
     }
 
     if (pending.length === 0) {
-        return <EmptyState title="Everyone has been messaged" body="No reminder is waiting to go out." />;
+        return (
+            <RefreshView refreshControl={refreshControl}>
+                <EmptyState title="Everyone has been messaged" body="No reminder is waiting to go out." />
+            </RefreshView>
+        );
     }
 
     return (
@@ -91,7 +99,11 @@ export function Reminders({ query }: RemindersProps) {
                 <Banner tone="warning" message={`${failed}'s reminder could not be marked — try again.`} />
             ) : null}
 
-            <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
+                refreshControl={refreshControl}
+            >
                 <Text variant="body" tone="ink2" style={styles.lede}>
                     {pending.length === 1
                         ? "1 patient hasn't been messaged yet."

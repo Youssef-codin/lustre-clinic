@@ -1,7 +1,7 @@
 {
     "expo": {
-        "name": "Mawid",
-        "slug": "mawid",
+        "name": "Lustre Clinic",
+        "slug": "lustre-clinic",
         "version": "1.0.0",
         "orientation": "portrait",
         "icon": "./assets/icon.png",
@@ -10,9 +10,9 @@
             "supportsTablet": true
         },
         "android": {
-            "package": "com.mawid.clinic",
+            "package": "com.lustre.clinic",
             "adaptiveIcon": {
-                "backgroundColor": "#E6F4FE",
+                "backgroundColor": "#14110F",
                 "foregroundImage": "./assets/android-icon-foreground.png",
                 "backgroundImage": "./assets/android-icon-background.png",
                 "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,7 +20,7 @@
             "predictiveBackGestureEnabled": false,
             "softwareKeyboardLayoutMode": "resize"
         },
-        "plugins": ["expo-font"],
+        "plugins": ["expo-font", "./plugins/withBuildTuning"],
         "extra": {
             "server": {
                 "lan": "http://localhost:3002",

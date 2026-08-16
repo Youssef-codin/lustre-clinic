@@ -5,7 +5,7 @@
  * behind the fold. The patient in the chair is drawn once at the top and is
  * excluded from the split via `activeId`.
  */
-import type { AppointmentStatus } from '@mawid/shared';
+import type { AppointmentStatus } from '@lustre/shared';
 import type { Appointment } from './data/types';
 
 const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>(['done', 'cancelled', 'no_show']);

@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import type { ErrorCode } from '@mawid/shared';
+import type { ErrorCode } from '@lustre/shared';
 import { AppError } from '../../src/errors/AppError.ts';
 import { appointmentService } from '../../src/modules/appointment/appointment.service.ts';
 import { branchService } from '../../src/modules/branch/branch.service.ts';

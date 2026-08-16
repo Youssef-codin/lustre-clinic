@@ -7,13 +7,17 @@
  * lands — and `wrap` turns tRPC failures into the `RequestError` the screens
  * localize from. Offsets come from the date itself (`offsetForDate`) because a
  * day on the far side of a DST changeover needs the offset in force on it;
- * `byDates` is one POST over `httpBatchLink`, not thirty-one round trips. The
+ * `byDates` is one POST over `httpBatchLink`, not thirty-one round trips.
+ * Neither read carries a branch, though the procedure takes one: a day is a
+ * few dozen rows, and the screens split it themselves so they can open on the
+ * branch holding most of it and say what the other one is doing — which a
+ * server-side filter throws away before the app can see it. The
  * visit id is not on the appointment, so `visitIds` keeps what this session
  * created and `visit.byAppointment` reaches the rest; `checkInTimes` orders
  * the waiting room by arrival, dropping a patient whose visit cannot be read
  * so the order falls back to `updatedAt` and the day still draws.
  */
-import type { PaymentMethod } from '@mawid/shared';
+import type { PaymentMethod, Tooth } from '@lustre/shared';
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 import { offsetForDate } from '../time';
 import { RequestError } from './client';
@@ -25,11 +29,43 @@ import type {
     ClinicSettings,
     Patient,
     PendingReminder,
+    ProcedureCategory,
     ProcedureType,
     Visit,
     VisitRow,
     WalkInResult,
 } from './types';
+
+/**
+ * §7 — a procedure the booking plans. No price: the visit snapshots the
+ * catalogue's at check-in, so what the client sends is what is to be done, not
+ * what it costs. `tooth` is required by §5 for a tooth-specific procedure and
+ * refused for the rest, which is why the picker asks the tooth first.
+ */
+export interface BookedProcedure {
+    procedureId: string;
+    quantity?: number;
+    tooth?: Tooth | null;
+    note?: string | null;
+}
+
+/**
+ * §7/§13: book for someone on file, or create them with the appointment. A new
+ * patient needs a name and a number and nothing else; the rest of the record is
+ * sent when the secretary already has it, and is `null` — not absent — when she
+ * does not, so the field reads as asked-and-unknown rather than never-asked.
+ */
+export type PatientRef =
+    | { kind: 'existing'; patientId: string }
+    | {
+          kind: 'new';
+          name: string;
+          phone: string;
+          email?: string | null;
+          birthDate?: string | null;
+          gender?: string | null;
+          notes?: string | null;
+      };
 
 function shaped<T>(value: unknown): T {
     return value as T;
@@ -54,12 +90,11 @@ export const api = {
 
     branches: (): Promise<Branch[]> => wrap(() => trpcClient.branch.list.query({ includeInactive: false })),
 
-    byDate: (date: string, branchId?: string): Promise<Appointment[]> =>
+    byDate: (date: string): Promise<Appointment[]> =>
         wrap(() =>
             trpcClient.appointment.byDate.query({
                 date,
                 offsetMinutes: offsetForDate(date),
-                branchId,
             }),
         ),
 
@@ -76,6 +111,9 @@ export const api = {
         ),
 
     procedures: (): Promise<ProcedureType[]> => wrap(() => trpcClient.procedure.list.query()),
+
+    procedureTree: (): Promise<ProcedureCategory[]> =>
+        wrap(() => trpcClient.procedure.tree.query({ includeInactive: false })),
 
     pendingReminders: (date: string): Promise<PendingReminder[]> =>
         wrap(() =>
@@ -99,11 +137,23 @@ export const api = {
         wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId })),
 
     walkIn: (input: {
-        patient: { kind: 'existing'; patientId: string } | { kind: 'new'; name: string; phone: string };
+        patient: PatientRef;
         branchId: string;
         durationMinutes?: number;
+        procedures?: BookedProcedure[];
+        note?: string | null;
         offsetMinutes: number;
     }): Promise<WalkInResult> => wrap(() => trpcClient.appointment.walkIn.mutate(input)),
+
+    create: (input: {
+        patient: PatientRef;
+        branchId: string;
+        startsAt: string;
+        durationMinutes?: number;
+        procedures?: BookedProcedure[];
+        note?: string | null;
+        offsetMinutes: number;
+    }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.create.mutate(input)),
 
     cancel: (id: string): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.cancel.mutate({ id })),
 
