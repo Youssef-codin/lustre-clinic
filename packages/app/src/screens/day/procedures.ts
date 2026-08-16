@@ -1,9 +1,10 @@
 /**
  * What is going to be done, as the booking holds it before anything is written.
  * A visit's procedures are lines with a tooth and a price (§5, §9), and a
- * booking is a plan for exactly those lines — so the draft is shaped like them
- * rather than like the appointment's single `typeId`, and the day the server
- * carries a list per appointment this file does not change.
+ * booking is a plan for exactly those lines — so the draft is shaped like them,
+ * and `bookedProcedures` hands the whole list to the appointment, which carries
+ * one of its own (it once carried a single `typeId`, and the rest of the plan
+ * had to ride along in the note).
  *
  * Grouping is by tooth, not by procedure, because that is how the work is
  * spoken about at the desk and in the chair: "UL6 needs a filling and a
@@ -14,6 +15,7 @@
  * Money is integer piastres end to end (§7.12); nothing here formats it.
  */
 import { DECIDUOUS_TEETH, PERMANENT_TEETH, type Tooth } from '@lustre/shared';
+import type { BookedProcedure } from './data';
 
 export interface PlannedProcedure {
     /** Local to the draft — the row does not exist server-side yet. */
@@ -100,9 +102,15 @@ export function totalOf(procedures: readonly PlannedProcedure[]): number {
     return procedures.reduce((sum, procedure) => sum + procedure.price, 0);
 }
 
-/** What the appointment can carry today: one type, so the first line's. */
-export function primaryTypeId(procedures: readonly PlannedProcedure[]): string | null {
-    return procedures[0]?.procedureId ?? null;
+/**
+ * The plan as the booking sends it (§7). One line out per line in, never merged
+ * into a quantity: two fillings on two teeth are two lines with two teeth, and
+ * two on the same tooth are still two things that were agreed to and will be
+ * priced one by one at check-in. Price does not go — the visit snapshots the
+ * catalogue's on the day.
+ */
+export function bookedProcedures(plan: readonly PlannedProcedure[]): BookedProcedure[] {
+    return plan.map((procedure) => ({ procedureId: procedure.procedureId, tooth: procedure.tooth }));
 }
 
 /** How a line reads in one string — the confirm step and the note both want it. */

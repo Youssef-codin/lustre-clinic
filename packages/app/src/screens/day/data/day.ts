@@ -49,10 +49,23 @@ export interface BookedProcedure {
     note?: string | null;
 }
 
-/** §7/§13: book for someone on file, or create them with the appointment. */
+/**
+ * §7/§13: book for someone on file, or create them with the appointment. A new
+ * patient needs a name and a number and nothing else; the rest of the record is
+ * sent when the secretary already has it, and is `null` — not absent — when she
+ * does not, so the field reads as asked-and-unknown rather than never-asked.
+ */
 export type PatientRef =
     | { kind: 'existing'; patientId: string }
-    | { kind: 'new'; name: string; phone: string };
+    | {
+          kind: 'new';
+          name: string;
+          phone: string;
+          email?: string | null;
+          birthDate?: string | null;
+          gender?: string | null;
+          notes?: string | null;
+      };
 
 function shaped<T>(value: unknown): T {
     return value as T;

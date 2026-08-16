@@ -37,7 +37,6 @@ import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { ChatIcon, ClockIcon } from './components/icons';
 import { NowCard } from './components/NowCard';
-import type { PatientDraft } from './components/PatientPicker';
 import { Reminders } from './components/Reminders';
 import {
     type Appointment,
@@ -52,6 +51,7 @@ import { dayDelay, delayLabel, delayReason } from './delay';
 import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
+import type { PatientDraft } from './patientDraft';
 import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 

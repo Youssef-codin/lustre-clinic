@@ -6,61 +6,29 @@
  *
  * The search is debounced because every keystroke is otherwise a round trip to
  * a clinic PC over Tailscale, and debouncing keeps the answers arriving in the
- * order they were asked. The state lives in the caller (`PatientDraft`) because
- * the answer outlives this component: it is what gets carried to the booking
- * page after the sheet closes.
+ * order they were asked. The state lives in the caller (`PatientDraft`, in
+ * `patientDraft.ts` with the rules that judge it) because the answer outlives
+ * this component: it is what gets carried to the booking page after the sheet
+ * closes.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, SearchField, SegmentedControl, TextField } from '../../../components/ui';
+import { Button, SearchField, SegmentedControl, Select, Textarea, TextField } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { api, type Patient, type PatientRef, useLocalQuery } from '../data';
+import { api, type Patient, useLocalQuery } from '../data';
+import {
+    birthDateDigits,
+    birthDateDisplay,
+    birthDateError,
+    emailError,
+    GENDERS,
+    type PatientDraft,
+} from '../patientDraft';
 import { useDebounced } from '../useDebounced';
-
-export type PatientDraft = {
-    mode: 'existing' | 'new';
-    term: string;
-    picked: Patient | null;
-    name: string;
-    phone: string;
-};
-
-export const EMPTY_PATIENT_DRAFT: PatientDraft = {
-    mode: 'existing',
-    term: '',
-    picked: null,
-    name: '',
-    phone: '',
-};
 
 const MODES = [
     { value: 'existing', label: 'On file' },
     { value: 'new', label: 'New patient' },
 ] as const satisfies readonly { value: PatientDraft['mode']; label: string }[];
-
-/** What the mutation takes, or null while the draft cannot be booked. */
-export function patientRefOf(draft: PatientDraft): PatientRef | null {
-    if (draft.mode === 'existing') {
-        return draft.picked ? { kind: 'existing', patientId: draft.picked.id } : null;
-    }
-
-    const name = draft.name.trim();
-    const phone = draft.phone.trim();
-    return name.length > 0 && phone.length >= 5 ? { kind: 'new', name, phone } : null;
-}
-
-/** What the booking page calls them — a new patient is named before they have an id. */
-export function patientNameOf(draft: PatientDraft): string {
-    return draft.mode === 'existing' ? (draft.picked?.name ?? '') : draft.name.trim();
-}
-
-export function patientPhoneOf(draft: PatientDraft): string {
-    return draft.mode === 'existing' ? (draft.picked?.phone ?? '') : draft.phone.trim();
-}
-
-/** The way in for a screen that already knows the patient — the record's Book. */
-export function draftFor(patient: Patient): PatientDraft {
-    return { ...EMPTY_PATIENT_DRAFT, picked: patient };
-}
 
 export type PatientPickerProps = {
     value: PatientDraft;
@@ -87,51 +55,110 @@ export function PatientPicker({ value, onChange, active }: PatientPickerProps) {
                 accessibilityLabel="Is the patient on file"
             />
 
-            {value.mode === 'existing' ? (
-                <View style={styles.section}>
-                    <SearchField
-                        value={value.term}
-                        onChangeText={(term) => onChange({ ...value, term, picked: null })}
-                        onClear={() => onChange({ ...value, term: '', picked: null })}
-                        variant="sheet"
-                        placeholder="Name or phone"
-                        autoCorrect={false}
-                    />
+            <View style={styles.section}>
+                {value.mode === 'existing' ? (
+                    <>
+                        <SearchField
+                            value={value.term}
+                            onChangeText={(term) => onChange({ ...value, term, picked: null })}
+                            onClear={() => onChange({ ...value, term: '', picked: null })}
+                            variant="sheet"
+                            placeholder="Name or phone"
+                            autoCorrect={false}
+                        />
 
-                    <PatientResults
-                        term={value.term}
-                        results={search.data ?? []}
-                        loading={search.status === 'loading'}
-                        failed={search.status === 'error'}
-                        picked={value.picked}
-                        onPick={(picked) => onChange({ ...value, picked })}
-                        onRetry={search.refetch}
-                    />
-                </View>
-            ) : (
-                <View style={styles.section}>
-                    <TextField
-                        label="Name"
-                        required
-                        value={value.name}
-                        onChangeText={(name) => onChange({ ...value, name })}
-                        autoCorrect={false}
-                    />
-                    <TextField
-                        label="Phone"
-                        required
-                        value={value.phone}
-                        onChangeText={(phone) => onChange({ ...value, phone })}
-                        keyboardType="phone-pad"
-                        hint="As it is dialled — 010 1234 5678."
-                    />
-                    <Text variant="caption" tone="muted">
-                        The patient record is created with the booking. The rest of their details can be
-                        filled in later.
-                    </Text>
-                </View>
-            )}
+                        <PatientResults
+                            term={value.term}
+                            results={search.data ?? []}
+                            loading={search.status === 'loading'}
+                            failed={search.status === 'error'}
+                            picked={value.picked}
+                            onPick={(picked) => onChange({ ...value, picked })}
+                            onRetry={search.refetch}
+                        />
+                    </>
+                ) : (
+                    <NewPatientForm value={value} onChange={onChange} />
+                )}
+            </View>
         </View>
+    );
+}
+
+/**
+ * The record as a booking can fill it. Nothing is hidden behind a disclosure:
+ * a field the secretary cannot see is a field she does not ask for, and the
+ * whole point of asking here is that she has the patient in front of her. Only
+ * the name and the number are required, and the caption says so.
+ */
+function NewPatientForm({
+    value,
+    onChange,
+}: {
+    value: PatientDraft;
+    onChange: (next: PatientDraft) => void;
+}) {
+    const email = emailError(value.email);
+    const birthDate = birthDateError(value.birthDate);
+
+    return (
+        <>
+            <TextField
+                label="Name"
+                required
+                value={value.name}
+                onChangeText={(name) => onChange({ ...value, name })}
+                placeholder="As it goes on the record"
+                autoCorrect={false}
+            />
+            <TextField
+                label="Phone"
+                required
+                value={value.phone}
+                onChangeText={(phone) => onChange({ ...value, phone })}
+                keyboardType="phone-pad"
+                placeholder="010 1234 5678"
+            />
+            <TextField
+                label="Email"
+                value={value.email}
+                onChangeText={(email) => onChange({ ...value, email })}
+                error={email ?? undefined}
+                placeholder="name@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                inputMode="email"
+            />
+            <TextField
+                label="Date of birth"
+                value={birthDateDisplay(value.birthDate)}
+                onChangeText={(text) => onChange({ ...value, birthDate: birthDateDigits(text) })}
+                error={birthDate ?? undefined}
+                keyboardType="number-pad"
+                placeholder="DD / MM / YYYY"
+            />
+            <Select
+                label="Sex"
+                sheetTitle="Sex"
+                options={GENDERS}
+                value={value.gender}
+                onChange={(gender) => onChange({ ...value, gender })}
+                testID="new-patient-gender"
+            />
+            <Textarea
+                label="Patient note"
+                hint="Kept on the record, not on this appointment."
+                value={value.notes}
+                onChangeText={(notes) => onChange({ ...value, notes })}
+                placeholder="Anything that is true of them every visit."
+            />
+
+            <Text variant="caption" tone="muted">
+                The patient record is created with the booking. Only the name and the number are needed to
+                book — the rest can be left for the desk.
+            </Text>
+        </>
     );
 }
 

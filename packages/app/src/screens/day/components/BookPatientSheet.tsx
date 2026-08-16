@@ -10,7 +10,8 @@
  */
 import { useState } from 'react';
 import { Button, Sheet } from '../../../components/ui';
-import { EMPTY_PATIENT_DRAFT, type PatientDraft, PatientPicker, patientRefOf } from './PatientPicker';
+import { EMPTY_PATIENT_DRAFT, type PatientDraft, patientRefOf } from '../patientDraft';
+import { PatientPicker } from './PatientPicker';
 
 export type BookPatientSheetProps = {
     visible: boolean;

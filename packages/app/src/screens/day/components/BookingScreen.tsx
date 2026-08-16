@@ -30,14 +30,8 @@ import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } fro
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
-import {
-    describeProcedure,
-    groupByTooth,
-    type PlannedProcedure,
-    primaryTypeId,
-    toothPosition,
-    totalOf,
-} from '../procedures';
+import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '../patientDraft';
+import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import {
     addDays,
     clock12,
@@ -51,7 +45,6 @@ import {
     todayKey,
 } from '../time';
 import { CheckIcon } from './icons';
-import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from './PatientPicker';
 import { ProcedurePlan } from './ProcedurePlan';
 import { SlotPicker } from './SlotPicker';
 
@@ -212,8 +205,8 @@ export function BookingScreen({
     function book() {
         if (!ref || !branch || !ready) return;
 
-        const typeId = primaryTypeId(plan);
-        const body = noteWithPlan(note, plan);
+        const procedures = bookedProcedures(plan);
+        const body = note.trim() || null;
 
         if (!scheduled) {
             walkIn.mutate(
@@ -221,7 +214,7 @@ export function BookingScreen({
                     patient: ref,
                     branchId: branch,
                     durationMinutes: duration,
-                    typeId,
+                    procedures,
                     note: body,
                     offsetMinutes: localOffsetMinutes(),
                 },
@@ -251,7 +244,7 @@ export function BookingScreen({
                 branchId: branch,
                 startsAt: isoAt(date, slotMinutes),
                 durationMinutes: duration,
-                typeId,
+                procedures,
                 note: body,
                 offsetMinutes: offsetForDate(date),
             },
@@ -704,19 +697,6 @@ function SummaryRow({ label, value, lead = false }: { label: string; value: stri
             </Text>
         </View>
     );
-}
-
-/**
- * Until an appointment can carry a list of its own, the plan rides in the note:
- * `typeId` holds the first line, and the rest would otherwise be lost between
- * the desk and the chair — which is worse than a note the doctor can read.
- */
-function noteWithPlan(note: string, plan: readonly PlannedProcedure[]): string | null {
-    const typed = note.trim();
-    if (plan.length < 2) return typed || null;
-
-    const planned = `Planned: ${plan.map(describeProcedure).join(', ')}`;
-    return typed ? `${planned}\n${typed}` : planned;
 }
 
 /**

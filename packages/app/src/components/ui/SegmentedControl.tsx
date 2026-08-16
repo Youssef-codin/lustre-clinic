@@ -5,9 +5,23 @@
  * `selected`. The selected half is outlined, not just filled: on a track this
  * pale the fill alone is faint, and the border is what makes it read as a thing
  * sitting on top rather than a lighter patch of the same surface.
+ *
+ * The pill is one view that slides rather than a style on whichever half is
+ * chosen, so the control shows the change instead of reporting it. That is also
+ * the whole of the animation where this control switches between two panes:
+ * moving the panes themselves fights the sheet resizing around them, while the
+ * thumb is the thing the finger just pressed.
+ *
+ * The geometry comes from the first segment measuring itself — the halves are
+ * `flex: 1` and therefore equal, so one measurement gives the width and the
+ * step. Nothing is drawn until that arrives, which is one frame.
  */
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import type { LayoutChangeEvent } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { border, color, radius, shadow, space, Text } from '../../theme';
+import { duration, easing } from './motion';
+import { useReducedMotion } from './useReducedMotion';
 
 export type Segment<T extends string> = {
     value: T;
@@ -30,6 +44,45 @@ export function SegmentedControl<T extends string>({
     accessibilityLabel,
     testID,
 }: SegmentedControlProps<T>) {
+    const index = Math.max(
+        0,
+        segments.findIndex((segment) => segment.value === value),
+    );
+    const [slot, setSlot] = useState<{ x: number; width: number } | null>(null);
+    const slide = useRef(new Animated.Value(0)).current;
+    const placed = useRef(false);
+    const reducedMotion = useReducedMotion();
+
+    const step = slot ? slot.x + index * slot.width : 0;
+
+    // biome-ignore lint/correctness/useExhaustiveDependencies: the step is the change
+    useEffect(() => {
+        if (!slot) return;
+
+        // The first placement is where the pill already is, not a move to play.
+        if (!placed.current) {
+            placed.current = true;
+            slide.setValue(step);
+            return;
+        }
+
+        const animation = Animated.timing(slide, {
+            toValue: step,
+            duration: reducedMotion ? 0 : duration.fade,
+            easing: easing.promote,
+            useNativeDriver: true,
+        });
+        animation.start();
+
+        return () => animation.stop();
+    }, [step, slide, reducedMotion]);
+
+    function onFirstSegmentLayout(event: LayoutChangeEvent) {
+        const { x, width } = event.nativeEvent.layout;
+        if (slot && slot.x === x && slot.width === width) return;
+        setSlot({ x, width });
+    }
+
     return (
         <View
             accessibilityRole="tablist"
@@ -37,15 +90,23 @@ export function SegmentedControl<T extends string>({
             style={styles.track}
             testID={testID}
         >
-            {segments.map((segment) => {
+            {slot ? (
+                <Animated.View
+                    pointerEvents="none"
+                    style={[styles.thumb, { width: slot.width, transform: [{ translateX: slide }] }]}
+                />
+            ) : null}
+
+            {segments.map((segment, at) => {
                 const selected = segment.value === value;
                 return (
                     <Pressable
                         key={segment.value}
                         accessibilityRole="tab"
                         accessibilityState={{ selected }}
+                        onLayout={at === 0 ? onFirstSegmentLayout : undefined}
                         onPress={() => onChange(segment.value)}
-                        style={[styles.segment, selected && styles.selected]}
+                        style={styles.segment}
                     >
                         {segment.icon?.(selected)}
                         <Text
@@ -82,7 +143,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: space[3],
         borderRadius: radius.full,
     },
-    selected: {
+    /** `left: 0` and not `start`: `layout.x` is measured from the left in both directions. */
+    thumb: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        borderRadius: radius.full,
         backgroundColor: color.surface,
         borderWidth: border.hair,
         borderColor: color.line,

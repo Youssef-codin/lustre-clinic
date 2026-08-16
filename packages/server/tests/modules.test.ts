@@ -738,6 +738,39 @@ describe('appointment', () => {
         const found = await patientService.search({ q: 'Wael', limit: 25 });
         expect(found[0]?.id).toBe(appointment.patientId);
         expect(found[0]?.phone).toBe('+201099999999');
+        expect(found[0]?.email).toBeNull();
+        expect(found[0]?.birthDate).toBeNull();
+    });
+
+    // The desk is not always on the phone — when the card is in her hand, the
+    // details go on the record with the booking rather than in a second visit
+    // to it. The questionnaire is still not asked here (§7.8).
+    test('keeps the details the booking collected about a new patient', async () => {
+        const { branch } = await fixtures();
+
+        const appointment = await appointmentService.create({
+            patient: {
+                kind: 'new',
+                name: 'Detailed Dalia',
+                phone: '01098765432',
+                email: 'dalia@example.com',
+                birthDate: '1990-11-05',
+                gender: 'female',
+                notes: 'Anxious about the drill.',
+            },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+
+        const found = await patientService.search({ q: 'Dalia', limit: 25 });
+        expect(found[0]?.id).toBe(appointment.patientId);
+        expect(found[0]?.email).toBe('dalia@example.com');
+        expect(found[0]?.birthDate).toBe('1990-11-05');
+        expect(found[0]?.gender).toBe('female');
+        expect(found[0]?.notes).toBe('Anxious about the drill.');
+        expect(found[0]?.age).not.toBeNull();
+        expect(found[0]?.custom).toEqual({});
     });
 
     test('reports an overlap as SLOT_OVERLAP rather than a database error', async () => {

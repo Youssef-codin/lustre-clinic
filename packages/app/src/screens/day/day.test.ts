@@ -17,10 +17,19 @@ import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatMoney, poundsEntry } from './money';
 import { busiestBranch, loadsFrom } from './month';
 import {
+    birthDateDigits,
+    birthDateDisplay,
+    birthDateError,
+    birthDateIso,
+    EMPTY_PATIENT_DRAFT,
+    emailError,
+    patientRefOf,
+} from './patientDraft';
+import {
+    bookedProcedures,
     describeProcedure,
     groupByTooth,
     type PlannedProcedure,
-    primaryTypeId,
     QUADRANTS,
     toothPosition,
     totalOf,
@@ -347,6 +356,103 @@ describe('dates', () => {
     });
 });
 
+describe('a patient who is new here', () => {
+    const TODAY = '2026-08-16';
+
+    it('draws the separators around the digits typed so far', () => {
+        expect(birthDateDisplay('')).toBe('');
+        expect(birthDateDisplay('05')).toBe('05');
+        expect(birthDateDisplay('0511')).toBe('05 / 11');
+        expect(birthDateDisplay('05111990')).toBe('05 / 11 / 1990');
+    });
+
+    it('keeps only digits, and only eight of them', () => {
+        expect(birthDateDigits('05 / 11 / 1990')).toBe('05111990');
+        expect(birthDateDigits('0511199012')).toBe('05111990');
+        expect(birthDateDigits('abc')).toBe('');
+    });
+
+    it('turns a day-first entry into the ISO date the server takes', () => {
+        expect(birthDateIso('05111990', TODAY)).toBe('1990-11-05');
+        expect(birthDateIso('29022024', TODAY)).toBe('2024-02-29');
+    });
+
+    it('refuses a date nobody was born on', () => {
+        expect(birthDateIso('29022023', TODAY)).toBeNull();
+        expect(birthDateIso('32011990', TODAY)).toBeNull();
+        expect(birthDateIso('05131990', TODAY)).toBeNull();
+        expect(birthDateIso('05111899', TODAY)).toBeNull();
+    });
+
+    it('refuses a birth date in the future, however plausible', () => {
+        expect(birthDateIso('17082026', TODAY)).toBeNull();
+        expect(birthDateIso('16082026', TODAY)).toBe('2026-08-16');
+    });
+
+    // An entry in progress is not yet wrong — the error would fire on the first
+    // keystroke and stay up until the last.
+    it('says nothing about an empty field, and asks for the rest of a half-typed one', () => {
+        expect(birthDateError('', TODAY)).toBeNull();
+        expect(birthDateError('0511', TODAY)).not.toBeNull();
+        expect(birthDateError('05111990', TODAY)).toBeNull();
+    });
+
+    it('catches the obvious in an address and leaves a blank one alone', () => {
+        expect(emailError('')).toBeNull();
+        expect(emailError('  ')).toBeNull();
+        expect(emailError('nadia@example.com')).toBeNull();
+        expect(emailError('nadia@example')).not.toBeNull();
+        expect(emailError('nadia.example.com')).not.toBeNull();
+    });
+
+    it('books on a name and a number alone', () => {
+        const ref = patientRefOf({
+            ...EMPTY_PATIENT_DRAFT,
+            mode: 'new',
+            name: 'Nadia',
+            phone: '01012345678',
+        });
+        expect(ref).toEqual({
+            kind: 'new',
+            name: 'Nadia',
+            phone: '01012345678',
+            email: null,
+            birthDate: null,
+            gender: null,
+            notes: null,
+        });
+    });
+
+    it('carries the details the desk did have', () => {
+        const ref = patientRefOf({
+            ...EMPTY_PATIENT_DRAFT,
+            mode: 'new',
+            name: '  Nadia  ',
+            phone: '01012345678',
+            email: 'nadia@example.com',
+            birthDate: '05111990',
+            gender: 'female',
+            notes: 'Anxious about the drill.',
+        });
+        expect(ref).toEqual({
+            kind: 'new',
+            name: 'Nadia',
+            phone: '01012345678',
+            email: 'nadia@example.com',
+            birthDate: '1990-11-05',
+            gender: 'female',
+            notes: 'Anxious about the drill.',
+        });
+    });
+
+    // Sending it as blank would throw away what she was in the middle of writing.
+    it('holds the booking while a detail is half-written', () => {
+        const half = { ...EMPTY_PATIENT_DRAFT, mode: 'new' as const, name: 'Nadia', phone: '01012345678' };
+        expect(patientRefOf({ ...half, birthDate: '0511' })).toBeNull();
+        expect(patientRefOf({ ...half, email: 'nadia@' })).toBeNull();
+    });
+});
+
 describe('booking slots', () => {
     const SCHEDULE = [{ weekday: 1, branchId: 'b', opensAt: '10:00', closesAt: '12:00' }];
     const MONDAY = '2026-08-10';
@@ -578,12 +684,23 @@ describe('the procedure plan', () => {
         expect(upperRight?.codes.slice(8)).toEqual(['URA', 'URB', 'URC', 'URD', 'URE']);
     });
 
-    it('totals the plan and hands the appointment the first line it can carry', () => {
-        const plan = [line('a', 'UL6', 900_00), line('b', null, 400_00)];
+    it('totals the plan', () => {
+        expect(totalOf([line('a', 'UL6', 900_00), line('b', null, 400_00)])).toBe(1300_00);
+        expect(totalOf([])).toBe(0);
+    });
 
-        expect(totalOf(plan)).toBe(1300_00);
-        expect(primaryTypeId(plan)).toBe('proc-a');
-        expect(primaryTypeId([])).toBeNull();
+    // The price stays behind: the visit snapshots the catalogue's at check-in,
+    // so what is booked is the work, never what it was quoted at.
+    it('sends every line of the plan, with its tooth and without its price', () => {
+        expect(bookedProcedures([line('a', 'UL6', 900_00), line('b', null, 400_00)])).toEqual([
+            { procedureId: 'proc-a', tooth: 'UL6' },
+            { procedureId: 'proc-b', tooth: null },
+        ]);
+        expect(bookedProcedures([])).toEqual([]);
+    });
+
+    it('keeps two of the same procedure as two lines rather than a quantity', () => {
+        expect(bookedProcedures([line('a', 'UL6', 900_00), line('b', 'UL6', 900_00)])).toHaveLength(2);
     });
 
     it('reads a line back the way the note and the summary print it', () => {

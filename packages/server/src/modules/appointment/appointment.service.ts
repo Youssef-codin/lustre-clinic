@@ -86,7 +86,8 @@ async function resolvePatient(executor: Executor, ref: PatientRefInput): Promise
         await patientService.requireExists(ref.patientId);
         return ref.patientId;
     }
-    const created = await patientService.createMinimal(ref.name, ref.phone, executor);
+    const { kind: _kind, ...details } = ref;
+    const created = await patientService.createMinimal(details, executor);
     return created.id;
 }
 
