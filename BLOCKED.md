@@ -381,15 +381,20 @@ The button is drawn either way — the design's strip is three parts and a
 missing third reads as a bug — and without a handler it says where payments are
 taken, like the two openers.
 
-### 4. No "recent patients" procedure — the list is search-only
+### 4. No "recent patients" procedure — the list was search-only — **fixed on the server**
 
-`_LocalPatientsApi.search('')` returned the most recently registered patients,
-so the Patients tab opened on a browsable list. `patientService.search` answers
-`[]` for an empty term, deliberately. Against the real server the tab therefore
-opens on its empty state until something is typed.
+`_LocalPatientsApi.search('')` returned the most recently registered patients, so
+the Patients tab opened on a browsable list. `patientService.search` answers `[]`
+for an empty term, deliberately, so against the real server the tab opened on its
+empty state until something was typed — where the design draws a list under
+RECENT and the size of the register beside the heading.
 
-**Expected shape:** `patient.recent q ({ limit }) → Patient[]`, newest first. One
-procedure on an existing service.
+`patient.recent q ({ limit }) → { patients, total }` now answers both. It returns
+the payload rather than the bare `Patient[]` this entry first asked for: the
+heading's count is the whole register and the page is capped at the limit, so the
+two cannot be read off one array, and a second procedure for one integer would be
+a wasted round trip over Tailscale on a screen that draws them together. Covered
+in `modules.test.ts`.
 
 ### 5. `domain/VisitRow` — replaced, not promoted
 
@@ -419,3 +424,236 @@ markup is not.
 
 **Expected shape:** `domain/ToothGroupCard`, taking the group and an optional
 money slot per line, once `components/domain/` exists (§10).
+
+---
+
+## Patients list — 17 Aug 2026
+
+Built against `patients-list.html`. Entry 4 above is resolved on the server; the
+list now opens on `patient.recent` and switches to `patient.search` once
+something is typed.
+
+### 1. `New patient` — drawn, with nothing behind it — **resolved**
+
+`PatientsCluster` routes it to `PatientEditScreen`, built from
+`patient-edit.html`. The toast survives only as the fallback when the screen is
+mounted without an `onNewPatient` — a gallery or a test — which is the rule the
+record's openers already follow.
+
+<details><summary>Original entry</summary>
+
+The design puts a filled `New patient` pill opposite the heading, and it is the
+one solid action on the screen. There is no patient-create flow to open: a record
+is created as part of a booking (`day/components/PatientPicker`, whose own copy
+says so out loud), `patient-edit.html` is designed but not built, and there is no
+navigator to reach the day cluster from here.
+
+So it toasts — the same rule the record's openers, its payment button and its `⋯`
+already follow, and the same reason: the pill is the heading's counterweight, and
+a heading that quietly lacks it reads as broken rather than unfinished.
+
+**Expected shape:** `onNewPatient?: () => void` is already on
+`PatientListScreenProps` and takes over from the toast the moment there is either
+a create screen or a route to the booking flow.
+
+</details>
+
+### 2. Half-pixel type is resolved to the ramp, not reproduced
+
+The mockups measure type in half pixels — the list alone asks for 26 / 15.5 /
+14.5 / 11.5 — and `theme/tokens.ts` deliberately snaps them to one ramp, which is
+how every screen built so far reads these same files. The list follows that: the
+row name is `headline`, as it is on the day view's rows and the money screen's,
+rather than a size of its own. Structure, weight, colour and copy are the
+design's exactly; the sizes are the ramp's nearest.
+
+The same goes for the 22px gutter (`size.gutter` is 20) and the search field's
+48px height (`size.control`, and a tap target the desk uses constantly). Worth
+revisiting as one decision across the app, never per screen.
+
+### 3. The A–Z grouping is described, not drawn
+
+`patients-list.html` ends with a line of prose: "A–Z groups continue below. In
+Arabic the list sorts and mirrors right-to-left; chevrons point left." The
+chevron half is built (`components/icons.tsx` swaps the glyph on
+`I18nManager.isRTL`). The A–Z grouping is not designed anywhere — no band, no
+index rail — and the server answers newest-first, so it is not invented here.
+
+**Expected shape:** a designed screen showing what a group band looks like, and
+`patient.recent` growing an `order` the client can ask for.
+
+---
+
+## Patient editor — 17 Aug 2026
+
+Built against `patient-edit.html`, which the design gives both jobs: registering
+a patient and correcting one. `PatientEditScreen` is that one screen, reached
+from `New patient` on the list and from the record's `⋯` and its Details `Edit`.
+`QuestionnaireSheet` and `CustomAnswerControl` are **deleted** — the editor
+supersedes them exactly, with the same patch semantics plus the four basics, and
+two ways to edit the same answers was the worse outcome. `patient.create` was
+already on the router; nothing was needed on the server for this one.
+
+### 1. The design asks for an age; the schema holds a date of birth
+
+**Not a block — a resolution, recorded because it is lossy.**
+
+`patient-edit.html`'s basics row is `Age · sex` and holds a whole number.
+`patients` has no age column: `birth_date` is the fact and `age` is derived from
+it at read time (`ageFromBirthDate`), deliberately, because a stored age is
+wrong within a year of storing it.
+
+**Resolved as:** the row is drawn exactly as designed, and an age of 34 is
+written as `1 January (this year − 34)`. That reads back as 34 all year and as
+35 next year — the patient ages, which is the point. What is lost is the day
+they age *on*, which is what a clinic that only ever asked "how old are you?"
+never knew either.
+
+The lossy half is guarded rather than accepted: `birthDate` is only sent when
+the age **string** on screen differs from the age the record arrived with. A
+patient booked in through the day cluster — `patientDraft.ts` asks for the real
+date off an ID card — therefore never has it flattened to 1 January by an editor
+that was opened to fix their phone number. Covered in `patients.test.ts`.
+
+**If this is wrong**, the fix is a designed date-of-birth row, not a code
+change: `day/patientDraft.ts` already has the digits-only `DD / MM / YYYY` field
+and its validation, and moving it here is an import once `domain/` exists.
+
+### 2. `day/patientDraft.ts` and `patients/patientForm.ts` are the same module twice
+
+Both hold a patient the desk is typing: name, phone, email, birth date, gender,
+the blank-means-null rule, the loose email regex, the "too short to be a number"
+check. They were written in different clusters against different designs — the
+day one is a booking's first step, this one is the whole record — and neither
+imports the other, because a screens cluster importing another cluster's module
+is the coupling §10 exists to prevent.
+
+**Expected shape:** `domain/patientDraft` owning the field-level rules
+(`emailError`, `birthDateIso`, `GENDERS`, `orNull`), with each cluster keeping
+only its own submission shape. Roughly 60 lines of the two would merge.
+
+### 3. `ui/` has no dense form rhythm — the BASICS card is local
+
+**Needed by:** the editor's four basics.
+**Built:** `components/BasicsCard.tsx`.
+
+`ui/Field` + `ui/TextField` stack a label *above* a 48px boxed control. That is
+the rhythm of a form you fill in; the design draws the basics as a card you
+correct — a fixed 78px label column on the start edge and the value typed
+against it, four rows hairline-ruled inside one `ui/Card`. Four boxed fields
+would be ~260px of chrome for four short facts.
+
+**Expected shape:** `ui/Field` growing a `layout?: 'stacked' | 'inline'`, or a
+`ui/DetailRow` that takes a label and any control. Every screen with a "what is
+on file" card wants it; the settings cluster's `FixedDetailsCard` is the same
+shape read-only.
+
+### 4. `ui/SegmentedControl` cannot draw the design's `F` / `M`
+
+**Built:** `SexToggle`, inside `BasicsCard.tsx`.
+
+Two reasons, and the second is the real one:
+
+- **Look.** `SegmentedControl` is System A's pill — a *white* thumb on
+  `surface2`, sized for the two panes of a screen. The design's toggle is an
+  `ink` fill with white type, riding on the end of a line of type inside a card.
+  A filled half here has to read as an answer, not as a tab.
+- **States.** It takes `value: T` and always draws a thumb. A patient nobody
+  recorded a sex for is a third state, and `SegmentedControl` would show
+  `Female` selected for every record that has no gender on it.
+
+**Expected shape:** `value: T | null` on `ui/SegmentedControl`, plus a `tone` or
+`variant` for the filled form. The null half is worth having regardless — it is
+the difference between "not answered" and "answered with the first option".
+
+### 5. `ui/NumericField` is a money control
+
+**Built:** `NumberBox`, inside `AnswerEditor.tsx` — ~15 lines over
+`ui/TextField`'s own boxed geometry.
+
+`NumericField` draws its value at `type.amount`: a 20px DM Mono figure, right
+for a price and wrong for "14 months ago", which at that size shouts across a
+list of text answers. The box is `TextField`'s exactly, so the two sit in one
+rhythm; only the face and the keyboard differ.
+
+**Expected shape:** `size?: 'amount' | 'body'` on `ui/NumericField`. The rest of
+it — Latin digits, mono, `decimal-pad`, the drawn placeholder — is already what
+this needs.
+
+### 6. The record's `⋯` — **resolved, as a pencil**
+
+Entry 6 of *Patient record* said it was drawn with nothing behind it, because
+everything a menu would hold was either elsewhere or unbuilt. Editing is now
+built — and the bar draws a pencil rather than the mockup's `⋯`, at the
+dentist's word.
+
+A deliberate departure from `patient-view.html`, and the smaller lie of the two:
+`⋯` promises a menu, and tapping it to land straight in an editor is a promise
+broken every time. A pencil says the one thing the button actually does. It goes
+back to `⋯` — `ui/PopoverMenu`, `Edit` at the top — the day a second action
+(merge, deactivate, export) gives the menu something to be.
+
+### 7. `notes` is on the record and on no design
+
+`patients.notes` exists, `create` and `update` both take it, and the day
+cluster's booking flow writes it. `patient-edit.html` draws no field for it and
+neither does `patient-view.html`, so the editor does not send it — and, because
+a patch leaves out what it is not given, a note written at booking survives
+every save made here.
+
+**Expected shape:** a designed row. It is a `ui/Textarea` and ten minutes
+whenever the design says where it goes.
+
+### 8. Half-pixel type is resolved to the ramp, not reproduced
+
+The same decision as *Patients list* entry 2, and the same one app-wide.
+`patient-edit.html` asks for 14.5 / 13 / 12.5 / 12 / 11 / 10.5px, a 22px gutter,
+42px controls and a 16px card radius; `theme/tokens.ts` answers with `callout`
+14, `subhead` 13, `footnote` 12, `caption` 11, `eyebrow` 10.5, `size.gutter` 20,
+`size.control` 48 and `radius.xl2` 18. Structure, weight, colour role, copy and
+spacing rhythm are the design's exactly.
+
+The one visible consequence: the question controls are 48px rather than the
+mockup's ~42, so six questions are ~36px taller than drawn. The mockup already
+scrolls at six, so nothing is cut off — but it is the clearest argument yet for
+revisiting the ramp as one app-wide decision rather than per screen.
+
+### 9. `ui/ProgressBar`'s light track disappears on `canvas`
+
+**Built:** `Progress`, inside `PatientEditScreen.tsx` — a view, a fill, and the
+accessibility props.
+
+Found on the emulator, not by reading: the questionnaire progress bar was simply
+absent. `ProgressBar`'s `trackLight` is `color.surface2` (#f0f0f3), which is
+drawn for a `surface` card; on this screen's `color.canvas` (#f4f4f6) it is a
+four-value difference and invisible. The local one uses `color.outline`.
+
+An empty bar is the case that matters, and it is the one the component cannot
+draw. At `0 of 4` the track **is** the whole control — there is no fill to infer
+it from — so a track that vanishes takes the entire "you have four to go" signal
+with it. The design draws it a clear step darker than the page for that reason.
+
+**Expected shape:** `ProgressBar` picking its track from the ground it is on —
+a `on?: 'surface' | 'canvas'` prop, or `outline` as the light track throughout,
+which is what every other hairline on `canvas` already uses.
+
+### 10. `ui/Button` has no designed disabled state, only an opacity
+
+**Built:** the save `Pressable`, inside `PatientEditScreen.tsx`, with its own
+press lock.
+
+Also found on the emulator. `Button`'s `disabled` is `{ opacity: 0.32 }` over
+whatever fill the variant has — on `primary`, an `ink` fill and white type both
+faded onto `canvas`, which rendered `3 required left` as grey on grey and
+effectively unreadable. The label of a disabled button here is the one that has
+to be read: it is not decoration on a dead control, it is the instruction for
+how to bring the control back.
+
+The design says so, and says it as two colours rather than as a fade —
+`rgba(0,0,0,.12)` fill under `rgba(0,0,0,.45)` type, which is `surface2` under
+`muted`. Contrast survives because the type darkens as the fill lightens; an
+opacity moves both the same way.
+
+**Expected shape:** a `disabled` *state* on each variant — `surface2`/`muted`
+for `primary` — rather than one opacity applied to all of them. The pressed
+state is already per-variant; this is the same treatment for the other one.

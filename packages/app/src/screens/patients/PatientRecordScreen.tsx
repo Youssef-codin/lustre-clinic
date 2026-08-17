@@ -46,18 +46,20 @@ import { _LocalMoneyValue } from './components/_LocalMoneyValue';
 import { SkeletonRows } from './components/_LocalSkeleton';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
+import { EditIcon } from './components/icons';
 import { PatientHeader } from './components/PatientHeader';
-import { useMutation, useQuery } from './data/_LocalQuery';
+import { useQuery } from './data/_LocalQuery';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import type { Answers, CustomQuestion, PatientHistoryEntry, QuestionnaireGap } from './data/types';
-import { QuestionnaireSheet } from './QuestionnaireSheet';
 
 export type PatientRecordScreenProps = {
     patientId: string;
     onBack: () => void;
     /** Where back goes, said in the caller's words: "Patients" from the list, "Day" from the day view. */
     backLabel?: string;
+    /** Correcting the record — `PatientEditScreen`, which the cluster above routes to. */
+    onEdit?: () => void;
     /** The design's two openers. Both are the day cluster's flows; see BLOCKED.md. */
     onBook?: () => void;
     onWalkIn?: () => void;
@@ -71,18 +73,16 @@ export function PatientRecordScreen({
     patientId,
     onBack,
     backLabel = 'Patients',
+    onEdit,
     onBook,
     onWalkIn,
     onRecordPayment,
 }: PatientRecordScreenProps) {
     const [tab, setTab] = useState<Tab>('visits');
-    const [editing, setEditing] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
     const record = useQuery(() => patientsApi.byId(patientId), [patientId]);
     const questions = useQuery(() => patientsApi.listQuestions(), []);
-
-    const save = useMutation((custom: Answers) => patientsApi.update({ id: patientId, custom }));
 
     const patient = record.data?.patient;
     const history = record.data?.history ?? [];
@@ -94,24 +94,14 @@ export function PatientRecordScreen({
         questions.refetch();
     }, record.loading || questions.loading);
 
-    const onSave = async (patch: Answers) => {
-        const saved = await save.mutate(patch);
-        if (!saved) return;
-        setEditing(false);
-        setToast('Answers saved');
-        record.refetch();
-    };
+    const edit = onEdit ?? (() => setToast('Editing a patient is not wired up from here yet.'));
 
     const outstanding = history.reduce((total, entry) => total + Math.max(entry.balance, 0), 0);
     const visits = history.filter((entry) => entry.visitId !== null).length;
 
     return (
         <View style={styles.screen}>
-            <RecordBar
-                onBack={save.pending ? undefined : onBack}
-                backLabel={backLabel}
-                onUnavailable={setToast}
-            />
+            <RecordBar onBack={onBack} backLabel={backLabel} onEdit={edit} />
 
             {record.error && record.data && (
                 <Banner tone="warning" message="Could not refresh this record. Showing what was last read." />
@@ -165,26 +155,11 @@ export function PatientRecordScreen({
                             answers={patient.custom}
                             gaps={record.data.questionnaireGaps}
                             questions={questions}
-                            onEdit={() => {
-                                save.reset();
-                                setEditing(true);
-                            }}
+                            onEdit={edit}
                         />
                     )}
                 </ScrollView>
             ) : null}
-
-            {record.data && questions.data && (
-                <QuestionnaireSheet
-                    visible={editing}
-                    questions={questions.data}
-                    answers={record.data.patient.custom}
-                    pending={save.pending}
-                    error={save.error ? errorText(save.error) : undefined}
-                    onClose={() => setEditing(false)}
-                    onSave={onSave}
-                />
-            )}
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
@@ -197,19 +172,20 @@ export function PatientRecordScreen({
  * the name is the heading, twenty pixels below, and a bar repeating it at 17px
  * would make the screen look like it says the name twice.
  *
- * Everything the `⋯` menu would hold is unbuilt (merge, deactivate, export), so
- * it says where they are rather than opening an empty sheet — the same rule the
- * two openers and the payment button follow, and the same reason: a record that
- * quietly lacks the design's controls looks broken rather than unfinished.
+ * The trailing button is Edit, not the design's `⋯`. A `⋯` promises a menu, and
+ * everything a menu here would hold is still unbuilt (merge, deactivate,
+ * export) — so it would be three dots that open one thing, which is worse than
+ * the one thing named. It goes back to `⋯` over `ui/PopoverMenu`, with Edit at
+ * the top, the day a second action lands.
  */
 function RecordBar({
     onBack,
     backLabel,
-    onUnavailable,
+    onEdit,
 }: {
     onBack?: () => void;
     backLabel: string;
-    onUnavailable: (message: string) => void;
+    onEdit: () => void;
 }) {
     return (
         <View style={styles.bar}>
@@ -233,17 +209,13 @@ function RecordBar({
 
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="More for this patient"
-                onPress={() => onUnavailable('Nothing else for this patient yet.')}
+                accessibilityLabel="Edit this patient"
+                onPress={onEdit}
                 hitSlop={10}
                 style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-                testID="record-more"
+                testID="record-edit"
             >
-                <View style={styles.more}>
-                    <View style={styles.moreDot} />
-                    <View style={styles.moreDot} />
-                    <View style={styles.moreDot} />
-                </View>
+                <EditIcon size={15} stroke={color.ink} />
             </Pressable>
         </View>
     );
@@ -539,8 +511,6 @@ const styles = StyleSheet.create({
     },
     barEyebrow: { flex: 1 },
     pressed: { opacity: 0.6 },
-    more: { flexDirection: 'row', alignItems: 'center', gap: 2.5 },
-    moreDot: { width: 3, height: 3, borderRadius: radius.full, backgroundColor: color.ink },
 
     top: { paddingHorizontal: size.gutter, paddingTop: space[2] },
     openers: { flexDirection: 'row', gap: space[2], marginTop: space[4] },
