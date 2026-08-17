@@ -101,6 +101,7 @@ each other in the `App.tsx` smoke test for exactly that reason.
 | `danger` | `#e5342a` | delete, deactivate, error | **new** |
 | `danger-soft` | `#fdecea` | | **new** |
 | `danger-text` | `#b21e15` | | **new** |
+| `older` | `#0e8a5c` | collected late — money in against an earlier visit | B `--older` |
 | `live` | `#7dff9b` | in-the-chair pulse, active-timer fill | A `--live` |
 | `wa` | `#1f9d54` | WhatsApp actions only | A `--wa` |
 | `scrim` | `rgba(17,17,20,.34)` | ground behind a sheet or popover | B |
@@ -119,10 +120,43 @@ blue needs matching ones to be usable in the same layouts. The `danger` ramp is
 **new**, built to sit at the same lightness as `due` so the two read as siblings
 rather than as one colour someone got wrong.
 
-`--older` and `--discount` from the money dashboard are deliberately absent.
-`--discount` is fully specified in CSS and used by no markup; `--older` is
-`success` at a second value with no rule saying when it applies. Both are
-questions for the money screen, not tokens.
+`--discount` from the money dashboard is deliberately absent: it is fully
+specified in CSS and used by no markup.
+
+`--older` was absent for the same reason — `success` at a second value with no
+rule saying when it applies — until the money dashboard supplied the rule.
+`money-dashboard-v2.html` spends it on one card, "Older visits · collected · 6
+visits": money that arrived in this period against a visit charged in an
+earlier one. That is not `success`. `success` means *settled*, and a balance
+that took three months to settle is a different fact about the clinic from one
+that settled on the day. It is a token now, and it has exactly one caller.
+
+### On `inkDeep`
+
+The money hero is a dark card in a white app, and `muted` — a grey tuned for
+white grounds — disappears on it. Text on the card is `inverse` at an opacity,
+which is what `HeroCollectionCard` does. Three things cannot be done that way,
+because an opacity on the card would dim its contents along with them:
+
+| Token | Value | Means |
+| --- | --- | --- |
+| `inkDeep` | `#0e1116` | the hero's ground — cooler and darker than `ink` |
+| `onDarkLine` | `rgba(255,255,255,.12)` | the rule above the hero's stat rows |
+| `onDarkHair` | `rgba(255,255,255,.09)` | dividers between them |
+| `onDarkTrack` | `rgba(255,255,255,.14)` | the unfilled part of the hero's bar |
+| `onDarkMuted` | `rgba(255,255,255,.4)` | the "charged" dot |
+| `successOnDark` | `#8bf0b8` | collected, on `inkDeep` |
+| `dueOnDark` | `#ffb3b3` | due, on `inkDeep` |
+
+`success` and `due` are not usable here: both are tuned against white and go
+muddy on black. This is the same reason `live` already exists as a separate
+token, and the same rule applies — these are legible on `inkDeep` only.
+
+`gradient.hero` is the card's wash, a CSS string because React Native takes
+gradients as `background-image` and the raw channel values have to live in this
+file with every other colour. It is a green cast where the collected figure
+sits and a warm one down by the due row, both far below the point where they
+would read as a colour rather than as depth.
 
 The **five palette variants** in the export (Clinic blue / Mint clinical / Warm
 sand / Violet ink / Nile teal, plus a free-form accent override) are an Open
@@ -163,7 +197,8 @@ close enough that only the pill differs meaningfully; B's is used.
 | `radius.lg` | 14 | buttons, fields, toasts |
 | `radius.xl` | 16 | cards |
 | `radius.xl2` | 18 | group cards, due card |
-| `radius.xl3` | 24 | the chair card, `day-view-schedule.html` |
+| `radius.xl3` | 24 | the chair card, the money stat and takings cards |
+| `radius.xl4` | 28 | the money hero |
 | `radius.sheet` | 26 | bottom sheets (top corners) |
 | `radius.full` | 999 | pills, primary buttons, dots |
 
@@ -173,6 +208,8 @@ close enough that only the pill differs meaningfully; B's is used.
 | `shadow.card` | B+ `--shadow-card` |
 | `shadow.dark` | B `--shadow-dark` |
 | `shadow.fab` | A `--accent-sh`, `rgba(accent, .35)` |
+| `shadow.hero` | B+ the money hero's lift off the canvas |
+| `shadow.dock` | B+ the money search pill while it floats over the list |
 
 Shadows are multi-layer `boxShadow` strings, which React Native takes directly on
 0.76+. Verify `shadow.fab` on a physical Android device before relying on it —
@@ -214,6 +251,7 @@ Measured sizes across the designs cluster at 11/12/13/14/15/17 for body copy and
 
 | Variant | Size / line height | Used for |
 | --- | --- | --- |
+| `hero` | 68 / 62, −3.1 tracking | the money collection rate — sans, not mono |
 | `display` | 34 / 38 | money hero figure |
 | `title` | 28 / 32 | screen h1 |
 | `title2` | 23 / 28 | |
@@ -224,7 +262,8 @@ Measured sizes across the designs cluster at 11/12/13/14/15/17 for body copy and
 | `subhead` | 13 / 18 | row secondaries |
 | `footnote` | 12 / 16 | |
 | `caption` | 11 / 15 | |
-| `figure` | 30 / 34 | large numeric field — mono |
+| `figure` | 30 / 34 | large numeric field, money card total — mono |
+| `figure2` | 26 / 30 | money stat-card figure — mono |
 | `amount` | 20 / 24 | prices, row amounts — mono |
 | `eyebrow` | 10.5 / 14, +1.7 tracking | uppercase section label — mono |
 | `tag` | 9.5 / 13, +0.9 tracking | uppercase tag — mono |
@@ -250,8 +289,33 @@ gets Noto Naskh automatically, even on an English screen. A clinic holds Arabic
 and Latin question labels in one list, so the face is a property of the string,
 not of the screen. Pass `script` to override.
 
-Mono variants (`figure`, `amount`, `eyebrow`, `tag`) never swap to the Arabic
-face. DM Mono has no Arabic-Indic coverage and §7.11 keeps numerals Latin in both
+`hero` is the one large figure that is **not** mono: it is a percentage, not
+money, so it has no column to align with and takes Instrument Sans at 68px. The
+uppercase labels are the mirror of that — `eyebrow` and `tag` default to mono,
+and the money screens pass `script="sans"` because the designs set those labels
+in the sans face. The variant fixes the size and the tracking; the script is
+still the caller's to state.
+
+Mono variants (`figure`, `figure2`, `amount`, `eyebrow`, `tag`) never swap to
+the Arabic face.
+
+**A mono variant is a default, not a decree.** §7.11 pins money to DM Mono for
+tabular alignment, and that is the right default for a column of amounts and
+the wrong one for a headline figure: the money designs set every figure in the
+sans face, and rendered in mono the same screen reads as a different product.
+`screens/money` therefore passes `script="sans"` for its figures and keeps mono
+for anything that has to align digit for digit. The variant fixes the size and
+the tracking either way.
+
+### `includeFontPadding`
+
+`Text` sets `includeFontPadding: false`. Android otherwise reserves the font's
+ascent and descent above and below every string *on top of* `lineHeight`, so a
+20px gap measured off a design renders as 26–28, and a card of stacked labels
+drifts taller than it was drawn — which is exactly how the money cards ended up
+bigger than `money-dashboard-v2.html`. The ramp already states the line height
+it wants; this stops the platform adding to it. iOS has no equivalent and
+ignores the property. DM Mono has no Arabic-Indic coverage and §7.11 keeps numerals Latin in both
 languages so tabular alignment holds.
 
 ## RTL

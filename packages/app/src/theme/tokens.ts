@@ -26,6 +26,19 @@ export const color = {
     muted: '#8b8b92',
     inverse: '#ffffff',
 
+    // The money hero's ground, and the ramp that sits on it. Text on a dark
+    // card is `inverse` at an opacity, but a hairline, a bar track and a
+    // tinted figure each need their own value: an opacity on the card would
+    // dim its contents along with them, and `success` / `due` are tuned for
+    // white and go muddy on black.
+    inkDeep: '#0e1116',
+    onDarkLine: 'rgba(255,255,255,0.12)',
+    onDarkHair: 'rgba(255,255,255,0.09)',
+    onDarkTrack: 'rgba(255,255,255,0.14)',
+    onDarkMuted: 'rgba(255,255,255,0.4)',
+    successOnDark: '#8bf0b8',
+    dueOnDark: '#ffb3b3',
+
     accent: '#2f5bff',
     accentSoft: '#eaeeff',
     accentText: '#1d3bc7',
@@ -39,6 +52,11 @@ export const color = {
     dueSoft: '#fdeee7',
     dueText: '#b3411a',
 
+    // Money collected in this period against a visit charged in an earlier one.
+    // A second green, deliberately: `success` means "this is settled" and this
+    // means "this was settled late", which is the money screen's whole point.
+    older: '#0e8a5c',
+
     danger: '#e5342a',
     dangerSoft: '#fce4e4',
     dangerText: '#b21e15',
@@ -47,6 +65,7 @@ export const color = {
     wa: '#1f9d54',
 
     scrim: 'rgba(17,17,20,0.34)',
+    transparent: 'transparent',
 } as const;
 
 export const space = {
@@ -59,6 +78,7 @@ export const space = {
     3: 12,
     3.5: 14,
     4: 16,
+    4.5: 18,
     5: 20,
     6: 24,
     7: 28,
@@ -84,6 +104,7 @@ export const radius = {
     xl: 16,
     xl2: 18,
     xl3: 24,
+    xl4: 28,
     sheet: 26,
     full: 999,
 } as const;
@@ -125,7 +146,9 @@ export const type = {
     subhead: { fontSize: 13, lineHeight: 18, letterSpacing: 0 },
     footnote: { fontSize: 12, lineHeight: 16, letterSpacing: 0 },
     caption: { fontSize: 11, lineHeight: 15, letterSpacing: 0 },
+    hero: { fontSize: 68, lineHeight: 62, letterSpacing: -3.1 },
     figure: { fontSize: 30, lineHeight: 34, letterSpacing: 0 },
+    figure2: { fontSize: 26, lineHeight: 30, letterSpacing: -0.65 },
     amount: { fontSize: 20, lineHeight: 24, letterSpacing: 0 },
     eyebrow: { fontSize: 10.5, lineHeight: 14, letterSpacing: 1.7 },
     tag: { fontSize: 9.5, lineHeight: 13, letterSpacing: 0.9 },
@@ -135,7 +158,18 @@ export const shadow = {
     pill: '0 1px 2px rgba(17,17,20,0.06), 0 3px 8px rgba(17,17,20,0.05)',
     card: '0 4px 16px rgba(17,17,20,0.06)',
     dark: '0 6px 16px rgba(17,17,20,0.22)',
+    hero: '0 16px 40px -10px rgba(0,0,0,0.45)',
+    dock: '0 1px 2px rgba(17,17,20,0.05), 0 10px 28px -8px rgba(17,17,20,0.22)',
     fab: '0 8px 20px rgba(47,91,255,0.35)',
+} as const;
+
+// Gradients are CSS strings because React Native takes them as `background-
+// image`, which is where the raw channel values have to live. Only the money
+// hero has one: a green cast at the top-left where the collected figure sits
+// and a warm one at the bottom-right by the due row, both far below the point
+// where they would read as a colour rather than as depth.
+export const gradient = {
+    hero: 'linear-gradient(135deg, rgba(22,201,100,0.12) 0%, rgba(10,12,16,0) 45%, rgba(255,179,179,0.08) 100%)',
 } as const;
 
 export type Color = keyof typeof color;

@@ -419,3 +419,51 @@ markup is not.
 
 **Expected shape:** `domain/ToothGroupCard`, taking the group and an optional
 money slot per line, once `components/domain/` exists (§10).
+
+---
+
+## Money dashboard — 17 Aug 2026
+
+### 14. `balance.summary` is missing three fields the design spends
+
+**Needed.** `money-dashboard-v2.html` draws two things the period summary cannot
+answer:
+
+- the hero's `41.6k · 12 patients` — how many patients this period's shortfall
+  is spread across
+- the whole "Older visits · 18.5k EGP · collected · 6 visits" card — money that
+  arrived in this period against a visit charged in an earlier one
+
+Neither is derivable on the client. `balance.outstanding` is a *standing* figure
+over every unpaid visit, not this period's, so counting its rows would answer a
+different question and answer it confidently.
+
+**Expected shape.** `balance.summary` already returns `{ charged, collected }`
+for a date range. It should also return:
+
+```ts
+duePatients: number;     // patients with an unpaid balance from this period
+olderCollected: number;  // piastres collected here against earlier visits
+olderVisits: number;     // how many visits that was
+```
+
+`olderCollected` is the one with a real query behind it: payments whose
+`paid_at` is in the range and whose visit's date is before it. It is not
+`collected - charged` — that surplus only appears when the period collects more
+than it charged overall, and a period can settle old debt without doing that.
+
+**Built instead.** `_LocalMoneyApi`'s `PERIOD_FIXTURES` carries all three as
+fixture values, taken from the design's own dataset. The screen renders them
+like any other server figure and does no arithmetic on them.
+
+**Note.** Server-side gap, and a bigger one than #5 — `balance.takings` is a
+missing endpoint on an existing service, this is a missing join. Until it
+lands, the "Older visits" card is the only thing on the dashboard whose figure
+is not something the server has actually computed.
+
+### 15. `--older` was a design token with no rule — **resolved**
+
+BLOCKED #9 and the theme README both left `--older` out on the grounds that it
+was `success` at a second value with no rule saying when it applied. The money
+dashboard is the rule: money in against an earlier visit. It is `color.older`
+now, with one caller. `--discount` is still out, for the original reason.

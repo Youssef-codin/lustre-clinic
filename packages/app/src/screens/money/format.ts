@@ -65,6 +65,23 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
     other: 'Other',
 };
 
+// The stats heading names the month the figures are being read in, not the
+// period the pills select — "Stats · June 2026" stays put while the pills move.
+export function statsPeriodLabel(now: Date = new Date()): string {
+    return `Stats · ${MONTHS_LONG[now.getMonth()] ?? ''} ${now.getFullYear()}`;
+}
+
+// "This month" → "Total collected this month" / "Due this month". The period
+// labels are written to read as the tail of both sentences, so neither needs a
+// map of its own.
+export function takingsLabel(periodLabel: string): string {
+    return `Total collected ${periodLabel.toLowerCase()}`;
+}
+
+export function dueLabel(periodLabel: string): string {
+    return `Due ${periodLabel.toLowerCase()}`;
+}
+
 export function methodLabel(method: PaymentMethod, note?: string | null): string {
     if (method === 'other' && note?.trim()) return note.trim();
     return METHOD_LABEL[method];

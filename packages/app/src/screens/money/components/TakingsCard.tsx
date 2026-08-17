@@ -1,33 +1,45 @@
 // A collected total and one row per payment method. The endpoint behind this
 // does not exist yet (BLOCKED.md #5); the stub serves the shape. Amounts are
 // full, never compact (§7.12). Each row's share is a ratio, not money — nothing
-// is summed here. The width bar is a layout property, so it animates on the JS
-// thread (`useNativeDriver: false`). There is no icon set, so rows lead with
-// the label and the bar carries the comparison.
+// is summed here, and the percentage is never rendered as an amount.
+//
+// The share label rides above the head of its own bar rather than sitting in a
+// column: four bars of different lengths read as one comparison that way, and
+// the caret is what ties a label to the bar it belongs to. It is positioned
+// with `start`, not `left`, so it tracks the fill under RTL.
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Card, CardDivider, duration, easing, useReducedMotion } from '../../../components/ui';
+import { duration, easing, useReducedMotion } from '../../../components/ui';
 import { color, radius, space, Text } from '../../../theme';
 import type { MethodTaking, TakingsReport } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { methodLabel } from '../format';
+import { BankIcon, MethodIcon } from './icons';
 
-const BAR_HEIGHT = 4;
+const BAR_HEIGHT = 6;
+const TILE = 32;
+const CARET = 4;
+const SHARE_LABEL = 44;
 
 export type TakingsCardProps = {
     takings: TakingsReport;
+    label: string;
 };
 
-export function TakingsCard({ takings }: TakingsCardProps) {
+export function TakingsCard({ takings, label }: TakingsCardProps) {
     const { total, byMethod } = takings;
 
     return (
-        <Card testID="money-takings">
-            <View style={styles.totalRow}>
-                <Text variant="callout" tone="ink2">
-                    Collected
-                </Text>
-                <MoneyValue amount={total} variant="amount" currencyVariant="footnote" weight="medium" />
+        <View style={styles.card} testID="money-takings">
+            <View style={styles.total}>
+                <View style={styles.totalLabel}>
+                    <Text variant="eyebrow" script="sans" weight="bold" tone="muted">
+                        {label}
+                    </Text>
+                    <BankIcon />
+                </View>
+
+                <MoneyValue amount={total} variant="figure" currencyVariant="figure" tone="success" />
             </View>
 
             {total === 0 ? (
@@ -37,14 +49,13 @@ export function TakingsCard({ takings }: TakingsCardProps) {
                     </Text>
                 </View>
             ) : (
-                byMethod.map((row) => (
-                    <View key={row.method}>
-                        <CardDivider />
-                        <MethodRow row={row} total={total} />
-                    </View>
-                ))
+                <View style={styles.methods}>
+                    {byMethod.map((row) => (
+                        <MethodRow key={row.method} row={row} total={total} />
+                    ))}
+                </View>
             )}
-        </Card>
+        </View>
     );
 }
 
@@ -67,15 +78,15 @@ function MethodRow({ row, total }: { row: MethodTaking; total: number }) {
         return () => animation.stop();
     }, [share, width, reducedMotion]);
 
+    const other = row.method === 'other';
+
     return (
-        <View style={styles.methodRow}>
-            <View style={styles.methodTop}>
-                <Text variant="callout">{methodLabel(row.method)}</Text>
-                <View style={styles.spacer} />
-                <MoneyValue amount={row.amount} variant="callout" currencyVariant="caption" tone="ink2" />
+        <View style={styles.methodRow} testID={`money-method-${row.method}`}>
+            <View style={styles.tile}>
+                <MethodIcon method={row.method} />
             </View>
 
-            <View style={styles.methodBottom}>
+            <View style={styles.barCol}>
                 <View
                     style={styles.track}
                     accessibilityRole="progressbar"
@@ -85,46 +96,102 @@ function MethodRow({ row, total }: { row: MethodTaking; total: number }) {
                     <Animated.View
                         style={[
                             styles.fill,
-                            {
-                                width: width.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: ['0%', '100%'],
-                                }),
-                            },
+                            other && styles.fillOther,
+                            { width: width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
                         ]}
                     />
                 </View>
 
-                <Text variant="tag" tone="muted" style={styles.percent}>
-                    {`${percent}%`}
-                </Text>
+                <View style={[styles.shareAnchor, { start: `${percent}%` }]} pointerEvents="none">
+                    <Text variant="caption" weight="bold" tone="successText">
+                        {`${percent}%`}
+                    </Text>
+                    <View style={styles.caret} />
+                </View>
+            </View>
+
+            {/* `MoneyValue` renders a bare Text when the currency is hidden, so
+                the column's width belongs to a box around it. */}
+            <View style={styles.amount}>
+                <MoneyValue
+                    amount={row.amount}
+                    variant="body"
+                    weight="bold"
+                    tone="ink2"
+                    showCurrency={false}
+                />
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    totalRow: {
+    card: {
+        alignSelf: 'stretch',
+        padding: space[4.5],
+        borderRadius: radius.xl3,
+        borderWidth: 1,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    total: {
+        alignItems: 'flex-start',
+        gap: space[1],
+        paddingBottom: space[4.5],
+        marginBottom: space[4.5],
+        borderBottomWidth: 1,
+        borderBottomColor: color.hair,
+    },
+    totalLabel: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: space[3],
-        paddingHorizontal: space[4],
-        paddingVertical: space[3],
-        backgroundColor: color.canvas,
+        alignSelf: 'stretch',
     },
-    empty: { paddingHorizontal: space[4], paddingVertical: space[5], alignItems: 'center' },
-    methodRow: { gap: space[2], paddingHorizontal: space[4], paddingVertical: space[3] },
-    methodTop: { flexDirection: 'row', alignItems: 'baseline', gap: space[2] },
-    spacer: { flex: 1 },
-    methodBottom: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
+    empty: { paddingVertical: space[4], alignItems: 'center' },
+
+    methods: { gap: space[3.5] },
+    methodRow: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
+    tile: {
+        width: TILE,
+        height: TILE,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: space[2],
+        borderWidth: 1,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    barCol: { flex: 1, justifyContent: 'flex-end' },
     track: {
-        flex: 1,
         height: BAR_HEIGHT,
         borderRadius: radius.full,
         overflow: 'hidden',
         backgroundColor: color.surface2,
     },
-    fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.ink },
-    percent: { minWidth: 30, textAlign: 'center' },
+    fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.success },
+    fillOther: { backgroundColor: color.muted },
+
+    // `start` puts the box's leading edge on the bar's head; the negative
+    // margin pulls it back by half its width so the label centres there. A
+    // zero-width box would centre too, but Android clips the overflow and the
+    // label disappears.
+    shareAnchor: {
+        position: 'absolute',
+        bottom: BAR_HEIGHT + CARET,
+        width: SHARE_LABEL,
+        marginStart: -SHARE_LABEL / 2,
+        alignItems: 'center',
+    },
+    caret: {
+        width: 0,
+        height: 0,
+        borderStartWidth: 3,
+        borderEndWidth: 3,
+        borderTopWidth: CARET,
+        borderStartColor: color.transparent,
+        borderEndColor: color.transparent,
+        borderTopColor: color.successText,
+    },
+    amount: { minWidth: 52, alignItems: 'flex-end' },
 });
