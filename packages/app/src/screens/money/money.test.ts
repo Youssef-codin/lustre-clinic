@@ -337,3 +337,25 @@ describe('the period labels read as the tail of both sentences', () => {
         expect(statsPeriodLabel(new Date('2026-06-15T10:00:00.000Z'))).toBe('Stats · June 2026');
     });
 });
+
+describe('a period that owes nothing', () => {
+    // The hero draws a caption, an amount and a patient count. When the period
+    // is square there is no amount to draw, and a zero under "Due this month"
+    // beside "0 patients" reads as a broken figure rather than a settled one.
+    const settled = (difference: number) =>
+        amountStillDue(difference) === 0 && collectedAhead(difference) === 0;
+
+    it('is settled when everything charged was collected', () => {
+        expect(settled(0)).toBe(true);
+    });
+
+    it('is settled when nothing was charged at all — every day before the first visit', () => {
+        expect(collectionRate(0, 0)).toBe(1);
+        expect(settled(0)).toBe(true);
+    });
+
+    it('is not settled while anything is owed, or anything came in early', () => {
+        expect(settled(2_382_000)).toBe(false);
+        expect(settled(-120_000)).toBe(false);
+    });
+});

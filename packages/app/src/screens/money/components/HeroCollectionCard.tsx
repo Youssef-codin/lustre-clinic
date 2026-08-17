@@ -34,6 +34,10 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
     const stillDue = amountStillDue(difference);
     const ahead = collectedAhead(difference);
 
+    // Everything charged was collected, or nothing was charged at all — the
+    // two ways a period ends up owing nothing.
+    const settled = stillDue === 0 && ahead === 0;
+
     return (
         <View style={[styles.card, { minHeight }]} testID="money-hero">
             <Text variant="eyebrow" script="sans" weight="bold" tone="inverse" style={styles.dim}>
@@ -52,25 +56,36 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
 
                 <View style={styles.due}>
                     <Text variant="caption" script="sans" weight="bold" tone="inverse" style={styles.dim}>
-                        {ahead > 0 ? 'Collected ahead' : dueLabel}
+                        {settled ? 'Nothing due' : ahead > 0 ? 'Collected ahead' : dueLabel}
                     </Text>
 
-                    {/* One text flow, not two flex children: as a row the tail
-                        is a sibling that can be dropped when the figure is
-                        wide, and "· 12" is a worse lie than a wrapped line. */}
-                    <Text variant="body" weight="bold" tone="inverse">
-                        <MoneyValue
-                            amount={ahead > 0 ? ahead : stillDue}
-                            variant="body"
-                            weight="bold"
-                            tone="inverse"
-                            compact
-                            showCurrency={false}
-                        />
-                        <Text variant="body" weight="semibold" tone="inverse" style={styles.faint}>
-                            {` · ${duePatients} ${duePatients === 1 ? 'patient' : 'patients'}`}
+                    {/* Nothing owed means there is no figure to draw: the
+                        amount would be a zero and the count a zero beside it,
+                        under a caption saying money is due. A period that
+                        charged nothing lands here too, which is every "Today"
+                        before the first visit is billed. */}
+                    {settled ? null : (
+                        // One text flow, not two flex children: as a row the
+                        // tail is a sibling that can be dropped when the figure
+                        // is wide, and "· 12" is a worse lie than a wrapped line.
+                        <Text variant="body" weight="bold" tone="inverse">
+                            <MoneyValue
+                                amount={ahead > 0 ? ahead : stillDue}
+                                variant="body"
+                                weight="bold"
+                                tone="inverse"
+                                compact
+                                showCurrency={false}
+                            />
+                            {/* The count belongs to the shortfall. Against a
+                                surplus it would be counting the wrong thing. */}
+                            {ahead > 0 ? null : (
+                                <Text variant="body" weight="semibold" tone="inverse" style={styles.faint}>
+                                    {` · ${duePatients} ${duePatients === 1 ? 'patient' : 'patients'}`}
+                                </Text>
+                            )}
                         </Text>
-                    </Text>
+                    )}
                 </View>
             </View>
 
