@@ -151,6 +151,37 @@ export function answeredCount(form: PatientForm, questions: CustomQuestion[]): n
     return questions.filter((question) => isAnswered(form.answers[question.key] ?? '')).length;
 }
 
+/**
+ * Required questions the desk has just **emptied** — answered on the record that
+ * arrived, blank on the form now.
+ *
+ * A required question left alone does not hold an edit back (see
+ * `updateInputOf`), because a patch the server is never sent cannot fail its
+ * validation. One that was cleared *is* sent, as the blank that means "delete
+ * this answer", and `checkSubmitted` throws on a blank for an active required
+ * question rather than deleting it. So the server refuses exactly this patch and
+ * nothing else — and the button has to refuse it first, or Save reads
+ * `Save patient`, spends the round trip, and comes back with a validation error
+ * for a thing the screen let the desk do.
+ *
+ * This is the same rule the server applies, not a stricter one: never answered
+ * and still unanswered stays saveable.
+ */
+export function clearedRequired(
+    form: PatientForm,
+    initial: PatientForm,
+    questions: CustomQuestion[],
+): string[] {
+    return questions
+        .filter(
+            (question) =>
+                question.required &&
+                !isAnswered(form.answers[question.key] ?? '') &&
+                isAnswered(initial.answers[question.key] ?? ''),
+        )
+        .map((question) => question.key);
+}
+
 function answersOf(form: PatientForm, questions: CustomQuestion[], only: (key: string) => boolean): Answers {
     const patch: Answers = {};
     for (const question of questions) {
@@ -193,6 +224,10 @@ export function createInputOf(
  * only the patch, deliberately, and blocking Save on a question nobody has
  * answered yet would stop the secretary fixing an unrelated one — which is the
  * whole reason the record can outlive its questionnaire.
+ *
+ * The one exception is a required answer the desk has *emptied*: that blank is
+ * in the patch, and the server throws on it rather than deleting it. See
+ * `clearedRequired`.
  */
 export function updateInputOf(
     id: string,
@@ -202,6 +237,7 @@ export function updateInputOf(
     today: Date = new Date(),
 ): UpdatePatientInput | null {
     if (!basicsAreSound(form)) return null;
+    if (clearedRequired(form, initial, questions).length > 0) return null;
 
     const patch: UpdatePatientInput = { id };
 

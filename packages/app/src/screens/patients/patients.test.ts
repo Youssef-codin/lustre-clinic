@@ -22,6 +22,7 @@ import {
     answeredCount,
     birthDateOf,
     blankBasics,
+    clearedRequired,
     createInputOf,
     emptyForm,
     formOf,
@@ -269,6 +270,34 @@ describe('the patient form — what a save sends', () => {
 
         expect(missingRequired(form, questions)).toEqual(['blood']);
         expect(updateInputOf('id', form, initial, questions, TODAY)).not.toBeNull();
+    });
+
+    // The server draws the line in `checkSubmitted`: a blank for an active
+    // required question throws rather than deleting the answer. It only ever
+    // sees the keys the patch carries, so "never answered" and "just emptied"
+    // are different cases, and only the second one is refused.
+    it('refuses to empty a required answer, because the server refuses that patch', () => {
+        const initial = formOf(patient({ custom: { blood: 'O+' } }), questions);
+        const form = { ...initial, answers: { ...initial.answers, blood: '' } };
+
+        expect(clearedRequired(form, initial, questions)).toEqual(['blood']);
+        expect(updateInputOf('id', form, initial, questions, TODAY)).toBeNull();
+    });
+
+    it('does not count a required question that was never answered as emptied', () => {
+        const initial = formOf(patient({ custom: {} }), questions);
+        const form = { ...initial, phone: '0100 000 0000' };
+
+        expect(clearedRequired(form, initial, questions)).toEqual([]);
+        expect(updateInputOf('id', form, initial, questions, TODAY)).not.toBeNull();
+    });
+
+    it('lets a required answer be changed, which is not the same as emptied', () => {
+        const initial = formOf(patient({ custom: { blood: 'O+' } }), questions);
+        const form = { ...initial, answers: { ...initial.answers, blood: 'A+' } };
+
+        expect(clearedRequired(form, initial, questions)).toEqual([]);
+        expect(updateInputOf('id', form, initial, questions, TODAY)?.custom).toEqual({ blood: 'A+' });
     });
 
     it('sends a cleared answer, and spends no round trip when nothing moved', () => {

@@ -39,6 +39,7 @@ import type { PatientForm } from './patientForm';
 import {
     answeredCount,
     blankBasics,
+    clearedRequired,
     createInputOf,
     emptyForm,
     formOf,
@@ -103,12 +104,17 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
     const missing = form ? missingRequired(form, editable) : [];
     const answered = form ? answeredCount(form, editable) : 0;
 
+    // A required answer the desk has emptied. Not the same as one never given:
+    // the blank is in the patch, and the server throws on it rather than
+    // deleting it, so the button has to refuse it here.
+    const cleared = form && initial ? clearedRequired(form, initial, editable) : [];
+
     // The design's own arithmetic on the button: what is still owed before this
-    // can be saved. On an edit that is only the two facts a patient cannot be
-    // without — a required question is not owed, because `patient.update`
-    // validates the patch on its own and holding an unrelated correction
-    // hostage to it is what §7.8 exists to avoid.
-    const owed = blank.length + Object.keys(malformed).length + (creating ? missing.length : 0);
+    // can be saved. On an edit that is the two facts a patient cannot be without
+    // plus anything emptied — a required question left alone is not owed,
+    // because `patient.update` validates only the patch it is sent and holding
+    // an unrelated correction hostage to it is what §7.8 exists to avoid.
+    const owed = blank.length + Object.keys(malformed).length + (creating ? missing.length : cleared.length);
 
     const change = (patch: Partial<PatientForm>) =>
         setForm((current) => (current ? { ...current, ...patch } : current));
