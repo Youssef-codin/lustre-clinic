@@ -16,6 +16,7 @@ import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import {
     CHECKUP_PRICE,
+    checkedInVisit,
     EXTRACTION_PRICE,
     expectAppError,
     clinic as fixtures,
@@ -704,6 +705,42 @@ describe('patient', () => {
         await expectAppError(ERROR_CODE.INVALID_PHONE, () =>
             patientService.create({ name: 'Nobody', phone: 'not a phone', custom: {} }),
         );
+    });
+
+    // The record is read to answer "has this patient turned up before, and what
+    // did we do", so the history is over appointments: a no-show has no visit
+    // and no money, and still belongs on it, carrying what was going to be done.
+    test('history carries what was done, and keeps the appointments that never became visits', async () => {
+        const { patient, extraction, appointment, visit } = await checkedInVisit();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UR6' }],
+        });
+
+        const missed = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: (await branchService.list({ includeInactive: false }))[0]?.id ?? '',
+            startsAt: slot(120),
+            offsetMinutes: 0,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL4' }],
+        });
+        await appointmentService.update({ id: missed.id, status: 'no_show' });
+
+        const { history } = await patientService.byId(patient.id);
+        const performed = history.find((row) => row.appointmentId === appointment.id);
+        const planned = history.find((row) => row.appointmentId === missed.id);
+
+        expect(performed?.visitId).toBe(visit.id);
+        expect(performed?.procedures).toEqual([{ name: 'Extraction', quantity: 1, tooth: 'UR6' }]);
+        expect(performed?.chargedTotal).toBe(EXTRACTION_PRICE);
+
+        // No visit, so no money — and the booking is the only record of the plan.
+        expect(planned?.visitId).toBeNull();
+        expect(planned?.status).toBe('no_show');
+        expect(planned?.chargedTotal).toBe(0);
+        expect(planned?.balance).toBe(0);
+        expect(planned?.procedures).toEqual([{ name: 'Extraction', quantity: 1, tooth: 'UL4' }]);
     });
 });
 

@@ -8,6 +8,8 @@
 // deleted, so its answers survive (§7.8); `age` and `balance` are derived,
 // never stored; `UpdatePatientInput.custom` is a partial patch — only the keys
 // sent are validated, a blank clears, and keys left out keep what is stored.
+import type { AppointmentStatus } from '@lustre/shared';
+
 export type QuestionKind = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
 export interface CustomQuestion {
@@ -45,22 +47,37 @@ export interface Patient {
     age: number | null;
 }
 
-export interface PatientVisit {
-    visitId: string;
+/** What was done at a visit, or — when the patient never reached the chair — what was going to be. */
+export interface HistoryProcedure {
+    name: string;
+    quantity: number;
+    tooth: string | null;
+}
+
+/**
+ * One row of the history: an appointment, and the visit it became if it became
+ * one. A cancellation and a no-show never produce a visit and are still part of
+ * what the record is read for, so `visitId` is null and the money is zero on
+ * them rather than the row being absent.
+ */
+export interface PatientHistoryEntry {
     appointmentId: string;
+    visitId: string | null;
     ref: string;
     startsAt: string;
-    checkedInAt: string;
+    status: AppointmentStatus;
+    checkedInAt: string | null;
     completedAt: string | null;
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;
     balance: number;
+    procedures: HistoryProcedure[];
 }
 
 export interface PatientDetail {
     patient: Patient;
-    visits: PatientVisit[];
+    history: PatientHistoryEntry[];
     questionnaireGaps: QuestionnaireGap[];
 }
 

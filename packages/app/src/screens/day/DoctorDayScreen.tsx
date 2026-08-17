@@ -1,30 +1,40 @@
 /**
  * The day view the doctor has open — `doctor-day-view.html`. It keeps the
- * secretary's header, rows and appointment sheet, and strips out everything
- * the doctor does not do: no walk-in button, no reminders tab, no check-in
- * pills. That leaves it one write, and it is the one the desk cannot make for
- * him: `checked_in → awaiting_payment`, the moment he is finished and the
- * patient goes out to pay. Everything else is a read. `arrivals` is keyed by
- * the checked-in ids rather than the date, so the queue's order is re-asked
- * when somebody arrives or leaves the chair and not on every tick of the
- * clock.
+ * secretary's header and rows and strips out everything the doctor does not do:
+ * no walk-in button, no reminders tab, no check-in pills. That leaves it one
+ * write, and it is the one the desk cannot make for him: `checked_in →
+ * awaiting_payment`, the moment he is finished and the patient goes out to pay.
+ * It lives on the chair card, where he is already looking. Everything else is a
+ * read.
+ *
+ * The secretary's appointment sheet is not mounted here. It is a column of desk
+ * writes — check in, no-show, cancel — and the doctor makes none of them; a
+ * modal of buttons he must not press is worse than no modal at all. Check-out
+ * goes with it: taking payment is the desk's, so `CheckoutSheet` is not here
+ * either. What replaces it is `DoctorVisitSheet`, which is a read: tapping a row
+ * asks what this patient is in for, and the answer is today's plan, with the
+ * record one further tap away for the history.
+ *
+ * `arrivals` is keyed by the checked-in ids rather than the date, so the queue's
+ * order is re-asked when somebody arrives or leaves the chair and not on every
+ * tick of the clock.
  */
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
+import { Banner, Button, PushView, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
+import { PatientRecordScreen } from '../patients';
 import { procedureLabel } from './agenda';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
-import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ChairCard, type ChairCardKind, ChairStrip } from './components/Chair';
-import { CheckoutSheet } from './components/CheckoutSheet';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
-import { type Appointment, api, checkInTimes, useLocalMutation, useLocalQuery, type Visit } from './data';
+import { DoctorVisitSheet } from './components/DoctorVisitSheet';
+import { type Appointment, api, checkInTimes, useLocalMutation, useLocalQuery } from './data';
 import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
@@ -35,14 +45,14 @@ export function DoctorDayScreen() {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
-    const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
-        appointment: null,
-        open: false,
-    });
-    const [checkout, setCheckout] = useState<{
-        target: { appointment: Appointment; visit: Visit } | null;
-        open: boolean;
-    }>({ target: null, open: false });
+    // One appointment, two things open on it — the sheet and the record behind
+    // it. Kept whole while either slides back out; dropping it on close would
+    // blank the sheet or the pane mid-animation.
+    const [opened, setOpened] = useState<{
+        appointment: Appointment | null;
+        sheet: boolean;
+        record: boolean;
+    }>({ appointment: null, sheet: false, record: false });
     const [toast, setToast] = useState<string | null>(null);
 
     const nowMinutes = useNowMinutes();
@@ -119,7 +129,9 @@ export function DoctorDayScreen() {
                 ? 'waiting'
                 : 'next';
 
-    const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
+    // A tap opens the plan, not the record: standing at the chair the question
+    // is what is being done today, and the history is the sheet's own button.
+    const openVisit = (appointment: Appointment) => setOpened({ appointment, sheet: true, record: false });
 
     // The calendar counts every branch; the picked day carries the one it is
     // busiest in, so the day it promised is the day this draws.
@@ -183,7 +195,7 @@ export function DoctorDayScreen() {
                     <ClosedDay
                         dateKey={dateKey}
                         appointments={appointments}
-                        onSelect={openDetail}
+                        onSelect={openVisit}
                         refreshControl={refreshControl}
                     />
                 ) : appointments.length === 0 ? (
@@ -197,7 +209,7 @@ export function DoctorDayScreen() {
                         refreshControl={refreshControl}
                         testID="doctor-agenda"
                     >
-                        {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
+                        {isToday ? <BeforeThis appointments={past} onSelect={openVisit} /> : null}
 
                         {isToday && strip ? (
                             <ChairStrip
@@ -205,7 +217,7 @@ export function DoctorDayScreen() {
                                 nowMinutes={nowMinutes}
                                 procedure={procedureLabel(strip)}
                                 finishing={finishingId === strip.id}
-                                onOpen={openDetail}
+                                onOpen={openVisit}
                                 onFinish={finishVisit}
                             />
                         ) : null}
@@ -218,7 +230,7 @@ export function DoctorDayScreen() {
                                 procedure={headline ? procedureLabel(headline) : undefined}
                                 checkedInAt={headline ? arrivals.data?.get(headline.id) : undefined}
                                 finishing={finishingId === headline?.id}
-                                onOpen={openDetail}
+                                onOpen={openVisit}
                                 onFinish={finishVisit}
                             />
                         ) : null}
@@ -226,7 +238,7 @@ export function DoctorDayScreen() {
                         <AfterThis
                             appointments={isToday ? list : appointments}
                             relativeToNow={isToday}
-                            onSelect={openDetail}
+                            onSelect={openVisit}
                         />
                     </ScrollView>
                 )}
@@ -243,29 +255,27 @@ export function DoctorDayScreen() {
                 onClose={() => setCalendar((current) => ({ ...current, open: false }))}
             />
 
-            <AppointmentDetailSheet
-                key={`detail:${selected.appointment?.id ?? 'none'}`}
-                visible={selected.open}
-                appointment={selected.appointment}
-                onClose={() => setSelected((current) => ({ ...current, open: false }))}
-                onChanged={day.refetch}
-                onCheckOut={(appointment, visit) => {
-                    setSelected((current) => ({ ...current, open: false }));
-                    setCheckout({ target: { appointment, visit }, open: true });
-                }}
+            <DoctorVisitSheet
+                visible={opened.sheet}
+                appointment={opened.appointment}
+                onClose={() => setOpened((current) => ({ ...current, sheet: false }))}
+                // The sheet goes as the record arrives: two layers over the day,
+                // one of them a modal, is a back button with two meanings.
+                onOpenRecord={(appointment) => setOpened({ appointment, sheet: false, record: true })}
             />
 
-            <CheckoutSheet
-                key={`checkout:${checkout.target?.visit.id ?? 'none'}`}
-                visible={checkout.open}
-                appointment={checkout.target?.appointment ?? null}
-                visit={checkout.target?.visit ?? null}
-                onClose={() => setCheckout((current) => ({ ...current, open: false }))}
-                onDone={(message) => {
-                    setToast(message);
-                    day.refetch();
-                }}
-            />
+            {/* Keyed by patient so opening a second one remounts rather than
+                showing the first one's record under a new name. */}
+            <PushView visible={opened.record} testID="doctor-record">
+                {opened.appointment ? (
+                    <PatientRecordScreen
+                        key={`record:${opened.appointment.patientId}`}
+                        patientId={opened.appointment.patientId}
+                        backLabel="Day"
+                        onBack={() => setOpened((current) => ({ ...current, record: false }))}
+                    />
+                ) : null}
+            </PushView>
 
             <Toast
                 visible={toast !== null}

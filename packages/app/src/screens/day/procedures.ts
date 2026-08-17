@@ -78,8 +78,17 @@ export function toothPosition(tooth: Tooth | null): string {
     return `${QUADRANT_WORDS[tooth.slice(0, 2)] ?? ''} · ${tooth.slice(2)}`;
 }
 
-export function groupByTooth(procedures: readonly PlannedProcedure[]): ToothGroup[] {
-    const groups = new Map<string, PlannedProcedure[]>();
+/**
+ * The grouping on its own, for lines that carry no price. A booked appointment
+ * holds the plan that was agreed, not a bill — the visit snapshots the
+ * catalogue on the day — so anything reading a booking has teeth and names and
+ * nothing to subtotal, and asking it to invent a price to be grouped would put
+ * a number on screen the clinic never quoted.
+ */
+export function toothGroupsOf<T extends { tooth: Tooth | null }>(
+    procedures: readonly T[],
+): Array<{ tooth: Tooth | null; items: T[] }> {
+    const groups = new Map<string, T[]>();
     for (const procedure of procedures) {
         const key = procedure.tooth ?? '';
         groups.set(key, [...(groups.get(key) ?? []), procedure]);
@@ -91,11 +100,11 @@ export function groupByTooth(procedures: readonly PlannedProcedure[]): ToothGrou
             if (b === '') return -1;
             return (TOOTH_ORDER.get(a) ?? 0) - (TOOTH_ORDER.get(b) ?? 0);
         })
-        .map(([tooth, items]) => ({
-            tooth: (tooth || null) as Tooth | null,
-            items,
-            subtotal: totalOf(items),
-        }));
+        .map(([tooth, items]) => ({ tooth: (tooth || null) as Tooth | null, items }));
+}
+
+export function groupByTooth(procedures: readonly PlannedProcedure[]): ToothGroup[] {
+    return toothGroupsOf(procedures).map((group) => ({ ...group, subtotal: totalOf(group.items) }));
 }
 
 export function totalOf(procedures: readonly PlannedProcedure[]): number {
