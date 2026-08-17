@@ -2,8 +2,9 @@
  * SPEC §5, §13. Phone is normalized to E.164 on write; age is derived at read
  * time and never stored.
  *
- * `byId` returns the patient and the visit history in one payload (§13), so the
- * records screen is a single round trip.
+ * `byId` returns the patient and their whole history in one payload (§13), so
+ * the records screen is a single round trip. That history is over appointments
+ * rather than visits — see the method.
  *
  * Search uses a trigram-free substring `ILIKE` deliberately — thousands of
  * patients, not millions — and normalizes the phone term first so `0101…`
@@ -14,9 +15,18 @@
  * collected and deliberately skips questionnaire validation — the secretary is
  * on the phone, and the questions are answered at the desk.
  */
-import { desc, eq, ilike, or, sql } from 'drizzle-orm';
+import type { AppointmentStatus } from '@lustre/shared';
+import { desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
-import { appointments, patients, payments, visits } from '../../db/schema.ts';
+import {
+    appointmentProcedures,
+    appointments,
+    patients,
+    payments,
+    procedureTypes,
+    visitProcedures,
+    visits,
+} from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { normalizePhone } from '../../util/phone.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
@@ -33,22 +43,37 @@ export interface Patient extends PatientRow {
     age: number | null;
 }
 
-export interface PatientVisit {
-    visitId: string;
+/** What was done, or — when the patient never got to the chair — what was going to be. */
+export interface PatientHistoryProcedure {
+    name: string;
+    quantity: number;
+    tooth: string | null;
+}
+
+/**
+ * One row of a patient's history: an appointment, and the visit it became if it
+ * became one. A cancellation and a no-show never produce a visit and are still
+ * part of the history a record is read for, so the row is keyed by the
+ * appointment and every visit-side field is nullable.
+ */
+export interface PatientHistoryEntry {
     appointmentId: string;
+    visitId: string | null;
     ref: string;
     startsAt: Date;
-    checkedInAt: Date;
+    status: AppointmentStatus;
+    checkedInAt: Date | null;
     completedAt: Date | null;
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;
     balance: number;
+    procedures: PatientHistoryProcedure[];
 }
 
 export interface PatientDetail {
     patient: Patient;
-    visits: PatientVisit[];
+    history: PatientHistoryEntry[];
     questionnaireGaps: QuestionnaireGap[];
 }
 
@@ -58,6 +83,61 @@ function toPatient(row: PatientRow): Patient {
 
 function answersOf(row: PatientRow): Answers {
     return (row.custom ?? {}) as Answers;
+}
+
+function isPresent<T>(value: T | null): value is T {
+    return value !== null;
+}
+
+/** Grouped by visit, in the order the lines were priced. */
+async function proceduresByVisit(visitIds: string[]): Promise<Map<string, PatientHistoryProcedure[]>> {
+    if (visitIds.length === 0) return new Map();
+
+    const rows = await db
+        .select({
+            key: visitProcedures.visitId,
+            name: procedureTypes.name,
+            quantity: visitProcedures.quantity,
+            tooth: visitProcedures.tooth,
+        })
+        .from(visitProcedures)
+        .innerJoin(procedureTypes, eq(procedureTypes.id, visitProcedures.procedureId))
+        .where(inArray(visitProcedures.visitId, visitIds));
+
+    return group(rows);
+}
+
+/** Grouped by appointment, in the order the booking planned them. */
+async function proceduresByAppointment(
+    appointmentIds: string[],
+): Promise<Map<string, PatientHistoryProcedure[]>> {
+    if (appointmentIds.length === 0) return new Map();
+
+    const rows = await db
+        .select({
+            key: appointmentProcedures.appointmentId,
+            name: procedureTypes.name,
+            quantity: appointmentProcedures.quantity,
+            tooth: appointmentProcedures.tooth,
+        })
+        .from(appointmentProcedures)
+        .innerJoin(procedureTypes, eq(procedureTypes.id, appointmentProcedures.procedureId))
+        .where(inArray(appointmentProcedures.appointmentId, appointmentIds))
+        .orderBy(appointmentProcedures.sortOrder);
+
+    return group(rows);
+}
+
+function group(
+    rows: Array<{ key: string; name: string; quantity: number; tooth: string | null }>,
+): Map<string, PatientHistoryProcedure[]> {
+    const grouped = new Map<string, PatientHistoryProcedure[]>();
+    for (const { key, ...procedure } of rows) {
+        const bucket = grouped.get(key);
+        if (bucket) bucket.push(procedure);
+        else grouped.set(key, [procedure]);
+    }
+    return grouped;
 }
 
 async function requireRow(id: string): Promise<PatientRow> {
@@ -86,6 +166,17 @@ export const patientService = {
         return rows.map(toPatient);
     },
 
+    /**
+     * The record in one payload (§13). Driven from `appointments`, not `visits`:
+     * a no-show and a cancellation never produce a visit, and a record read to
+     * answer "has this patient turned up before" has to show them. The visit is
+     * left-joined, so every money column is zero until there is one.
+     *
+     * Procedures come from the visit when the patient reached the chair — those
+     * carry the price actually billed — and from the booking when they did not,
+     * which is the only record of what was going to be done. Both are fetched
+     * once for the whole history rather than per row.
+     */
     async byId(id: string): Promise<PatientDetail> {
         const patient = await requireRow(id);
 
@@ -100,25 +191,42 @@ export const patientService = {
 
         const rows = await db
             .select({
-                visitId: visits.id,
                 appointmentId: appointments.id,
+                visitId: visits.id,
                 ref: appointments.ref,
                 startsAt: appointments.startsAt,
+                status: appointments.status,
                 checkedInAt: visits.checkedInAt,
                 completedAt: visits.completedAt,
                 computedTotal: visits.computedTotal,
                 chargedTotal: visits.chargedTotal,
                 paidTotal: sql<number>`COALESCE(${paid.paidTotal}, 0)::int`,
             })
-            .from(visits)
-            .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
+            .from(appointments)
+            .leftJoin(visits, eq(visits.appointmentId, appointments.id))
             .leftJoin(paid, eq(paid.visitId, visits.id))
             .where(eq(appointments.patientId, id))
             .orderBy(desc(appointments.startsAt));
 
+        const performed = await proceduresByVisit(rows.map((r) => r.visitId).filter(isPresent));
+        const planned = await proceduresByAppointment(
+            rows.filter((r) => r.visitId === null).map((r) => r.appointmentId),
+        );
+
         return {
             patient: toPatient(patient),
-            visits: rows.map((r) => ({ ...r, balance: r.chargedTotal - r.paidTotal })),
+            history: rows.map((r) => {
+                const chargedTotal = r.chargedTotal ?? 0;
+                const paidTotal = r.paidTotal ?? 0;
+                return {
+                    ...r,
+                    computedTotal: r.computedTotal ?? 0,
+                    chargedTotal,
+                    paidTotal,
+                    balance: chargedTotal - paidTotal,
+                    procedures: (r.visitId ? performed.get(r.visitId) : planned.get(r.appointmentId)) ?? [],
+                };
+            }),
             questionnaireGaps: await customQuestionService.auditAnswers(answersOf(patient)),
         };
     },

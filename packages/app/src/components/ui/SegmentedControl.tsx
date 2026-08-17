@@ -29,10 +29,20 @@ export type Segment<T extends string> = {
     icon?: (selected: boolean) => React.ReactNode;
 };
 
+/**
+ * `md` is the control a screen is built around — a tab bar for two panes, the
+ * thing the thumb goes to. `sm` is for a screen that already has a heavier
+ * control above it: on the patient record the two openers are the buttons, and
+ * a switch the same height as them makes the page read as four equal actions
+ * rather than two actions and a view toggle.
+ */
+export type SegmentedControlSize = 'md' | 'sm';
+
 export type SegmentedControlProps<T extends string> = {
     segments: readonly Segment<T>[];
     value: T;
     onChange: (value: T) => void;
+    size?: SegmentedControlSize;
     accessibilityLabel?: string;
     testID?: string;
 };
@@ -41,6 +51,7 @@ export function SegmentedControl<T extends string>({
     segments,
     value,
     onChange,
+    size = 'md',
     accessibilityLabel,
     testID,
 }: SegmentedControlProps<T>) {
@@ -106,11 +117,11 @@ export function SegmentedControl<T extends string>({
                         accessibilityState={{ selected }}
                         onLayout={at === 0 ? onFirstSegmentLayout : undefined}
                         onPress={() => onChange(segment.value)}
-                        style={styles.segment}
+                        style={[styles.segment, size === 'sm' && styles.segmentSm]}
                     >
                         {segment.icon?.(selected)}
                         <Text
-                            variant="callout"
+                            variant={size === 'sm' ? 'subhead' : 'callout'}
                             weight={selected ? 'semibold' : 'medium'}
                             tone={selected ? 'ink' : 'ink2'}
                         >
@@ -143,6 +154,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: space[3],
         borderRadius: radius.full,
     },
+    segmentSm: { minHeight: 30 },
     /** `left: 0` and not `start`: `layout.x` is measured from the left in both directions. */
     thumb: {
         position: 'absolute',

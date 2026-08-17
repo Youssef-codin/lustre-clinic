@@ -21,8 +21,8 @@ import {
 import { color, size, space } from '../../theme';
 import { _LocalPatientRow } from './components/_LocalPatientRow';
 import { SkeletonRows } from './components/_LocalSkeleton';
-import { _LocalPatientsApi } from './data/_LocalPatientsApi';
 import { useQuery } from './data/_LocalQuery';
+import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 
 export type PatientListScreenProps = {
@@ -35,9 +35,9 @@ export function PatientListScreen({ onOpen }: PatientListScreenProps) {
     const [term, setTerm] = useState('');
     const query = useDebounced(term, DEBOUNCE_MS);
 
-    const patients = useQuery(() => _LocalPatientsApi.search(query), [query]);
+    const patients = useQuery(() => patientsApi.search(query), [query]);
 
-    const balances = useQuery(() => _LocalPatientsApi.outstanding(), []);
+    const balances = useQuery(() => patientsApi.outstanding(), []);
     const dueByPatient = new Map((balances.data ?? []).map((row) => [row.patientId, row.balance]));
 
     const searching = query.trim().length > 0;

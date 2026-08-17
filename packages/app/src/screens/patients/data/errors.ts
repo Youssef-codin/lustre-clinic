@@ -2,9 +2,11 @@
 // never parses or renders the server's message — those stay English, for logs.
 // There is no localisation scaffold yet, so the strings are English here; when
 // the dictionaries land, these values become keys into them and no call site
-// changes. An unrecognised code and a transport failure share one line: from
-// the desk they are the same event.
-import { _LocalApiError } from './_LocalPatientsApi';
+// changes. Offline is its own line: the clinic server is a PC that is off
+// during a power cut, and "check the connection" is the useful instruction.
+// An unrecognised code falls back to the same line as a transport failure —
+// from the desk they are the same event.
+import { PatientsRequestError } from './requestError';
 
 const TEXT: Record<string, string> = {
     NOT_FOUND: 'This patient is no longer on file.',
@@ -14,9 +16,10 @@ const TEXT: Record<string, string> = {
     INTERNAL: 'The clinic server could not answer. Try again in a moment.',
 };
 
-const UNKNOWN = 'Could not reach the clinic server. Check the connection and try again.';
+const OFFLINE = 'Could not reach the clinic server. Check the connection and try again.';
 
 export function errorText(error: unknown): string {
-    if (error instanceof _LocalApiError) return TEXT[error.code] ?? UNKNOWN;
-    return UNKNOWN;
+    if (!(error instanceof PatientsRequestError)) return OFFLINE;
+    if (error.offline) return OFFLINE;
+    return TEXT[error.code] ?? OFFLINE;
 }

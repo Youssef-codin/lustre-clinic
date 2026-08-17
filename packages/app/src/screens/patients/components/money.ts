@@ -11,8 +11,17 @@ export type MoneyLocale = 'en' | 'ar';
 const SYMBOL: Record<MoneyLocale, string> = { en: 'EGP', ar: 'ج.م' };
 
 export function formatMoney(amount: number, locale: MoneyLocale = 'en'): string {
+    const signed = formatAmount(amount);
+    return locale === 'ar' ? `${signed} ${SYMBOL.ar}` : `${SYMBOL.en} ${signed}`;
+}
+
+/**
+ * The number with no symbol, for a column that has already said what it holds.
+ * The history's amounts run down one edge under a heading about money, and
+ * `EGP` repeated on every row is thirty pixels of the same three letters.
+ */
+export function formatAmount(amount: number): string {
     const magnitude = Math.round(Math.abs(amount) / 100);
     const grouped = magnitude.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const signed = amount < 0 && magnitude > 0 ? `-${grouped}` : grouped;
-    return locale === 'ar' ? `${signed} ${SYMBOL.ar}` : `${SYMBOL.en} ${signed}`;
+    return amount < 0 && magnitude > 0 ? `-${grouped}` : grouped;
 }

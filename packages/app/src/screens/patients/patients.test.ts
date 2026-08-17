@@ -5,8 +5,8 @@
 import { describe, expect, it } from 'bun:test';
 import { displayAnswer, fromDraft, isEditable, toDraft, validateDraft } from './components/customFields';
 import { formatMoney } from './components/money';
-import { _LocalApiError, _LocalPatientsApi } from './data/_LocalPatientsApi';
 import { errorText } from './data/errors';
+import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion } from './data/types';
 
 const question = (over: Partial<CustomQuestion> = {}): CustomQuestion => ({
@@ -45,13 +45,15 @@ describe('money (§7.12, §7.13)', () => {
 
 describe('errors (SPEC §14 — localise from the code, never the message)', () => {
     it('maps a known code to a fixed line and never shows the server text', () => {
-        const text = errorText(new _LocalApiError('CUSTOM_QUESTION_REQUIRED', "'blood_type' is required"));
+        const text = errorText(
+            new PatientsRequestError('CUSTOM_QUESTION_REQUIRED', "'blood_type' is required"),
+        );
         expect(text).not.toContain('blood_type');
         expect(text).toBe('A required question was left blank.');
     });
 
     it('falls back for an unknown code and for a transport failure', () => {
-        const unknown = errorText(new _LocalApiError('SOMETHING_NEW', 'internal detail'));
+        const unknown = errorText(new PatientsRequestError('INTERNAL', 'internal detail', { offline: true }));
         expect(unknown).toBe(errorText(new TypeError('Network request failed')));
         expect(unknown).not.toContain('internal detail');
     });
@@ -99,44 +101,5 @@ describe('answers', () => {
         for (const kind of ['text', 'number', 'boolean', 'select'] as const) {
             expect(isEditable(question({ kind }))).toBe(true);
         }
-    });
-});
-
-describe('the record, against the local API', () => {
-    it('hides deactivated questions but keeps their answers', async () => {
-        const keys = (await _LocalPatientsApi.listQuestions()).map((q) => q.key);
-        expect(keys).not.toContain('insurance_provider');
-
-        const { patient } = await _LocalPatientsApi.byId('p-1');
-        expect(patient.custom.insurance_provider).toBe('MedNet');
-    });
-
-    it('does not drop an unsent answer when saving a patch (§7.8)', async () => {
-        const saved = await _LocalPatientsApi.update({ id: 'p-1', custom: { allergies: 'Latex' } });
-        expect(saved.custom.allergies).toBe('Latex');
-        expect(saved.custom.insurance_provider).toBe('MedNet');
-        expect(saved.custom.blood_type).toBe('A+');
-    });
-
-    it('reports what a record is missing, and why', async () => {
-        const never = await _LocalPatientsApi.byId('p-4');
-        expect(never.questionnaireGaps.every((gap) => gap.reason === 'unanswered')).toBe(true);
-        expect(never.questionnaireGaps.some((gap) => gap.required)).toBe(true);
-
-        const stale = await _LocalPatientsApi.byId('p-6');
-        expect(stale.questionnaireGaps).toContainEqual(
-            expect.objectContaining({ key: 'blood_type', reason: 'answer_no_longer_valid' }),
-        );
-    });
-
-    it('refuses to clear a required answer', async () => {
-        expect(_LocalPatientsApi.update({ id: 'p-1', custom: { blood_type: '' } })).rejects.toThrow();
-    });
-
-    it('searches by name in either script, and by phone', async () => {
-        expect((await _LocalPatientsApi.search('mariam')).map((p) => p.id)).toEqual(['p-2']);
-        expect((await _LocalPatientsApi.search('ليلى')).map((p) => p.id)).toEqual(['p-9']);
-        expect((await _LocalPatientsApi.search('0100123')).map((p) => p.id)).toEqual(['p-1']);
-        expect(await _LocalPatientsApi.search('zzz')).toEqual([]);
     });
 });

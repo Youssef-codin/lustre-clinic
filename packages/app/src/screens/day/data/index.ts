@@ -9,6 +9,7 @@ export type { MutationResult, QueryResult, QueryStatus } from './hooks';
 export { useLocalMutation, useLocalQuery } from './hooks';
 export type {
     Appointment,
+    AppointmentProcedure,
     AppointmentRow,
     Branch,
     ClinicDay,

@@ -117,7 +117,7 @@ describe('every path in §13 answers', () => {
 
         const detail = await client.patient.byId.query({ id: patient.id });
         expect(detail.patient.name).toBe('Nadia H.');
-        expect(detail.visits).toEqual([]);
+        expect(detail.history).toEqual([]);
         expect(detail.questionnaireGaps).toEqual([
             { key: 'allergies', label: 'Known allergies', required: false, reason: 'unanswered' },
         ]);
