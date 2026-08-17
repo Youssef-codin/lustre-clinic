@@ -5,8 +5,15 @@
 // the record displays it read-only, and it never disappears or crashes a
 // record. Adding it later is putting `'date'` in `EDITABLE_KINDS` and returning
 // a control from its case. `''` is a cleared answer, which the server deletes
-// from `patients.custom` rather than storing blank. Validation here is early
-// feedback only — the server validates the patch again.
+// from `patients.custom` rather than storing blank.
+//
+// There is no per-answer validation here, deliberately. What the editor refuses
+// it refuses in `patientForm.ts`, against the server's own two rules
+// (`validateIntake` on the whole form, `validatePatch` on the keys it is sent).
+// A third opinion held locally would be the one that goes stale: an option
+// dropped from a `select` in 2026 must **not** stop the desk correcting an
+// answer given under it in 2024, which is the whole reason a record can outlive
+// its questionnaire (§7.8).
 //
 // A draft is a **string for every kind, including boolean**, because a boolean
 // question has three states and not two: yes, no, and never asked.
@@ -57,23 +64,6 @@ export function fromDraft(question: CustomQuestion, draft: DraftValue): unknown 
 /** Whether the desk has given this question an answer — what the editor's progress bar counts. */
 export function isAnswered(draft: DraftValue): boolean {
     return draft.trim() !== '';
-}
-
-export function validateDraft(question: CustomQuestion, draft: DraftValue): string | null {
-    const value = draft.trim();
-
-    if (value === '') return question.required ? 'This question has to be answered' : null;
-
-    if (question.kind === 'boolean' && value !== YES && value !== NO) {
-        return 'Answer yes or no';
-    }
-    if (question.kind === 'number' && !Number.isFinite(Number(value))) {
-        return 'Enter a number';
-    }
-    if (question.kind === 'select' && !(question.options ?? []).includes(value)) {
-        return 'Pick one of the options';
-    }
-    return null;
 }
 
 export function displayAnswer(question: CustomQuestion, stored: unknown): string | null {

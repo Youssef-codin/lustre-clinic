@@ -10,7 +10,6 @@ import {
     isEditable,
     NO,
     toDraft,
-    validateDraft,
     YES,
 } from './components/customFields';
 import { formatMoney } from './components/money';
@@ -129,17 +128,6 @@ describe('answers', () => {
         expect(fromDraft(question(), '   ')).toBe('');
     });
 
-    it('refuses a blank required answer and a number that is not one', () => {
-        expect(validateDraft(question({ required: true }), '')).not.toBeNull();
-        expect(validateDraft(question({ required: false }), '')).toBeNull();
-        expect(validateDraft(question({ kind: 'number' }), 'eight')).not.toBeNull();
-    });
-
-    it('refuses a select answer the question no longer offers', () => {
-        const narrowed = question({ kind: 'select', options: ['AB+'] });
-        expect(validateDraft(narrowed, 'AB')).not.toBeNull();
-    });
-
     it('displays every kind, including the ones with no editor', () => {
         expect(displayAnswer(question({ kind: 'boolean' }), true)).toBe('Yes');
         expect(displayAnswer(question({ kind: 'boolean' }), false)).toBe('No');
@@ -169,9 +157,9 @@ describe('answers', () => {
         expect(isAnswered(toDraft(yesno, false))).toBe(true);
     });
 
-    it('refuses a required boolean nobody has answered', () => {
-        expect(validateDraft(question({ kind: 'boolean', required: true }), '')).not.toBeNull();
-        expect(validateDraft(question({ kind: 'boolean', required: true }), NO)).toBeNull();
+    it('counts a boolean answered no as answered, which is what the editor asks', () => {
+        expect(isAnswered(toDraft(question({ kind: 'boolean' }), false))).toBe(true);
+        expect(isAnswered(toDraft(question({ kind: 'boolean' }), ''))).toBe(false);
     });
 });
 
