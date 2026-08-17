@@ -32,7 +32,12 @@ import { normalizePhone } from '../../util/phone.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
-import type { CreatePatientInput, SearchPatientInput, UpdatePatientInput } from './patient.schema.ts';
+import type {
+    CreatePatientInput,
+    RecentPatientsInput,
+    SearchPatientInput,
+    UpdatePatientInput,
+} from './patient.schema.ts';
 
 export type PatientRow = typeof patients.$inferSelect;
 
@@ -75,6 +80,16 @@ export interface PatientDetail {
     patient: Patient;
     history: PatientHistoryEntry[];
     questionnaireGaps: QuestionnaireGap[];
+}
+
+/**
+ * The page the list opens on, and how many there are in total. `total` counts
+ * the register, not the page — the list draws it beside its heading, so a second
+ * round trip for one integer would be a wasted call over Tailscale.
+ */
+export interface RecentPatients {
+    patients: Patient[];
+    total: number;
 }
 
 function toPatient(row: PatientRow): Patient {
@@ -164,6 +179,20 @@ export const patientService = {
             .limit(input.limit);
 
         return rows.map(toPatient);
+    },
+
+    /**
+     * Who was registered last, newest first — what the Patients tab opens on
+     * before anything is typed. `search` deliberately answers `[]` for an empty
+     * term, so browsing needed a procedure of its own rather than a term that
+     * matches everybody.
+     */
+    async recent(input: RecentPatientsInput): Promise<RecentPatients> {
+        const rows = await db.select().from(patients).orderBy(desc(patients.createdAt)).limit(input.limit);
+
+        const [counted] = await db.select({ total: sql<number>`COUNT(*)::int` }).from(patients);
+
+        return { patients: rows.map(toPatient), total: counted?.total ?? 0 };
     },
 
     /**

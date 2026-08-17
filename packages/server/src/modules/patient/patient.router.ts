@@ -5,6 +5,7 @@ import { publicProcedure, router } from '../../trpc/init.ts';
 import {
     createPatientInput,
     patientByIdInput,
+    recentPatientsInput,
     searchPatientInput,
     updatePatientInput,
 } from './patient.schema.ts';
@@ -12,6 +13,8 @@ import { patientService } from './patient.service.ts';
 
 export const patientRouter = router({
     search: publicProcedure.input(searchPatientInput).query(({ input }) => patientService.search(input)),
+
+    recent: publicProcedure.input(recentPatientsInput).query(({ input }) => patientService.recent(input)),
 
     byId: publicProcedure.input(patientByIdInput).query(({ input }) => patientService.byId(input.id)),
 

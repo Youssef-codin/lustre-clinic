@@ -33,8 +33,13 @@ export const searchPatientInput = z.object({
     limit: z.number().int().min(1).max(100).default(25),
 });
 
+export const recentPatientsInput = z.object({
+    limit: z.number().int().min(1).max(100).default(25),
+});
+
 export const patientByIdInput = z.object({ id: z.uuid() });
 
 export type CreatePatientInput = z.infer<typeof createPatientInput>;
 export type UpdatePatientInput = z.infer<typeof updatePatientInput>;
 export type SearchPatientInput = z.infer<typeof searchPatientInput>;
+export type RecentPatientsInput = z.infer<typeof recentPatientsInput>;
