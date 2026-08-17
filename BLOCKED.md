@@ -330,3 +330,92 @@ order in one call so the list does not reshuffle row by row in front of the
 user. Against the real API that is N mutations, and a partial failure leaves the
 order half-applied. Worth a `procedure.reorder` / `customQuestion.reorder`
 mutation taking an ordered id list.
+
+---
+
+## Patient record — 16 Aug 2026
+
+Built against `patient-view.html`, and wired to the real tRPC client: the
+cluster's `_LocalPatientsApi` and its fixtures are deleted, and
+`data/api.ts` calls `patient.byId` / `patient.search` / `patient.update` /
+`customQuestion.list` / `balance.outstanding`. Entry 1 of the settings cluster's
+list is resolved for this cluster.
+
+### 1. `patient.byId` did not carry what the design draws — **fixed on the server**
+
+The design's history row leads with the procedure and says whether the patient
+came. `byId` returned neither: it was a visits-only query carrying `ref` and
+totals, so the row could only show a reference number and settled/outstanding —
+and a no-show, which never produces a visit, was missing from the record
+entirely.
+
+`patientService.byId` now returns `history` (was `visits`), driven from
+`appointments` with the visit left-joined:
+
+- `status` — the appointment's, so `Came` / `No-show` / `Cancelled` is sayable.
+- `procedures` — from `visit_procedures` when the patient reached the chair
+  (those carry the price actually billed), from `appointment_procedures` when
+  they did not, which is the only record of what was going to be done. Both are
+  one query for the whole history, not one per row.
+- `visitId` is nullable; the money columns are `0` on a row that never became a
+  visit, and the client draws no amount at all rather than `EGP 0`.
+
+One consumer, so the rename is contained. Covered in `modules.test.ts`.
+
+### 2. `Book appointment` / `Walk-in today` — not built
+
+The design puts both under the identity block. Booking is `BookingScreen` and
+the walk-in is the day view's FAB sheet, both in the day cluster, and there is
+no navigator — `PatientsCluster` is a two-route union and cannot reach another
+tab's stack. Drawing the buttons dead would be worse than leaving them out.
+
+**Expected shape when a navigator lands:** `PatientRecordScreen` takes
+`onBook?: () => void` / `onWalkIn?: () => void` the same way it already takes
+`onRecordPayment`, and the cluster above it routes.
+
+### 3. `Record payment` — prop exists, nothing passes it
+
+`onRecordPayment` is on `PatientRecordScreenProps`. Settling a balance is
+`RecordPaymentSheet` in the money cluster; same navigator problem as entry 2.
+The button is drawn either way — the design's strip is three parts and a
+missing third reads as a bug — and without a handler it says where payments are
+taken, like the two openers.
+
+### 4. No "recent patients" procedure — the list is search-only
+
+`_LocalPatientsApi.search('')` returned the most recently registered patients,
+so the Patients tab opened on a browsable list. `patientService.search` answers
+`[]` for an empty term, deliberately. Against the real server the tab therefore
+opens on its empty state until something is typed.
+
+**Expected shape:** `patient.recent q ({ limit }) → Patient[]`, newest first. One
+procedure on an existing service.
+
+### 5. `domain/VisitRow` — replaced, not promoted
+
+`components/_LocalVisitRow.tsx` is deleted. `components/HistoryRow.tsx` takes its
+place and knows about `AppointmentStatus`, so it is further from shared than the
+old one was, not closer. The Inventory name should be `domain/HistoryRow` if it
+is ever promoted.
+
+### 6. The record bar's `⋯` — drawn, with nothing behind it
+
+`patient-view.html` puts a trailing round "More" button opposite the back
+button. Everything a menu behind it would hold is either elsewhere already
+(editing answers is the Details tab's own button) or unbuilt (merge, deactivate,
+export), so it toasts rather than opening an empty sheet.
+
+**Expected shape:** an `onMore?: () => void` prop taking over from the toast —
+the same rule the openers and the payment button follow.
+
+### 7. The tooth group is drawn twice
+
+`day/components/DoctorVisitSheet.tsx` renders the tooth badge / position /
+lines block from `appointment-view.html`, and `BookingScreen` and
+`ProcedurePlan` render the same block with a price column. Three copies of the
+same 40 lines of style. The grouping itself is shared — `toothGroupsOf` in
+`day/procedures.ts`, which `groupByTooth` now wraps to add subtotals — but the
+markup is not.
+
+**Expected shape:** `domain/ToothGroupCard`, taking the group and an optional
+money slot per line, once `components/domain/` exists (§10).
