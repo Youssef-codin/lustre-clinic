@@ -46,6 +46,7 @@ import {
     isUnchanged,
     malformedBasics,
     missingRequired,
+    unaskableRequired,
     updateInputOf,
 } from './patientForm';
 
@@ -116,6 +117,13 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
     // an unrelated correction hostage to it is what §7.8 exists to avoid.
     const owed = blank.length + Object.keys(malformed).length + (creating ? missing.length : cleared.length);
 
+    // A required question this screen has no control for (§7.9). Intake cannot
+    // succeed while one exists — `validateIntake` wants every active required
+    // question answered, including the ones drawn read-only — so Save is refused
+    // and the reason is named. Counting it in `owed` would be a lie: the number
+    // there is what the desk can still go and do, and this is not.
+    const unaskable = creating ? unaskableRequired(questions.data ?? []) : [];
+
     const change = (patch: Partial<PatientForm>) =>
         setForm((current) => (current ? { ...current, ...patch } : current));
 
@@ -128,7 +136,7 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
     // each thing still owed and the count on the button — so this only has to
     // not fire, never to explain itself after the fact.
     const onSave = async () => {
-        if (!form || !initial || owed > 0) return;
+        if (!form || !initial || owed > 0 || unaskable.length > 0) return;
 
         if (creating) {
             const input = createInputOf(form, editable);
@@ -190,6 +198,18 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
                             </View>
                         )}
 
+                        {unaskable.length > 0 && (
+                            <View style={styles.callout}>
+                                <Callout tone="warning" title="This form cannot be completed">
+                                    {`${unaskable.map((question) => question.label).join(', ')} ${
+                                        unaskable.length === 1 ? 'is' : 'are'
+                                    } required, and cannot be answered here yet. Make ${
+                                        unaskable.length === 1 ? 'it' : 'them'
+                                    } optional in Settings to register someone.`}
+                                </Callout>
+                            </View>
+                        )}
+
                         <Text variant="eyebrow" tone="muted" style={styles.eyebrow}>
                             BASICS
                         </Text>
@@ -211,7 +231,7 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
 
                     <SaveBar
                         label={owed > 0 ? `${owed} required left` : 'Save patient'}
-                        disabled={owed > 0}
+                        disabled={owed > 0 || unaskable.length > 0}
                         pending={save.pending}
                         onPress={onSave}
                     />

@@ -29,6 +29,7 @@ import {
     isUnchanged,
     malformedBasics,
     missingRequired,
+    unaskableRequired,
     updateInputOf,
 } from './patientForm';
 
@@ -270,6 +271,22 @@ describe('the patient form — what a save sends', () => {
 
         expect(missingRequired(form, questions)).toEqual(['blood']);
         expect(updateInputOf('id', form, initial, questions, TODAY)).not.toBeNull();
+    });
+
+    // `validateIntake` wants every *active required* question answered, not just
+    // the ones this screen can draw. A required `date` therefore makes intake
+    // impossible until it stops being required or gets a control (§7.9) — and
+    // the screen has to say so rather than offer a Save that cannot work.
+    it('spots a required question it has no control for, so intake fails legibly', () => {
+        const asked = question({ key: 'last_visit', kind: 'date', required: true });
+
+        expect(unaskableRequired([blood, diabetic, allergies, asked])).toEqual([asked]);
+        expect(unaskableRequired([blood, diabetic, allergies])).toEqual([]);
+    });
+
+    it('does not call an optional question it cannot draw a blocker', () => {
+        const optional = question({ key: 'last_visit', kind: 'date', required: false });
+        expect(unaskableRequired([blood, optional])).toEqual([]);
     });
 
     // The server draws the line in `checkSubmitted`: a blank for an active

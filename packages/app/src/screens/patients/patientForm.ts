@@ -28,7 +28,7 @@
 // editor that was opened for their phone number. See BLOCKED.md.
 
 import type { Draft } from './components/customFields';
-import { fromDraft, isAnswered, toDraft } from './components/customFields';
+import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import type { Answers, CreatePatientInput, CustomQuestion, Patient, UpdatePatientInput } from './data/types';
 
 export type PatientForm = {
@@ -149,6 +149,27 @@ export function missingRequired(form: PatientForm, questions: CustomQuestion[]):
 /** The design's `N of M answered` — over every question drawn, required or not. */
 export function answeredCount(form: PatientForm, questions: CustomQuestion[]): number {
     return questions.filter((question) => isAnswered(form.answers[question.key] ?? '')).length;
+}
+
+/**
+ * Required questions this screen has no control for — today only `date` (§7.9).
+ *
+ * `validateIntake` requires an answer to *every* active required question, not
+ * merely the ones the client can draw. So a clinic that marks a `date` question
+ * required makes intake impossible here: the question renders read-only, nothing
+ * can answer it, and every Save comes back `A required question was left blank.`
+ * — an error naming a field the desk cannot see, let alone fill.
+ *
+ * Reported rather than worked around. The screen cannot register anyone until
+ * either the question stops being required or `date` gets a control, and both of
+ * those are someone's decision, not something to paper over with a save that is
+ * guaranteed to fail.
+ *
+ * Intake only: `validatePatch` judges the keys it is sent, so an edit is free to
+ * leave a question it cannot draw exactly as it found it.
+ */
+export function unaskableRequired(questions: CustomQuestion[]): CustomQuestion[] {
+    return questions.filter((question) => question.required && !isEditable(question));
 }
 
 /**

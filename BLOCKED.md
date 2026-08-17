@@ -658,6 +658,29 @@ opacity moves both the same way.
 for `primary` — rather than one opacity applied to all of them. The pressed
 state is already per-variant; this is the same treatment for the other one.
 
+### 11. A **required** `date` question makes intake impossible
+
+The sharp edge on §7.9, found reading the diff rather than on screen.
+
+`date` has no control, so the editor draws it read-only. `validateIntake`,
+though, requires an answer to every *active required* question — not merely the
+ones the client can draw. So a clinic that ticks "required" on a date question
+can no longer register anybody here: every Save comes back
+`A required question was left blank.`, naming a field the desk can see and
+cannot fill.
+
+**Handled, not fixed:** `unaskableRequired` spots it and the screen says so —
+Save is refused with the question named and the way out (make it optional in
+Settings) rather than a round trip that always fails. Editing is unaffected;
+`validatePatch` judges only the keys it is sent, so an edit leaves a question it
+cannot draw exactly as it found it.
+
+**The real fix is the control.** Putting `'date'` in `EDITABLE_KINDS` and
+returning a field from its case in `AnswerEditor` — the digits-only
+`DD / MM / YYYY` from `day/patientDraft.ts` is the one to move, which makes this
+entry 2's problem again. Until then nothing stops a dentist ticking the box in
+Settings, so the editor has to survive it.
+
 ---
 
 ## Money dashboard — 17 Aug 2026
