@@ -4,15 +4,18 @@
 // rule, the overpayment clamp, and the derivations the screens trust.
 import { describe, expect, it } from 'bun:test';
 import { moneyApi } from './_LocalMoneyApi';
-import { outstandingAge } from './format';
+import { dueLabel, outstandingAge, statsPeriodLabel, takingsLabel } from './format';
 import {
     amountStillDue,
     clampToBalance,
     collectedAhead,
     collectionRate,
     currencyLeads,
+    DEBTOR_SORT_LABEL,
+    DEBTOR_SORTS,
     formatEgp,
     isWholePounds,
+    sortDebtors,
     toEgp,
 } from './money';
 
@@ -272,5 +275,65 @@ describe('currency position (§7.13)', () => {
 
             expect(whole).toBe(currencyLeads(locale) ? `${currency} ${figure}` : `${figure} ${currency}`);
         }
+    });
+});
+
+describe('ordering the debtor list', () => {
+    // Balances as the server derived them; the sort compares, never sums.
+    const rows = [
+        { name: 'Salma Adel', balance: 55_000, oldestUnpaidAt: '2026-08-08T15:10:00.000Z' },
+        { name: 'Ahmed Zaki', balance: 1_200_000, oldestUnpaidAt: '2026-07-28T09:15:00.000Z' },
+        { name: 'Nour El-Din Fathy', balance: 165_000, oldestUnpaidAt: '2026-01-14T16:45:00.000Z' },
+    ];
+
+    it('leads with the largest balance by default', () => {
+        expect(sortDebtors(rows, 'balance').map((row) => row.name)).toEqual([
+            'Ahmed Zaki',
+            'Nour El-Din Fathy',
+            'Salma Adel',
+        ]);
+    });
+
+    it('leads with the longest-owed on "oldest", which is not the same order', () => {
+        expect(sortDebtors(rows, 'oldest').map((row) => row.name)).toEqual([
+            'Nour El-Din Fathy',
+            'Ahmed Zaki',
+            'Salma Adel',
+        ]);
+    });
+
+    it('sorts by name without tripping over the hyphen', () => {
+        expect(sortDebtors(rows, 'name').map((row) => row.name)).toEqual([
+            'Ahmed Zaki',
+            'Nour El-Din Fathy',
+            'Salma Adel',
+        ]);
+    });
+
+    it('does not reorder the callers array — the query owns it', () => {
+        const original = [...rows];
+        sortDebtors(rows, 'oldest');
+        expect(rows).toEqual(original);
+    });
+
+    it('every mode is labelled, so the control can never render undefined', () => {
+        for (const sort of DEBTOR_SORTS) {
+            expect(DEBTOR_SORT_LABEL[sort]).toBeTruthy();
+        }
+    });
+});
+
+describe('the period labels read as the tail of both sentences', () => {
+    it('names the takings card and the hero caption from one label', () => {
+        expect(takingsLabel('This month')).toBe('Total collected this month');
+        expect(takingsLabel('Today')).toBe('Total collected today');
+        expect(takingsLabel('All time')).toBe('Total collected all time');
+
+        expect(dueLabel('This month')).toBe('Due this month');
+        expect(dueLabel('Today')).toBe('Due today');
+    });
+
+    it('heads the stats with the month being read, not the period selected', () => {
+        expect(statsPeriodLabel(new Date('2026-06-15T10:00:00.000Z'))).toBe('Stats · June 2026');
     });
 });

@@ -3,25 +3,30 @@
 // added, subtracted or rounded here. The rate is a ratio, clamped to 0–1:
 // charges sit on the visit's date while payments sit on the day money arrived,
 // so a day that settles old debt can collect more than it charged; the surplus
-// is reported as "collected ahead". `dim` uses opacity rather than
-// `tone="muted"`, which is a grey tuned for white grounds and disappears on
-// black. The `older`/`discount` variants are not built (BLOCKED.md #9).
+// is reported as "collected ahead" rather than as a rate above 100%.
+//
+// The whites are `inverse` at an opacity, because `muted` is a grey tuned for
+// white grounds and disappears on black. The rules, the track and the two
+// tinted figures are tokens instead: an opacity on the card would dim its
+// contents with it.
 import { StyleSheet, View } from 'react-native';
-import { Dot } from '../../../components/ui';
-import { color, radius, space, Text } from '../../../theme';
+import { color, gradient, radius, shadow, space, Text } from '../../../theme';
 import type { BalanceSummary } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { amountStillDue, collectedAhead, collectionRate } from '../money';
 
-const BAR_HEIGHT = 6;
+const BAR_HEIGHT = 16;
+const DOT = 8;
 
 export type HeroCollectionCardProps = {
     summary: BalanceSummary;
-    periodLabel: string;
+    dueLabel: string;
+    /** Set by the screen so the card's bottom edge lands mid-screen. */
+    minHeight: number;
 };
 
-export function HeroCollectionCard({ summary, periodLabel }: HeroCollectionCardProps) {
-    const { charged, collected, difference } = summary;
+export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollectionCardProps) {
+    const { charged, collected, difference, duePatients } = summary;
 
     const rate = collectionRate(charged, collected);
     const percent = Math.round(rate * 100);
@@ -30,59 +35,63 @@ export function HeroCollectionCard({ summary, periodLabel }: HeroCollectionCardP
     const ahead = collectedAhead(difference);
 
     return (
-        <View style={styles.card} testID="money-hero">
-            <Text variant="eyebrow" tone="inverse" style={styles.dim}>
-                {`Collection rate · ${periodLabel}`}
+        <View style={[styles.card, { minHeight }]} testID="money-hero">
+            <Text variant="eyebrow" script="sans" weight="bold" tone="inverse" style={styles.dim}>
+                Collection rate
             </Text>
 
-            <Text variant="display" tone="inverse">
-                {`${percent}%`}
-            </Text>
-
-            <View style={styles.caption}>
-                {stillDue > 0 ? (
-                    <>
-                        <MoneyValue
-                            amount={stillDue}
-                            variant="subhead"
-                            tone="inverse"
-                            weight="medium"
-                            compact
-                        />
-                        <Text variant="subhead" tone="inverse" style={styles.dim}>
-                            still to collect
-                        </Text>
-                    </>
-                ) : (
-                    <Text variant="subhead" tone="inverse" style={styles.dim}>
-                        Everything charged has been collected
+            <View style={styles.figure}>
+                <View style={styles.rate}>
+                    <Text variant="hero" tone="inverse">
+                        {String(percent)}
                     </Text>
-                )}
-            </View>
-
-            {ahead > 0 ? (
-                <View style={styles.caption}>
-                    <MoneyValue amount={ahead} variant="caption" tone="inverse" weight="medium" compact />
-                    <Text variant="caption" tone="inverse" style={styles.dim}>
-                        of it against earlier visits
+                    <Text variant="figure2" script="sans" weight="bold" tone="inverse" style={styles.unit}>
+                        %
                     </Text>
                 </View>
-            ) : null}
+
+                <View style={styles.due}>
+                    <Text variant="caption" script="sans" weight="bold" tone="inverse" style={styles.dim}>
+                        {ahead > 0 ? 'Collected ahead' : dueLabel}
+                    </Text>
+
+                    {/* One text flow, not two flex children: as a row the tail
+                        is a sibling that can be dropped when the figure is
+                        wide, and "· 12" is a worse lie than a wrapped line. */}
+                    <Text variant="body" weight="bold" tone="inverse">
+                        <MoneyValue
+                            amount={ahead > 0 ? ahead : stillDue}
+                            variant="body"
+                            weight="bold"
+                            tone="inverse"
+                            compact
+                            showCurrency={false}
+                        />
+                        <Text variant="body" weight="semibold" tone="inverse" style={styles.faint}>
+                            {` · ${duePatients} ${duePatients === 1 ? 'patient' : 'patients'}`}
+                        </Text>
+                    </Text>
+                </View>
+            </View>
 
             <View
-                style={styles.bar}
+                style={styles.track}
                 accessibilityRole="progressbar"
                 accessibilityLabel="Collected against charged"
                 accessibilityValue={{ min: 0, max: 100, now: percent }}
             >
-                {rate > 0 ? <View style={[styles.fill, styles.collectedFill, { flexGrow: rate }]} /> : null}
-                {rate < 1 ? <View style={[styles.fill, styles.dueFill, { flexGrow: 1 - rate }]} /> : null}
+                <View style={[styles.fill, { width: `${percent}%` }]} />
             </View>
 
             <View style={styles.stats}>
-                <HeroStat label="Collected" amount={collected} tone="success" />
-                <HeroStat label="Charged" amount={charged} tone="muted" />
-                <HeroStat label="Due" amount={stillDue} tone="due" />
+                <HeroStat
+                    label="Collected"
+                    amount={collected}
+                    tone="successOnDark"
+                    dot={color.successOnDark}
+                />
+                <HeroStat label="Charged" amount={charged} tone="inverse" dot={color.onDarkMuted} dim />
+                <HeroStat label="Due" amount={stillDue} tone="dueOnDark" dot={color.dueOnDark} last />
             </View>
         </View>
     );
@@ -92,20 +101,36 @@ function HeroStat({
     label,
     amount,
     tone,
+    dot,
+    dim = false,
+    last = false,
 }: {
     label: string;
     amount: number;
-    tone: 'success' | 'muted' | 'due';
+    tone: 'successOnDark' | 'dueOnDark' | 'inverse';
+    dot: string;
+    dim?: boolean;
+    last?: boolean;
 }) {
     return (
-        <View style={styles.stat}>
+        <View style={[styles.stat, last && styles.statLast]}>
             <View style={styles.statLabel}>
-                <Dot tone={tone} size={6} />
-                <Text variant="caption" tone="inverse" style={styles.dim}>
+                <View style={[styles.dot, { backgroundColor: dot }]} />
+                <Text variant="tag" script="sans" weight="bold" tone="inverse" style={styles.label}>
                     {label}
                 </Text>
             </View>
-            <MoneyValue amount={amount} variant="callout" currencyVariant="caption" tone="inverse" compact />
+
+            <MoneyValue
+                amount={amount}
+                variant="amount"
+                currencyVariant="tag"
+                tone={tone}
+                compact
+                currencySuffix
+                currencyStyle={styles.faint}
+                style={dim ? styles.chargedValue : undefined}
+            />
         </View>
     );
 }
@@ -113,24 +138,47 @@ function HeroStat({
 const styles = StyleSheet.create({
     card: {
         alignSelf: 'stretch',
-        gap: space[2],
-        padding: space[5],
-        borderRadius: radius.sheet,
-        backgroundColor: color.ink,
+        // `gap` is the floor and `space-between` spends whatever height the
+        // screen handed down, so the four blocks breathe on a tall phone and
+        // stay legible on a short one without a second set of numbers.
+        justifyContent: 'space-between',
+        gap: space[4],
+        paddingVertical: space[6],
+        paddingHorizontal: space[6],
+        borderRadius: radius.xl4,
+        backgroundColor: color.inkDeep,
+        experimental_backgroundImage: gradient.hero,
+        boxShadow: shadow.hero,
     },
     dim: { opacity: 0.62 },
-    caption: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[1] },
-    bar: {
-        flexDirection: 'row',
-        alignSelf: 'stretch',
-        gap: 2,
+    faint: { opacity: 0.5 },
+    label: { opacity: 0.58 },
+    unit: { opacity: 0.6, marginTop: space[2], marginStart: space[1] },
+
+    figure: { flexDirection: 'row', alignItems: 'flex-end', gap: space[3.5] },
+    rate: { flexDirection: 'row', alignItems: 'flex-start' },
+    due: { flex: 1, alignItems: 'flex-end', gap: space[0.5], paddingBottom: space[1.5] },
+
+    track: {
         height: BAR_HEIGHT,
-        marginTop: space[2],
+        borderRadius: radius.full,
+        overflow: 'hidden',
+        backgroundColor: color.onDarkTrack,
     },
-    fill: { flexBasis: 0, borderRadius: radius.full },
-    collectedFill: { backgroundColor: color.successBright },
-    dueFill: { backgroundColor: color.due },
-    stats: { flexDirection: 'row', gap: space[3], marginTop: space[2] },
-    stat: { flex: 1, gap: space[1] },
-    statLabel: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+    fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.live },
+
+    stats: { borderTopWidth: 1, borderTopColor: color.onDarkLine },
+    stat: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: space[3],
+        paddingVertical: space[2.5],
+        borderBottomWidth: 1,
+        borderBottomColor: color.onDarkHair,
+    },
+    statLast: { paddingBottom: 0, borderBottomWidth: 0 },
+    statLabel: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+    dot: { width: DOT, height: DOT, borderRadius: 3 },
+    chargedValue: { opacity: 0.72 },
 });
