@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { TextInputProps } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { color, containsArabic, font, radius, size, space, Text, type } from '../../theme';
@@ -8,16 +9,30 @@ export type SearchFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextCo
     onChangeText: (value: string) => void;
     variant?: 'inline' | 'sheet';
     onClear?: () => void;
+    /**
+     * The magnifier. Defaults to the `⌕` glyph because `ui/` may not import an
+     * icon library (§2's import rule) — a cluster that wants the designs' drawn
+     * magnifier passes its own, rather than this file growing a dependency.
+     */
+    leading?: ReactNode;
 };
 
-export function SearchField({ variant = 'inline', onClear, placeholder, ...input }: SearchFieldProps) {
+export function SearchField({
+    variant = 'inline',
+    onClear,
+    placeholder,
+    leading,
+    ...input
+}: SearchFieldProps) {
     const arabic = containsArabic(input.value || placeholder || '');
 
     return (
         <View style={[styles.box, variant === 'sheet' ? styles.sheet : styles.inline]}>
-            <Text variant="callout" tone="muted">
-                {'⌕'}
-            </Text>
+            {leading ?? (
+                <Text variant="callout" tone="muted">
+                    {'⌕'}
+                </Text>
+            )}
 
             <View style={styles.inputWrap}>
                 <TextInput

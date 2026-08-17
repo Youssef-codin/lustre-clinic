@@ -5,7 +5,7 @@ import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
 import { DayScreen, DoctorDayScreen } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
-import { PatientsCluster } from '../screens/patients';
+import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
 import { OfflineScreen } from './OfflineScreen';
@@ -16,6 +16,12 @@ import { OfflineScreen } from './OfflineScreen';
 // secretary keeps the date, scroll position and in-flight queries across tab
 // switches. The shell owns the role — it outlives the settings screen — but it
 // is still device-local and gates rows, never access.
+//
+// It also owns the one route that crosses clusters: a patient's record. Wherever
+// it is asked for — a row in the list, an appointment in the doctor's day view —
+// it opens on the Patients tab and the tab bar moves with it, because that is
+// the screen's home and a record drawn inside the Day tab left the highlight on
+// a day nobody was looking at.
 export function AppShell() {
     const [tab, setTab] = useState<TabKey>('day');
     const [role, setRole] = useState<ClientRole>('doctor');
@@ -24,6 +30,10 @@ export function AppShell() {
     // bar says so rather than leaving the highlight on a day nobody is looking
     // at. Tapping a tab drops the highlight back where the tap says.
     const [booking, setBooking] = useState(false);
+    // The request, not the route: the cluster below owns which of its two
+    // screens is up. `seq` makes each ask distinct, so the same patient can be
+    // opened again after the record has been backed out of.
+    const [record, setRecord] = useState<OpenRecordRequest | undefined>(undefined);
     const { isOffline, isOnline } = useConnection();
 
     // Sticky: `reprobe` passes through 'probing' on its way to an answer, and
@@ -46,19 +56,27 @@ export function AppShell() {
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
     }
 
+    function openRecord(patientId: string, backLabel?: string) {
+        setRecord((current) => ({ patientId, backLabel, seq: (current?.seq ?? 0) + 1 }));
+        open('patients');
+    }
+
     return (
         <View style={styles.root}>
             <View style={styles.body}>
                 <Pane visible={tab === 'day'} mounted={visited.includes('day')}>
                     {role === 'doctor' ? (
-                        <DoctorDayScreen key="doctor" />
+                        <DoctorDayScreen
+                            key="doctor"
+                            onOpenRecord={(patientId) => openRecord(patientId, 'Day')}
+                        />
                     ) : (
                         <DayScreen key="secretary" onBookingChange={setBooking} />
                     )}
                 </Pane>
 
                 <Pane visible={tab === 'patients'} mounted={visited.includes('patients')}>
-                    <PatientsCluster />
+                    <PatientsCluster open={record} />
                 </Pane>
 
                 <Pane visible={tab === 'money'} mounted={visited.includes('money')}>
