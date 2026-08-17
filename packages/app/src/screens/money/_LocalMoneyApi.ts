@@ -39,6 +39,16 @@ export interface BalanceSummary {
     charged: number;
     collected: number;
     difference: number;
+    // How many patients the period's shortfall is spread across — the hero's
+    // "· 12 patients". Not derivable on the client: `outstanding` is a standing
+    // figure over every visit, not this period's.
+    duePatients: number;
+    // Money that arrived in this period against a visit charged in an earlier
+    // one. Charges sit on the visit's date and payments on the day the money
+    // came in, so this is the part of `collected` that is not this period's
+    // work being paid for.
+    olderCollected: number;
+    olderVisits: number;
 }
 
 export interface VisitPayment {
@@ -272,50 +282,75 @@ export const PERIOD_LABEL: Record<Period, string> = {
     all: 'All time',
 };
 
-const PERIOD_FIXTURES: Record<Period, { charged: number; byMethod: Record<PaymentMethod, MethodTaking> }> = {
+type PeriodFixture = {
+    charged: number;
+    duePatients: number;
+    olderCollected: number;
+    olderVisits: number;
+    byMethod: Record<PaymentMethod, MethodTaking>;
+};
+
+// The figures are `money-dashboard-v2.html`'s own dataset, in piastres, so the
+// screen can be held next to the design and read straight across.
+const PERIOD_FIXTURES: Record<Period, PeriodFixture> = {
     today: {
-        charged: 340_000,
+        charged: 1_480_000,
+        duePatients: 4,
+        olderCollected: 245_000,
+        olderVisits: 1,
         byMethod: {
-            cash: { method: 'cash', amount: 180_000, count: 3 },
-            visa: { method: 'visa', amount: 95_000, count: 1 },
-            instapay: { method: 'instapay', amount: 0, count: 0 },
-            other: { method: 'other', amount: 0, count: 0 },
+            cash: { method: 'cash', amount: 380_000, count: 4 },
+            visa: { method: 'visa', amount: 460_000, count: 3 },
+            instapay: { method: 'instapay', amount: 195_000, count: 2 },
+            other: { method: 'other', amount: 80_000, count: 1 },
         },
     },
     week: {
-        charged: 2_410_000,
+        charged: 9_240_000,
+        duePatients: 9,
+        olderCollected: 860_000,
+        olderVisits: 3,
         byMethod: {
-            cash: { method: 'cash', amount: 1_120_000, count: 14 },
-            visa: { method: 'visa', amount: 640_000, count: 6 },
-            instapay: { method: 'instapay', amount: 210_000, count: 2 },
-            other: { method: 'other', amount: 0, count: 0 },
+            cash: { method: 'cash', amount: 2_640_000, count: 22 },
+            visa: { method: 'visa', amount: 2_810_000, count: 17 },
+            instapay: { method: 'instapay', amount: 1_220_000, count: 9 },
+            other: { method: 'other', amount: 460_000, count: 3 },
         },
     },
     month: {
-        charged: 14_262_000,
+        charged: 18_420_000,
+        duePatients: 12,
+        olderCollected: 1_850_000,
+        olderVisits: 6,
         byMethod: {
-            cash: { method: 'cash', amount: 6_540_000, count: 71 },
-            visa: { method: 'visa', amount: 3_120_000, count: 28 },
-            instapay: { method: 'instapay', amount: 1_980_000, count: 19 },
-            other: { method: 'other', amount: 240_000, count: 2 },
+            cash: { method: 'cash', amount: 6_120_000, count: 71 },
+            visa: { method: 'visa', amount: 5_420_000, count: 46 },
+            instapay: { method: 'instapay', amount: 1_890_000, count: 19 },
+            other: { method: 'other', amount: 830_000, count: 6 },
         },
     },
     year: {
-        charged: 89_400_000,
+        charged: 125_000_000,
+        duePatients: 16,
+        olderCollected: 9_200_000,
+        olderVisits: 31,
         byMethod: {
-            cash: { method: 'cash', amount: 41_200_000, count: 462 },
-            visa: { method: 'visa', amount: 22_900_000, count: 198 },
-            instapay: { method: 'instapay', amount: 12_400_000, count: 131 },
-            other: { method: 'other', amount: 1_150_000, count: 9 },
+            cash: { method: 'cash', amount: 43_800_000, count: 488 },
+            visa: { method: 'visa', amount: 36_500_000, count: 312 },
+            instapay: { method: 'instapay', amount: 12_600_000, count: 133 },
+            other: { method: 'other', amount: 3_950_000, count: 27 },
         },
     },
     all: {
-        charged: 122_650_000,
+        charged: 285_000_000,
+        duePatients: 18,
+        olderCollected: 14_800_000,
+        olderVisits: 52,
         byMethod: {
-            cash: { method: 'cash', amount: 58_300_000, count: 688 },
-            visa: { method: 'visa', amount: 30_100_000, count: 271 },
-            instapay: { method: 'instapay', amount: 15_600_000, count: 166 },
-            other: { method: 'other', amount: 1_900_000, count: 15 },
+            cash: { method: 'cash', amount: 98_900_000, count: 1_104 },
+            visa: { method: 'visa', amount: 84_000_000, count: 719 },
+            instapay: { method: 'instapay', amount: 27_800_000, count: 291 },
+            other: { method: 'other', amount: 10_300_000, count: 68 },
         },
     },
 };
@@ -429,7 +464,14 @@ export const moneyApi = {
         return reply(() => {
             const fixture = PERIOD_FIXTURES[period];
             const collected = Object.values(fixture.byMethod).reduce((sum, row) => sum + row.amount, 0);
-            return { charged: fixture.charged, collected, difference: fixture.charged - collected };
+            return {
+                charged: fixture.charged,
+                collected,
+                difference: fixture.charged - collected,
+                duePatients: fixture.duePatients,
+                olderCollected: fixture.olderCollected,
+                olderVisits: fixture.olderVisits,
+            };
         });
     },
 

@@ -1,17 +1,20 @@
 // One debtor row on the money dashboard. The amount is the standing balance
 // across every visit, as `balance.outstanding` derived it — the row never adds
-// anything up. Entry animates only on mount: re-running on a filter change
+// anything up. How long it has been owed is the only part of the line the
+// design colours: "Outstanding" is context, the age is the thing that is
+// getting worse. Entry animates only on mount; re-running on a filter change
 // would restage the whole list on every search keystroke.
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';
-import { size, space, Text } from '../../../theme';
+import { color, space, Text } from '../../../theme';
 import type { PatientBalance } from '../_LocalMoneyApi';
 import { MoneyValue } from '../_LocalMoneyValue';
 import { outstandingAge } from '../format';
 
 const MAX_STAGGER_STEPS = 8;
-const STAGGER_MS = 40;
+const STAGGER_MS = 32;
+const ROW_HEIGHT = 64;
 
 export type DebtorRowProps = {
     patient: PatientBalance;
@@ -40,26 +43,30 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
         <Animated.View
             style={{
                 opacity: entry,
-                transform: [{ translateY: entry.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+                transform: [{ translateY: entry.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }],
             }}
         >
             <Pressable
                 onPress={onPress}
                 accessibilityRole="button"
-                style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.row, index > 0 && styles.divided, pressed && styles.pressed]}
                 testID={`money-debtor-${patient.patientId}`}
             >
                 <View style={styles.text}>
-                    <Text variant="headline" numberOfLines={1}>
+                    <Text variant="body" weight="semibold" numberOfLines={1}>
                         {patient.name}
                     </Text>
-                    <Text variant="subhead" tone="muted">
-                        {`Outstanding ${outstandingAge(patient.oldestUnpaidAt)}`}
+
+                    <Text variant="footnote" tone="muted">
+                        Outstanding{' '}
+                        <Text variant="footnote" weight="semibold" tone="due">
+                            {outstandingAge(patient.oldestUnpaidAt)}
+                        </Text>
                     </Text>
                 </View>
 
-                <MoneyValue amount={patient.balance} variant="amount" currencyVariant="caption" tone="due" />
-                <Chevron />
+                <MoneyValue amount={patient.balance} variant="body" weight="bold" tone="due" />
+                <Chevron size={7} />
             </Pressable>
         </Animated.View>
     );
@@ -70,10 +77,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[3],
-        minHeight: size.row + space[3],
+        minHeight: ROW_HEIGHT,
         paddingHorizontal: space[4],
         paddingVertical: space[3],
+        backgroundColor: color.surface,
     },
+    divided: { borderTopWidth: 1, borderTopColor: color.hair },
     text: { flex: 1, gap: space[0.5] },
-    pressed: { opacity: 0.72 },
+    pressed: { backgroundColor: color.canvas },
 });

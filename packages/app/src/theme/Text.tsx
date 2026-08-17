@@ -23,11 +23,22 @@ export type TextTone =
     | 'danger'
     | 'wa'
     | 'inverse'
-    | 'live';
+    | 'live'
+    | 'older'
+    | 'dueText'
+    | 'successText'
+    | 'successOnDark'
+    | 'dueOnDark';
 
 type Script = keyof typeof font;
 
-const MONO_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>(['figure', 'amount', 'eyebrow', 'tag']);
+const MONO_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>([
+    'figure',
+    'figure2',
+    'amount',
+    'eyebrow',
+    'tag',
+]);
 
 const UPPERCASE_VARIANTS: ReadonlySet<TextVariant> = new Set<TextVariant>(['eyebrow', 'tag']);
 
@@ -42,7 +53,9 @@ const DEFAULT_WEIGHT: Record<TextVariant, TextWeight> = {
     subhead: 'regular',
     footnote: 'regular',
     caption: 'regular',
+    hero: 'bold',
     figure: 'medium',
+    figure2: 'medium',
     amount: 'medium',
     eyebrow: 'medium',
     tag: 'medium',
@@ -59,10 +72,21 @@ const TONE: Record<TextTone, string> = {
     wa: color.wa,
     inverse: color.inverse,
     live: color.live,
+    older: color.older,
+    dueText: color.dueText,
+    successText: color.successText,
+    successOnDark: color.successOnDark,
+    dueOnDark: color.dueOnDark,
 };
 
 const styles = StyleSheet.create({
     uppercase: { textTransform: 'uppercase' },
+    // Android reserves the font's own ascent/descent padding above and below
+    // every Text on top of `lineHeight`, so a measured 20px gap in a design
+    // renders as 26–28 and a card of stacked labels drifts taller than it was
+    // drawn. The ramp already states the line height it wants; this stops the
+    // platform adding to it. iOS has no equivalent and ignores the property.
+    metrics: { includeFontPadding: false },
 });
 
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
@@ -96,6 +120,7 @@ export function Text({
         <RNText
             style={[
                 type[variant],
+                styles.metrics,
                 { fontFamily: font[resolvedScript][weight ?? DEFAULT_WEIGHT[variant]], color: TONE[tone] },
                 UPPERCASE_VARIANTS.has(variant) && styles.uppercase,
                 style,

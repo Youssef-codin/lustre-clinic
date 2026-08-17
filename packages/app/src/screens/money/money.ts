@@ -88,3 +88,26 @@ export function collectedAhead(difference: number): number {
 export function currencyLeads(locale: MoneyLocale): boolean {
     return locale !== 'ar';
 }
+
+export const DEBTOR_SORTS = ['balance', 'oldest', 'name'] as const;
+
+export type DebtorSort = (typeof DEBTOR_SORTS)[number];
+
+export const DEBTOR_SORT_LABEL: Record<DebtorSort, string> = {
+    balance: 'By balance',
+    oldest: 'Oldest first',
+    name: 'Name A–Z',
+};
+
+type SortableDebtor = { name: string; balance: number; oldestUnpaidAt: string };
+
+// Reordering is not arithmetic on money — nothing here adds a balance up, it
+// only compares two the server already derived. `oldest` compares the ISO
+// stamps directly, which sort lexicographically, so the longest-owed row leads.
+export function sortDebtors<T extends SortableDebtor>(rows: readonly T[], sort: DebtorSort): T[] {
+    const ordered = [...rows];
+
+    if (sort === 'oldest') return ordered.sort((a, b) => a.oldestUnpaidAt.localeCompare(b.oldestUnpaidAt));
+    if (sort === 'name') return ordered.sort((a, b) => a.name.localeCompare(b.name));
+    return ordered.sort((a, b) => b.balance - a.balance);
+}
