@@ -2,7 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
-import { AppShell } from './src/shell';
+import { AppShell, SetupScreen, useServerSetup } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
 // The entry point mounts the shell (F3): the bottom tab bar and four clusters,
@@ -10,15 +10,23 @@ import { color, useAppFonts } from './src/theme';
 // `src/screens/dev/GalleryScreen` — mount it in place of `<AppShell />` when
 // poking at a primitive on a device. `ApiProvider` wraps the whole shell
 // because the query cache and connection state outlive any one tab.
+//
+// Setup (F1) stands in front of it until the phone knows where the clinic
+// server is — which, on a clinic wired to the address `app.json` ships, is
+// never: the default is probed during the blank hold and a phone that finds the
+// server goes straight to the shell. The hold covers reading the stored address
+// off the device and that probe as well as the fonts, because mounting either
+// screen before the answer is in flashes the wrong one.
 export default function App() {
     const fontsLoaded = useAppFonts();
-    if (!fontsLoaded) return <View style={styles.screen} />;
+    const { ready, showSetup } = useServerSetup();
+    if (!fontsLoaded || !ready) return <View style={styles.screen} />;
 
     return (
         <SafeAreaProvider>
             <ApiProvider>
                 <SafeAreaView style={styles.screen} edges={['top']}>
-                    <AppShell />
+                    {showSetup ? <SetupScreen /> : <AppShell />}
                     <StatusBar style="dark" />
                 </SafeAreaView>
             </ApiProvider>
