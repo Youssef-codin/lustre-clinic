@@ -608,6 +608,28 @@ describe('patient', () => {
         expect((await patientService.search({ q: 'nobody', limit: 25 })).length).toBe(0);
     });
 
+    // What the Patients tab opens on. `search('')` answers nothing by design, so
+    // browsing is its own procedure — and its `total` is the register rather than
+    // the page, which is the number the list draws beside its heading.
+    test('browses the newest registrations, and counts the whole register', async () => {
+        const first = await patientService.create({
+            name: 'Registered First',
+            phone: '01011111111',
+            custom: {},
+        });
+        const second = await patientService.create({
+            name: 'Registered Second',
+            phone: '01022222222',
+            custom: {},
+        });
+
+        const page = await patientService.recent({ limit: 1 });
+
+        expect(page.patients.map((row) => row.id)).toEqual([second.id]);
+        expect(page.total).toBe(2);
+        expect(first.id).not.toBe(second.id);
+    });
+
     test('merges a partial custom patch instead of replacing it', async () => {
         await customQuestionService.create({
             key: 'allergies',

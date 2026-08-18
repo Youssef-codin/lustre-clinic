@@ -13,7 +13,8 @@
  * goes with it: taking payment is the desk's, so `CheckoutSheet` is not here
  * either. What replaces it is `DoctorVisitSheet`, which is a read: tapping a row
  * asks what this patient is in for, and the answer is today's plan, with the
- * record one further tap away for the history.
+ * record one further tap away for the history. That tap leaves this screen —
+ * `onOpenRecord` asks the shell, which opens it on the Patients tab.
  *
  * `arrivals` is keyed by the checked-in ids rather than the date, so the queue's
  * order is re-asked when somebody arrives or leaves the chair and not on every
@@ -21,9 +22,8 @@
  */
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, PushView, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
+import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
-import { PatientRecordScreen } from '../patients';
 import { procedureLabel } from './agenda';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
@@ -41,18 +41,21 @@ import { busiestBranch, holdsSlot } from './month';
 import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
-export function DoctorDayScreen() {
+export type DoctorDayScreenProps = {
+    /** A patient's record is the Patients tab's screen; the shell switches to it. */
+    onOpenRecord: (patientId: string) => void;
+};
+
+export function DoctorDayScreen({ onOpenRecord }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
-    // One appointment, two things open on it — the sheet and the record behind
-    // it. Kept whole while either slides back out; dropping it on close would
-    // blank the sheet or the pane mid-animation.
-    const [opened, setOpened] = useState<{
-        appointment: Appointment | null;
-        sheet: boolean;
-        record: boolean;
-    }>({ appointment: null, sheet: false, record: false });
+    // The appointment the sheet is about. Kept while the sheet slides back out;
+    // dropping it on close would blank it mid-animation.
+    const [opened, setOpened] = useState<{ appointment: Appointment | null; sheet: boolean }>({
+        appointment: null,
+        sheet: false,
+    });
     const [toast, setToast] = useState<string | null>(null);
 
     const nowMinutes = useNowMinutes();
@@ -131,7 +134,7 @@ export function DoctorDayScreen() {
 
     // A tap opens the plan, not the record: standing at the chair the question
     // is what is being done today, and the history is the sheet's own button.
-    const openVisit = (appointment: Appointment) => setOpened({ appointment, sheet: true, record: false });
+    const openVisit = (appointment: Appointment) => setOpened({ appointment, sheet: true });
 
     // The calendar counts every branch; the picked day carries the one it is
     // busiest in, so the day it promised is the day this draws.
@@ -259,23 +262,16 @@ export function DoctorDayScreen() {
                 visible={opened.sheet}
                 appointment={opened.appointment}
                 onClose={() => setOpened((current) => ({ ...current, sheet: false }))}
-                // The sheet goes as the record arrives: two layers over the day,
-                // one of them a modal, is a back button with two meanings.
-                onOpenRecord={(appointment) => setOpened({ appointment, sheet: false, record: true })}
+                // The sheet goes as the record arrives: two layers, one of them a
+                // modal, is a back button with two meanings. The record itself is
+                // the Patients tab's screen, so the shell is asked for it and the
+                // tab bar moves with it — a record drawn inside the Day tab left
+                // the highlight on a day nobody was looking at.
+                onOpenRecord={(appointment) => {
+                    setOpened((current) => ({ ...current, sheet: false }));
+                    onOpenRecord(appointment.patientId);
+                }}
             />
-
-            {/* Keyed by patient so opening a second one remounts rather than
-                showing the first one's record under a new name. */}
-            <PushView visible={opened.record} testID="doctor-record">
-                {opened.appointment ? (
-                    <PatientRecordScreen
-                        key={`record:${opened.appointment.patientId}`}
-                        patientId={opened.appointment.patientId}
-                        backLabel="Day"
-                        onBack={() => setOpened((current) => ({ ...current, record: false }))}
-                    />
-                ) : null}
-            </PushView>
 
             <Toast
                 visible={toast !== null}

@@ -16,7 +16,15 @@
  */
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 import { PatientsRequestError } from './requestError';
-import type { CustomQuestion, Patient, PatientBalance, PatientDetail, UpdatePatientInput } from './types';
+import type {
+    CreatePatientInput,
+    CustomQuestion,
+    Patient,
+    PatientBalance,
+    PatientDetail,
+    RecentPatients,
+    UpdatePatientInput,
+} from './types';
 
 function shaped<T>(value: unknown): T {
     return value as T;
@@ -54,13 +62,17 @@ export const patientsApi = {
     },
 
     /**
-     * An empty term is not a browse: `patient.search` answers `[]` for one, so
-     * the list stays on its "search for a patient" state rather than drawing a
-     * page of whoever was registered last. See BLOCKED.md — there is no
-     * "recent patients" procedure to call.
+     * An empty term is not a browse: `patient.search` answers `[]` for one, by
+     * design. Browsing is `recent`, which the list calls instead of searching
+     * for nothing.
      */
     search(q: string, limit = 25): Promise<Patient[]> {
         return wrap(() => trpcClient.patient.search.query({ q: q.trim(), limit }));
+    },
+
+    /** Newest first, plus the size of the whole register for the heading's count. */
+    recent(limit = 25): Promise<RecentPatients> {
+        return wrap(() => trpcClient.patient.recent.query({ limit }));
     },
 
     byId(id: string): Promise<PatientDetail> {
@@ -72,6 +84,15 @@ export const patientsApi = {
             trpcClient.balance.outstanding.query(),
         );
         return report.patients.map((row) => ({ patientId: row.patientId, balance: row.balance }));
+    },
+
+    /**
+     * Registering someone. The whole `custom` form goes with it, because
+     * `validateIntake` is the one place the clinic's required questions are
+     * enforced — an edit later is only ever validated against the keys it sends.
+     */
+    create(input: CreatePatientInput): Promise<Patient> {
+        return wrap(() => trpcClient.patient.create.mutate(input));
     },
 
     update(input: UpdatePatientInput): Promise<Patient> {

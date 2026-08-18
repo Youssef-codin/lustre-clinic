@@ -6,20 +6,25 @@
 // costs frames on the clinic's Android for no information the static blocks do
 // not already give.
 import { StyleSheet, View } from 'react-native';
-import { color, radius, size, space } from '../../../theme';
+import { border, color, radius, size, space } from '../../../theme';
 
 export type SkeletonRowsProps = {
     count?: number;
     gutter?: number;
+    /** The list's ground: page-coloured and hairline-ruled, like the rows that replace it. */
+    ruled?: boolean;
 };
 
 const KEYS = Array.from({ length: 12 }, (_, index) => `skeleton-${index}`);
 
-export function SkeletonRows({ count = 6, gutter = size.gutter }: SkeletonRowsProps) {
+export function SkeletonRows({ count = 6, gutter = size.gutter, ruled = false }: SkeletonRowsProps) {
     return (
         <View accessibilityRole="progressbar" accessibilityLabel="Loading">
             {KEYS.slice(0, count).map((key, index) => (
-                <View key={key} style={[styles.row, { paddingHorizontal: gutter }]}>
+                <View
+                    key={key}
+                    style={[styles.row, ruled ? styles.ruled : styles.filled, { paddingHorizontal: gutter }]}
+                >
                     <View style={styles.text}>
                         <View style={[styles.block, styles.primary, index % 2 === 0 && styles.wide]} />
                         <View style={[styles.block, styles.secondary]} />
@@ -35,7 +40,12 @@ const styles = StyleSheet.create({
         minHeight: size.row + space[4],
         justifyContent: 'center',
         paddingVertical: space[2.5],
-        backgroundColor: color.surface,
+    },
+    filled: { backgroundColor: color.surface },
+    ruled: {
+        backgroundColor: color.canvas,
+        borderTopWidth: border.hair,
+        borderTopColor: color.hair,
     },
     text: { gap: space[2] },
     block: { backgroundColor: color.surface2, borderRadius: radius.sm },
