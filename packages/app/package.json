@@ -24,6 +24,7 @@
         "@expo-google-fonts/noto-naskh-arabic": "^0.4.5",
         "@expo/vector-icons": "^15.1.1",
         "@lustre/shared": "workspace:*",
+        "@react-native-async-storage/async-storage": "2.2.0",
         "@tanstack/react-query": "^5.101.4",
         "@trpc/client": "11.18.0",
         "@trpc/server": "11.18.0",
@@ -41,6 +42,7 @@
     },
     "devDependencies": {
         "@lustre/server": "workspace:*",
-        "@types/react": "~19.2.2"
+        "@types/react": "~19.2.2",
+        "react-native-svg-transformer": "^1.5.3"
     }
 }

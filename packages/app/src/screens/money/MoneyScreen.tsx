@@ -11,7 +11,7 @@
 // the filtered rows, because a figure that shrank as you typed would read as
 // the clinic being owed less than it is.
 import { useMemo, useRef, useState } from 'react';
-import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { LayoutChangeEvent } from 'react-native';
 import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';

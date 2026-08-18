@@ -33,6 +33,12 @@ describe('health.check', () => {
         expect(result.migration).toBeString();
     });
 
+    test('carries the tailnet address the app stores, null when unconfigured', () => {
+        // The field must exist even when empty: the app reads it on every
+        // connection, and an absent one would look like a server too old to ask.
+        expect(client().health.check.query()).resolves.toHaveProperty('tailscale', null);
+    });
+
     test('is reachable over plain HTTP GET, as the connection probe expects', async () => {
         const res = await fetch(`${baseUrl}${TRPC_ENDPOINT}/health.check`);
         expect(res.status).toBe(200);

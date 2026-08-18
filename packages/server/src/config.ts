@@ -27,6 +27,12 @@ const envSchema = z.object({
         .or(z.literal('').transform(() => undefined)),
     HEARTBEAT_INTERVAL_SECONDS: z.coerce.number().int().positive().default(300),
 
+    // Where this machine answers from elsewhere on the tailnet. Reported to the
+    // app by `health.check` so a phone is never told it by hand (§14).
+    // `TAILSCALE_IP` is already required by compose to bind the published port.
+    TAILSCALE_HOSTNAME: z.string().optional(),
+    TAILSCALE_IP: z.string().optional(),
+
     BACKUP_ENCRYPTION_KEY: z.string().optional(),
     BACKUP_DIR: z.string().default('./backups'),
     BACKUP_INTERVAL_HOURS: z.coerce.number().positive().default(24),
@@ -58,3 +64,34 @@ function load(): Config {
 }
 
 export const config = load();
+
+// A tailnet address is in the 100.64.0.0/10 carrier-grade NAT range Tailscale
+// hands out. The check exists to reject `TAILSCALE_IP`'s dev default of
+// 0.0.0.0, which binds every interface and dials none of them: handing it to a
+// phone would store a working-looking address that can never answer.
+function isTailnetIp(value: string): boolean {
+    const [first, second] = value.split('.').map(Number);
+    return first === 100 && second !== undefined && second >= 64 && second <= 127;
+}
+
+function asBaseUrl(host: string, port: number): string {
+    const trimmed = host.trim().replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    // A bare MagicDNS name or IP carries no port, and the one worth advertising
+    // is the one this process is listening on.
+    return trimmed.includes(':') ? `http://${trimmed}` : `http://${trimmed}:${port}`;
+}
+
+// The MagicDNS name is preferred over the IP because it survives the tailnet
+// reassigning the address — the phones then need no attention at all.
+// Exported for the tests: what it returns is written into every handset, so a
+// wrong answer here is not a bad response but a fleet that cannot dial home.
+export function resolveTailnetAddress(env: Config): string | null {
+    const hostname = env.TAILSCALE_HOSTNAME?.trim();
+    if (hostname) return asBaseUrl(hostname, env.PORT);
+
+    const ip = env.TAILSCALE_IP?.trim();
+    return ip && isTailnetIp(ip) ? asBaseUrl(ip, env.PORT) : null;
+}
+
+export const tailnetAddress = resolveTailnetAddress(config);

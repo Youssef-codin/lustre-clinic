@@ -34,4 +34,13 @@ config.resolver.blockList = [
     /\/\.git\/.*/,
 ];
 
+// `assets/brand/*.svg` are the brand masters, and a component that traced one
+// into a path string would be a second copy to keep in sync. This makes an
+// import of a `.svg` a react-native-svg component, so the file stays the only
+// source of truth. `.svg` moves out of assetExts and into sourceExts, or Metro
+// keeps treating it as an image and the import returns a URI.
+config.transformer.babelTransformerPath = require.resolve('react-native-svg-transformer/expo');
+config.resolver.assetExts = config.resolver.assetExts.filter((ext) => ext !== 'svg');
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'svg'];
+
 module.exports = config;

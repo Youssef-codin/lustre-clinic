@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { Button } from '../components/ui';
 import { color, radius, space, Text } from '../theme';
+import { requestReconfigure } from './serverStore';
 
 // The one screen with nothing on it (SPEC §7.14). When the clinic server does
 // not answer there is no honest thing to draw — every list is a cache of a
@@ -51,6 +52,17 @@ export function OfflineScreen() {
                 <Text variant="caption" tone="muted">
                     {lastOnlineAt ? `Last connected ${formatLastOnline(lastOnlineAt)}` : 'Never connected'}
                 </Text>
+
+                {/* The only other way out. A saved address that is wrong fails
+                    identically to a clinic PC that is off, and Try again can
+                    never fix the first one. */}
+                <Button
+                    label="Change server address"
+                    onPress={requestReconfigure}
+                    variant="text"
+                    size="md"
+                    style={styles.reconfigure}
+                />
             </View>
         </View>
     );
@@ -97,4 +109,5 @@ const styles = StyleSheet.create({
     },
     body: { textAlign: 'center' },
     action: { marginTop: space[4], marginBottom: space[2] },
+    reconfigure: { marginTop: space[2] },
 });
