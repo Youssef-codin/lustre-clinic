@@ -1,5 +1,10 @@
 /**
  * −/value/+ on a grey track. Quantities, never money.
+ *
+ * `format` is for the steppers that count in a unit rather than in things —
+ * hours before an appointment, a time of day, a repeat interval. The number
+ * stepped is still the number, so `min`/`max`/`step` and the accessibility
+ * value stay in that unit; only the label between the buttons is rendered.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { color, radius, space, Text } from '../../theme';
@@ -10,6 +15,7 @@ export type StepperProps = {
     min?: number;
     max?: number;
     step?: number;
+    format?: (value: number) => string;
     accessibilityLabel?: string;
     testID?: string;
 };
@@ -20,6 +26,7 @@ export function Stepper({
     min = 0,
     max = Number.MAX_SAFE_INTEGER,
     step = 1,
+    format,
     accessibilityLabel,
     testID,
 }: StepperProps) {
@@ -51,7 +58,7 @@ export function Stepper({
             </Pressable>
 
             <View style={styles.value}>
-                <Text variant="amount">{String(value)}</Text>
+                <Text variant="amount">{format ? format(value) : String(value)}</Text>
             </View>
 
             <Pressable

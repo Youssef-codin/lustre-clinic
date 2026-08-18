@@ -1,7 +1,12 @@
 /**
  * A row on the settings index (Component Inventory §5): 32px icon tile, label
- * and sub, chevron. Settings is the only cluster with an index like this, so
- * it is cluster-local, but a candidate for `domain/` if a second one appears.
+ * and sub, chevron. Settings is the only cluster with an index like this, so it
+ * is cluster-local, but a candidate for `domain/` if a second one appears.
+ *
+ * The sub is not decoration and is never omitted: `settings.html` fills it with
+ * the row's current answer — "default 30 min", "2 active · 1 inactive" — so the
+ * index reads as a summary of the clinic's settings and most questions are
+ * answered without opening anything.
  */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -11,42 +16,31 @@ import { color, radius, size, space, Text } from '../../../theme';
 export type SettingsRowProps = {
     icon: ReactNode;
     label: string;
-    sub?: string;
+    sub: string;
     onPress: () => void;
-    value?: string;
     testID?: string;
 };
-export function SettingsRow({ icon, label, sub, onPress, value, testID }: SettingsRowProps) {
+
+export function SettingsRow({ icon, label, sub, onPress, testID }: SettingsRowProps) {
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={sub ? `${label}. ${sub}` : label}
+            accessibilityLabel={`${label}. ${sub}`}
             onPress={onPress}
             testID={testID}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
-            <View style={styles.tile}>
-                <Text variant="callout" tone="ink2">
-                    {icon}
-                </Text>
-            </View>
+            <View style={styles.tile}>{icon}</View>
 
             <View style={styles.text}>
-                <Text variant="body" weight="medium">
+                <Text variant="body" weight="semibold">
                     {label}
                 </Text>
-                {sub ? (
-                    <Text variant="subhead" tone="muted">
-                        {sub}
-                    </Text>
-                ) : null}
+                <Text variant="footnote" tone="muted" numberOfLines={1}>
+                    {sub}
+                </Text>
             </View>
 
-            {value ? (
-                <Text variant="subhead" tone="muted">
-                    {value}
-                </Text>
-            ) : null}
             <Chevron direction="forward" tone="muted" />
         </Pressable>
     );
@@ -58,8 +52,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: space[3],
         minHeight: size.row + space[3],
-        paddingHorizontal: space[4],
-        paddingVertical: space[2.5],
+        paddingHorizontal: space[3.5],
+        paddingVertical: space[3],
     },
     pressed: { backgroundColor: color.surface2 },
     tile: {
@@ -70,5 +64,5 @@ const styles = StyleSheet.create({
         borderRadius: radius.sm,
         backgroundColor: color.canvas,
     },
-    text: { flex: 1, gap: space[0.5] },
+    text: { flex: 1, minWidth: 0, gap: space[0.5] },
 });

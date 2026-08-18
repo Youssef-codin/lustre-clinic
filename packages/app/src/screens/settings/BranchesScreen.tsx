@@ -1,22 +1,27 @@
 /**
- * Settings → Branches. Branches are never deleted — appointments reference
- * them and history must keep making sense — so the verb is deactivate, the
- * same as procedures and patient fields, and a deactivated branch stays on
- * every appointment that already names it. While a write is in flight, Back
- * is blocked so leaving cannot hide whether the save landed.
+ * Settings → Branches. Branches are never deleted — visits, invoices and
+ * patients keep pointing at them forever — so the verb is deactivate, the same
+ * as procedures and patient fields, and the pane says so in as many words
+ * rather than leaving someone hunting for a delete that is not there.
+ *
+ * A branch is a card of its own rather than a row in a shared card, because the
+ * design gives each three lines that belong together — name, address, and how
+ * big and how old it is — and a divider between three-line rows reads as a
+ * table of unrelated fields. Inactive branches keep the shape and lose the
+ * fill: dashed and dimmed, still tappable, still editable.
  */
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
     ActionBar,
-    AddButton,
     Button,
     Callout,
     Card,
-    CardDivider,
     Chevron,
     ConfirmSheet,
+    Dot,
     EmptyState,
+    IconButton,
     PushView,
     SectionLabel,
     Tag,
@@ -25,7 +30,8 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { color, size, space, Text } from '../../theme';
+import { color, radius, space, Text } from '../../theme';
+import { InfoIcon, PlusIcon, PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { api } from './data/_LocalApi';
@@ -33,12 +39,20 @@ import { errorMessage, useMutation, useQuery } from './data/hooks';
 import type { Branch } from './data/types';
 
 export function BranchesScreen({ onBack }: { onBack: () => void }) {
-    const branches = useQuery(useCallback(() => api.branch.list({ includeInactive: true }), []));
+    const branches = useQuery(
+        useCallback(
+            async () => ({
+                rows: await api.branch.list({ includeInactive: true }),
+                currentId: await api.branch.current(),
+            }),
+            [],
+        ),
+    );
     const [editing, setEditing] = useState<Branch | 'new' | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
-    const active = branches.data?.filter((b) => b.active) ?? [];
-    const inactive = branches.data?.filter((b) => !b.active) ?? [];
+    const active = branches.data?.rows.filter((b) => b.active) ?? [];
+    const inactive = branches.data?.rows.filter((b) => !b.active) ?? [];
 
     // Settings are read once when the pane opens, so a branch added on the
     // doctor's phone is invisible here until something asks again. The editor
@@ -51,6 +65,19 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                 title="Branches"
                 onBack={onBack}
                 refreshControl={refreshControl}
+                testID="settings-branches-pane"
+                trailing={
+                    branches.data ? (
+                        <IconButton
+                            accessibilityLabel="Add a branch"
+                            variant="filled"
+                            tone="ink"
+                            icon={<PlusIcon size={13} />}
+                            onPress={() => setEditing('new')}
+                            testID="branch-add"
+                        />
+                    ) : undefined
+                }
                 overlay={
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
@@ -77,39 +104,32 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                             />
                         ) : (
                             <View style={styles.section}>
-                                <SectionLabel inset={false} count={active.length}>
-                                    OPEN
-                                </SectionLabel>
-                                <Card>
-                                    {active.map((branch, index) => (
-                                        <View key={branch.id}>
-                                            {index > 0 ? <CardDivider /> : null}
-                                            <BranchRow branch={branch} onPress={() => setEditing(branch)} />
-                                        </View>
-                                    ))}
-                                </Card>
+                                <SectionLabel inset={false}>ACTIVE</SectionLabel>
+                                {active.map((branch) => (
+                                    <BranchCard
+                                        key={branch.id}
+                                        branch={branch}
+                                        here={branch.id === branches.data?.currentId}
+                                        onPress={() => setEditing(branch)}
+                                    />
+                                ))}
                             </View>
                         )}
 
-                        {active.length > 0 ? (
-                            <AddButton label="Add a branch" onPress={() => setEditing('new')} />
-                        ) : null}
-
                         {inactive.length > 0 ? (
                             <View style={styles.section}>
-                                <SectionLabel inset={false} count={inactive.length}>
-                                    DEACTIVATED
-                                </SectionLabel>
-                                <Card variant="dashed">
-                                    {inactive.map((branch, index) => (
-                                        <View key={branch.id}>
-                                            {index > 0 ? <CardDivider /> : null}
-                                            <BranchRow branch={branch} onPress={() => setEditing(branch)} />
-                                        </View>
-                                    ))}
-                                </Card>
+                                <SectionLabel inset={false}>INACTIVE</SectionLabel>
+                                {inactive.map((branch) => (
+                                    <BranchCard
+                                        key={branch.id}
+                                        branch={branch}
+                                        here={false}
+                                        onPress={() => setEditing(branch)}
+                                    />
+                                ))}
                                 <Text variant="footnote" tone="muted" style={styles.note}>
-                                    Deactivated branches stay on every appointment that already names them.
+                                    Branches are never deleted — their visits, invoices and patients stay
+                                    attached to them. Deactivating just hides a branch from new bookings.
                                 </Text>
                             </View>
                         ) : null}
@@ -134,31 +154,47 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
     );
 }
 
-function BranchRow({ branch, onPress }: { branch: Branch; onPress: () => void }) {
+function BranchCard({ branch, here, onPress }: { branch: Branch; here: boolean; onPress: () => void }) {
+    const stats = branch.active
+        ? `${branch.patientCount} · since ${branch.openedYear}`
+        : `${branch.patientCount} · since ${branch.closedOn ?? '—'}`;
+
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={branch.name}
+            accessibilityLabel={`${branch.name}. ${stats}`}
             onPress={onPress}
-            style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+            testID={`branch-${branch.id}`}
+            style={({ pressed }) => [
+                styles.card,
+                !branch.active && styles.inactiveCard,
+                pressed && styles.pressed,
+            ]}
         >
-            <View style={styles.rowText}>
-                <View style={styles.rowTitle}>
-                    <Text variant="body" weight="medium">
+            <View style={styles.cardText}>
+                <View style={styles.cardTitle}>
+                    <Text variant="headline" tone={branch.active ? 'ink' : 'muted'}>
                         {branch.name}
                     </Text>
-                    {branch.active ? null : (
-                        <Tag tone="muted" variant="muted">
-                            INACTIVE
+                    {here ? (
+                        <Tag tone="ink" variant="filled">
+                            {"YOU'RE HERE"}
                         </Tag>
-                    )}
+                    ) : null}
+                    {branch.active ? null : <Tag tone="muted">INACTIVE</Tag>}
                 </View>
+
                 {branch.address ? (
-                    <Text variant="subhead" tone="muted" numberOfLines={1}>
+                    <Text variant="footnote" tone="muted" numberOfLines={1}>
                         {branch.address}
                     </Text>
                 ) : null}
+
+                <Text variant="caption" weight="medium" tone="muted" script="mono">
+                    {stats}
+                </Text>
             </View>
+
             <Chevron direction="forward" tone="muted" />
         </Pressable>
     );
@@ -173,10 +209,11 @@ type BranchEditorProps = {
 function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
     const [name, setName] = useState(branch?.name ?? '');
     const [address, setAddress] = useState(branch?.address ?? '');
+    const [phone, setPhone] = useState(branch?.phone ?? '');
     const [submitted, setSubmitted] = useState(false);
     const [confirming, setConfirming] = useState(false);
 
-    const save = useMutation((input: { name: string; address: string }) =>
+    const save = useMutation((input: { name: string; address: string; phone: string }) =>
         branch ? api.branch.update({ id: branch.id, ...input }) : api.branch.create(input),
     );
 
@@ -188,12 +225,14 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
     async function onSave() {
         setSubmitted(true);
         if (name.trim() === '') return;
-        const saved = await save.run({ name, address });
+
+        const saved = await save.run({ name, address, phone });
         if (saved) onSaved(branch ? 'Branch saved' : 'Branch added');
     }
 
     async function onToggleActive() {
         if (!branch) return;
+
         const updated = await setActive.run(!branch.active);
         setConfirming(false);
         if (updated) onSaved(updated.active ? 'Branch reactivated' : 'Branch deactivated');
@@ -203,14 +242,16 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
         <Pane
             title={branch ? 'Edit branch' : 'New branch'}
             onBack={busy ? () => {} : onClose}
+            testID="branch-editor"
             footer={
+                // Save alone, as `settings.html` draws it: the pane has a back
+                // button, and a Cancel beside Save is a second way out of a
+                // screen that already has one.
                 <ActionBar
-                    primaryLabel={busy ? 'Saving' : 'Save'}
+                    primaryLabel={busy ? 'Saving' : branch ? 'Save branch' : 'Create branch'}
                     onPrimary={onSave}
                     primaryLoading={save.pending}
                     primaryDisabled={setActive.pending}
-                    secondaryLabel="Cancel"
-                    onSecondary={busy ? undefined : onClose}
                 />
             }
         >
@@ -220,40 +261,86 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                 </Callout>
             ) : null}
 
-            <Card padded style={styles.form}>
-                <TextField
-                    label="Name"
-                    required
-                    value={name}
-                    onChangeText={setName}
-                    placeholder="Heliopolis"
-                    error={nameError}
-                    autoCapitalize="words"
-                />
-                <Textarea
-                    label="Address"
-                    value={address}
-                    onChangeText={setAddress}
-                    placeholder="Street, area"
-                    hint="Shown on the branch list. Not sent to patients."
-                />
-            </Card>
+            {branch && !branch.active ? (
+                <Callout tone="info" icon={<InfoIcon size={16} />}>
+                    This branch is inactive. You can still edit its details and reopen it at any time.
+                </Callout>
+            ) : null}
 
-            {branch ? (
+            <View style={styles.section}>
+                <SectionLabel inset={false}>DETAILS</SectionLabel>
                 <Card padded style={styles.form}>
-                    <Text variant="subhead" tone="muted">
-                        {branch.active
-                            ? 'Deactivating hides this branch from the booking screen. Appointments already at this branch keep it.'
-                            : 'This branch is hidden from the booking screen. Reactivating puts it back.'}
-                    </Text>
-                    <Button
-                        label={branch.active ? 'Deactivate branch' : 'Reactivate branch'}
-                        variant={branch.active ? 'danger' : 'secondary'}
-                        onPress={() => setConfirming(true)}
-                        loading={setActive.pending}
-                        block
+                    <TextField
+                        label="Branch name"
+                        required
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="Heliopolis"
+                        error={nameError}
+                        autoCapitalize="words"
+                        testID="branch-name"
+                    />
+                    <Textarea
+                        label="Address"
+                        value={address}
+                        onChangeText={setAddress}
+                        placeholder="Street, area"
+                        testID="branch-address"
+                    />
+                    <TextField
+                        label="Phone"
+                        value={phone}
+                        onChangeText={setPhone}
+                        placeholder="02 0000 0000"
+                        keyboardType="phone-pad"
+                        testID="branch-phone"
                     />
                 </Card>
+            </View>
+
+            {branch ? (
+                <View style={styles.section}>
+                    <SectionLabel inset={false}>STATUS</SectionLabel>
+
+                    <Card padded style={styles.status}>
+                        <View style={styles.statusHead}>
+                            <Dot tone={branch.active ? 'wa' : 'muted'} size={8} />
+                            <Text variant="body" weight="semibold" style={styles.statusLabel}>
+                                {branch.active ? 'Active' : 'Inactive'}
+                            </Text>
+                            <Text variant="footnote" tone="muted" script="mono">
+                                {branch.active
+                                    ? `since ${branch.openedYear}`
+                                    : `since ${branch.closedOn ?? '—'}`}
+                            </Text>
+                        </View>
+
+                        <Text variant="footnote" tone="muted">
+                            {branch.active
+                                ? 'Appears in the branch picker and can take new bookings.'
+                                : 'Hidden from the branch picker. Past visits and invoices are untouched and still searchable.'}
+                        </Text>
+
+                        <Button
+                            label={branch.active ? 'Deactivate branch' : 'Reactivate branch'}
+                            variant={branch.active ? 'danger' : 'secondary'}
+                            icon={
+                                <PowerIcon
+                                    size={15}
+                                    stroke={branch.active ? color.danger : color.ink}
+                                    width={2.2}
+                                />
+                            }
+                            onPress={() => setConfirming(true)}
+                            loading={setActive.pending}
+                            block
+                        />
+
+                        <Text variant="caption" tone="muted" style={styles.noDelete}>
+                            Branches can't be deleted — history stays attached.
+                        </Text>
+                    </Card>
+                </View>
             ) : null}
 
             <ConfirmSheet
@@ -276,17 +363,32 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
 
 const styles = StyleSheet.create({
     section: { gap: space[2] },
-    row: {
+
+    card: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: space[3],
-        minHeight: size.row + space[2],
-        paddingHorizontal: space[4],
-        paddingVertical: space[2.5],
+        padding: space[3.5],
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    // Dashed and unfilled: still a branch, no longer somewhere you can book.
+    inactiveCard: {
+        borderStyle: 'dashed',
+        borderColor: color.outline,
+        backgroundColor: color.transparent,
     },
     pressed: { backgroundColor: color.surface2 },
-    rowText: { flex: 1, gap: space[0.5] },
-    rowTitle: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-    note: { paddingHorizontal: space[1] },
+    cardText: { flex: 1, minWidth: 0, gap: space[0.5] },
+    cardTitle: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+
+    note: { paddingHorizontal: space[0.5] },
     form: { gap: space[4] },
+
+    status: { gap: space[2.5] },
+    statusHead: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
+    statusLabel: { flex: 1 },
+    noDelete: { textAlign: 'center' },
 });

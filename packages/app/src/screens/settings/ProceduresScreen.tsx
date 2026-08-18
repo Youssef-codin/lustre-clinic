@@ -1,14 +1,17 @@
 /**
- * Settings → Procedures and prices. The catalogue is a self-referencing tree,
+ * Settings → Procedures & prices. The catalogue is a self-referencing tree,
  * one level deep: a row with children is a category — a heading with no price
  * that never reaches a visit — and only leaves are chargeable, each priced on
  * its own (a variant is a leaf). Nothing is ever deleted; deactivate stops it
  * appearing in the picker and keeps it on every visit that already charged for
- * it, at the snapshot price, so edits are forward-only. Inactive rows stay
- * visible here, dimmed, because this is the screen where a deactivated
- * procedure is brought back. In reorder mode the price is dropped rather than
- * sat beside the arrows — a tappable price next to small buttons reprises by
- * accident.
+ * it, at the snapshot price, so edits are forward-only. Inactive rows are
+ * folded away behind "Show N inactive" rather than listed dimmed: a clinic
+ * accumulates far more retired procedures than live ones, and this is the
+ * screen where the live price list is read. The fold opens itself when an
+ * inactive procedure is the one being edited, because this is also the only
+ * screen where a deactivated procedure is brought back. In reorder mode the
+ * price is dropped rather than sat beside the arrows — a tappable price next to
+ * small buttons reprises by accident.
  */
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -33,8 +36,9 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { color, size, space, Text } from '../../theme';
+import { color, radius, size, space, Text } from '../../theme';
 import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
+import { EyeIcon, PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { api } from './data/_LocalApi';
@@ -46,7 +50,15 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
     const [reordering, setReordering] = useState(false);
+    const [showInactive, setShowInactive] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    /** Opening an inactive row unfolds the section it came from, so backing out
+     * of the editor does not drop the row out of the list under the finger. */
+    function edit(procedure: Procedure) {
+        if (!procedure.active) setShowInactive(true);
+        setEditing(procedure);
+    }
 
     const reorder = useMutation((ids: string[]) => api.procedure.reorder(ids));
 
@@ -61,8 +73,19 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
         tree.reload();
     }
 
-    const nodes = tree.data ?? [];
-    const empty = nodes.length === 0;
+    const all = tree.data ?? [];
+    const empty = all.length === 0;
+
+    // Reordering shows everything: the order being edited is the order of the
+    // whole list, and moving a row past a hidden one is a move you cannot see.
+    const visible = showInactive || reordering;
+    const inactiveCount = all.flatMap((node) => [node, ...node.children]).filter((row) => !row.active).length;
+
+    const nodes = visible
+        ? all
+        : all
+              .filter((node) => node.active || node.children.some((child) => child.active))
+              .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }));
 
     // Not while reordering: the rows are being dragged against the order this
     // would replace, and a price list that reshuffles under a finger is worse
@@ -74,7 +97,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     return (
         <>
             <Pane
-                title="Procedures and prices"
+                title="Procedures & prices"
                 onBack={reordering ? () => setReordering(false) : onBack}
                 refreshControl={refreshControl}
                 trailing={
@@ -126,7 +149,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                 reorderDisabled={reorder.pending}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
-                                onPress={() => setEditing(node)}
+                                onPress={() => edit(node)}
                                 onMoveUp={() => move(nodes, index, -1)}
                                 onMoveDown={() => move(nodes, index, 1)}
                             />
@@ -150,7 +173,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             label="Rename"
                                             variant="text"
                                             size="md"
-                                            onPress={() => setEditing(node)}
+                                            onPress={() => edit(node)}
                                         />
                                     )
                                 }
@@ -168,7 +191,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             reorderDisabled={reorder.pending}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
-                                            onPress={() => setEditing(child)}
+                                            onPress={() => edit(child)}
                                             onMoveUp={() => move(node.children, childIndex, -1)}
                                             onMoveDown={() => move(node.children, childIndex, 1)}
                                         />
@@ -190,6 +213,23 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     ),
                 )}
 
+                {tree.data && !reordering && inactiveCount > 0 ? (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: showInactive }}
+                        onPress={() => setShowInactive((on) => !on)}
+                        testID="procedures-inactive-toggle"
+                        style={({ pressed }) => [styles.fold, pressed && styles.pressed]}
+                    >
+                        <EyeIcon size={13} />
+                        <Text variant="subhead" weight="semibold" tone="muted">
+                            {showInactive
+                                ? `Hide ${inactiveCount} inactive`
+                                : `Show ${inactiveCount} inactive`}
+                        </Text>
+                    </Pressable>
+                ) : null}
+
                 {tree.data && !empty && !reordering ? (
                     <AddButton label="Add a procedure" onPress={() => setEditing('new')} />
                 ) : null}
@@ -207,7 +247,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     <ProcedureEditor
                         procedure={editing !== null && editing !== 'new' ? editing : null}
                         parent={addingTo}
-                        categories={nodes.filter((node) => !node.selectable)}
+                        categories={all.filter((node) => !node.selectable)}
                         onClose={() => {
                             setEditing(null);
                             setAddingTo(null);
@@ -360,13 +400,14 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
             subtitle={parent && !procedure ? `Under ${parent.name}` : undefined}
             onBack={busy ? () => {} : onClose}
             footer={
+                // Save alone, as the mockup draws it: the pane has a back
+                // button, and a Cancel beside Save on a screen reached by a row
+                // tap is a second way to do what backing out already does.
                 <ActionBar
                     primaryLabel={save.pending ? 'Saving' : 'Save'}
                     onPrimary={onSave}
                     primaryLoading={save.pending}
                     primaryDisabled={setActive.pending}
-                    secondaryLabel="Cancel"
-                    onSecondary={busy ? undefined : onClose}
                 />
             }
         >
@@ -376,7 +417,21 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                 </Callout>
             ) : null}
 
+            {/* Price first, the way the mockup orders it: on a screen opened to
+                change a price, the field being come for should not be third. */}
             <Card padded style={styles.form}>
+                {isCategory ? null : (
+                    <NumericField
+                        label="Price"
+                        variant="display"
+                        prefix="EGP"
+                        value={price}
+                        onChangeText={(next) => setPrice(sanitisePounds(next))}
+                        placeholder="0"
+                        hint="Visits already recorded keep the price they were charged at."
+                    />
+                )}
+
                 <TextField
                     label="Name"
                     required
@@ -392,32 +447,20 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                         each subtype.
                     </Callout>
                 ) : (
-                    <>
-                        <Select
-                            label="Category"
-                            options={[
-                                { value: NO_CATEGORY, label: 'No category' },
-                                ...categories.map((category) => ({
-                                    value: category.id,
-                                    label: category.name,
-                                })),
-                            ]}
-                            value={parentId}
-                            onChange={setParentId}
-                            hint="A procedure inside a category is one of its subtypes, priced on its own."
-                            sheetTitle="Category"
-                        />
-
-                        <NumericField
-                            label="Price"
-                            variant="display"
-                            prefix="EGP"
-                            value={price}
-                            onChangeText={(next) => setPrice(sanitisePounds(next))}
-                            placeholder="0"
-                            hint="Visits already recorded keep the price they were charged at."
-                        />
-                    </>
+                    <Select
+                        label="Category"
+                        options={[
+                            { value: NO_CATEGORY, label: 'No category' },
+                            ...categories.map((category) => ({
+                                value: category.id,
+                                label: category.name,
+                            })),
+                        ]}
+                        value={parentId}
+                        onChange={setParentId}
+                        hint="A procedure inside a category is one of its subtypes, priced on its own."
+                        sheetTitle="Category"
+                    />
                 )}
             </Card>
 
@@ -456,10 +499,20 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                     <Button
                         label={procedure.active ? 'Deactivate procedure' : 'Reactivate procedure'}
                         variant={procedure.active ? 'danger' : 'secondary'}
+                        icon={
+                            <PowerIcon
+                                size={15}
+                                stroke={procedure.active ? color.danger : color.ink}
+                                width={2.2}
+                            />
+                        }
                         onPress={() => setConfirming(true)}
                         loading={setActive.pending}
                         block
                     />
+                    <Text variant="caption" tone="muted" style={styles.dangerHint}>
+                        Procedures are never deleted — past visits still reference them.
+                    </Text>
                 </Card>
             ) : null}
 
@@ -519,6 +572,16 @@ const styles = StyleSheet.create({
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
     dimmed: { opacity: 0.5 },
     note: { paddingHorizontal: space[1] },
+    dangerHint: { textAlign: 'center' },
+    fold: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: space[1.5],
+        minHeight: size.row,
+        padding: space[3],
+        borderRadius: radius.md,
+    },
     form: { gap: space[4] },
     flagRow: {
         flexDirection: 'row',

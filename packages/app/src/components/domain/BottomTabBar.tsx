@@ -1,23 +1,27 @@
 /**
  * The app's global navigation: four items, 22px stroked icons over an 11px
- * label, the active tab in `ink` and the rest in `muted`. The fourth tab is the
- * role — "Doctor" or "Secretary" — not a gear: the device is the account, so the
- * tab says which one it is, and its icon is a tooth, the clinic's mark. The bar
- * sits in flow at the bottom of the shell rather than absolutely positioned, and
- * carries the bottom safe-area inset itself — an absolute position would put the
- * labels under Android's own gesture bar.
+ * label, the active tab in `ink` and the rest in `muted`. The bar sits in flow
+ * at the bottom of the shell rather than absolutely positioned, and carries the
+ * bottom safe-area inset itself — an absolute position would put the labels
+ * under Android's own gesture bar.
+ *
+ * The fourth tab was the role — "Doctor" or "Secretary", tapped to flip it —
+ * on the reasoning that the device is the account. `settings.html` settles it
+ * the other way: the fourth tab is Settings, and the role is the card at the
+ * top of that screen, with a sheet that says what switching changes before it
+ * changes anything. A tab that silently changed what the app could do on a
+ * mis-tap was the cost of the old arrangement, and it left Settings with no way
+ * in at all.
  */
-import type { ClientRole } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { border, color, radius, size, space, Text } from '../../theme';
 
-export type TabKey = 'day' | 'patients' | 'money' | 'role';
+export type TabKey = 'day' | 'patients' | 'money' | 'settings';
 
 export type BottomTabBarProps = {
     active: TabKey;
-    role: ClientRole;
     onChange: (tab: TabKey) => void;
 };
 
@@ -42,26 +46,26 @@ const ICONS: Record<TabKey, (stroke: string) => React.ReactNode> = {
             <Circle cx={17} cy={15} r={1.3} stroke={stroke} />
         </>
     ),
-    role: (stroke) => (
+    // The mockup's own gear, drawn as its two paths: the pinion and the boss.
+    settings: (stroke) => (
         <>
             <Path
-                d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"
+                d="M19.2 14.4l1.5 1-1.7 3-1.8-.6a6.9 6.9 0 0 1-1.8 1l-.3 1.9h-3.5l-.3-1.9a6.9 6.9 0 0 1-1.8-1l-1.8.6-1.7-3 1.5-1a7 7 0 0 1 0-2l-1.5-1 1.7-3 1.8.6a6.9 6.9 0 0 1 1.8-1l.3-1.9h3.5l.3 1.9c.6.2 1.2.6 1.8 1l1.8-.6 1.7 3-1.5 1a7 7 0 0 1 0 2z"
                 stroke={stroke}
             />
-            <Path d="M8 15v1a6 6 0 0 0 6 6a6 6 0 0 0 6-6v-4" stroke={stroke} />
-            <Circle cx={20} cy={10} r={2} stroke={stroke} />
+            <Circle cx={12} cy={12} r={3} stroke={stroke} />
         </>
     ),
 };
 
-export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
+export function BottomTabBar({ active, onChange }: BottomTabBarProps) {
     const insets = useSafeAreaInsets();
 
     const tabs: { key: TabKey; label: string }[] = [
         { key: 'day', label: 'Day' },
         { key: 'patients', label: 'Patients' },
         { key: 'money', label: 'Money' },
-        { key: 'role', label: role === 'doctor' ? 'Doctor' : 'Secretary' },
+        { key: 'settings', label: 'Settings' },
     ];
 
     return (
