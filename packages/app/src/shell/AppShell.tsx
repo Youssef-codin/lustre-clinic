@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
+import { Toast } from '../components/ui';
 import { DayScreen, DoctorDayScreen } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
@@ -34,6 +35,11 @@ export function AppShell() {
     // screens is up. `seq` makes each ask distinct, so the same patient can be
     // opened again after the record has been backed out of.
     const [record, setRecord] = useState<OpenRecordRequest | undefined>(undefined);
+    // A toast for something that happened on one tab and finishes on another.
+    // A cluster's own toast draws inside its pane, and the pane is hidden the
+    // moment the route lands somewhere else — so a check-in that ends on the
+    // patient's record has to report itself from up here.
+    const [toast, setToast] = useState<string | null>(null);
     const { isOffline, isOnline } = useConnection();
 
     // Sticky: `reprobe` passes through 'probing' on its way to an answer, and
@@ -50,9 +56,10 @@ export function AppShell() {
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
     }
 
-    function openRecord(patientId: string, backLabel?: string) {
+    function openRecord(patientId: string, backLabel?: string, said?: string) {
         setRecord((current) => ({ patientId, backLabel, seq: (current?.seq ?? 0) + 1 }));
         open('patients');
+        if (said) setToast(said);
     }
 
     return (
@@ -65,7 +72,11 @@ export function AppShell() {
                             onOpenRecord={(patientId) => openRecord(patientId, 'Day')}
                         />
                     ) : (
-                        <DayScreen key="secretary" onBookingChange={setBooking} />
+                        <DayScreen
+                            key="secretary"
+                            onBookingChange={setBooking}
+                            onOpenRecord={(patientId, said) => openRecord(patientId, 'Day', said)}
+                        />
                     )}
                 </Pane>
 
@@ -80,6 +91,16 @@ export function AppShell() {
                 <Pane visible={tab === 'settings'} mounted={visited.includes('settings')}>
                     <SettingsScreen role={role} onChangeRole={setRole} />
                 </Pane>
+
+                {/* Inside the body rather than at the root, so it rides above
+                    the tab bar on the default offset — the same place a
+                    cluster's own toast lands, since the panes end here too. */}
+                <Toast
+                    visible={toast !== null}
+                    message={toast ?? ''}
+                    onDismiss={() => setToast(null)}
+                    testID="shell-toast"
+                />
             </View>
 
             <BottomTabBar active={booking && tab === 'day' ? 'patients' : tab} role={role} onChange={open} />

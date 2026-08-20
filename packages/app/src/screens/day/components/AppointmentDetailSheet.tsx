@@ -17,7 +17,6 @@ import { color, radius, size, space, Text } from '../../../theme';
 import {
     type Appointment,
     api,
-    rememberVisit,
     useLocalMutation,
     useLocalQuery,
     type Visit,
@@ -34,6 +33,13 @@ export type AppointmentDetailSheetProps = {
     onClose: () => void;
     onChanged: () => void;
     onCheckOut: (appointment: Appointment, visit: Visit) => void;
+    /**
+     * Handed up rather than done here: checking in opens the arrival screen,
+     * and that page belongs to the day view. Doing the write in this sheet was
+     * how the same button ended up meaning two different things depending on
+     * which of them you pressed.
+     */
+    onCheckIn: (appointment: Appointment) => void;
 };
 
 type Confirming = 'cancel' | 'no-show' | null;
@@ -51,10 +57,10 @@ export function AppointmentDetailSheet({
     onClose,
     onChanged,
     onCheckOut,
+    onCheckIn,
 }: AppointmentDetailSheetProps) {
     const [confirming, setConfirming] = useState<Confirming>(null);
 
-    const checkIn = useLocalMutation(api.checkIn);
     const awaitPayment = useLocalMutation(api.awaitPayment);
     const cancel = useLocalMutation(api.cancel);
     const noShow = useLocalMutation(api.markNoShow);
@@ -68,8 +74,8 @@ export function AppointmentDetailSheet({
         { enabled: visible && hasVisit },
     );
 
-    const writing = checkIn.pending || awaitPayment.pending || cancel.pending || noShow.pending;
-    const writeError = checkIn.error ?? awaitPayment.error ?? cancel.error ?? noShow.error;
+    const writing = awaitPayment.pending || cancel.pending || noShow.pending;
+    const writeError = awaitPayment.error ?? cancel.error ?? noShow.error;
 
     function after() {
         setConfirming(null);
@@ -106,15 +112,11 @@ export function AppointmentDetailSheet({
                         appointment={appointment}
                         visit={visit.data ?? null}
                         visitLoading={visit.status === 'loading'}
-                        checkingIn={checkIn.pending}
-                        onCheckIn={() =>
-                            checkIn.mutate(appointment.id, {
-                                onSuccess: (row) => {
-                                    rememberVisit(appointment.id, row.id);
-                                    after();
-                                },
-                            })
-                        }
+                        checkingIn={false}
+                        onCheckIn={() => {
+                            close();
+                            onCheckIn(appointment);
+                        }}
                         onCheckOut={(loaded) => onCheckOut(appointment, loaded)}
                     />
                 )

@@ -1,0 +1,101 @@
+/**
+ * The pill under the patient's name on every visit screen. It lives here rather
+ * than in each screen's own stylesheet because it was drawn twice and the two
+ * drifted: `VisitViewScreen` painted "Completed visit" green and `VisitScreen`
+ * painted the same words grey, so the colour changed as you moved between them.
+ * One state, one colour, wherever it is read.
+ *
+ * Green is the mock's `.chip`, grey its `.chip.is-open`, and the split is
+ * settled against still open — a visit that is over is history, and everything
+ * else is work in hand. Only the chair pulses (`pulse-dot`): the visit is
+ * running and the dot says so without a word. Reduced motion leaves it lit
+ * rather than hiding it, because the state is the point and the pulse is
+ * decoration.
+ */
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
+import { PULSE, useReducedMotion } from '../../../components/ui';
+import { color, radius, space, Text } from '../../../theme';
+import type { Standing } from '../chair';
+
+/**
+ * What the chip can say. Beyond the four standings: `arriving` is the arrival
+ * screen's own state, where nothing is written yet and claiming a visit is in
+ * progress would claim a check-in that has not happened; `unpaid` is a visit
+ * that is open and owing, either sent to the desk or reopened to be corrected.
+ */
+export type VisitState = Standing | 'arriving' | 'unpaid';
+
+const LABEL: Record<VisitState, string> = {
+    arriving: 'Not checked in yet',
+    waiting: 'Waiting to be seen',
+    chair: 'Visit in progress',
+    desk: 'At the desk',
+    finished: 'Completed visit',
+    unpaid: 'Waiting to be paid',
+};
+
+/**
+ * Which of the two states a screen is looking at, given where the patient
+ * stands and whether the visit itself is closed. A visit reopened for
+ * correction stands `finished` — the patient is not in the building — but it is
+ * open and owing until it is checked out again, and the chip says so.
+ */
+export function visitState(standing: Standing | 'arriving', closed: boolean): VisitState {
+    if (standing !== 'finished') return standing;
+    return closed ? 'finished' : 'unpaid';
+}
+
+export function VisitStatusChip({ state }: { state: VisitState }) {
+    const settled = state === 'finished';
+
+    return (
+        <View style={[styles.chip, settled && styles.chipSettled]}>
+            <Dot settled={settled} pulse={state === 'chair'} />
+            <Text variant="caption" weight="bold" tone={settled ? 'successText' : 'ink2'}>
+                {LABEL[state]}
+            </Text>
+        </View>
+    );
+}
+
+function Dot({ settled, pulse }: { settled: boolean; pulse: boolean }) {
+    const opacity = useRef(new Animated.Value(1)).current;
+    const reducedMotion = useReducedMotion();
+
+    useEffect(() => {
+        if (reducedMotion || !pulse) return;
+
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(opacity, {
+                    toValue: PULSE.min,
+                    duration: PULSE.duration,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(opacity, { toValue: 1, duration: PULSE.duration, useNativeDriver: true }),
+            ]),
+        );
+
+        loop.start();
+        return () => loop.stop();
+    }, [opacity, reducedMotion, pulse]);
+
+    return <Animated.View style={[styles.dot, settled && styles.dotSettled, { opacity }]} />;
+}
+
+const styles = StyleSheet.create({
+    chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[1.5],
+        paddingStart: space[2],
+        paddingEnd: space[2.5],
+        paddingVertical: space[1],
+        borderRadius: radius.full,
+        backgroundColor: color.surface2,
+    },
+    chipSettled: { backgroundColor: color.successSoft },
+    dot: { width: 6, height: 6, borderRadius: radius.full, backgroundColor: color.ink2 },
+    dotSettled: { backgroundColor: color.successText },
+});

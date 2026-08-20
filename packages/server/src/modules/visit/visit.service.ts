@@ -17,7 +17,7 @@
  * desk), and zero paid is a valid checkout — the balance is derived (§10).
  */
 import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
     appointmentProcedures,
@@ -36,6 +36,8 @@ import type {
     CheckInInput,
     CheckOutInput,
     RecordPaymentInput,
+    ReopenInput,
+    SetPaidInput,
     SetPriceInput,
     SetProceduresInput,
 } from './visit.schema.ts';
@@ -325,7 +327,14 @@ export const visitService = {
 
             if (!appointment) throw AppError.notFound('appointment');
 
-            if (!canTransition(appointment.status, 'done')) {
+            // Closing a visit that was reopened to be corrected: the
+            // appointment never left `done` (see `reopen`), so there is no
+            // transition to make and none to check. The guard above is what
+            // stops this being a double checkout — a visit that is still
+            // closed is refused before we get here.
+            const reclosing = appointment.status === 'done';
+
+            if (!reclosing && !canTransition(appointment.status, 'done')) {
                 throw new AppError(
                     ERROR_CODE.INVALID_STATUS_TRANSITION,
                     `cannot check out an appointment that is ${appointment.status}`,
@@ -348,10 +357,44 @@ export const visitService = {
                 await insertPayment(tx, visit.id, input.paidTotal, input.method, input.methodNote ?? null);
             }
 
-            await tx
-                .update(appointments)
-                .set({ status: 'done', updatedAt: now })
-                .where(eq(appointments.id, appointment.id));
+            if (!reclosing) {
+                await tx
+                    .update(appointments)
+                    .set({ status: 'done', updatedAt: now })
+                    .where(eq(appointments.id, appointment.id));
+            }
+        });
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
+        return this.byId(input.visitId);
+    },
+
+    /**
+     * Correct what a visit was paid, in total — the only way a recorded payment
+     * comes back down. `800 collected` on a visit that took 500 is corrected by
+     * saying 500, not by asking for a refund of 300.
+     *
+     * What is written is the difference, as a payment row of its own: a refund
+     * is a negative payment, dated the day the correction was made. Nothing is
+     * edited and nothing is deleted, because the 800 row is still a true record
+     * of what was entered at the time, and the readers all sum the column
+     * (`stats`, `balance`), so the money lands in the right place on its own.
+     *
+     * Saying what is already on the visit writes nothing at all.
+     */
+    async setPaid(input: SetPaidInput): Promise<Visit> {
+        await db.transaction(async (tx) => {
+            const visit = await requireVisit(tx, input.visitId);
+
+            const [collected] = await tx
+                .select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
+                .from(payments)
+                .where(eq(payments.visitId, visit.id));
+
+            const delta = input.paidTotal - (collected?.total ?? 0);
+            if (delta === 0) return;
+
+            await insertPayment(tx, visit.id, delta, input.method, input.methodNote ?? null);
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
@@ -362,6 +405,46 @@ export const visitService = {
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
             await insertPayment(tx, visit.id, input.amount, input.method, input.methodNote ?? null);
+        });
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
+        return this.byId(input.visitId);
+    },
+
+    /**
+     * Unlock a finished visit so it can be corrected — the wrong tooth charged,
+     * a procedure left off.
+     *
+     * The *appointment* is not touched. It stays `done`, because it is: the
+     * patient came, was seen and went home, and someone fixing the paperwork
+     * three weeks later does not undo that. Moving it back to
+     * `awaiting_payment` — which is what this did — put the patient back on the
+     * day view as though they were standing at the desk waiting to pay, and an
+     * edit that was opened and backed out of left them there for good.
+     *
+     * So `completedAt` on the visit is the only thing that says "closed", and
+     * clearing it is the whole of reopening. `pricedAt` goes with it: checkout
+     * stamps it, and leaving it set would pin `chargedTotal` while
+     * `setProcedures` recomputed around it — the lines would change and the
+     * bill would not.
+     *
+     * Payments already taken are untouched. The money was handed over and the
+     * receipt is a fact; the visit reopens owing whatever is left after them,
+     * which is what `amountDue` already reads.
+     */
+    async reopen(input: ReopenInput): Promise<Visit> {
+        await db.transaction(async (tx) => {
+            const visit = await requireVisit(tx, input.visitId);
+
+            if (!visit.completedAt) {
+                throw new AppError(
+                    ERROR_CODE.INVALID_STATUS_TRANSITION,
+                    'this visit is not checked out',
+                    422,
+                );
+            }
+
+            await tx.update(visits).set({ completedAt: null, pricedAt: null }).where(eq(visits.id, visit.id));
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });

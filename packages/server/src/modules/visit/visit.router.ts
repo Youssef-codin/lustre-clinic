@@ -8,6 +8,8 @@ import {
     checkInInput,
     checkOutInput,
     recordPaymentInput,
+    reopenInput,
+    setPaidInput,
     setPriceInput,
     setProceduresInput,
     visitByAppointmentInput,
@@ -36,4 +38,8 @@ export const visitRouter = router({
     recordPayment: publicProcedure
         .input(recordPaymentInput)
         .mutation(({ input }) => visitService.recordPayment(input)),
+
+    reopen: publicProcedure.input(reopenInput).mutation(({ input }) => visitService.reopen(input)),
+
+    setPaid: publicProcedure.input(setPaidInput).mutation(({ input }) => visitService.setPaid(input)),
 });

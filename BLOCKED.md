@@ -731,6 +731,95 @@ now, with one caller. `--discount` is still out, for the original reason.
 
 ---
 
+## Tailnet setup — 18 Aug 2026
+
+### 16. There is no design for this screen
+
+**Needed.** F1 is a screen, and §10's rule is that a screen is built from its
+mockup. The Open Design project has fourteen of them and none is setup: day
+view, check-in, patients, patient view/edit, money, visit payment, settings and
+its two sub-screens. Nothing in `brand-product` covers a first-run flow either.
+
+**Built instead.** The screen, from `theme/tokens.ts` and `ui/` directly, on the
+user's call. It borrows `OfflineScreen`'s shape — one centred card on canvas, no
+tab bar, no header — because they are the same kind of surface: the app before
+it has anything true to draw. Nothing new was added to `ui/` or `theme/` for it.
+
+**On promotion.** If setup is ever drawn, this is the one screen where the
+mockup arrives second, so treat the built version as a proposal and not as the
+thing the design has to match.
+
+### 17. Nothing persisted what onboarding collected
+
+**Needed.** `api/config.ts` holds the addresses in a module variable and says so
+("this module deliberately holds no storage of its own — persisting what
+onboarding collected belongs with onboarding"). `packages/app` had no storage at
+all: no AsyncStorage, no `expo-file-system`, no SQLite.
+
+**Built instead.** `@react-native-async-storage/async-storage@2.2.0`, added on
+the user's call, behind `shell/serverStore.ts` — the only file in the app that
+touches it. Two string keys rather than one JSON blob, so a half-written value
+comes back as an address that fails to answer instead of a parse that throws on
+the boot path. Hydration starts on the first subscriber and `App` holds a blank
+frame until it resolves.
+
+**Note.** This is a native module, so it needs `bun emu:build` /
+`bun device:build` once. A JS-only reload will not pick it up.
+
+### 18. A saved address made the offline screen a real dead end
+
+Not a missing dependency — a consequence of #17 worth writing down. Before it,
+a wrong address died with the process. Now it is remembered, and a typo means
+every launch resolves it, fails, and lands on a screen whose only control is
+Try again, which can never fix it. `OfflineScreen` grew one `text` button,
+"Change server address", and `shell/serverStore.ts` a `reconfiguring` flag for
+it. The stored values are left in place so setup opens on them and the address
+is edited, not retyped.
+
+### 19. Setup was on the front door, and did not need to be
+
+Not a missing dependency — a decision worth recording, taken after #16–18 were
+already built. The clinic's server PC is on a static address outside the
+router's DHCP pool, so the address is knowable at build time in a way §14 did
+not assume. `app.json`'s `extra.server.lan` now ships it, and
+`shell/serverStore.ts` probes it during the boot hold: a phone at the clinic
+this build was made for goes straight to the shell and never sees setup.
+
+What setup is now for: the clinic that moved its server, the second clinic
+running the same build (PRODUCT.md's one-time-fee commitment survives, because
+the default is a default and not a requirement), and the typo.
+
+**The distinction that makes it safe.** "Never reached this clinic" and "cannot
+reach it right now" are different states and get different screens. A stored
+address is never re-probed against the default — a phone whose clinic is merely
+switched off is offline, not unconfigured, and sending it back to a screen
+demanding an address it already has right is how a secretary retypes a correct
+answer and still fails. `stored` carries that distinction.
+
+**Cost, in the dev loop.** The committed default is now the clinic's address
+rather than `localhost:3002`, so an emulator lands on setup on first run and
+`localhost:3002` is entered once — and then persisted, so once per install.
+
+### 20. The tailnet address was typed into every phone
+
+**Needed.** §14 has both addresses "configured during onboarding", so the
+MagicDNS name was a field on the setup screen — the same string, typed again on
+every handset, and typed again on all of them the day the clinic moves its
+server.
+
+**Built instead.** The clinic PC already knows where it is: `.env` carries
+`TAILSCALE_IP` because compose binds the published port to it. `health.check`
+now reports a `tailscale` address resolved from a new `TAILSCALE_HOSTNAME`, or
+from `TAILSCALE_IP` when that is a real tailnet address rather than the 0.0.0.0
+dev default. The app reads it on every successful connection and stores it, so
+the address is configured once on the server and the handsets follow.
+
+**Note.** This is a contract change against §14 and `api/README.md`, which is
+why it is a PR against `main` and not a screen-local decision. The setup screen
+keeps the field as the manual fallback — a server that reports nothing must not
+wipe an address that works, and an older build that does not send the field is
+indistinguishable from one that has not been configured.
+
 ## Settings, second pass — 19 Aug 2026
 
 The cluster was built from `settings.html` before that file grew its six panes.
@@ -739,7 +828,7 @@ This pass brings it up to the mockups (`settings.html`,
 — App, Appointments, Reminders, Clinic — and none of the four has a server
 behind it.
 
-### 16. ~~Four settings groups with no procedures behind them~~ — **wrong, not blocked**
+### 21. ~~Four settings groups with no procedures behind them~~ — **wrong, not blocked**
 
 **This entry was mistaken and is kept as a correction rather than deleted.**
 
@@ -772,7 +861,7 @@ is a change of import and two shape conversions:
 and `reminder_repeat_minutes` describe. The pane stores the preference and no
 scheduler reads it.
 
-### 17. The language toggle has nothing to translate against
+### 22. The language toggle has nothing to translate against
 
 **Needed by:** `AppScreen`.
 
@@ -793,7 +882,7 @@ and it should not ship to a clinic in that state.
 the catalogue in `packages/shared` so server-side receipt rendering reads the
 same strings.
 
-### 18. `Branch` carries four fields the server has never had
+### 23. `Branch` carries four fields the server has never had
 
 **Needed by:** `BranchesScreen`.
 
@@ -807,7 +896,7 @@ dataset. `closedOn` is stamped when a branch is deactivated and deliberately not
 cleared on reactivation. `patientCount` is the one that needs a real query
 (patients whose visits name the branch); the other three are columns.
 
-### 19. Nothing knows which branch the phone is standing in
+### 24. Nothing knows which branch the phone is standing in
 
 **Needed by:** the identity card's second line, and the branch list's
 "YOU'RE HERE" tag.
@@ -822,7 +911,7 @@ entry says the app shell should own.
 deactivated. There is no UI to change it, because the design has none — it
 belongs to onboarding, with the server address.
 
-### 20. Working hours and Users have no slot in the design's IA
+### 25. Working hours and Users have no slot in the design's IA
 
 `settings.html`'s index is three groups — GENERAL, CLINIC, ABOUT — and neither
 `WorkingHoursScreen` nor `UsersScreen` appears in any of them.
@@ -839,7 +928,7 @@ deleting a working screen over an omission in a design file that never mentions
 opening hours at all. Delete the row and the import if the omission was
 intentional.
 
-### 21. `clock12` copied out of the day cluster
+### 26. `clock12` copied out of the day cluster
 
 **Needed by:** `RemindersScreen` (the notify-at stepper, the preview stamp) and
 the connection card's "last checked".
@@ -848,7 +937,7 @@ the connection card's "last checked".
 clusters into one, so it is `components/_LocalClock.ts` here, the same call
 `_LocalMoneyValue` makes. Both collapse into `domain/` when it exists.
 
-### 22. `ui/Stepper` could not label its value
+### 27. `ui/Stepper` could not label its value
 
 **Resolved in `ui/`, not worked around.** The reminders pane steps hours, a time
 of day and a repeat interval, and the mockup labels all three (`24 h`,
@@ -856,7 +945,7 @@ of day and a repeat interval, and the mockup labels all three (`24 h`,
 optional `format`; the number stepped, the bounds and the accessibility value
 are unchanged, so no existing caller moves.
 
-### 23. Deltas from the mockups, taken deliberately
+### 28. Deltas from the mockups, taken deliberately
 
 - **Type sizes and the gutter** resolve to `theme/tokens.ts` as always (§ the
   standing decision): the mockups' 27 / 20 / 15.5 / 13.5 / 12.5 / 11.5px land on
@@ -879,3 +968,4 @@ are unchanged, so no existing caller moves.
   `custom_questions.label` and `procedures.name` are single columns, so the
   panes take one label and `Text` picks the face per string. Two columns and a
   migration, not a screen change.
+

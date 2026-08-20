@@ -10,8 +10,9 @@
  * The secretary's appointment sheet is not mounted here. It is a column of desk
  * writes — check in, no-show, cancel — and the doctor makes none of them; a
  * modal of buttons he must not press is worse than no modal at all. Check-out
- * goes with it: taking payment is the desk's, so `CheckoutSheet` is not here
- * either. What replaces it is `DoctorVisitSheet`, which is a read: tapping a row
+ * goes with it: taking payment is the desk's, and it happens on
+ * `VisitPaymentScreen`, which this screen never opens. What is mounted here is
+ * `DoctorVisitSheet`, which is a read: tapping a row
  * asks what this patient is in for, and the answer is today's plan, with the
  * record one further tap away for the history. That tap leaves this screen —
  * `onOpenRecord` asks the shell, which opens it on the Patients tab.
@@ -219,8 +220,10 @@ export function DoctorDayScreen({ onOpenRecord }: DoctorDayScreenProps) {
                                 appointment={strip}
                                 nowMinutes={nowMinutes}
                                 procedure={procedureLabel(strip)}
+                                checkedInAt={arrivals.data?.get(strip.id)}
                                 finishing={finishingId === strip.id}
                                 onOpen={openVisit}
+                                onOpenRecord={onOpenRecord}
                                 onFinish={finishVisit}
                             />
                         ) : null}
@@ -233,6 +236,7 @@ export function DoctorDayScreen({ onOpenRecord }: DoctorDayScreenProps) {
                                 procedure={headline ? procedureLabel(headline) : undefined}
                                 checkedInAt={headline ? arrivals.data?.get(headline.id) : undefined}
                                 finishing={finishingId === headline?.id}
+                                onOpenRecord={onOpenRecord}
                                 onOpen={openVisit}
                                 onFinish={finishVisit}
                             />

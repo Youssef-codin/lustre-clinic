@@ -104,12 +104,18 @@ connection is fine and the failure belongs to the procedure.
 ```
 
 That is the one place to change the address, and it is what a dev machine edits.
-Both are `null` in the repo on purpose: a checked-in default would be someone
-else's LAN.
+`lan` is the clinic's static address (the server PC is outside the router's DHCP
+pool for exactly this reason), which makes it a *default* and not a fact: it is
+right for the clinic it was written for and wrong for the next one. It is
+therefore probed on boot rather than trusted, and setup appears only when it
+does not answer — see `shell/serverStore.ts`.
 
-At runtime, onboarding (F1) calls `setServerAddresses({ lan, tailscale })`,
-which is §14's "both addresses are configured during onboarding". This module
-holds no storage — persisting what onboarding collected belongs with onboarding.
+At runtime, setup (F1) calls `setServerAddresses({ lan, tailscale })`, which is
+§14's "both addresses are configured during onboarding". This module holds no
+storage — persisting what setup collected belongs with setup, in
+`shell/serverStore.ts`. A stored address always wins over the default and is
+never re-probed against it: a phone that has been set up and cannot reach the
+clinic is offline, not unconfigured.
 
 Resolution order, per §14: the LAN address with a 500 ms ceiling, then the
 MagicDNS hostname with 3 s. Whichever answers is cached for the session. A

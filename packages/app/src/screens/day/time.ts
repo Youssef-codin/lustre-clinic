@@ -113,9 +113,33 @@ const MONTHS_SHORT = [
     'Nov',
     'Dec',
 ] as const;
+const MONTHS = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+] as const;
 
 export function weekdayName(weekday: number): string {
     return WEEKDAYS[weekday] ?? '';
+}
+
+/**
+ * "Thursday, 12 June 2026" — the visit screens' identity line. Spelled out in
+ * full because those screens are the record of what happened on a day, and
+ * `Thu 12 Jun` is the form for a list being scanned, not for a line being read.
+ */
+export function formatLongDate(key: string): string {
+    const date = parseKey(key);
+    return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export function formatDate(key: string): string {

@@ -19,8 +19,11 @@ export type ChairStripProps = {
     appointment: Appointment;
     nowMinutes: number;
     procedure?: string;
+    /** When they were actually seen, which is when the clock started. */
+    checkedInAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
+    onOpenRecord: (patientId: string) => void;
     onFinish: (appointment: Appointment) => void;
 };
 
@@ -28,29 +31,40 @@ export function ChairStrip({
     appointment,
     nowMinutes,
     procedure,
+    checkedInAt,
     finishing,
     onOpen,
+    onOpenRecord,
     onFinish,
 }: ChairStripProps) {
-    const progress = slotProgress(appointment, nowMinutes);
+    const progress = slotProgress(appointment, nowMinutes, checkedInAt);
 
     return (
         <View style={styles.strip} testID="chair-strip">
             <Dot tone="wa" size={7} pulse />
 
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`In the chair: ${appointment.patient.name}`}
-                onPress={() => onOpen(appointment)}
-                style={styles.stripBody}
-            >
-                <Text variant="callout" weight="semibold" numberOfLines={1}>
-                    {appointment.patient.name}
-                </Text>
-                <Text variant="footnote" tone="muted" numberOfLines={1}>
-                    {procedure ? `${procedure} · ${progress.label}` : progress.label}
-                </Text>
-            </Pressable>
+            <View style={styles.stripBody}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${appointment.patient.name}'s record`}
+                    onPress={() => onOpenRecord(appointment.patient.id)}
+                    style={({ pressed }) => [styles.stripName, pressed && styles.namePressed]}
+                >
+                    <Text variant="callout" weight="semibold" numberOfLines={1}>
+                        {appointment.patient.name}
+                    </Text>
+                </Pressable>
+
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`In the chair: ${appointment.patient.name}`}
+                    onPress={() => onOpen(appointment)}
+                >
+                    <Text variant="footnote" tone="muted" numberOfLines={1}>
+                        {procedure ? `${procedure} · ${progress.label}` : progress.label}
+                    </Text>
+                </Pressable>
+            </View>
 
             <Button
                 label="Finish"
@@ -74,6 +88,7 @@ export type ChairCardProps = {
     checkedInAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
+    onOpenRecord: (patientId: string) => void;
     onFinish: (appointment: Appointment) => void;
 };
 
@@ -85,6 +100,7 @@ export function ChairCard({
     checkedInAt,
     finishing,
     onOpen,
+    onOpenRecord,
     onFinish,
 }: ChairCardProps) {
     if (!appointment) {
@@ -105,7 +121,7 @@ export function ChairCard({
 
     const eyebrow = EYEBROW[kind];
     const slot = time12(appointment.startsAt);
-    const progress = slotProgress(appointment, nowMinutes);
+    const progress = slotProgress(appointment, nowMinutes, checkedInAt);
 
     return (
         <View style={styles.card} testID="chair-card">
@@ -119,15 +135,24 @@ export function ChairCard({
                 </Text>
             </View>
 
+            {/* The name goes to the person, the line under it to the visit —
+                the same split the secretary's card makes. */}
+            <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${appointment.patient.name}'s record`}
+                onPress={() => onOpenRecord(appointment.patient.id)}
+                style={({ pressed }) => [styles.name, pressed && styles.namePressed]}
+            >
+                <Text variant="title" weight="semibold" tone="inverse" numberOfLines={1}>
+                    {appointment.patient.name}
+                </Text>
+            </Pressable>
+
             <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${eyebrow.label.toLowerCase()}: ${appointment.patient.name}`}
                 onPress={() => onOpen(appointment)}
             >
-                <Text variant="title" weight="semibold" tone="inverse" numberOfLines={1} style={styles.name}>
-                    {appointment.patient.name}
-                </Text>
-
                 <View style={styles.detail}>
                     <ProcedureIcon />
                     <Text variant="callout" tone="muted" numberOfLines={1} style={styles.detailText}>
@@ -243,7 +268,11 @@ const styles = StyleSheet.create({
     empty: { gap: space[1] },
     eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     eyebrowEnd: { marginStart: 'auto' },
-    name: { marginTop: space[3.5] },
+    // `flex-start` so the target is the name's own width. Stretched across the
+    // card, the gap beside a short name would open the record.
+    name: { alignSelf: 'flex-start', maxWidth: '100%', marginTop: space[3.5] },
+    stripName: { alignSelf: 'flex-start', maxWidth: '100%' },
+    namePressed: { opacity: 0.6 },
     detail: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1.5] },
     detailText: { flex: 1 },
     progress: { flexDirection: 'row', alignItems: 'center', gap: space[2.5], marginTop: space[4] },
