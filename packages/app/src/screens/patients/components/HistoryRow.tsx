@@ -21,13 +21,15 @@
  * slot stays empty and only the line under it is drawn.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
 import { _LocalMoneyValue } from './_LocalMoneyValue';
 
 export type HistoryRowProps = {
     entry: PatientHistoryEntry;
+    /** Absent on a row with no visit behind it — there is nothing to open. */
+    onOpen?: (entry: PatientHistoryEntry) => void;
 };
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -45,14 +47,25 @@ const STATUS: Record<AppointmentStatus, { label: string; tone: Tone }> = {
     no_show: { label: 'No-show', tone: 'due' },
 };
 
-export function HistoryRow({ entry }: HistoryRowProps) {
+export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
     const { day, month } = stamp(entry.startsAt);
     const status = STATUS[entry.status];
     const came = entry.visitId !== null;
     const due = entry.balance > 0;
 
+    // A row is a way into the visit it stands for. One with no visit — booked,
+    // cancelled, a no-show — has nothing behind it and stays inert rather than
+    // offering a tap that goes nowhere.
+    const openable = came && onOpen !== undefined;
+
     return (
-        <View style={styles.row} testID={`history-row-${entry.appointmentId}`}>
+        <Pressable
+            accessibilityRole={openable ? 'button' : undefined}
+            disabled={!openable}
+            onPress={openable ? () => onOpen?.(entry) : undefined}
+            style={({ pressed }) => [styles.row, pressed && openable && styles.pressed]}
+            testID={`history-row-${entry.appointmentId}`}
+        >
             <View style={styles.stamp}>
                 <Text variant="callout" script="mono" weight="bold">
                     {day}
@@ -85,7 +98,7 @@ export function HistoryRow({ entry }: HistoryRowProps) {
                 ) : null}
                 <Meaning entry={entry} />
             </View>
-        </View>
+        </Pressable>
     );
 }
 
@@ -178,6 +191,7 @@ const PILL = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
+    pressed: { backgroundColor: color.surface2 },
     row: {
         flexDirection: 'row',
         alignItems: 'flex-start',

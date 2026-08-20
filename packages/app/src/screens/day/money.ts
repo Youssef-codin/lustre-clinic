@@ -22,9 +22,18 @@ export function poundsEntry(entry: string): string {
     return entry.replace(/[^\d]/g, '');
 }
 
-export function formatMoney(piastres: number, position: CurrencyPosition = 'lead'): string {
+/**
+ * The figure with no currency on it. The visit screens set `EGP` as its own
+ * label beside a subtotal or a cost field, and a formatter that always carried
+ * the currency would put it on screen twice.
+ */
+export function formatAmount(piastres: number): string {
     const pounds = Math.round(piastres / PIASTRES_PER_POUND);
     const grouped = String(Math.abs(pounds)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    const signed = pounds < 0 ? `-${grouped}` : grouped;
-    return position === 'lead' ? `EGP ${signed}` : `${signed} EGP`;
+    return pounds < 0 ? `-${grouped}` : grouped;
+}
+
+export function formatMoney(piastres: number, position: CurrencyPosition = 'lead'): string {
+    const amount = formatAmount(piastres);
+    return position === 'lead' ? `EGP ${amount}` : `${amount} EGP`;
 }

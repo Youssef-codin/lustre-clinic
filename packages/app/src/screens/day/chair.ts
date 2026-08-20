@@ -15,7 +15,7 @@
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import type { Appointment } from './data/types';
-import { formatTime, minutesOfDay, minutesToClock } from './time';
+import { dateKey, formatTime, minutesOfDay, minutesToClock } from './time';
 
 const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>([
     'done',
@@ -27,6 +27,30 @@ const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>([
 export interface Queue {
     chair: Appointment | null;
     waiting: Appointment[];
+}
+
+/**
+ * Where the patient stands. `finished` is the odd one out — they are not in the
+ * clinic at all: the visit is closed, or has been reopened to be corrected,
+ * which is a different thing from one that is still running.
+ */
+export type Standing = 'waiting' | 'chair' | 'desk' | 'finished';
+
+/**
+ * Where a patient stands when the queue is out of view — a visit opened from a
+ * patient's record rather than from the day.
+ *
+ * The date has to be read with the status. `awaiting_payment` means standing at
+ * the desk *today*; on a day gone by it means a visit that was sent to the desk
+ * and never settled, and nobody is standing anywhere. Reading the status alone
+ * put a patient from three weeks ago at the desk waiting to pay.
+ */
+export function standingFor(appointment: Appointment, today: string): Standing {
+    if (appointment.status === 'done') return 'finished';
+    // `dateKey`, not the ISO string's first ten characters: the day a late
+    // appointment falls on is the local one, and the wire carries UTC.
+    if (dateKey(new Date(appointment.startsAt)) !== today) return 'finished';
+    return appointment.status === 'awaiting_payment' ? 'desk' : 'chair';
 }
 
 /**
@@ -114,17 +138,40 @@ export interface SlotProgress {
     window: string;
 }
 
-export function slotProgress(appointment: Appointment, nowMinutes: number): SlotProgress {
-    const start = minutesOfDay(appointment.startsAt);
+/**
+ * How far into the visit the clock is.
+ *
+ * It runs from when the patient was actually seen, which is `checkedInAt` when
+ * they arrived early: seating someone at 11:00 for an 11:30 slot means the
+ * visit started at 11:00, and a bar that sat at zero until 11:30 was telling
+ * the doctor he had not started something he was already doing.
+ *
+ * The end does not move with it. The slot still finishes when it was booked to,
+ * so arriving early lengthens the visit rather than shifting it — twenty booked
+ * minutes seen half an hour early are fifty minutes of room, and the overrun
+ * warning holds off accordingly. Arriving late is not the mirror of this: a
+ * patient seated after their slot opened keeps the slot's own start, or every
+ * late arrival would silently be granted a fresh full slot and nothing would
+ * ever read as running over.
+ */
+export function slotProgress(
+    appointment: Appointment,
+    nowMinutes: number,
+    checkedInAt?: string,
+): SlotProgress {
+    const booked = minutesOfDay(appointment.startsAt);
+    const ends = booked + appointment.durationMinutes;
+    const start = checkedInAt ? Math.min(minutesOfDay(checkedInAt), booked) : booked;
+
     const elapsed = nowMinutes - start;
-    const duration = appointment.durationMinutes;
+    const duration = ends - start;
     const over = elapsed - duration;
 
     return {
         value: duration > 0 ? elapsed / duration : 0,
         over: over > 0,
         label: over > 0 ? overLabel(over) : `${Math.max(elapsed, 0)} / ${duration} min`,
-        window: `${formatTime(appointment.startsAt)} – ${minutesToClock(start + duration)}`,
+        window: `${formatTime(appointment.startsAt)} – ${minutesToClock(ends)}`,
     };
 }
 

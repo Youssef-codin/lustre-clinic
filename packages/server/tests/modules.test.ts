@@ -1442,6 +1442,185 @@ describe('visit', () => {
         );
     });
 
+    // Correcting a finished visit: the wrong tooth was charged and the money is
+    // already in the drawer. Reopening is the only edge out of `done`, and the
+    // payments have to survive it — they were handed over.
+    test('reopens a checked-out visit for correction, keeping what was paid', async () => {
+        const { visit, appointment, extraction } = await checkedIn();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        const charged = (await visitService.byId(visit.id)).computedTotal;
+
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: charged,
+            paidTotal: charged,
+            method: 'cash',
+        });
+
+        const reopened = await visitService.reopen({ visitId: visit.id });
+
+        expect(reopened.completedAt).toBeNull();
+        // Cleared with it, or `setProcedures` would recompute around a frozen
+        // `chargedTotal` and the bill would not follow the lines.
+        expect(reopened.pricedAt).toBeNull();
+        expect(reopened.paidTotal).toBe(charged);
+        // The appointment stays `done`: the patient came and went home, and
+        // correcting the paperwork afterwards does not put them back at the
+        // desk waiting to pay — which is what the day view would show.
+        expect((await appointmentService.byId(appointment.id)).status).toBe('done');
+
+        // The point of reopening: the list is editable again.
+        const corrected = await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UR3' }],
+        });
+        expect(corrected.procedures.map((p) => p.tooth)).toEqual(['UR3']);
+    });
+
+    // The other end of the same edit: closing it again, on an appointment that
+    // never left `done` and so has no transition left to make.
+    test('closes a corrected visit again without a status to move', async () => {
+        const { visit, appointment, extraction } = await checkedIn();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        const charged = (await visitService.byId(visit.id)).computedTotal;
+
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: charged,
+            paidTotal: charged,
+            method: 'cash',
+        });
+        await visitService.reopen({ visitId: visit.id });
+
+        const reclosed = await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: charged,
+            paidTotal: 0,
+            method: 'cash',
+        });
+
+        expect(reclosed.completedAt).not.toBeNull();
+        expect(reclosed.paidTotal).toBe(charged);
+        expect((await appointmentService.byId(appointment.id)).status).toBe('done');
+    });
+
+    test('still refuses to check out a visit that is closed', async () => {
+        const { visit, extraction } = await checkedIn();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+
+        await visitService.checkOut({ visitId: visit.id, chargedTotal: 1000, paidTotal: 0, method: 'cash' });
+
+        await expectAppError(ERROR_CODE.VISIT_ALREADY_COMPLETED, () =>
+            visitService.checkOut({ visitId: visit.id, chargedTotal: 1000, paidTotal: 0, method: 'cash' }),
+        );
+    });
+
+    // The other half of a correction: the procedures were right and the money
+    // was not. 800 was recorded, 500 was handed over.
+    test('corrects what was paid down, keeping the original payment on the record', async () => {
+        const { visit, extraction } = await checkedIn();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        const charged = (await visitService.byId(visit.id)).computedTotal;
+
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: charged,
+            paidTotal: charged,
+            method: 'cash',
+        });
+        await visitService.reopen({ visitId: visit.id });
+
+        const corrected = await visitService.setPaid({
+            visitId: visit.id,
+            paidTotal: charged - 20_000,
+            method: 'cash',
+        });
+
+        expect(corrected.paidTotal).toBe(charged - 20_000);
+        expect(corrected.balance).toBe(20_000);
+        // Nothing was edited or deleted — the refund is a row of its own, so
+        // both what was entered and what put it right are still readable.
+        expect(corrected.payments.map((p) => p.amount).sort((a, b) => b - a)).toEqual([charged, -20_000]);
+    });
+
+    test('corrects what was paid up by adding the difference', async () => {
+        const { visit, extraction } = await checkedIn();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        const charged = (await visitService.byId(visit.id)).computedTotal;
+
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: charged,
+            paidTotal: 10_000,
+            method: 'cash',
+        });
+
+        const corrected = await visitService.setPaid({
+            visitId: visit.id,
+            paidTotal: charged,
+            method: 'visa',
+        });
+
+        expect(corrected.paidTotal).toBe(charged);
+        expect(corrected.balance).toBe(0);
+        expect(corrected.payments.length).toBe(2);
+    });
+
+    test('writes nothing when the paid total is what is already on the visit', async () => {
+        const { visit, extraction } = await checkedIn();
+
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        const charged = (await visitService.byId(visit.id)).computedTotal;
+
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: charged,
+            paidTotal: charged,
+            method: 'cash',
+        });
+
+        const same = await visitService.setPaid({
+            visitId: visit.id,
+            paidTotal: charged,
+            method: 'cash',
+        });
+
+        // A row of zero would be a payment that moved no money.
+        expect(same.payments.length).toBe(1);
+        expect(same.paidTotal).toBe(charged);
+    });
+
+    test('refuses to reopen a visit that was never checked out', async () => {
+        const { visit } = await checkedIn();
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            visitService.reopen({ visitId: visit.id }),
+        );
+    });
+
     test('allows a repeat of the same procedure on a different tooth', async () => {
         const { visit, extraction } = await checkedIn();
 

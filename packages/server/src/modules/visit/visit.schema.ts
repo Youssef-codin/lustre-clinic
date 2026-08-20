@@ -37,6 +37,9 @@ export const setPriceInput = z.object({
     chargedTotal: amount,
 });
 
+/** Undo a checkout so the visit can be corrected. Payments taken are kept. */
+export const reopenInput = z.object({ visitId: z.uuid() });
+
 const payment = {
     method: paymentMethodSchema,
     methodNote: z.string().trim().max(200).nullish(),
@@ -50,6 +53,22 @@ export const checkOutInput = z
         ...payment,
     })
     .refine((v) => v.paidTotal === 0 || v.method !== 'other' || !!v.methodNote?.trim(), {
+        message: "method 'other' requires methodNote",
+        path: ['methodNote'],
+    });
+
+/**
+ * What the visit was *actually* paid, in total. The delta against what is on it
+ * is what gets written, so this is the one way a recorded payment can come back
+ * down — see `setPaid` in the service.
+ */
+export const setPaidInput = z
+    .object({
+        visitId: z.uuid(),
+        paidTotal: amount,
+        ...payment,
+    })
+    .refine((v) => v.method !== 'other' || !!v.methodNote?.trim(), {
         message: "method 'other' requires methodNote",
         path: ['methodNote'],
     });
@@ -68,5 +87,7 @@ export const recordPaymentInput = z
 export type CheckInInput = z.infer<typeof checkInInput>;
 export type SetProceduresInput = z.infer<typeof setProceduresInput>;
 export type SetPriceInput = z.infer<typeof setPriceInput>;
+export type ReopenInput = z.infer<typeof reopenInput>;
 export type CheckOutInput = z.infer<typeof checkOutInput>;
+export type SetPaidInput = z.infer<typeof setPaidInput>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentInput>;
