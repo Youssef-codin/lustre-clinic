@@ -739,30 +739,38 @@ This pass brings it up to the mockups (`settings.html`,
 — App, Appointments, Reminders, Clinic — and none of the four has a server
 behind it.
 
-### 16. Four settings groups with no procedures behind them
+### 16. ~~Four settings groups with no procedures behind them~~ — **wrong, not blocked**
 
-**Needed by:** `AppScreen`, `AppointmentsScreen`, `RemindersScreen`,
-`ClinicScreen`.
+**This entry was mistaken and is kept as a correction rather than deleted.**
 
-`settings.html` settles four things the server does not store:
+It claimed the server stored none of the clinic identity, duration or reminder
+settings, and documented the `_LocalApi` stand-ins built for them as necessary.
+The server has had all of it the whole time:
 
-```ts
-clinic.get / update                        { name, phone }
-appointmentSettings.get / addDuration / removeDuration / setDefault
-reminderSettings.get / update              { leadHours, notifyAt, repeatMinutes, template }
-```
+- `settings` — `clinic_name`, `clinic_phone`, `duration_options` (int array),
+  `default_duration`, `reminder_lead_hours`, `reminder_notify_at`,
+  `reminder_repeat_minutes`, `reminder_template`
+- `settings.get` / `settings.update`, with `updateSettingsInput` validating
+  every field
 
-**Built instead.** All three live in `data/_LocalApi.ts` beside the existing
-stand-ins, with the design's own rules enforced where the server would enforce
-them: a duration is 5–480 whole minutes and unique; the default duration cannot
-be removed while it is the default (the pane hides the control, the API refuses
-the call, and the booking screen can therefore pre-fill without checking); the
-reminder lead is 1–96 hours, the daily notification 6 AM–9 PM, the repeat
-15–120 minutes, and the template 320 characters.
+The mistake: the cluster's existing stand-in only mirrored
+`settings.schedule` / `setDay` / `clearDay`, and that was taken as evidence the
+rest of the module was equally bare instead of reading `settings.router.ts`.
 
-**Note.** `reminderSettings` is the one with a scheduler behind it eventually —
-`notifyAt` and `repeatMinutes` describe a local notification this app does not
-yet raise. The pane stores the preference; nothing reads it.
+**Still true.** `AppScreen`, `AppointmentsScreen`, `RemindersScreen` and
+`ClinicScreen` currently call `api.appointmentSettings` / `api.reminderSettings`
+/ `api.clinic` in `data/_LocalApi.ts`, so the panes run on fixtures. That is now
+a **to-do, not a blocker** — wiring them to `settings.get` / `settings.update`
+is a change of import and two shape conversions:
+
+- `reminderNotifyAt` is a Postgres `time` (`"HH:MM"`); the pane models minutes
+  from midnight, which is what the stepper steps.
+- the server allows a 1000-character template; the pane enforces the mockup's
+  320.
+
+**Genuinely absent.** Nothing raises the daily notification `reminder_notify_at`
+and `reminder_repeat_minutes` describe. The pane stores the preference and no
+scheduler reads it.
 
 ### 17. The language toggle has nothing to translate against
 

@@ -11,6 +11,7 @@
  * same 24-unit box off the same clock the `about` circle uses so it does not
  * read as an import from another set.
  */
+import { EyeOff, Pencil } from 'lucide-react-native';
 import { I18nManager } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { color } from '../../../theme';
@@ -56,6 +57,18 @@ type GlyphProps = {
     stroke?: string;
     width?: number;
 };
+
+type LucideGlyph = typeof Pencil;
+
+function lucide(Glyph: LucideGlyph, defaults: Required<GlyphProps>) {
+    return function Wrapped({
+        size = defaults.size,
+        stroke = defaults.stroke,
+        width = defaults.width,
+    }: GlyphProps) {
+        return <Glyph size={size} color={stroke} strokeWidth={width} />;
+    };
+}
 
 function glyph(path: string, defaults: Required<Omit<GlyphProps, never>>) {
     return function Wrapped({
@@ -118,14 +131,14 @@ export const InfoIcon = glyph('M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 8h.01M11 1
 });
 
 /**
- * "Show N inactive" on the procedures list. The mockup's pupil is a `<circle>`;
- * it is written as an arc pair here so the whole glyph stays one path like the
- * rest of the set.
+ * These two are `lucide-react-native`, not mockup paths, wrapped the way
+ * `screens/patients/components/icons.tsx` wraps its own. The mockup has no
+ * drawing for either — it deactivates rather than hides, and renames a category
+ * through a text button — so there is nothing to copy, and the library is where
+ * new glyphs are supposed to come from.
  */
-export const EyeIcon = glyph(
-    'M2.5 12s3.6-6 9.5-6 9.5 6 9.5 6-3.6 6-9.5 6-9.5-6-9.5-6M14.6 12a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0',
-    { size: 13, stroke: color.muted, width: 2.2 },
-);
+export const HideIcon = lucide(EyeOff, { size: 15, stroke: color.ink, width: 2.2 });
+export const EditIcon = lucide(Pencil, { size: 15, stroke: color.muted, width: 2 });
 
 /**
  * The reminder preview's WhatsApp mark. Lucide carries no brand marks and the
@@ -149,4 +162,16 @@ const ArrowBack = glyph('M19 12H5M11 6l-6 6 6 6', { size: 18, stroke: color.mute
 
 export function ArrowRightIcon(props: GlyphProps) {
     return I18nManager.isRTL ? <ArrowBack {...props} /> : <ArrowForward {...props} />;
+}
+
+/**
+ * The pane header's back chevron, mirrored in Arabic the same way and for the
+ * same reason as the arrow above. Heavier than the row chevrons at 2.4, which
+ * is how the mockup draws it inside the round button.
+ */
+const ChevronBack = glyph('M15 6l-6 6 6 6', { size: 15, stroke: color.ink, width: 2.4 });
+const ChevronForward = glyph('M9 6l6 6-6 6', { size: 15, stroke: color.ink, width: 2.4 });
+
+export function BackIcon(props: GlyphProps) {
+    return I18nManager.isRTL ? <ChevronForward {...props} /> : <ChevronBack {...props} />;
 }

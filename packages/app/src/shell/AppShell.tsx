@@ -82,7 +82,7 @@ export function AppShell() {
                 </Pane>
             </View>
 
-            <BottomTabBar active={booking && tab === 'day' ? 'patients' : tab} onChange={open} />
+            <BottomTabBar active={booking && tab === 'day' ? 'patients' : tab} role={role} onChange={open} />
 
             {/* Covers the tab bar too: offline is a dead end, not a mode you
                 can navigate around. The clusters stay mounted underneath so

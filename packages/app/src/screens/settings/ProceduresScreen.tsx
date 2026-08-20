@@ -2,16 +2,25 @@
  * Settings → Procedures & prices. The catalogue is a self-referencing tree,
  * one level deep: a row with children is a category — a heading with no price
  * that never reaches a visit — and only leaves are chargeable, each priced on
- * its own (a variant is a leaf). Nothing is ever deleted; deactivate stops it
- * appearing in the picker and keeps it on every visit that already charged for
- * it, at the snapshot price, so edits are forward-only. Inactive rows are
- * folded away behind "Show N inactive" rather than listed dimmed: a clinic
- * accumulates far more retired procedures than live ones, and this is the
- * screen where the live price list is read. The fold opens itself when an
- * inactive procedure is the one being edited, because this is also the only
- * screen where a deactivated procedure is brought back. In reorder mode the
- * price is dropped rather than sat beside the arrows — a tappable price next to
- * small buttons reprises by accident.
+ * its own (a variant is a leaf).
+ *
+ * The verb is hide, and hidden means gone from this screen — not dimmed, not
+ * folded behind a toggle. Nothing is deleted: the row stays in the database and
+ * on every visit that already charged for it, at the price it charged, so old
+ * visits and receipts still resolve. The catalogue is just the live price list.
+ *
+ * The consequence, and it is deliberate: **hiding is one-way from the app.** A
+ * hidden procedure has no row to tap, so there is no way back to it here. Only
+ * the database remembers it. `settings-procedures.html` draws this as an
+ * active/inactive pair with a "Show N inactive" fold; this screen is a
+ * deliberate departure from that.
+ *
+ * The tree is still fetched whole, because parenthood must be computed over
+ * hidden rows too — a category whose only subtype is hidden is still a category
+ * and must not quietly become a priceable leaf. Only the rendering drops them.
+ *
+ * In reorder mode the price is dropped rather than sat beside the arrows — a
+ * tappable price next to small buttons reprises by accident.
  */
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -25,6 +34,7 @@ import {
     Chevron,
     ConfirmSheet,
     EmptyState,
+    IconButton,
     NumericField,
     PushView,
     ReorderControls,
@@ -36,9 +46,9 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { color, radius, size, space, Text } from '../../theme';
+import { color, size, space, Text } from '../../theme';
 import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
-import { EyeIcon, PowerIcon } from './components/icons';
+import { EditIcon, HideIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { api } from './data/_LocalApi';
@@ -50,15 +60,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
     const [reordering, setReordering] = useState(false);
-    const [showInactive, setShowInactive] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
-
-    /** Opening an inactive row unfolds the section it came from, so backing out
-     * of the editor does not drop the row out of the list under the finger. */
-    function edit(procedure: Procedure) {
-        if (!procedure.active) setShowInactive(true);
-        setEditing(procedure);
-    }
 
     const reorder = useMutation((ids: string[]) => api.procedure.reorder(ids));
 
@@ -73,19 +75,17 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
         tree.reload();
     }
 
+    // The tree is fetched whole so parenthood — and therefore which rows are
+    // categories — is computed over hidden rows too; a category whose only
+    // subtype is hidden is still a category and must not become priceable.
+    // Only the rendering drops them.
     const all = tree.data ?? [];
-    const empty = all.length === 0;
 
-    // Reordering shows everything: the order being edited is the order of the
-    // whole list, and moving a row past a hidden one is a move you cannot see.
-    const visible = showInactive || reordering;
-    const inactiveCount = all.flatMap((node) => [node, ...node.children]).filter((row) => !row.active).length;
+    const nodes = all
+        .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }))
+        .filter((node) => node.active && (node.selectable || node.children.length > 0));
 
-    const nodes = visible
-        ? all
-        : all
-              .filter((node) => node.active || node.children.some((child) => child.active))
-              .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }));
+    const empty = nodes.length === 0;
 
     // Not while reordering: the rows are being dragged against the order this
     // would replace, and a price list that reshuffles under a finger is worse
@@ -149,7 +149,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                 reorderDisabled={reorder.pending}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
-                                onPress={() => edit(node)}
+                                onPress={() => setEditing(node)}
                                 onMoveUp={() => move(nodes, index, -1)}
                                 onMoveDown={() => move(nodes, index, 1)}
                             />
@@ -169,11 +169,12 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             onMoveDown={() => move(nodes, index, 1)}
                                         />
                                     ) : (
-                                        <Button
-                                            label="Rename"
-                                            variant="text"
-                                            size="md"
-                                            onPress={() => edit(node)}
+                                        <IconButton
+                                            accessibilityLabel={`Rename ${node.name}`}
+                                            variant="bare"
+                                            icon={<EditIcon size={15} />}
+                                            onPress={() => setEditing(node)}
+                                            testID={`category-rename-${node.id}`}
                                         />
                                     )
                                 }
@@ -191,7 +192,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             reorderDisabled={reorder.pending}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
-                                            onPress={() => edit(child)}
+                                            onPress={() => setEditing(child)}
                                             onMoveUp={() => move(node.children, childIndex, -1)}
                                             onMoveDown={() => move(node.children, childIndex, 1)}
                                         />
@@ -212,23 +213,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         </View>
                     ),
                 )}
-
-                {tree.data && !reordering && inactiveCount > 0 ? (
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: showInactive }}
-                        onPress={() => setShowInactive((on) => !on)}
-                        testID="procedures-inactive-toggle"
-                        style={({ pressed }) => [styles.fold, pressed && styles.pressed]}
-                    >
-                        <EyeIcon size={13} />
-                        <Text variant="subhead" weight="semibold" tone="muted">
-                            {showInactive
-                                ? `Hide ${inactiveCount} inactive`
-                                : `Show ${inactiveCount} inactive`}
-                        </Text>
-                    </Pressable>
-                ) : null}
 
                 {tree.data && !empty && !reordering ? (
                     <AddButton label="Add a procedure" onPress={() => setEditing('new')} />
@@ -287,7 +271,7 @@ function ProcedureRow({
     onMoveDown,
 }: ProcedureRowProps) {
     const body = (
-        <View style={[styles.rowText, !procedure.active && styles.dimmed]}>
+        <View style={styles.rowText}>
             <Text variant="body" weight="medium">
                 {procedure.name}
             </Text>
@@ -299,11 +283,6 @@ function ProcedureRow({
                 ) : null}
                 {procedure.isToothSpecific ? <Tag tone="muted">TOOTH</Tag> : null}
                 {procedure.hasQuantity ? <Tag tone="muted">QTY</Tag> : null}
-                {procedure.active ? null : (
-                    <Tag tone="muted" variant="muted">
-                        INACTIVE
-                    </Tag>
-                )}
             </View>
         </View>
     );
@@ -331,9 +310,7 @@ function ProcedureRow({
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
             {body}
-            <View style={!procedure.active && styles.dimmed}>
-                <_LocalMoneyValue piastres={procedure.defaultPrice} />
-            </View>
+            <_LocalMoneyValue piastres={procedure.defaultPrice} />
             <Chevron direction="forward" tone="muted" />
         </Pressable>
     );
@@ -387,11 +364,14 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
         if (saved) onSaved(procedure ? 'Procedure saved' : 'Procedure added');
     }
 
-    async function onToggleActive() {
+    // One-way: `active` is still the column, because the server and every
+    // history query already read it. Only the app's language and the way out
+    // have changed.
+    async function onHide() {
         if (!procedure) return;
-        const updated = await setActive.run(!procedure.active);
+        const updated = await setActive.run(false);
         setConfirming(false);
-        if (updated) onSaved(updated.active ? 'Procedure reactivated' : 'Procedure deactivated');
+        if (updated) onSaved('Procedure hidden');
     }
 
     return (
@@ -492,20 +472,13 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
             {procedure ? (
                 <Card padded style={styles.form}>
                     <Text variant="subhead" tone="muted">
-                        {procedure.active
-                            ? 'Deactivating takes it out of the catalogue. Visits that already charged for it keep it, at the price they were charged.'
-                            : 'This procedure is out of the catalogue. Reactivating puts it back.'}
+                        Hiding takes it out of the catalogue and off this screen. Visits that already charged
+                        for it keep it, at the price they were charged.
                     </Text>
                     <Button
-                        label={procedure.active ? 'Deactivate procedure' : 'Reactivate procedure'}
-                        variant={procedure.active ? 'danger' : 'secondary'}
-                        icon={
-                            <PowerIcon
-                                size={15}
-                                stroke={procedure.active ? color.danger : color.ink}
-                                width={2.2}
-                            />
-                        }
+                        label="Hide procedure"
+                        variant="danger"
+                        icon={<HideIcon size={15} stroke={color.danger} width={2.2} />}
                         onPress={() => setConfirming(true)}
                         loading={setActive.pending}
                         block
@@ -516,18 +489,16 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                 </Card>
             ) : null}
 
+            {/* Spelled out because it cannot be undone from the app: once the
+                row leaves the list there is nothing left to tap. */}
             <ConfirmSheet
                 visible={confirming}
-                title={procedure?.active ? 'Deactivate this procedure?' : 'Reactivate this procedure?'}
-                body={
-                    procedure?.active
-                        ? 'It stops appearing when adding work to a visit. Nothing is deleted — past visits keep it and keep what they charged.'
-                        : 'It appears in the catalogue again.'
-                }
-                confirmLabel={procedure?.active ? 'Deactivate' : 'Reactivate'}
-                destructive={procedure?.active}
+                title="Hide this procedure?"
+                body="It stops appearing when adding work to a visit, and comes off this screen for good — you won't be able to bring it back from here. Nothing is deleted: past visits keep it and keep what they charged."
+                confirmLabel="Hide"
+                destructive
                 loading={setActive.pending}
-                onConfirm={onToggleActive}
+                onConfirm={onHide}
                 onCancel={() => setConfirming(false)}
             />
         </Pane>
@@ -570,18 +541,8 @@ const styles = StyleSheet.create({
     pressed: { backgroundColor: color.surface2 },
     rowText: { flex: 1, gap: space[1] },
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
-    dimmed: { opacity: 0.5 },
     note: { paddingHorizontal: space[1] },
     dangerHint: { textAlign: 'center' },
-    fold: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: space[1.5],
-        minHeight: size.row,
-        padding: space[3],
-        borderRadius: radius.md,
-    },
     form: { gap: space[4] },
     flagRow: {
         flexDirection: 'row',
