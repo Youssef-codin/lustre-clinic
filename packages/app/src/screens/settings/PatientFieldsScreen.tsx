@@ -99,6 +99,11 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
             >
+                <Text variant="subhead" tone="muted" style={styles.intro}>
+                    These questions appear on every patient record, under the details the app always asks for.
+                    Changing them here changes the form for the whole clinic.
+                </Text>
+
                 <FixedDetailsCard />
 
                 {questions.loading ? <SkeletonRows count={3} /> : null}
@@ -121,8 +126,15 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                     <>
                         <View style={styles.section}>
                             <SectionLabel inset={false} count={active.length}>
-                                YOUR QUESTIONS
+                                CLINIC QUESTIONS
                             </SectionLabel>
+
+                            {reordering ? (
+                                <Text variant="footnote" tone="muted" style={styles.note}>
+                                    This is the order the questions appear on the patient record. Move them
+                                    with the arrows.
+                                </Text>
+                            ) : null}
 
                             {active.length === 0 ? (
                                 <EmptyState
@@ -209,7 +221,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
 function FixedDetailsCard() {
     return (
         <View style={styles.section}>
-            <SectionLabel inset={false}>ALWAYS ASKED</SectionLabel>
+            <SectionLabel inset={false}>ALWAYS ON THE RECORD</SectionLabel>
             <Card variant="dashed" padded style={styles.fixed}>
                 <View style={styles.chips}>
                     {FIXED_DETAILS.map((detail) => (
@@ -221,7 +233,7 @@ function FixedDetailsCard() {
                     ))}
                 </View>
                 <Text variant="footnote" tone="muted">
-                    Every patient record has these. They can't be renamed, reordered or removed.
+                    Built in — these five can't be renamed, reordered or removed.
                 </Text>
             </Card>
         </View>
@@ -595,6 +607,7 @@ const styles = StyleSheet.create({
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
     dimmed: { opacity: 0.5 },
     note: { paddingHorizontal: space[1] },
+    intro: { paddingHorizontal: space[0.5] },
     form: { gap: space[4] },
     fixed: { gap: space[3] },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },

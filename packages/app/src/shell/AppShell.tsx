@@ -51,12 +51,6 @@ export function AppShell() {
     if (isOnline && showOffline) setShowOffline(false);
 
     function open(next: TabKey) {
-        // Testing shortcut: the role tab flips doctor/secretary in place instead
-        // of opening settings, so both day views are one tap apart.
-        if (next === 'role') {
-            setRole((current) => (current === 'doctor' ? 'secretary' : 'doctor'));
-            return;
-        }
         setTab(next);
         setBooking(false);
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
@@ -94,7 +88,7 @@ export function AppShell() {
                     <MoneyCluster />
                 </Pane>
 
-                <Pane visible={tab === 'role'} mounted={visited.includes('role')}>
+                <Pane visible={tab === 'settings'} mounted={visited.includes('settings')}>
                     <SettingsScreen role={role} onChangeRole={setRole} />
                 </Pane>
 

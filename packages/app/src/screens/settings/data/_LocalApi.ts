@@ -12,7 +12,17 @@
  * `includeInactive`.
  */
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
-import type { Branch, ClinicDay, CustomQuestion, Procedure, ProcedureNode } from './types';
+import {
+    type AppointmentSettings,
+    type Branch,
+    type ClinicDay,
+    type ClinicIdentity,
+    type CustomQuestion,
+    type Procedure,
+    type ProcedureNode,
+    type ReminderSettings,
+    TEMPLATE_MAX,
+} from './types';
 
 export class ApiError extends Error {
     constructor(
@@ -40,10 +50,40 @@ const BRANCH_MAIN = 'branch-main';
 const BRANCH_NEW_CAIRO = 'branch-new-cairo';
 
 const branches: Branch[] = [
-    { id: BRANCH_MAIN, name: 'Heliopolis', address: '12 Baghdad St, Korba', active: true },
-    { id: BRANCH_NEW_CAIRO, name: 'New Cairo', address: '90th St, Fifth Settlement', active: true },
-    { id: 'branch-maadi', name: 'Maadi', address: null, active: false },
+    {
+        id: BRANCH_MAIN,
+        name: 'Heliopolis',
+        address: '12 Baghdad St, Korba',
+        phone: '02 2688 4410',
+        active: true,
+        patientCount: 842,
+        openedYear: '2019',
+        closedOn: null,
+    },
+    {
+        id: BRANCH_NEW_CAIRO,
+        name: 'New Cairo',
+        address: '90th St, Fifth Settlement',
+        phone: '02 2270 9931',
+        active: true,
+        patientCount: 391,
+        openedYear: '2023',
+        closedOn: null,
+    },
+    {
+        id: 'branch-maadi',
+        name: 'Maadi',
+        address: '9 Road 231, Degla',
+        phone: '02 2519 7702',
+        active: false,
+        patientCount: 158,
+        openedYear: '2021',
+        closedOn: 'MAR 2025',
+    },
 ];
+
+/** Which branch this phone is standing in — the list's "you're here" tag. */
+let currentBranchId = BRANCH_MAIN;
 
 const procedures: Procedure[] = [
     leaf('proc-checkup', null, 'Checkup', 30_000, { isCheckup: true, sortOrder: 0 }),
@@ -138,6 +178,18 @@ const questions: CustomQuestion[] = [
     },
 ];
 
+const clinic: ClinicIdentity = { name: 'Lustre Dental', phone: '0100 224 8891' };
+
+const appointments: AppointmentSettings = { durations: [15, 20, 30, 45, 60], defaultDuration: 30 };
+
+const reminders: ReminderSettings = {
+    leadHours: 24,
+    notifyAt: 18 * 60,
+    repeatMinutes: 30,
+    template:
+        'Hi {name}, this is a reminder from {clinic} — {branch}. Your appointment is {date} at {time}. Reply 1 to confirm or 2 to reschedule.',
+};
+
 const schedule: ClinicDay[] = [
     { weekday: 0, branchId: BRANCH_MAIN, opensAt: '10:00', closesAt: '18:00' },
     { weekday: 1, branchId: BRANCH_MAIN, opensAt: '10:00', closesAt: '18:00' },
@@ -157,12 +209,14 @@ export interface ClearClinicDayInput {
 export interface CreateBranchInput {
     name: string;
     address: string | null;
+    phone: string | null;
 }
 
 export interface UpdateBranchInput {
     id: string;
     name?: string;
     address?: string | null;
+    phone?: string | null;
     active?: boolean;
 }
 
@@ -206,6 +260,10 @@ export interface UpdateQuestionInput {
     active?: boolean;
 }
 
+export interface DurationInput {
+    minutes: number;
+}
+
 export interface SetClinicDayInput {
     weekday: number;
     branchId: string;
@@ -222,12 +280,21 @@ export const api = {
             return settle(includeInactive ? rows : rows.filter((b) => b.active));
         },
 
+        /** The branch this phone is at, for the list's "you're here" tag. */
+        async current(): Promise<string> {
+            return settle(currentBranchId);
+        },
+
         async create(input: CreateBranchInput): Promise<Branch> {
             const row: Branch = {
                 id: nextId('branch'),
                 name: input.name.trim(),
                 address: input.address?.trim() || null,
+                phone: input.phone?.trim() || null,
                 active: true,
+                patientCount: 0,
+                openedYear: String(new Date().getFullYear()),
+                closedOn: null,
             };
             branches.push(row);
             return settle(row);
@@ -239,7 +306,19 @@ export const api = {
 
             if (input.name !== undefined) row.name = input.name.trim();
             if (input.address !== undefined) row.address = input.address?.trim() || null;
-            if (input.active !== undefined) row.active = input.active;
+            if (input.phone !== undefined) row.phone = input.phone?.trim() || null;
+
+            if (input.active !== undefined && input.active !== row.active) {
+                row.active = input.active;
+                // Stamped on the way out and left alone on the way back in: a
+                // branch that reopens still closed when it closed.
+                if (!input.active) row.closedOn = closureStamp(new Date());
+                // The phone cannot be standing in a branch that is shut.
+                if (!input.active && currentBranchId === row.id) {
+                    currentBranchId = branches.find((b) => b.active)?.id ?? row.id;
+                }
+            }
+
             return settle({ ...row });
         },
     },
@@ -385,6 +464,88 @@ export const api = {
         },
     },
 
+    clinic: {
+        async get(): Promise<ClinicIdentity> {
+            return settle({ ...clinic });
+        },
+
+        async update(input: ClinicIdentity): Promise<ClinicIdentity> {
+            const name = input.name.trim();
+            const phone = input.phone.trim();
+            if (!name) throw new ApiError(ERROR_CODE.VALIDATION, 'the clinic needs a name');
+            if (!phone) throw new ApiError(ERROR_CODE.VALIDATION, 'the clinic needs a phone number');
+
+            clinic.name = name;
+            clinic.phone = phone;
+            return settle({ ...clinic });
+        },
+    },
+
+    appointmentSettings: {
+        async get(): Promise<AppointmentSettings> {
+            return settle({ ...appointments, durations: [...appointments.durations] });
+        },
+
+        async addDuration({ minutes }: DurationInput): Promise<AppointmentSettings> {
+            if (!Number.isInteger(minutes) || minutes < 5 || minutes > 480) {
+                throw new ApiError(ERROR_CODE.VALIDATION, 'a duration is 5 to 480 whole minutes');
+            }
+            if (appointments.durations.includes(minutes)) {
+                throw new ApiError(ERROR_CODE.DUPLICATE_KEY, 'that duration is already offered');
+            }
+
+            appointments.durations = [...appointments.durations, minutes].sort((a, b) => a - b);
+            return settle({ ...appointments, durations: [...appointments.durations] });
+        },
+
+        // The default has to stay bookable, so it cannot be the row you delete.
+        // The pane hides the remove control on that row; this is the same rule
+        // stated where it cannot be bypassed.
+        async removeDuration({ minutes }: DurationInput): Promise<AppointmentSettings> {
+            if (minutes === appointments.defaultDuration) {
+                throw new ApiError(ERROR_CODE.VALIDATION, 'the default duration cannot be removed');
+            }
+
+            appointments.durations = appointments.durations.filter((d) => d !== minutes);
+            return settle({ ...appointments, durations: [...appointments.durations] });
+        },
+
+        async setDefault({ minutes }: DurationInput): Promise<AppointmentSettings> {
+            if (!appointments.durations.includes(minutes)) {
+                throw new ApiError(ERROR_CODE.VALIDATION, 'the default must be one of the options');
+            }
+
+            appointments.defaultDuration = minutes;
+            return settle({ ...appointments, durations: [...appointments.durations] });
+        },
+    },
+
+    reminderSettings: {
+        async get(): Promise<ReminderSettings> {
+            return settle({ ...reminders });
+        },
+
+        async update(input: Partial<ReminderSettings>): Promise<ReminderSettings> {
+            if (input.leadHours !== undefined) {
+                reminders.leadHours = clamp(input.leadHours, 1, 96);
+            }
+            if (input.notifyAt !== undefined) {
+                reminders.notifyAt = clamp(input.notifyAt, 6 * 60, 21 * 60);
+            }
+            if (input.repeatMinutes !== undefined) {
+                reminders.repeatMinutes = clamp(input.repeatMinutes, 15, 120);
+            }
+            if (input.template !== undefined) {
+                if (input.template.length > TEMPLATE_MAX) {
+                    throw new ApiError(ERROR_CODE.VALIDATION, 'the message template is too long');
+                }
+                reminders.template = input.template;
+            }
+
+            return settle({ ...reminders });
+        },
+    },
+
     settings: {
         async schedule(): Promise<ClinicDay[]> {
             return settle([...schedule].sort((a, b) => a.weekday - b.weekday));
@@ -410,6 +571,16 @@ export const api = {
         },
     },
 };
+
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+function closureStamp(at: Date): string {
+    return `${MONTHS[at.getMonth()]} ${at.getFullYear()}`;
+}
+
+function clamp(value: number, low: number, high: number): number {
+    return Math.max(low, Math.min(high, value));
+}
 
 function bySortOrderThenName(a: Procedure, b: Procedure): number {
     return a.sortOrder - b.sortOrder || a.name.localeCompare(b.name);

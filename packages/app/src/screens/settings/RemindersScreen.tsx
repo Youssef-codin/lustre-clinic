@@ -1,0 +1,271 @@
+/**
+ * Settings → Reminders. Three timings and one message.
+ *
+ * The two halves answer different questions and the mockup keeps them apart:
+ * "Remind before" is about the patient — how long before an appointment the
+ * reminder becomes due — while "Notify me at" and "Repeat every" are about this
+ * phone, the daily nudge that the pending list still has things in it. Mixing
+ * them is how a clinic ends up messaging patients at 6 AM.
+ *
+ * The preview is not decoration either: the template is the only place in the
+ * app where a typo reaches every patient, so the pane renders the message as it
+ * will actually be sent, with sample values substituted for the tokens.
+ */
+import { useCallback, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import {
+    Callout,
+    Card,
+    CardDivider,
+    Chip,
+    SectionLabel,
+    Stepper,
+    Textarea,
+    usePullToRefresh,
+} from '../../components/ui';
+import { color, radius, space, Text } from '../../theme';
+import { formatClock12 } from './components/_LocalClock';
+import { PlusIcon, WhatsAppIcon } from './components/icons';
+import { Pane } from './components/Pane';
+import { ErrorState, SkeletonRows } from './components/QueryStates';
+import { api } from './data/_LocalApi';
+import { errorMessage, useMutation, useQuery } from './data/hooks';
+import { REMINDER_TOKENS, TEMPLATE_MAX } from './data/types';
+
+/**
+ * The values the preview substitutes. Deliberately one fixed patient rather
+ * than a real one off the list: a preview that names a real patient reads as a
+ * message that has already been sent.
+ */
+const SAMPLE: Record<string, string> = {
+    '{name}': 'Nour El-Sayed',
+    '{date}': 'Thu 12 Jun',
+    '{time}': '11:35 AM',
+    '{branch}': 'Heliopolis',
+    '{clinic}': 'Lustre Dental',
+};
+
+export function RemindersScreen({ onBack }: { onBack: () => void }) {
+    const settings = useQuery(useCallback(() => api.reminderSettings.get(), []));
+    const save = useMutation((input: Parameters<typeof api.reminderSettings.update>[0]) =>
+        api.reminderSettings.update(input),
+    );
+
+    // The template is typed into, so it is local state while the pane is open
+    // and written back on blur; the three steppers write on every tap because
+    // a tap is already a whole decision.
+    const [template, setTemplate] = useState<string | null>(null);
+
+    const refreshControl = usePullToRefresh(settings.reload, settings.loading || settings.reloading);
+
+    const data = settings.data;
+    const text = template ?? data?.template ?? '';
+    const overLimit = text.length > TEMPLATE_MAX;
+
+    async function write(input: Parameters<typeof api.reminderSettings.update>[0]) {
+        if (await save.run(input)) settings.reload();
+    }
+
+    return (
+        <Pane title="Reminders" onBack={onBack} refreshControl={refreshControl} testID="settings-reminders">
+            {settings.loading ? <SkeletonRows count={3} trailing /> : null}
+
+            {settings.error ? (
+                <ErrorState
+                    message={errorMessage(settings.error) ?? ''}
+                    onRetry={settings.reload}
+                    retrying={settings.reloading}
+                />
+            ) : null}
+
+            {data ? (
+                <>
+                    {save.error ? (
+                        <Callout tone="warning" title="Not saved">
+                            {errorMessage(save.error) ?? ''}
+                        </Callout>
+                    ) : null}
+
+                    <View style={styles.section}>
+                        <SectionLabel inset={false}>TIMING</SectionLabel>
+
+                        <Card>
+                            <TimingRow
+                                label="Remind before"
+                                hint="How long before the appointment a reminder becomes due"
+                                value={data.leadHours}
+                                min={1}
+                                max={96}
+                                format={(hours) => `${hours} h`}
+                                onChange={(leadHours) => write({ leadHours })}
+                                testID="reminder-lead"
+                            />
+                            <CardDivider />
+                            <TimingRow
+                                label="Notify me at"
+                                hint="Daily notification time, if any reminders are pending"
+                                value={data.notifyAt}
+                                min={6 * 60}
+                                max={21 * 60}
+                                step={60}
+                                format={formatClock12}
+                                onChange={(notifyAt) => write({ notifyAt })}
+                                testID="reminder-notify"
+                            />
+                            <CardDivider />
+                            <TimingRow
+                                label="Repeat every"
+                                hint="How often the notification repeats while reminders are still pending. Stops when the list is cleared or dismissed for the day, and never runs overnight."
+                                value={data.repeatMinutes}
+                                min={15}
+                                max={120}
+                                step={15}
+                                format={(minutes) => `${minutes} min`}
+                                onChange={(repeatMinutes) => write({ repeatMinutes })}
+                                testID="reminder-repeat"
+                            />
+                        </Card>
+                    </View>
+
+                    <View style={styles.section}>
+                        <SectionLabel
+                            inset={false}
+                            action={
+                                <Text
+                                    variant="caption"
+                                    weight="medium"
+                                    tone={overLimit ? 'due' : 'muted'}
+                                    script="mono"
+                                >
+                                    {`${text.length} / ${TEMPLATE_MAX}`}
+                                </Text>
+                            }
+                        >
+                            MESSAGE TEMPLATE
+                        </SectionLabel>
+
+                        <Textarea
+                            value={text}
+                            onChangeText={setTemplate}
+                            onBlur={() => {
+                                if (template !== null && !overLimit) write({ template });
+                            }}
+                            accessibilityLabel="Reminder message template"
+                            testID="reminder-template"
+                        />
+
+                        <View style={styles.tokens}>
+                            {REMINDER_TOKENS.map((token) => (
+                                <Chip
+                                    key={token}
+                                    variant="new"
+                                    label={token}
+                                    icon={<PlusIcon size={11} stroke={color.muted} width={2.6} />}
+                                    onPress={() => setTemplate(`${text} ${token}`)}
+                                    testID={`reminder-token-${token}`}
+                                />
+                            ))}
+                        </View>
+                    </View>
+
+                    <View style={styles.section}>
+                        <SectionLabel inset={false}>PREVIEW</SectionLabel>
+
+                        <View style={styles.preview}>
+                            <View style={styles.previewHead}>
+                                <WhatsAppIcon size={15} />
+                                <Text variant="eyebrow" tone="inverse" style={styles.channel}>
+                                    WHATSAPP
+                                </Text>
+                                <Text variant="caption" tone="inverse" script="mono" style={styles.sendAt}>
+                                    {formatClock12(data.notifyAt)}
+                                </Text>
+                            </View>
+
+                            <View style={styles.bubble}>
+                                <Text variant="callout">{fill(text)}</Text>
+                            </View>
+
+                            <Text variant="caption" tone="inverse" script="mono" style={styles.sampleNote}>
+                                Sample patient — real values are filled per appointment.
+                            </Text>
+                        </View>
+                    </View>
+                </>
+            ) : null}
+        </Pane>
+    );
+}
+
+function fill(template: string): string {
+    return REMINDER_TOKENS.reduce((text, token) => text.split(token).join(SAMPLE[token] ?? token), template);
+}
+
+type TimingRowProps = {
+    label: string;
+    hint: string;
+    value: number;
+    min: number;
+    max: number;
+    step?: number;
+    format: (value: number) => string;
+    onChange: (value: number) => void;
+    testID: string;
+};
+
+function TimingRow({ label, hint, value, min, max, step, format, onChange, testID }: TimingRowProps) {
+    return (
+        <View style={styles.timing}>
+            <View style={styles.timingText}>
+                <Text variant="callout" weight="semibold">
+                    {label}
+                </Text>
+                <Text variant="footnote" tone="muted">
+                    {hint}
+                </Text>
+            </View>
+
+            <Stepper
+                value={value}
+                min={min}
+                max={max}
+                step={step}
+                format={format}
+                onChange={onChange}
+                accessibilityLabel={label}
+                testID={testID}
+            />
+        </View>
+    );
+}
+
+const styles = StyleSheet.create({
+    section: { gap: space[2] },
+
+    timing: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[3],
+        paddingHorizontal: space[3.5],
+        paddingVertical: space[3],
+    },
+    timingText: { flex: 1, minWidth: 0, gap: space[0.5] },
+
+    tokens: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
+
+    preview: { padding: space[3.5], borderRadius: radius.xl2, backgroundColor: color.inkDeep },
+    previewHead: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+    channel: { flex: 1, opacity: 0.5 },
+    sendAt: { opacity: 0.4 },
+
+    // A received bubble: square on the corner it grows from, round elsewhere.
+    bubble: {
+        marginTop: space[3],
+        paddingVertical: space[3],
+        paddingHorizontal: space[3.5],
+        borderRadius: radius.xl,
+        borderEndStartRadius: space[1.5],
+        backgroundColor: color.surface,
+    },
+    sampleNote: { marginTop: space[2.5], opacity: 0.42 },
+});

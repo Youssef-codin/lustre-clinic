@@ -729,6 +729,8 @@ was `success` at a second value with no rule saying when it applied. The money
 dashboard is the rule: money in against an earlier visit. It is `color.older`
 now, with one caller. `--discount` is still out, for the original reason.
 
+---
+
 ## Tailnet setup — 18 Aug 2026
 
 ### 16. There is no design for this screen
@@ -817,3 +819,153 @@ why it is a PR against `main` and not a screen-local decision. The setup screen
 keeps the field as the manual fallback — a server that reports nothing must not
 wipe an address that works, and an older build that does not send the field is
 indistinguishable from one that has not been configured.
+
+## Settings, second pass — 19 Aug 2026
+
+The cluster was built from `settings.html` before that file grew its six panes.
+This pass brings it up to the mockups (`settings.html`,
+`settings-patient-fields.html`, `settings-procedures.html`). Four panes are new
+— App, Appointments, Reminders, Clinic — and none of the four has a server
+behind it.
+
+### 21. ~~Four settings groups with no procedures behind them~~ — **wrong, not blocked**
+
+**This entry was mistaken and is kept as a correction rather than deleted.**
+
+It claimed the server stored none of the clinic identity, duration or reminder
+settings, and documented the `_LocalApi` stand-ins built for them as necessary.
+The server has had all of it the whole time:
+
+- `settings` — `clinic_name`, `clinic_phone`, `duration_options` (int array),
+  `default_duration`, `reminder_lead_hours`, `reminder_notify_at`,
+  `reminder_repeat_minutes`, `reminder_template`
+- `settings.get` / `settings.update`, with `updateSettingsInput` validating
+  every field
+
+The mistake: the cluster's existing stand-in only mirrored
+`settings.schedule` / `setDay` / `clearDay`, and that was taken as evidence the
+rest of the module was equally bare instead of reading `settings.router.ts`.
+
+**Still true.** `AppScreen`, `AppointmentsScreen`, `RemindersScreen` and
+`ClinicScreen` currently call `api.appointmentSettings` / `api.reminderSettings`
+/ `api.clinic` in `data/_LocalApi.ts`, so the panes run on fixtures. That is now
+a **to-do, not a blocker** — wiring them to `settings.get` / `settings.update`
+is a change of import and two shape conversions:
+
+- `reminderNotifyAt` is a Postgres `time` (`"HH:MM"`); the pane models minutes
+  from midnight, which is what the stepper steps.
+- the server allows a 1000-character template; the pane enforces the mockup's
+  320.
+
+**Genuinely absent.** Nothing raises the daily notification `reminder_notify_at`
+and `reminder_repeat_minutes` describe. The pane stores the preference and no
+scheduler reads it.
+
+### 22. The language toggle has nothing to translate against
+
+**Needed by:** `AppScreen`.
+
+`settings.html`'s App pane offers EN / ع and promises it "changes the interface
+everywhere, including printed receipts". `@lustre/shared` exports `Locale` and
+the ramp knows about Arabic faces (`theme/fonts.ts`, `Text`'s per-string script
+detection), but there is no i18n provider, no string catalogue, and nothing that
+re-renders on a locale change.
+
+**Built instead.** The control is real and the preference is real — it is state
+on `SettingsScreen` next to the role, passed down as `locale` /
+`onChangeLocale`, so wiring it to a provider is a change of where the state
+lives and nothing else. **What it does not do yet is change any text.** This is
+the one control in the cluster that currently looks like it works and does not,
+and it should not ship to a clinic in that state.
+
+**Expected shape.** A provider owning `Locale` plus `I18nManager.forceRTL`, with
+the catalogue in `packages/shared` so server-side receipt rendering reads the
+same strings.
+
+### 23. `Branch` carries four fields the server has never had
+
+**Needed by:** `BranchesScreen`.
+
+The design's branch list draws a second and third line per branch — the address,
+then `842 · since 2019` — and the branch editor has a phone field. `branches`
+has `id`, `name`, `address`, `active`.
+
+**Built instead.** `data/types.ts`'s `Branch` gains `phone`, `patientCount`,
+`openedYear` and `closedOn`, and `_LocalApi` fills them from the design's own
+dataset. `closedOn` is stamped when a branch is deactivated and deliberately not
+cleared on reactivation. `patientCount` is the one that needs a real query
+(patients whose visits name the branch); the other three are columns.
+
+### 24. Nothing knows which branch the phone is standing in
+
+**Needed by:** the identity card's second line, and the branch list's
+"YOU'RE HERE" tag.
+
+This is BLOCKED "Which branch — Day view" reaching a second cluster, and the
+settings index makes the question unavoidable: the card under the title names
+the branch this device is at, which is exactly the device-level setting that
+entry says the app shell should own.
+
+**Built instead.** `api.branch.current()` returns a module-level id in
+`_LocalApi`, defaulting to the first branch and moved off a branch that is
+deactivated. There is no UI to change it, because the design has none — it
+belongs to onboarding, with the server address.
+
+### 25. Working hours and Users have no slot in the design's IA
+
+`settings.html`'s index is three groups — GENERAL, CLINIC, ABOUT — and neither
+`WorkingHoursScreen` nor `UsersScreen` appears in any of them.
+
+**Users:** resolved by deletion. The design replaces the pane with a role-switch
+sheet on the index, which is a better fit for what the role actually is; the
+"there are no accounts" reasoning moved into `components/RoleSwitchSheet.tsx`.
+Nothing was lost — the role is still switchable, in one tap fewer.
+
+**Working hours:** kept, and this is the pass's one deliberate deviation from the
+mockup. It is a row in the CLINIC group (`glyph="hours"`, the only icon in
+`components/icons.tsx` without mockup path data), because the alternative was
+deleting a working screen over an omission in a design file that never mentions
+opening hours at all. Delete the row and the import if the omission was
+intentional.
+
+### 26. `clock12` copied out of the day cluster
+
+**Needed by:** `RemindersScreen` (the notify-at stepper, the preview stamp) and
+the connection card's "last checked".
+
+`screens/day/time.ts` already has it. Importing across clusters is what turns two
+clusters into one, so it is `components/_LocalClock.ts` here, the same call
+`_LocalMoneyValue` makes. Both collapse into `domain/` when it exists.
+
+### 27. `ui/Stepper` could not label its value
+
+**Resolved in `ui/`, not worked around.** The reminders pane steps hours, a time
+of day and a repeat interval, and the mockup labels all three (`24 h`,
+`6:00 PM`, `30 min`). `Stepper` rendered `String(value)`. It now takes an
+optional `format`; the number stepped, the bounds and the accessibility value
+are unchanged, so no existing caller moves.
+
+### 28. Deltas from the mockups, taken deliberately
+
+- **Type sizes and the gutter** resolve to `theme/tokens.ts` as always (§ the
+  standing decision): the mockups' 27 / 20 / 15.5 / 13.5 / 12.5 / 11.5px land on
+  `title` / `title3` / `body` / `subhead` / `footnote` / `caption`, and the 22px
+  gutter on `size.gutter`. The identity card's 20px radius resolves to
+  `radius.xl2` (18).
+- **"YOU'RE HERE"** is drawn `tone="ink" variant="filled"` — the soft grey chip
+  the cluster already uses for REQUIRED — rather than the mockup's solid ink fill
+  with white text. A fourth `Tag` variant for one tag on one screen is the
+  per-screen override the ramp exists to prevent.
+- **`isToothSpecific`** keeps its switch in the procedure editor. The mockup's
+  properties card lists only quantity, checkup and active, but the flag is real,
+  the row still shows a TOOTH tag, and the visit screen reads it.
+- **Patient fields keeps deactivate over the mockup's delete**, and keeps the
+  answer type locked once a question exists. Both are older decisions in this
+  cluster (the delete that orphans answers was removed on purpose); the mockup's
+  "answers are kept but hidden" sheet describes deactivation in delete's words.
+- **Bilingual labels.** `settings-patient-fields.html` and
+  `settings-procedures.html` both draw an English and an Arabic input per name.
+  `custom_questions.label` and `procedures.name` are single columns, so the
+  panes take one label and `Text` picks the face per string. Two columns and a
+  migration, not a screen change.
+
