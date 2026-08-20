@@ -54,6 +54,15 @@ push it, open the PR from there against `main`.
   everything the client sends GlitchTip (§17 — allow-list, never strip).
 - **The client localizes from `ERROR_CODE`**, never by parsing server message
   text. Server messages stay English for logs.
+- **Icons come from the icon library. Never hand-draw one.** `lucide-react-native`
+  is installed and is the default; `@expo/vector-icons` covers the brand glyphs
+  lucide has no answer for, like WhatsApp. Do not write `<Path>`, `<Circle>` or
+  `<Rect>` to make an icon — not to match a mockup, not because the name is hard
+  to find, not "just this one". A hand-drawn icon has no consistent stroke,
+  optical size or grid, and every one of them is a thing nobody can restyle
+  later. If the design shows a glyph the library does not have, pick the nearest
+  one and note it in `BLOCKED.md` rather than drawing it. The only SVG the app
+  draws directly is the brand artwork in `packages/app/assets/brand`.
 
 ## Code Comment Rules
 - Never describe *what* a line of code does mechanically (e.g., do not add `// loop over array`).
