@@ -272,7 +272,19 @@ export async function amend(input: {
     closed: boolean;
     procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
 }): Promise<Visit> {
-    if (input.closed) await api.reopenVisit(input.visitId);
+    // `closed` is what the screen was opened on, which a failed attempt has
+    // already made stale: the reopen lands, `setProcedures` is refused for a
+    // duplicate tooth, and the visit is now open while the screen still thinks
+    // it is closed. Reopening it a second time is refused — `reopen` cannot
+    // tell an already-corrected visit from one that was never checked out —
+    // and that refusal would replace the real complaint about the tooth with
+    // one about the checkout, on every retry. So the state is re-read rather
+    // than assumed, and only on the path that might need it.
+    if (input.closed) {
+        const current = await api.visitById(input.visitId);
+        if (current.completedAt) await api.reopenVisit(input.visitId);
+    }
+
     return api.setProcedures({ visitId: input.visitId, procedures: input.procedures });
 }
 
