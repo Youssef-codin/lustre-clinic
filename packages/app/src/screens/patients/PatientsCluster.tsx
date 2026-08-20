@@ -20,6 +20,8 @@
 // correction on it, which is `read` bumped so the screen remounts and re-reads
 // rather than showing what it was holding before the write.
 import { useState } from 'react';
+import { PushView } from '../../components/ui';
+import { VisitPage } from '../day';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
 import { PatientRecordScreen } from './PatientRecordScreen';
@@ -45,6 +47,12 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
     const [seen, setSeen] = useState(0);
     /** Bumped by a save, so the record behind the editor remounts onto fresh data. */
     const [read, setRead] = useState(0);
+    // A visit opened off a history row. It is a page over the record rather
+    // than a fourth route, because backing out of it returns to the row you
+    // tapped with the record's scroll where you left it. `VisitPage` is the day
+    // cluster's whole visit stack behind two ids — see `screens/day/index.ts`.
+    const [visit, setVisit] = useState<{ appointmentId: string; visitId: string } | null>(null);
+    const [visitOpen, setVisitOpen] = useState(false);
 
     // Derived during render rather than in an effect: the record is on screen in
     // the same commit as the tab switch, so the pane does not paint the list for
@@ -77,13 +85,34 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
 
     if (route.name === 'record') {
         return (
-            <PatientRecordScreen
-                key={`record:${route.patientId}:${read}`}
-                patientId={route.patientId}
-                backLabel={route.backLabel}
-                onBack={() => setRoute({ name: 'list' })}
-                onEdit={() => setRoute({ name: 'edit', patientId: route.patientId, from: 'record' })}
-            />
+            <>
+                <PatientRecordScreen
+                    key={`record:${route.patientId}:${read}`}
+                    patientId={route.patientId}
+                    backLabel={route.backLabel}
+                    onBack={() => setRoute({ name: 'list' })}
+                    onEdit={() => setRoute({ name: 'edit', patientId: route.patientId, from: 'record' })}
+                    onOpenVisit={(entry) => {
+                        if (!entry.visitId) return;
+                        setVisit({ appointmentId: entry.appointmentId, visitId: entry.visitId });
+                        setVisitOpen(true);
+                    }}
+                />
+
+                <PushView visible={visitOpen} testID="patient-visit-page">
+                    {visit ? (
+                        <VisitPage
+                            key={`visit:${visit.visitId}`}
+                            appointmentId={visit.appointmentId}
+                            visitId={visit.visitId}
+                            onClose={() => setVisitOpen(false)}
+                            // The record's totals move with the visit, so it is
+                            // re-read rather than left showing what it held.
+                            onChanged={() => setRead((n) => n + 1)}
+                        />
+                    ) : null}
+                </PushView>
+            </>
         );
     }
 

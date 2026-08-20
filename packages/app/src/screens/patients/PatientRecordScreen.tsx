@@ -65,6 +65,8 @@ export type PatientRecordScreenProps = {
     onWalkIn?: () => void;
     /** Settling the balance is the money cluster's screen; the strip's button appears only if given a way there. */
     onRecordPayment?: () => void;
+    /** A history row that became a visit — the cluster above opens it. */
+    onOpenVisit?: (entry: PatientHistoryEntry) => void;
 };
 
 type Tab = 'visits' | 'details';
@@ -77,6 +79,7 @@ export function PatientRecordScreen({
     onBook,
     onWalkIn,
     onRecordPayment,
+    onOpenVisit,
 }: PatientRecordScreenProps) {
     const [tab, setTab] = useState<Tab>('visits');
     const [toast, setToast] = useState<string | null>(null);
@@ -149,7 +152,7 @@ export function PatientRecordScreen({
                     </View>
 
                     {tab === 'visits' ? (
-                        <History history={history} />
+                        <History history={history} onOpenVisit={onOpenVisit} />
                     ) : (
                         <Details
                             answers={patient.custom}
@@ -327,7 +330,13 @@ function Pill({ label, onPress, testID }: { label: string; onPress: () => void; 
  * have paid over it — which is the summary both users read first and neither
  * would work out from the rows.
  */
-function History({ history }: { history: PatientHistoryEntry[] }) {
+function History({
+    history,
+    onOpenVisit,
+}: {
+    history: PatientHistoryEntry[];
+    onOpenVisit?: (entry: PatientHistoryEntry) => void;
+}) {
     const years = useMemo(() => groupByYear(history), [history]);
     const paid = history.reduce((total, entry) => total + entry.paidTotal, 0);
 
@@ -367,7 +376,7 @@ function History({ history }: { history: PatientHistoryEntry[] }) {
                         </Text>
                     </View>
                     {rows.map((entry) => (
-                        <HistoryRow key={entry.appointmentId} entry={entry} />
+                        <HistoryRow key={entry.appointmentId} entry={entry} onOpen={onOpenVisit} />
                     ))}
                 </View>
             ))}

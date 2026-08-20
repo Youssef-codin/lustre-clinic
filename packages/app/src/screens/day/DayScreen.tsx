@@ -24,28 +24,30 @@ import {
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
-import { splitDeskDay } from './chair';
+import { type Standing, splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { BookFab } from './components/BookFab';
 import { BookingScreen } from './components/BookingScreen';
 import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
-import { CheckoutSheet } from './components/CheckoutSheet';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { ChatIcon, ClockIcon } from './components/icons';
 import { NowCard } from './components/NowCard';
 import { Reminders } from './components/Reminders';
+import { VisitPaymentScreen } from './components/VisitPaymentScreen';
+import { VisitScreen } from './components/VisitScreen';
+import { VisitViewScreen } from './components/VisitViewScreen';
 import {
     type Appointment,
     api,
     checkInTimes,
-    rememberVisit,
     useLocalMutation,
     useLocalQuery,
     type Visit,
+    visitForAppointment,
 } from './data';
 import { dayDelay, delayLabel, delayReason } from './delay';
 import { describeError } from './errors';
@@ -61,9 +63,16 @@ export type DayScreenProps = {
     /** The booking page covers the day pane; the shell lights the Patients tab
      * while it is up, because a booking belongs to the patient, not to today. */
     onBookingChange?: (open: boolean) => void;
+    /**
+     * Open a patient's record. The shell owns the route because the record
+     * lives on the Patients tab, and the tab bar has to move with it — and it
+     * carries `said` for the same reason: a toast raised here would draw inside
+     * a pane the shell is about to hide.
+     */
+    onOpenRecord?: (patientId: string, said?: string) => void;
 };
 
-export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
+export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
@@ -79,12 +88,33 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
         appointment: null,
         open: false,
     });
-    const [checkout, setCheckout] = useState<{
-        target: { appointment: Appointment; visit: Visit } | null;
-        open: boolean;
-    }>({ target: null, open: false });
+    // Finishing a visit is two pages pushed over the day — what was done, then
+    // what was paid — not one sheet holding both. `open` is separate from the
+    // target so the pages survive their own exit animation, and `step` lives
+    // here rather than inside them because Back on the payment page returns to
+    // the treatment page, not to the day.
+    const [visit, setVisit] = useState<{
+        appointment: Appointment;
+        /** Absent on an arrival — Confirm is what creates it. */
+        visit: Visit | null;
+        /**
+         * Why the flow was opened. It decides what the editor's bar offers and
+         * where Back goes: an arrival confirms into the waiting room, a
+         * checkout goes on to the money, and a finished visit has the read-only
+         * page underneath.
+         */
+        origin: 'view' | 'arrival' | 'checkout';
+        /**
+         * Where the patient was standing when the flow opened — the queue's
+         * answer, which the status cannot give: the chair and the three people
+         * behind it are all `checked_in`.
+         */
+        standing: Standing | null;
+        step: 'view' | 'treatment' | 'payment';
+        seq: number;
+    } | null>(null);
+    const [visitOpen, setVisitOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
-    const [checkingIn, setCheckingIn] = useState<string | null>(null);
 
     const nowMinutes = useNowMinutes();
 
@@ -104,7 +134,9 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
     const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
     const reminderCount = reminders.data?.length ?? 0;
 
-    const checkIn = useLocalMutation(api.checkIn);
+    // Tapping a row that already has a visit. Separate from `loadVisit` so a
+    // tap during a check-in is not swallowed by the other one's in-flight guard.
+    const openRow = useLocalMutation(visitForAppointment);
     const noShow = useLocalMutation(api.markNoShow);
 
     const appointments = clinicDay.filter((row) => row.branchId === branch);
@@ -163,6 +195,10 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
         [appointments, arrivals.data],
     );
 
+    // Whoever the black card is about: money owed outranks the chair, so a
+    // patient at the desk holds it until they have paid.
+    const active = desk ?? chair;
+
     const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null);
 
     // What the chair's overrun and any walk-ins mean for everyone still to be
@@ -182,25 +218,89 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
     };
 
     const openBooking = () => setBooking((current) => ({ open: true, seq: current.seq + 1 }));
-    const openDetail = (appointment: Appointment) => setSelected({ appointment, open: true });
 
-    const checkingInId = checkIn.pending ? checkingIn : null;
+    /**
+     * A row with a visit behind it is a way into that visit, not into a menu:
+     * tapping the patient in the chair goes straight to what was done. The
+     * sheet stays for everything else, which is where the booking-time actions
+     * live (check in, cancel, no-show) and where a finished visit is read.
+     * A visit that cannot be found falls back to the sheet rather than to
+     * nothing — the row still has to open.
+     */
+    function openDetail(appointment: Appointment) {
+        const live = appointment.status === 'checked_in' || appointment.status === 'awaiting_payment';
+        // A finished visit opens read-only: it is history until someone says
+        // otherwise, and `Edit visit` on that screen is what says otherwise.
+        const finished = appointment.status === 'done';
+        if (!live && !finished) {
+            setSelected({ appointment, open: true });
+            return;
+        }
 
-    function checkInFrom(appointment: Appointment) {
-        setCheckingIn(appointment.id);
-        checkIn.mutate(appointment.id, {
-            onSuccess: (visit) => {
-                rememberVisit(appointment.id, visit.id);
-                // Checking in no longer means going in: with the chair taken
-                // they join the queue, and the toast has to say which happened.
-                setToast(
-                    chair
-                        ? `${appointment.patient.name} is waiting — ${waiting.length + 1} ahead of them`
-                        : `${appointment.patient.name} is in the chair`,
-                );
-                day.refetch();
+        openRow.mutate(appointment.id, {
+            onSuccess: (loaded) => {
+                if (loaded) {
+                    openVisit(appointment, loaded, finished ? 'view' : 'checkout');
+                    return;
+                }
+                setSelected({ appointment, open: true });
             },
         });
+    }
+
+    // Nothing to wait for: checking in opens a screen and writes nothing, so
+    // no row is ever mid-check-in.
+    const checkingInId = null;
+
+    function openVisit(
+        appointment: Appointment,
+        loaded: Visit | null,
+        origin: 'view' | 'arrival' | 'checkout' = 'checkout',
+    ) {
+        setVisit((current) => ({
+            appointment,
+            visit: loaded,
+            origin,
+            standing: standingOf(appointment),
+            step: origin === 'view' ? 'view' : 'treatment',
+            seq: (current?.seq ?? 0) + 1,
+        }));
+        setVisitOpen(true);
+    }
+
+    /**
+     * The queue decides this, not the status. Everyone waiting to be seen is
+     * `checked_in` and so is the patient in the chair; only the head of the
+     * queue is in it, and only they can be sent on to the desk.
+     */
+    function standingOf(appointment: Appointment): Standing {
+        // A finished visit stays finished through the edit that follows it —
+        // reopening unlocks the visit and leaves the appointment alone. And a
+        // day that is not today has no chair and no desk to speak of.
+        if (appointment.status === 'done' || !isToday) return 'finished';
+        if (appointment.status === 'awaiting_payment') return 'desk';
+        return chair?.id === appointment.id ? 'chair' : 'waiting';
+    }
+
+    /**
+     * Where the patient stands once they are through the door, as a phrase
+     * without their name: the toast that carries it lands on their record,
+     * where the name is already the largest thing on the screen.
+     */
+    function seated(): string {
+        // Checking in no longer means going in: with the chair taken they join
+        // the queue, and the message has to say which happened.
+        return chair ? `waiting, ${waiting.length + 1} ahead` : 'in the chair';
+    }
+
+    /**
+     * Nothing is written here. The arrival screen opens on what the booking
+     * planned and its Confirm is what checks the patient in — so a tap that
+     * turns out to be the wrong row costs nothing, and the day never shows
+     * someone as arrived who was never confirmed.
+     */
+    function checkInFrom(appointment: Appointment) {
+        openVisit(appointment, null, 'arrival');
     }
 
     function markNoShow(appointment: Appointment) {
@@ -270,8 +370,11 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
                     }
                 />
             ) : null}
-            {checkIn.error ? (
-                <Banner tone="warning" message={describeError(checkIn.error, 'check-in').title} />
+            {openRow.error ? (
+                <Banner
+                    tone="warning"
+                    message={`${describeError(openRow.error).title} — the visit could not be opened.`}
+                />
             ) : null}
             {noShow.error ? <Banner tone="warning" message={describeError(noShow.error).title} /> : null}
 
@@ -322,13 +425,15 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
 
                         {isToday ? (
                             <NowCard
-                                active={desk ?? chair}
+                                active={active}
                                 next={next}
                                 nowMinutes={nowMinutes}
                                 procedure={card ? procedureLabel(card) : undefined}
+                                checkedInAt={active ? arrivals.data?.get(active.id) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}
+                                onOpenRecord={(patientId) => onOpenRecord?.(patientId)}
                             />
                         ) : null}
 
@@ -404,23 +509,118 @@ export function DayScreen({ onBookingChange }: DayScreenProps = {}) {
                 appointment={selected.appointment}
                 onClose={() => setSelected((current) => ({ ...current, open: false }))}
                 onChanged={day.refetch}
-                onCheckOut={(appointment, visit) => {
+                onCheckIn={checkInFrom}
+                onCheckOut={(appointment, loaded) => {
                     setSelected((current) => ({ ...current, open: false }));
-                    setCheckout({ target: { appointment, visit }, open: true });
+                    openVisit(appointment, loaded);
                 }}
             />
 
-            <CheckoutSheet
-                key={`checkout:${checkout.target?.visit.id ?? 'none'}`}
-                visible={checkout.open}
-                appointment={checkout.target?.appointment ?? null}
-                visit={checkout.target?.visit ?? null}
-                onClose={() => setCheckout((current) => ({ ...current, open: false }))}
-                onDone={(message) => {
-                    setToast(message);
-                    day.refetch();
-                }}
-            />
+            {/* Nested rather than swapped, so each page slides over the one
+                before it and Back slides it away with that one still behind,
+                scroll and all. A ternary here drew both instantly, which is
+                the missing transition it looked like. A finished visit adds a
+                read-only page underneath the editor; a live one starts on the
+                editor and has nothing under it. */}
+            <PushView visible={visitOpen} testID="visit-page">
+                {visit ? (
+                    <>
+                        {visit.origin === 'view' && visit.visit ? (
+                            <VisitViewScreen
+                                key={`view:${visit.seq}`}
+                                appointment={visit.appointment}
+                                visit={visit.visit}
+                                onBack={() => setVisitOpen(false)}
+                                // The editor opens on the visit as it stands;
+                                // the reopen it needs rides along with Confirm.
+                                onEdit={() => setVisit({ ...visit, step: 'treatment' })}
+                            />
+                        ) : null}
+
+                        <PushView visible={visit.step !== 'view'} testID="visit-treatment-page">
+                            <VisitScreen
+                                key={`visit:${visit.seq}:${visit.step === 'view' ? 'idle' : 'live'}`}
+                                appointment={visit.appointment}
+                                visit={visit.visit ?? undefined}
+                                mode={visit.origin === 'arrival' ? 'arrival' : 'checkout'}
+                                standing={visit.standing ?? undefined}
+                                onBack={() => {
+                                    if (visit.origin === 'view') {
+                                        setVisit({ ...visit, step: 'view' });
+                                        return;
+                                    }
+                                    // Backing out of an arrival wrote nothing —
+                                    // they are still booked, and saying they
+                                    // are in the chair would be a lie.
+                                    setVisitOpen(false);
+                                }}
+                                onConfirm={(priced) => {
+                                    // An arrival is done here: they are in the
+                                    // chair or in the queue, and nothing is owed
+                                    // until the work is finished.
+                                    if (visit.origin === 'arrival') {
+                                        setVisitOpen(false);
+                                        day.refetch();
+                                        // The patient is through the door and
+                                        // their record is what comes next:
+                                        // history, balance, what to ask them.
+                                        // The shell raises the toast, because
+                                        // one raised here would draw inside a
+                                        // pane it is about to hide.
+                                        if (onOpenRecord) {
+                                            onOpenRecord(
+                                                visit.appointment.patient.id,
+                                                `Checked in · ${seated()}`,
+                                            );
+                                            return;
+                                        }
+                                        setToast(`${visit.appointment.patient.name} is ${seated()}`);
+                                        return;
+                                    }
+                                    // Same for a patient still in the queue:
+                                    // this was their plan being corrected, and
+                                    // nothing is owed until the work is done.
+                                    if (visit.standing === 'waiting') {
+                                        setVisitOpen(false);
+                                        setToast(`${visit.appointment.patient.name} is still waiting`);
+                                        day.refetch();
+                                        return;
+                                    }
+                                    setVisit({ ...visit, visit: priced, step: 'payment' });
+                                }}
+                                onSentToDesk={(message) => {
+                                    setVisitOpen(false);
+                                    setToast(message);
+                                    day.refetch();
+                                }}
+                            />
+
+                            <PushView
+                                visible={visit.step === 'payment' && visit.visit !== null}
+                                testID="visit-payment-page"
+                            >
+                                {visit.visit ? (
+                                    <VisitPaymentScreen
+                                        key={`payment:${visit.seq}:${visit.visit.chargedTotal}`}
+                                        appointment={visit.appointment}
+                                        visit={visit.visit}
+                                        // Reopened from the read-only page: the
+                                        // money on it is being corrected, not
+                                        // collected for the first time.
+                                        correcting={visit.standing === 'finished'}
+                                        onBack={() => setVisit({ ...visit, step: 'treatment' })}
+                                        onClosed={(message) => {
+                                            setVisitOpen(false);
+                                            setToast(message);
+                                            day.refetch();
+                                        }}
+                                    />
+                                ) : null}
+                            </PushView>
+                        </PushView>
+                    </>
+                ) : null}
+            </PushView>
 
             <Toast
                 visible={toast !== null}
