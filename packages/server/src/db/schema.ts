@@ -179,7 +179,10 @@ export const payments = pgTable(
     },
     (t) => [
         index('payments_visit_id_idx').on(t.visitId),
-        check('payments_amount_positive', sql`${t.amount} > 0`),
+        // Negative is a refund: a correction to a visit that was checked out
+        // recording more than was handed over (`0002_payment_corrections.sql`).
+        // Zero is not a correction, it is a mistake.
+        check('payments_amount_nonzero', sql`${t.amount} <> 0`),
         check(
             'payments_other_requires_note',
             sql`${t.method} <> 'other' OR (${t.methodNote} IS NOT NULL AND ${t.methodNote} <> '')`,
