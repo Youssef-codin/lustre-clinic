@@ -13,13 +13,16 @@ import {
     Calendar,
     Check,
     Clock,
+    Coins,
     CreditCard,
     Hourglass,
     MapPin,
     MessageCircle,
     Plus,
+    Receipt,
     Stethoscope,
     X,
+    Zap,
 } from 'lucide-react-native';
 import { color } from '../../../theme';
 
@@ -65,3 +68,11 @@ export const PlusIcon = icon(Plus, 2.4);
 
 /** The catalogue's remove — `CloseIcon` is a dismiss, this ends a line. */
 export const XIcon = icon(X, 2.2);
+
+// The four ways the clinic is paid. `PaymentIcon` is the card already, so the
+// payment screen's Card tile reuses it rather than naming the same glyph twice.
+export const CashIcon = icon(Coins, 1.8);
+
+export const InstapayIcon = icon(Zap, 1.8);
+
+export const OtherMethodIcon = icon(Receipt, 1.8);

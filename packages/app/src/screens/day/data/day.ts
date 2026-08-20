@@ -163,6 +163,23 @@ export const api = {
     awaitPayment: (id: string): Promise<AppointmentRow> =>
         wrap(() => trpcClient.appointment.awaitPayment.mutate({ id })),
 
+    /**
+     * Replaces the visit's whole list — the procedure does not patch a line
+     * (§8), which is why the visit screen holds the draft and sends all of it.
+     * Omitting `unitPrice` would take the catalogue's price back, so the screen
+     * always sends what is on it, including a price it never edited.
+     */
+    setProcedures: (input: {
+        visitId: string;
+        procedures: Array<{
+            procedureId: string;
+            quantity?: number;
+            unitPrice?: number;
+            tooth?: Tooth | null;
+            note?: string | null;
+        }>;
+    }): Promise<Visit> => wrap(() => trpcClient.visit.setProcedures.mutate(input)),
+
     checkOut: (input: {
         visitId: string;
         chargedTotal: number;
@@ -171,8 +188,93 @@ export const api = {
         methodNote?: string | null;
     }): Promise<Visit> => wrap(() => trpcClient.visit.checkOut.mutate(input)),
 
+    /**
+     * What the visit was paid, in total, rather than another payment on top —
+     * the one way a figure that was entered too high comes back down. The
+     * server writes the difference, so correcting 800 to 500 leaves both the
+     * 800 and the refund of 300 on the record.
+     */
+    setPaid: (input: {
+        visitId: string;
+        paidTotal: number;
+        method: PaymentMethod;
+        methodNote?: string | null;
+    }): Promise<Visit> => wrap(() => trpcClient.visit.setPaid.mutate(input)),
+
     visitById: (id: string): Promise<Visit> => wrap(() => trpcClient.visit.byId.query({ id })),
+
+    appointmentById: (id: string): Promise<Appointment> =>
+        wrap(() => trpcClient.appointment.byId.query({ id })),
+
+    /**
+     * Unlock a finished visit so it can be corrected. Payments already taken
+     * survive it, so the visit reopens owing whatever is left after them, and
+     * the appointment stays `done` — the patient went home, and an edit that is
+     * opened and backed out of must not leave them on the day view as though
+     * they were standing at the desk.
+     */
+    reopenVisit: (visitId: string): Promise<Visit> => wrap(() => trpcClient.visit.reopen.mutate({ visitId })),
 };
+
+/**
+ * The patient is through the door — checked in, and what they are here for
+ * recorded, in that order and only on confirmation. Nothing is written while
+ * the arrival screen is merely open, so backing out of it leaves an
+ * appointment that is still `booked` rather than a patient the day view says
+ * has arrived and has not.
+ *
+ * `edited` is what decides whether the list is sent at all. Check-in already
+ * seeds the visit from the booking and adds the clinic's checkup line (§9); an
+ * untouched list is that same list, and re-sending it would only risk
+ * disagreeing with it. When it *was* touched, the checkup the server chose is
+ * carried across rather than recomputed here — the waiver rule is the server's
+ * and a second copy of it in the client is a copy that drifts.
+ */
+export async function arrive(input: {
+    appointmentId: string;
+    procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
+    edited: boolean;
+}): Promise<Visit> {
+    const row = await api.checkIn(input.appointmentId);
+    rememberVisit(input.appointmentId, row.id);
+
+    if (!input.edited) return api.visitById(row.id);
+
+    const seeded = await api.visitById(row.id);
+    const checkup = seeded.procedures.filter(
+        (line) => line.isCheckup && !input.procedures.some((row) => row.procedureId === line.procedureId),
+    );
+
+    return api.setProcedures({
+        visitId: row.id,
+        procedures: [
+            ...input.procedures,
+            ...checkup.map((line) => ({
+                procedureId: line.procedureId,
+                quantity: line.quantity,
+                unitPrice: line.unitPrice,
+                tooth: line.tooth,
+            })),
+        ],
+    });
+}
+
+/**
+ * Correct a visit's lines, reopening it first if it was closed. The two go
+ * together on purpose: `visit.setProcedures` is refused on a checked-out visit,
+ * so the reopen is part of the write rather than the price of opening the
+ * editor. Opening it and backing out has to leave the visit exactly as closed
+ * as it was found — the same rule the arrival screen follows, where nothing is
+ * written until Confirm.
+ */
+export async function amend(input: {
+    visitId: string;
+    closed: boolean;
+    procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
+}): Promise<Visit> {
+    if (input.closed) await api.reopenVisit(input.visitId);
+    return api.setProcedures({ visitId: input.visitId, procedures: input.procedures });
+}
 
 const visitIds = new Map<string, string>();
 

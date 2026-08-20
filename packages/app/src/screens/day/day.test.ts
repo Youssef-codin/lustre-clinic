@@ -8,13 +8,13 @@ import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { procedureLabel, splitDay } from './agenda';
 import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
-import { slotProgress, splitDeskDay, splitDoctorDay } from './chair';
+import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment, ProcedureCategory } from './data/types';
 import { dayDelay, delayLabel, delayReason, isProjected, ON_TIME, projectedStart } from './delay';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
-import { amountDue, formatMoney, poundsEntry } from './money';
+import { amountDue, formatAmount, formatMoney, poundsEntry } from './money';
 import { busiestBranch, loadsFrom } from './month';
 import {
     birthDateDigits,
@@ -27,6 +27,7 @@ import {
 } from './patientDraft';
 import {
     bookedProcedures,
+    checkupToAdd,
     describeProcedure,
     groupByTooth,
     offeredFor,
@@ -41,6 +42,7 @@ import {
     clockToMinutes,
     dateKey,
     formatDatePill,
+    formatLongDate,
     isoAt,
     minutesOfDay,
     minutesToClock,
@@ -238,6 +240,44 @@ describe("the doctor's day", () => {
         expect(splitDeskDay([at('paid', '09:30', 'done')]).card).toBeNull();
     });
 
+    // The trap `standingFor` exists for: `awaiting_payment` means standing at
+    // the desk today, and a visit never settled on a day gone by. The date
+    // tells them apart.
+    it('calls an unsettled visit from another day finished, not at the desk', () => {
+        const old = at('old', '11:05', 'awaiting_payment');
+
+        expect(standingFor(old, '2026-08-10')).toBe('desk');
+        expect(standingFor(old, '2026-08-27')).toBe('finished');
+    });
+
+    it('calls a closed visit finished whatever day it is read on', () => {
+        expect(standingFor(at('closed', '11:05', 'done'), '2026-08-10')).toBe('finished');
+    });
+
+    // Seated early, the visit started early and runs to the booked end, so the
+    // room grows rather than sliding forward with them.
+    it('starts the clock when the patient was actually seen', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seen = '2026-08-10T10:40:00+03:00';
+        const start = minutesOfDay(appointment.startsAt);
+
+        expect(slotProgress(appointment, start, seen).label).toBe('20 / 50 min');
+        expect(slotProgress(appointment, start, seen).over).toBe(false);
+        // Without it, the same moment reads as the slot only just opening.
+        expect(slotProgress(appointment, start).label).toBe('0 / 30 min');
+    });
+
+    it('keeps the booked start for a patient seated late', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seen = '2026-08-10T11:20:00+03:00';
+        const start = minutesOfDay(appointment.startsAt);
+
+        // A fresh slot from 11:20 would put this at 25 minutes of 30 and
+        // never run over; the slot's own start is what keeps it honest.
+        expect(slotProgress(appointment, start + 45, seen).over).toBe(true);
+        expect(slotProgress(appointment, start + 45, seen).label).toBe('15 min over');
+    });
+
     it('measures the slot, and says so once it runs over', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const start = minutesOfDay(appointment.startsAt);
@@ -327,6 +367,12 @@ describe('money', () => {
         expect(poundsEntry('12.5')).toBe('125');
         expect(poundsEntry('1,200')).toBe('1200');
     });
+
+    it('leaves the currency off a figure that already has one beside it', () => {
+        expect(formatAmount(260_000)).toBe('2,600');
+        expect(formatAmount(0)).toBe('0');
+        expect(formatAmount(-90_000)).toBe('-900');
+    });
 });
 
 describe('dates', () => {
@@ -354,6 +400,11 @@ describe('dates', () => {
         expect(formatDatePill(today, today).split(' ')).toHaveLength(2);
         expect(formatDatePill(addDays(today, 2), today).split(' ')).toHaveLength(3);
         expect(formatDatePill(today, today)).toBe(formatDatePill(today, today).toUpperCase());
+    });
+
+    it('spells the day out in full on the visit screens', () => {
+        expect(formatLongDate('2026-06-11')).toBe('Thursday, 11 June 2026');
+        expect(formatLongDate('2026-01-01')).toBe('Thursday, 1 January 2026');
     });
 });
 
@@ -862,6 +913,45 @@ describe('a day running late', () => {
 
     it('cannot be late on a day the clock has not reached', () => {
         expect(dayDelay([row('chair', 600, 30, 'checked_in')], null)).toEqual(ON_TIME);
+    });
+});
+
+describe('the checkup the arrival screen shows', () => {
+    const tree = (): ProcedureCategory[] =>
+        [
+            {
+                id: 'checkup',
+                name: 'Consultation',
+                defaultPrice: 30_000,
+                isCheckup: true,
+                selectable: true,
+                children: [],
+            },
+            {
+                id: 'filling',
+                name: 'Composite filling',
+                defaultPrice: 0,
+                isCheckup: false,
+                selectable: false,
+                children: [{ id: 'class-i', name: 'Class I', defaultPrice: 70_000, isCheckup: false }],
+            },
+        ] as unknown as ProcedureCategory[];
+
+    it('adds the clinic checkup to a plan that has none', () => {
+        expect(checkupToAdd(tree(), [{ procedureId: 'class-i' }])).toEqual({
+            procedureId: 'checkup',
+            name: 'Consultation',
+            price: 30_000,
+        });
+    });
+
+    it('waives it when the booking already asked for one, as check-in does', () => {
+        expect(checkupToAdd(tree(), [{ procedureId: 'checkup' }])).toBeNull();
+    });
+
+    it('adds nothing when the clinic has no checkup set up', () => {
+        const none = tree().filter((row) => !row.isCheckup);
+        expect(checkupToAdd(none, [])).toBeNull();
     });
 });
 

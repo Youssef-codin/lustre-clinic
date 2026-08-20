@@ -149,3 +149,30 @@ export function offeredFor(categories: readonly ProcedureCategory[], hasTooth: b
         return children.length > 0 ? [{ ...category, children }] : [];
     });
 }
+
+/**
+ * The line check-in seeds on top of the booking's plan (§9): the clinic's
+ * checkup, waived when the plan already names one. `visit.checkIn` is the
+ * authority — this mirrors its choice so the arrival screen can show the line
+ * before a visit exists to carry it, which otherwise left a booking with no
+ * plan drawing an empty screen that read as broken. Picked the way the server
+ * picks it: the first active checkup in catalogue order.
+ */
+export function checkupToAdd(
+    categories: readonly ProcedureCategory[],
+    planned: readonly { procedureId: string }[],
+): { procedureId: string; name: string; price: number } | null {
+    const checkups = new Set<string>();
+    let first: { procedureId: string; name: string; price: number } | null = null;
+
+    for (const category of categories) {
+        for (const row of category.selectable ? [category] : category.children) {
+            if (!row.isCheckup) continue;
+            checkups.add(row.id);
+            first ??= { procedureId: row.id, name: row.name, price: row.defaultPrice };
+        }
+    }
+
+    if (!first) return null;
+    return planned.some((line) => checkups.has(line.procedureId)) ? null : first;
+}
