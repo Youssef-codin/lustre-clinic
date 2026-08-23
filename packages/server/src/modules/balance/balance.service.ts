@@ -10,6 +10,10 @@
  * collected is attributed to the day the money arrived, which is why the two
  * are counted separately rather than differenced per visit. `to` is inclusive
  * as a date, so the range ends at the start of the following day.
+ *
+ * `outstanding` and `byPatient` count opening balances — money carried over
+ * from the old system is still owed, and a patient's total has to say so.
+ * `summary` does not: see the note on its charged query.
  */
 import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
@@ -114,11 +118,21 @@ export const balanceService = {
         const { from } = dayRange(input.from, input.offsetMinutes);
         const { to } = dayRange(input.to, input.offsetMinutes);
 
+        // Charged is what this clinic billed in the period. An opening balance
+        // was billed by the old system before the cutoff, so it is excluded
+        // here and left in `outstanding`, where it belongs — the patient owes
+        // it either way, but nobody charged it on the day the row is dated.
         const [charged] = await db
             .select({ total: sql<number>`COALESCE(SUM(${visits.chargedTotal}), 0)::int` })
             .from(visits)
             .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
-            .where(and(gte(appointments.startsAt, from), lt(appointments.startsAt, to)));
+            .where(
+                and(
+                    gte(appointments.startsAt, from),
+                    lt(appointments.startsAt, to),
+                    eq(appointments.isOpeningBalance, false),
+                ),
+            );
 
         const [collected] = await db
             .select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })

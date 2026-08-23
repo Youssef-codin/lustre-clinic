@@ -16,7 +16,7 @@
  * on the phone, and the questions are answered at the desk.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import { desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
     appointmentProcedures,
@@ -34,6 +34,7 @@ import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
 import type {
     CreatePatientInput,
+    PatientByPhoneInput,
     RecentPatientsInput,
     SearchPatientInput,
     UpdatePatientInput,
@@ -69,6 +70,8 @@ export interface PatientHistoryEntry {
     status: AppointmentStatus;
     checkedInAt: Date | null;
     completedAt: Date | null;
+    /** Debt carried over from the old system, not a visit. The record labels it rather than drawing it as one. */
+    isOpeningBalance: boolean;
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;
@@ -92,7 +95,8 @@ export interface RecentPatients {
     total: number;
 }
 
-function toPatient(row: PatientRow): Patient {
+/** Exported for callers that already hold the row — `migration.enter` writes one and returns it. */
+export function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
 }
 
@@ -182,6 +186,36 @@ export const patientService = {
     },
 
     /**
+     * Everyone already on file under this number, oldest first.
+     *
+     * `phone` is indexed but not unique, and deliberately: two siblings share a
+     * mother's number, and refusing the second one at the desk would be
+     * refusing a patient. So this answers with a list and lets the caller
+     * decide — data entry warns and carries on, because over a long migration
+     * session the same patient does get typed twice.
+     *
+     * A term that will not normalize is not a duplicate, it is a number still
+     * being typed, so it answers `[]` rather than throwing `INVALID_PHONE`.
+     * Matching is on the normalized form, so `0101…` finds a stored `+20101…`.
+     */
+    async byPhone(input: PatientByPhoneInput): Promise<Patient[]> {
+        let phone: string;
+        try {
+            phone = normalizePhone(input.phone);
+        } catch {
+            return [];
+        }
+
+        const rows = await db
+            .select()
+            .from(patients)
+            .where(eq(patients.phone, phone))
+            .orderBy(asc(patients.createdAt));
+
+        return rows.map(toPatient);
+    },
+
+    /**
      * Who was registered last, newest first — what the Patients tab opens on
      * before anything is typed. `search` deliberately answers `[]` for an empty
      * term, so browsing needed a procedure of its own rather than a term that
@@ -225,6 +259,7 @@ export const patientService = {
                 ref: appointments.ref,
                 startsAt: appointments.startsAt,
                 status: appointments.status,
+                isOpeningBalance: appointments.isOpeningBalance,
                 checkedInAt: visits.checkedInAt,
                 completedAt: visits.completedAt,
                 computedTotal: visits.computedTotal,
@@ -274,6 +309,7 @@ export const patientService = {
                 gender: input.gender ?? null,
                 custom,
                 notes: input.notes ?? null,
+                legacyRef: input.legacyRef ?? null,
             })
             .returning();
 
@@ -313,6 +349,7 @@ export const patientService = {
                 birthDate: input.birthDate ?? null,
                 gender: input.gender ?? null,
                 notes: input.notes ?? null,
+                legacyRef: input.legacyRef ?? null,
             })
             .returning();
 

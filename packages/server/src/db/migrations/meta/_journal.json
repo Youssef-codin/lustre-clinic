@@ -29,6 +29,20 @@
       "when": 1786460010909,
       "tag": "0003_custom_question_arabic_label",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787472554237,
+      "tag": "0004_opening_balance",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787474515830,
+      "tag": "0005_legacy_ref",
+      "breakpoints": true
     }
   ]
 }

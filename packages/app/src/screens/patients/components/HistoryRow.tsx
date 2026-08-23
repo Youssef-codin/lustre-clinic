@@ -47,16 +47,27 @@ const STATUS: Record<AppointmentStatus, { label: string; tone: Tone }> = {
     no_show: { label: 'No-show', tone: 'due' },
 };
 
+/** Not a status the schema has — the row is `done`, and what happened is that nothing did. */
+const CARRIED_OVER: { label: string; tone: Tone } = { label: 'Carried over', tone: 'muted' };
+
 export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
     const { day, month } = stamp(entry.startsAt);
-    const status = STATUS[entry.status];
+    const carried = entry.isOpeningBalance;
+    // Debt carried over from the old system has a visit behind it, because that
+    // is the only place a balance can live (§10) — but nobody sat in the chair,
+    // so it says what it is instead of borrowing the words for a visit. `Came`
+    // under a `done` status on a day the clinic never saw them is the record
+    // telling the desk something that did not happen.
+    const status = carried ? CARRIED_OVER : STATUS[entry.status];
     const came = entry.visitId !== null;
     const due = entry.balance > 0;
 
     // A row is a way into the visit it stands for. One with no visit — booked,
     // cancelled, a no-show — has nothing behind it and stays inert rather than
-    // offering a tap that goes nowhere.
-    const openable = came && onOpen !== undefined;
+    // offering a tap that goes nowhere. An opening balance has one, and it is
+    // an empty visit with no procedures on it, so there is nothing to open
+    // either.
+    const openable = came && !carried && onOpen !== undefined;
 
     return (
         <Pressable
@@ -76,7 +87,13 @@ export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
             </View>
 
             <View style={styles.body}>
-                <Work procedures={entry.procedures} />
+                {carried ? (
+                    <Text variant="callout" weight="bold" numberOfLines={2}>
+                        Opening balance
+                    </Text>
+                ) : (
+                    <Work procedures={entry.procedures} />
+                )}
 
                 <View style={[styles.pill, PILL[status.tone]]}>
                     <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />

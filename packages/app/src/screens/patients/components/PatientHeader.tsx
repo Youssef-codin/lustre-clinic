@@ -35,7 +35,15 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
                 <Text variant="title" weight="semibold" style={styles.name}>
                     {patient.name}
                 </Text>
+
+                {/* On the meta line, not above the name. Above it the badge
+                    pushed the name down while the call buttons stayed put, and
+                    the header's whole shape is the name and the two ways to
+                    reach them on one line. Here it leads the line it belongs
+                    to — the row of small facts about who this is. */}
                 <View style={styles.meta}>
+                    {patient.legacyRef !== null ? <LegacyBadge /> : null}
+
                     {metaParts(patient).map((part, index) => (
                         <Fragment key={part}>
                             {/* A rule, not an interpunct: the design separates two
@@ -79,7 +87,33 @@ function metaParts(patient: Patient): string[] {
         .filter(Boolean)
         .join(', ');
 
+    // The old system's number is stored but not drawn here. It is a figure that
+    // answers nothing anyone asks out loud, and a second number beside the
+    // phone in a line of mono digits reads as a second phone number. Where the
+    // refs belong on a record is its own question — see the Notion task.
     return [who, patient.phone].filter((part): part is string => Boolean(part));
+}
+
+/**
+ * This record came across from the old system rather than being registered
+ * here. It has to be unmissable: a migrated record has almost no history behind
+ * it, and without the badge that reads as a patient who has never been in —
+ * which is the wrong thing to tell someone standing at the desk.
+ *
+ * Local rather than `ui/Tag`, which is frozen (§10) and cannot go this loud:
+ * its strongest fill is `surface2`, four values off `canvas`, and its `ink`
+ * tone puts dark type on that — a chip that disappears into the page. This is
+ * the inversion `Tag` has no variant for, drawn the way every other emphatic
+ * chip in the app is: solid `ink`, `inverse` type. See BLOCKED.md.
+ */
+function LegacyBadge() {
+    return (
+        <View style={styles.legacy}>
+            <Text variant="tag" weight="bold" tone="inverse">
+                LEGACY
+            </Text>
+        </View>
+    );
 }
 
 /** `wa.me` wants the number without a `+` or separators. */
@@ -91,6 +125,15 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
     identity: { flex: 1, gap: space[1.5] },
     name: { flexShrink: 1 },
+    // Solid ink, so it reads before the name does. Slightly more padding than
+    // `ui/Tag` gives its chips: this one is a label on the record and not a
+    // status on a row, and at `tag` size it needs the room to carry.
+    legacy: {
+        paddingHorizontal: space[2],
+        paddingVertical: space[1],
+        borderRadius: radius.sm,
+        backgroundColor: color.ink,
+    },
     meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2.5] },
     divider: { width: 1, height: 11, backgroundColor: color.outline },
     actions: { flexDirection: 'row', gap: space[2], paddingTop: space[0.5] },

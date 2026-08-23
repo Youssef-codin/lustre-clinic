@@ -11,7 +11,7 @@
  * same 24-unit box off the same clock the `about` circle uses so it does not
  * read as an import from another set.
  */
-import { EyeOff, Pencil } from 'lucide-react-native';
+import { ClipboardList, EyeOff, Pencil } from 'lucide-react-native';
 import { I18nManager } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { color } from '../../../theme';
@@ -137,6 +137,15 @@ export const InfoIcon = glyph('M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 8h.01M11 1
  * through a text button — so there is nothing to copy, and the library is where
  * new glyphs are supposed to come from.
  */
+/**
+ * The data entry row. Lucide rather than a tenth entry in `SETTINGS_PATH`,
+ * because `settings.html` has no such row to copy a path from — the screen it
+ * opens is not in the design at all (BLOCKED.md). Drawing one by hand to match
+ * the mockup's set is exactly what the guide refuses; the nearest library glyph
+ * is the honest answer.
+ */
+export const DataEntryIcon = lucide(ClipboardList, { size: 16, stroke: color.ink, width: 1.8 });
+
 export const HideIcon = lucide(EyeOff, { size: 15, stroke: color.ink, width: 2.2 });
 export const EditIcon = lucide(Pencil, { size: 15, stroke: color.muted, width: 2 });
 

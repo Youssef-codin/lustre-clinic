@@ -54,6 +54,7 @@ const patient = (over: Partial<Patient> = {}): Patient => ({
     gender: 'female',
     custom: {},
     notes: null,
+    legacyRef: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     age: 34,
     ...over,

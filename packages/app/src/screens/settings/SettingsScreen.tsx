@@ -26,13 +26,14 @@ import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { formatClock12 } from './components/_LocalClock';
 import { IdentityCard } from './components/IdentityCard';
-import { SettingsIcon } from './components/icons';
+import { DataEntryIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
 import { api } from './data/_LocalApi';
 import { useConnectionView } from './data/connection';
 import { errorMessage, useQuery } from './data/hooks';
+import { DataEntryScreen } from './dataEntry';
 import { PatientFieldsScreen } from './PatientFieldsScreen';
 import { ProceduresScreen } from './ProceduresScreen';
 import { RemindersScreen } from './RemindersScreen';
@@ -47,7 +48,8 @@ type Route =
     | 'branches'
     | 'hours'
     | 'procedures'
-    | 'patientFields';
+    | 'patientFields'
+    | 'dataEntry';
 
 const ROLE_NAME: Record<ClientRole, string> = { doctor: 'Doctor', secretary: 'Secretary' };
 const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' };
@@ -174,6 +176,24 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
                             </Group>
                         ) : null}
 
+                        {/* The secretary's, and only hers: she is the one
+                            retyping the old system's register, and the doctor
+                            tapping into a bulk entry form is a mis-tap with a
+                            patient at the end of it. Like every other row here
+                            the gate is the device-local role, which hides rows
+                            and never guards access (§1). */}
+                        {isDoctor ? null : (
+                            <Group title="MIGRATION">
+                                <SettingsRow
+                                    icon={<DataEntryIcon />}
+                                    label="Data entry"
+                                    sub="Bulk entry from the old system"
+                                    onPress={() => setRoute('dataEntry')}
+                                    testID="settings-data-entry-row"
+                                />
+                            </Group>
+                        )}
+
                         <Group title="ABOUT">
                             <SettingsRow
                                 icon={<SettingsIcon glyph="about" />}
@@ -278,6 +298,12 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
                         }}
                     />
                 ) : null}
+            </PushView>
+
+            {/* No `summary.reload()` on the way out: this pane writes patients,
+                which is not one of the things the index counts. */}
+            <PushView visible={route === 'dataEntry'}>
+                {route === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
             </PushView>
         </View>
     );

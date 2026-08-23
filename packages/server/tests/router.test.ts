@@ -22,6 +22,8 @@ const EXPECTED = [
     'procedure.update',
     'patient.search',
     'patient.byId',
+    'patient.byPhone',
+    'patient.recent',
     'patient.create',
     'patient.update',
     'customQuestion.list',
@@ -48,6 +50,8 @@ const EXPECTED = [
     'reminder.markSkipped',
     'reminder.dismissToday',
     'stats.summary',
+    'migration.enter',
+    'migration.progress',
 ];
 
 describe('appRouter', () => {

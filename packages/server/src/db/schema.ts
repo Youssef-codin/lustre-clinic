@@ -12,6 +12,23 @@
  * `visits.appointment_id` is UNIQUE (one appointment has at most one visit),
  * and `settings` is a single enforced row (id = 1).
  *
+ * `patients.legacy_ref` is the number the *old* system knew this patient by. It
+ * is free text and not a `ref`: the old system's format is its own, the app
+ * never generates one, and nothing joins on it. It exists because the paper
+ * files already have that number written on them, and after the migration it is
+ * the only way to match a paper file to a record here. Nullable and
+ * unbackfilled — a patient registered since the cutoff has no old number, and a
+ * blank says so.
+ *
+ * `appointments.is_opening_balance` marks a row that stands for debt carried
+ * over from the old system rather than for anything that happened here. A
+ * balance is derived per visit and a visit needs an appointment, so a patient
+ * who arrived owing 800 gets one of each, dated at the cutoff. The flag is what
+ * lets the money and the schedule disagree about them on purpose: they are
+ * owed, so `balance.outstanding` counts them, but nothing was billed and nobody
+ * sat in the chair, so `balance.summary`, `stats.summary` and the day view
+ * leave them out.
+ *
  * `appointment_procedures` is the work a booking plans (§7). It mirrors
  * `visit_procedures` minus `unit_price`: a booking made three weeks out must
  * bill at the price on the day, so the price is snapshotted at check-in, which
@@ -84,10 +101,12 @@ export const patients = pgTable(
         gender: text('gender'),
         custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),
+        legacyRef: text('legacy_ref'),
         createdAt: timestamptz('created_at').notNull().defaultNow(),
     },
     (t) => [
         index('patients_phone_idx').on(t.phone),
+        index('patients_legacy_ref_idx').on(t.legacyRef),
         index('patients_name_idx').using('gin', sql`to_tsvector('simple', ${t.name})`),
     ],
 );
@@ -120,6 +139,7 @@ export const appointments = pgTable(
         note: text('note'),
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
         channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
+        isOpeningBalance: boolean('is_opening_balance').notNull().default(false),
         createdAt: timestamptz('created_at').notNull().defaultNow(),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },

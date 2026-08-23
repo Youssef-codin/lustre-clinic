@@ -45,6 +45,8 @@ export interface Patient {
     gender: string | null;
     custom: Answers;
     notes: string | null;
+    /** The old system's number for this patient, typed in during the migration. Null for anyone registered since. */
+    legacyRef: string | null;
     createdAt: string;
     age: number | null;
 }
@@ -70,6 +72,8 @@ export interface PatientHistoryEntry {
     status: AppointmentStatus;
     checkedInAt: string | null;
     completedAt: string | null;
+    /** Debt carried over from the old system at migration, not a visit anyone attended. */
+    isOpeningBalance: boolean;
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;

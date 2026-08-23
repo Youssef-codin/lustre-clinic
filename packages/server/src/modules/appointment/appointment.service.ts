@@ -159,7 +159,12 @@ async function replaceProcedures(
     );
 }
 
-async function insertWithRef(
+/**
+ * Exported for the migration module, which writes synthetic opening-balance
+ * appointments and needs the same `ref` retry — a whole session's worth of them
+ * land on one date, which is the only scope a `ref` is unique within.
+ */
+export async function insertWithRef(
     executor: Executor,
     values: Omit<typeof appointments.$inferInsert, 'id' | 'ref'>,
     offsetMinutes: number,
@@ -390,6 +395,11 @@ export const appointmentService = {
                 and(
                     gte(appointments.startsAt, from),
                     lt(appointments.startsAt, to),
+                    // Nobody came to these. They exist so a migrated balance
+                    // has a visit to hang on, and a schedule showing four
+                    // hundred of them on the cutoff date is a schedule the
+                    // secretary stops reading.
+                    eq(appointments.isOpeningBalance, false),
                     ...(input.branchId ? [eq(appointments.branchId, input.branchId)] : []),
                 ),
             )

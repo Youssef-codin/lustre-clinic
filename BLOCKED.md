@@ -985,3 +985,108 @@ are unchanged, so no existing caller moves.
   The answer is not bilingual and is not meant to become so: it is stored once,
   in whichever language it was given.
 
+
+---
+
+## Data entry — 23 Aug 2026
+
+Settings → Data entry: bulk entry of the old system's register, secretary-only.
+`migration.enter` and `patient.byPhone` were built on the server for it, and
+`appointments.is_opening_balance` with them.
+
+### 1. There is no design for this screen
+
+**Needed.** The rule is to read the mockup before building a screen. The Open
+Design folder has fourteen files and none of them is this one — it is a screen
+the product needed after the set was drawn.
+
+**Built anyway, deliberately**, on the owner's call: the form is four fields and
+a button, and drawing it first was judged not worth the round trip. So this is
+not "no design was found", it is "no design was asked for", and the record
+matters more for what the screen therefore leant on:
+
+- The ruled card of four label-and-value rows is `patient-edit.html`'s BASICS
+  block, re-drawn rather than re-used — see 3 below.
+- Everything else (the tally, the cutoff card and its collapsed strip, the
+  duplicate callout) is composed from `ui/` and the tokens, with no mockup
+  behind it.
+
+**If a mockup is drawn later**, the two things most likely to move are the tally
+block, which invents a `figure`-sized count the ramp has no precedent for at the
+top of a settings pane, and the cutoff card, which is a form inside a pane that
+is otherwise a list.
+
+### 2. The pane runs on the real client while the cluster runs on `_LocalApi`
+
+**Not a block — a deliberate split, recorded because it is odd on sight.**
+
+Every other settings pane calls `data/_LocalApi`, the in-memory stand-in from
+before F2 (*Settings cluster* 1). This one calls `../../../api` directly. It has
+to: it writes real patients into the real register, and a morning of typing into
+a store that does not survive a reload is a morning thrown away.
+
+**Expected shape:** `_LocalApi` retired everywhere at once. Until then this pane
+carries its own `api.ts` and its own `errorText`, because `data/hooks`'
+`errorMessage` switches on `ApiError` and would flatten a real offline failure
+into "Something went wrong" — which during a migration session is the one thing
+it must not say, since the desk needs to know the row is still on screen.
+
+### 3. Cluster-local modules that three clusters now want
+
+**Needed by:** `dataEntry/entryForm.ts`.
+**Done:** it imports `patients/patientForm` (`ageDigits`, `birthDateOf`, the
+sex constants) and `day/time` (`todayKey`, `offsetForDate`).
+
+These are the first cross-cluster imports in `screens/`, and they break the rule
+*Patient editor* 2 states — a screens cluster importing another cluster's module
+is the coupling §10 exists to prevent. The alternative was worse and is the
+reason: the age-to-birth-date rule is the app's one lossy conversion and already
+exists twice (*Patient editor* 1 and 2). A third copy is how three copies drift,
+and this one would drift silently, because nothing reads a migrated patient's
+age until months later.
+
+**Expected shape:** the same `domain/patientDraft` *Patient editor* 2 already
+asks for, plus `todayKey`/`offsetForDate` moving somewhere shared — they are
+date arithmetic with no cluster in them, and the DST rule in `offsetForDate` is
+worth having in one place rather than three.
+
+The cutoff-date parse is **not** shared and is local on purpose: it looks like
+`day/patientDraft`'s `birthDateIso` and is a different rule. A date of birth is
+refused for being too early; a cutoff is refused for being in the future.
+
+### 4. `ui/TextField` is not a `forwardRef`, so the fields are raw inputs
+
+**Needed by:** the whole point of the screen — enter a row, get an empty form
+back with the caret already in the name.
+
+`TextField` and `NumericField` are function components with no ref forwarded, so
+nothing outside them can call `.focus()`. A bulk entry form where the desk taps
+back into the first field between every row is the problem the screen exists to
+solve, so the four fields are raw `TextInput`s inside `ui/Card`, chained with
+`onSubmitEditing`.
+
+**Expected shape:** `ui/TextField` and `ui/NumericField` wrapped in
+`forwardRef<TextInput>`, passing the ref to the inner input. Nothing else about
+them needs to change, and `BasicsCard` would stop needing raw inputs for its own
+reasons (*Patient editor* 3) at the same time.
+
+### 5. No icon for the row — Lucide, not a tenth path
+
+`settings.html` draws every index row from one table of monoline paths, and it
+has no data entry row to copy from. Per the guide, the nearest library glyph
+rather than a hand-drawn one: `DataEntryIcon` wraps Lucide's `ClipboardList`
+beside the mockup's own set. The seam is visible if you look for it, and that is
+better than a tenth path with no grid behind it.
+
+### 6. The opening balance needed a flag on `appointments`, not on `visits`
+
+**Not a block — a decision that moved during the work, recorded because the
+task specified the other one.**
+
+The plan was `is_opening_balance` on `visits`. It went on `appointments`
+instead, because every reader that has to tell a carried-over balance apart from
+a real one already joins `appointments` and one of them can only reach it there:
+`stats.summary`'s appointment counts are `FROM appointments` with no visit join,
+and `appointment.byDate` — the day view — has no visits in it at all. On
+`visits` the cutoff date would still have drawn four hundred `done` appointments
+nobody attended.

@@ -8,6 +8,7 @@ import { balanceRouter } from '../modules/balance/balance.router.ts';
 import { branchRouter } from '../modules/branch/branch.router.ts';
 import { customQuestionRouter } from '../modules/customQuestion/customQuestion.router.ts';
 import { healthRouter } from '../modules/health/health.router.ts';
+import { migrationRouter } from '../modules/migration/migration.router.ts';
 import { patientRouter } from '../modules/patient/patient.router.ts';
 import { procedureRouter } from '../modules/procedure/procedure.router.ts';
 import { reminderRouter } from '../modules/reminder/reminder.router.ts';
@@ -28,6 +29,7 @@ export const appRouter = router({
     balance: balanceRouter,
     reminder: reminderRouter,
     stats: statsRouter,
+    migration: migrationRouter,
 });
 
 export type AppRouter = typeof appRouter;

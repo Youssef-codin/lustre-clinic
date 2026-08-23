@@ -38,9 +38,14 @@ export const statsService = {
         const { from } = dayRange(input.from, input.offsetMinutes);
         const { to } = dayRange(input.to, input.offsetMinutes);
 
+        // Opening-balance rows are debt the clinic inherited, not a day's work:
+        // counting them would report a cutoff date on which hundreds of
+        // patients were seen and a fortune was billed. `outstanding` below is
+        // the one figure that does include them, because they are still owed.
         const inPeriod = and(
             gte(appointments.startsAt, from),
             lt(appointments.startsAt, to),
+            eq(appointments.isOpeningBalance, false),
             ...(input.branchId ? [eq(appointments.branchId, input.branchId)] : []),
         );
 
