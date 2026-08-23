@@ -211,10 +211,15 @@ export const visitProcedures = pgTable(
     ],
 );
 
+// A question is asked in both languages; the answer is stored once, in whichever
+// language it was given (§14). `label_ar` is nullable because a clinic that only
+// works in one language has no translation to write, and the resolution rule
+// falls back to the label that exists.
 export const customQuestions = pgTable('custom_questions', {
     id: uuid('id').primaryKey(),
     key: text('key').notNull().unique(),
     label: text('label').notNull(),
+    labelAr: text('label_ar'),
     kind: text('kind', { enum: QUESTION_KINDS }).notNull(),
     options: jsonb('options'),
     required: boolean('required').notNull().default(false),

@@ -4,6 +4,7 @@ import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
 import { branchService } from '../src/modules/branch/branch.service.ts';
+import { createCustomQuestionInput } from '../src/modules/customQuestion/customQuestion.schema.ts';
 import { customQuestionService } from '../src/modules/customQuestion/customQuestion.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { procedureService } from '../src/modules/procedure/procedure.service.ts';
@@ -331,6 +332,57 @@ describe('procedure', () => {
 });
 
 describe('customQuestion', () => {
+    // §14. The question is bilingual; the answer is not.
+    test('keeps both labels, and stores an unwritten Arabic one as null', async () => {
+        const bilingual = await customQuestionService.create({
+            key: 'diabetic',
+            label: 'Diabetic?',
+            labelAr: 'هل تعاني من السكري؟',
+            kind: 'boolean',
+            required: false,
+            sortOrder: 0,
+        });
+        expect(bilingual.labelAr).toBe('هل تعاني من السكري؟');
+
+        // What the editor sends for an input nobody filled in has to land as
+        // NULL, or the fallback in `resolveLabel` never fires for that row.
+        const blank = createCustomQuestionInput.parse({
+            key: 'allergies',
+            label: 'Allergies',
+            labelAr: '   ',
+            kind: 'text',
+        });
+        expect(blank.labelAr).toBeNull();
+
+        const stored = await customQuestionService.create(blank);
+        expect(stored.labelAr).toBeNull();
+
+        // A translation added later, and one cleared again.
+        const translated = await customQuestionService.update({
+            id: stored.id,
+            labelAr: 'الحساسية',
+        });
+        expect(translated.labelAr).toBe('الحساسية');
+        expect(translated.label).toBe('Allergies');
+
+        const cleared = await customQuestionService.update({ id: stored.id, labelAr: null });
+        expect(cleared.labelAr).toBeNull();
+    });
+
+    test('leaves the Arabic label alone when an edit does not mention it', async () => {
+        const question = await customQuestionService.create({
+            key: 'referral',
+            label: 'How did you hear about us?',
+            labelAr: 'كيف سمعت عنا؟',
+            kind: 'text',
+            required: false,
+            sortOrder: 0,
+        });
+
+        const renamed = await customQuestionService.update({ id: question.id, required: true });
+        expect(renamed.labelAr).toBe('كيف سمعت عنا؟');
+    });
+
     test('rejects a duplicate key', async () => {
         await customQuestionService.create({
             key: 'allergies',
@@ -545,12 +597,14 @@ describe('customQuestion', () => {
             {
                 key: 'referral',
                 label: 'How did you hear about us?',
+                labelAr: null,
                 required: false,
                 reason: 'answer_no_longer_valid',
             },
             {
                 key: 'blood_thinners',
                 label: 'On blood thinners?',
+                labelAr: null,
                 required: true,
                 reason: 'unanswered',
             },
@@ -709,6 +763,7 @@ describe('patient', () => {
             {
                 key: 'blood_thinners',
                 label: 'On blood thinners?',
+                labelAr: null,
                 required: true,
                 reason: 'unanswered',
             },

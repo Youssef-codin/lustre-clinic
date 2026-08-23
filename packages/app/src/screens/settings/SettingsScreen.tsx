@@ -10,12 +10,15 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import type { ClientRole, Locale } from '@lustre/shared';
+import type { ClientRole } from '@lustre/shared';
 import Constants from 'expo-constants';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { BrandMark } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel } from '../../components/ui';
+// The store module directly, not the `shell` barrel: that barrel exports
+// `AppShell`, which imports this screen.
+import { setLocale, useLocale } from '../../shell/localeStore';
 import { color, size, space, Text } from '../../theme';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
@@ -61,10 +64,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
     const [localRole, setLocalRole] = useState<ClientRole>('doctor');
     const role = roleProp ?? localRole;
 
-    // Owned here until an i18n provider exists to own it (see BLOCKED.md): the
-    // App pane needs somewhere to put the choice, and the shell is the wrong
-    // place for a preference no screen reads yet.
-    const [locale, setLocale] = useState<Locale>('en');
+    const locale = useLocale();
 
     const summary = useQuery(loadSummary);
     const connection = useConnectionView();

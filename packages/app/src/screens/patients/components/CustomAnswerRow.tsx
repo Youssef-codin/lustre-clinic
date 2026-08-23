@@ -4,8 +4,10 @@
 // clinic's questionnaire is a different list. The label sets no face; `<Text>`
 // picks the script per string (§6). §7.9: an answer to a kind with no editor
 // (today `date`) is shown read-only.
+import { resolveLabel } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Tag } from '../../../components/ui';
+import { useLocale } from '../../../shell/localeStore';
 import { size, space, Text } from '../../../theme';
 import type { CustomQuestion, QuestionnaireGapReason } from '../data/types';
 import { displayAnswer, isReadOnly } from './customFields';
@@ -28,12 +30,13 @@ const GAP_LABEL: Partial<Record<QuestionnaireGapReason, string>> = {
 export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) {
     const answer = displayAnswer(question, value);
     const gapLabel = gap === undefined ? undefined : GAP_LABEL[gap];
+    const label = resolveLabel(question, useLocale());
 
     return (
         <View style={styles.row} testID={`answer-row-${question.key}`}>
             <View style={styles.label}>
                 <Text variant="subhead" tone="muted" numberOfLines={2}>
-                    {question.label}
+                    {label}
                 </Text>
                 {question.required && (
                     <Text variant="subhead" tone="due">

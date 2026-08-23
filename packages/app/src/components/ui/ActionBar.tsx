@@ -33,9 +33,13 @@ export function ActionBar({
         <View style={styles.bar} testID={testID}>
             {secondaryLabel ? (
                 <View style={styles.secondary}>
+                    {/* Outlined, not `ghost`: the bar is already `color.surface`,
+                        so a ghost button's white fill and pill shadow put white
+                        on white and read as a stray shape rather than the
+                        quieter half of a pair. */}
                     <Button
                         label={secondaryLabel}
-                        variant="ghost"
+                        variant="secondary"
                         onPress={onSecondary}
                         disabled={primaryLoading}
                         block
@@ -67,7 +71,11 @@ const styles = StyleSheet.create({
         paddingBottom: space[6],
         borderTopWidth: 1,
         borderTopColor: color.hair,
-        backgroundColor: color.surface,
+        // Canvas, not surface. The pane above and the tab bar below are both
+        // canvas, so a white bar between them was the one strip in a different
+        // colour — read as a seam rather than as a footer. The hair rule is what
+        // separates it; the fill has no work to do.
+        backgroundColor: color.canvas,
     },
     secondary: { flex: 1 },
     primary: { flex: 1.6 },

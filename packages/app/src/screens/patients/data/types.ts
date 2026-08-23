@@ -16,6 +16,7 @@ export interface CustomQuestion {
     id: string;
     key: string;
     label: string;
+    labelAr: string | null;
     kind: QuestionKind;
     options: string[] | null;
     required: boolean;
@@ -30,6 +31,7 @@ export type QuestionnaireGapReason = 'unanswered' | 'answer_no_longer_valid';
 export interface QuestionnaireGap {
     key: string;
     label: string;
+    labelAr: string | null;
     required: boolean;
     reason: QuestionnaireGapReason;
 }

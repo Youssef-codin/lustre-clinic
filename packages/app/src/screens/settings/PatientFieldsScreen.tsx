@@ -5,10 +5,14 @@
  * The verb is deactivate, never delete: deleting orphans every answer on a typo,
  * while deactivating keeps the row so the key still points at the answers and
  * reactivation shows them again. The answer type is fixed once answered —
- * changing it would invalidate the stored answers. Labels need no direction
- * handling; `Text` detects the Arabic script per string.
+ * changing it would invalidate the stored answers.
+ *
+ * A question is written in both languages and read back in one, through
+ * `resolveLabel` (§14). The answer is not: it is stored once, in whichever
+ * language it was given. Labels need no direction handling; `Text` and
+ * `TextField` detect the Arabic script per string.
  */
-import type { QuestionKind } from '@lustre/shared';
+import { type QuestionKind, resolveLabel } from '@lustre/shared';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import {
@@ -32,6 +36,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useLocale } from '../../shell/localeStore';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -266,10 +271,15 @@ function QuestionRow({
             ? `${KIND_LABEL.select} · ${optionsOf(question).length} options`
             : KIND_LABEL[question.kind];
 
+    // The secretary reads the list in the language her phone is set to, even
+    // here where she is the one who wrote both sides.
+    const locale = useLocale();
+    const shown = resolveLabel(question, locale);
+
     const body = (
         <View style={[styles.rowText, !question.active && styles.dimmed]}>
             <Text variant="body" weight="medium">
-                {question.label}
+                {shown}
             </Text>
             <View style={styles.tags}>
                 <Tag tone="muted">{type.toUpperCase()}</Tag>
@@ -292,7 +302,7 @@ function QuestionRow({
             <View style={styles.row}>
                 {body}
                 <ReorderControls
-                    itemLabel={question.label}
+                    itemLabel={shown}
                     isFirst={isFirst || reorderDisabled}
                     isLast={isLast || reorderDisabled}
                     onMoveUp={onMoveUp}
@@ -305,7 +315,7 @@ function QuestionRow({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={question.label}
+            accessibilityLabel={shown}
             onPress={onPress}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
@@ -323,6 +333,7 @@ type QuestionEditorProps = {
 
 function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
     const [label, setLabel] = useState(question?.label ?? '');
+    const [labelAr, setLabelAr] = useState(question?.labelAr ?? '');
     const [key, setKey] = useState(question?.key ?? '');
     const [keyEdited, setKeyEdited] = useState(question !== null);
     const [kind, setKind] = useState<QuestionKind>(question?.kind ?? 'boolean');
@@ -336,6 +347,7 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
             return api.customQuestion.update({
                 id: question.id,
                 label,
+                labelAr,
                 options: kind === 'select' ? options : undefined,
                 required,
             });
@@ -343,6 +355,7 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
         return api.customQuestion.create({
             key,
             label,
+            labelAr,
             kind,
             options: kind === 'select' ? options : null,
             required,
@@ -405,33 +418,46 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
                 </Callout>
             ) : null}
 
-            <Card padded style={styles.form}>
-                <TextField
-                    label="Question"
-                    required
-                    value={label}
-                    onChangeText={onChangeLabel}
-                    placeholder="Diabetic?"
-                    error={labelError}
-                />
-
-                {question ? null : (
+            {/* Two inputs under one heading: they are one question, not two
+                fields. Neither needs direction handling — `TextField` takes its
+                face and its alignment from what is in it. */}
+            <View style={styles.section}>
+                <SectionLabel inset={false}>QUESTION</SectionLabel>
+                <View style={styles.labelPair}>
                     <TextField
-                        label="Stored as"
-                        required
+                        value={label}
+                        onChangeText={onChangeLabel}
+                        placeholder="Diabetic?"
+                        accessibilityLabel="Question in English"
+                        error={labelError}
+                    />
+                    <TextField
+                        value={labelAr}
+                        onChangeText={setLabelAr}
+                        placeholder="هل تعاني من السكري؟"
+                        accessibilityLabel="Question in Arabic"
+                    />
+                </View>
+            </View>
+
+            {question ? null : (
+                <View style={styles.section}>
+                    <SectionLabel inset={false}>STORED AS</SectionLabel>
+                    <TextField
                         value={key}
                         onChangeText={(next) => {
                             setKeyEdited(true);
                             setKey(next);
                         }}
                         placeholder="diabetic"
+                        accessibilityLabel="Stored as"
                         autoCapitalize="none"
                         autoCorrect={false}
                         error={keyError}
-                        hint="Answers are filed under this. It can't be changed once the question exists."
+                        hint="Answers are filed under this. It can't change later."
                     />
-                )}
-            </Card>
+                </View>
+            )}
 
             <View style={styles.section}>
                 <SectionLabel inset={false}>ANSWER TYPE</SectionLabel>
@@ -448,7 +474,7 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
                 </View>
                 {question ? (
                     <Text variant="footnote" tone="muted" style={styles.note}>
-                        The answer type is fixed once patients have answered. Add a new question instead.
+                        Fixed once patients have answered.
                     </Text>
                 ) : null}
             </View>
@@ -467,40 +493,32 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
                 </View>
             ) : null}
 
-            <Card>
-                <View style={styles.flagRow}>
-                    <View style={styles.rowText}>
-                        <Text variant="body" weight="medium">
-                            Required
-                        </Text>
-                        <Text variant="subhead" tone="muted">
-                            A new patient can't be saved without an answer.
-                        </Text>
-                    </View>
-                    <Switch value={required} onValueChange={setRequired} accessibilityLabel="Required" />
-                </View>
-            </Card>
-
+            {/* The same control as ANSWER TYPE above it, for the same reason:
+                one boolean does not need a card, a bolded restatement of the
+                heading and a sentence explaining itself. Two options say it. */}
             <View style={styles.section}>
-                <SectionLabel inset={false}>ON THE PATIENT RECORD</SectionLabel>
-                <FieldPreview label={label} kind={kind} options={options} required={required} />
+                <SectionLabel inset={false}>REQUIRED</SectionLabel>
+                <Card>
+                    <View style={styles.flagRow}>
+                        <Text variant="body" style={styles.rowText}>
+                            {required ? 'Must be answered' : 'Can be left blank'}
+                        </Text>
+                        <Switch value={required} onValueChange={setRequired} accessibilityLabel="Required" />
+                    </View>
+                </Card>
             </View>
 
+            {/* No paragraph over it: `ConfirmSheet` says what deactivating
+                costs at the moment the choice is actually made, and saying it
+                twice only makes the quieter copy easier to skip. */}
             {question ? (
-                <Card padded style={styles.form}>
-                    <Text variant="subhead" tone="muted">
-                        {question.active
-                            ? 'Deactivating stops it being asked. Answers already given are kept, not erased, and come back if you reactivate it.'
-                            : 'This question is not being asked. Reactivating brings it and its answers back.'}
-                    </Text>
-                    <Button
-                        label={question.active ? 'Deactivate question' : 'Reactivate question'}
-                        variant={question.active ? 'danger' : 'secondary'}
-                        onPress={() => setConfirming(true)}
-                        loading={setActive.pending}
-                        block
-                    />
-                </Card>
+                <Button
+                    label={question.active ? 'Deactivate question' : 'Reactivate question'}
+                    variant={question.active ? 'danger' : 'secondary'}
+                    onPress={() => setConfirming(true)}
+                    loading={setActive.pending}
+                    block
+                />
             ) : null}
 
             <ConfirmSheet
@@ -519,69 +537,6 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
             />
         </Pane>
     );
-}
-
-type FieldPreviewProps = {
-    label: string;
-    kind: QuestionKind;
-    options: string[];
-    required: boolean;
-};
-
-function FieldPreview({ label, kind, options, required }: FieldPreviewProps) {
-    return (
-        <Card variant="dashed" padded style={styles.preview}>
-            <View style={styles.previewLabel}>
-                <Text variant="subhead" tone="muted">
-                    {label.trim() === '' ? 'Your question' : label}
-                </Text>
-                {required ? (
-                    <Text variant="subhead" tone="danger">
-                        *
-                    </Text>
-                ) : null}
-            </View>
-
-            {kind === 'boolean' ? (
-                <View style={styles.previewPills}>
-                    <View style={[styles.previewPill, styles.previewPillOn]}>
-                        <Text variant="callout" tone="inverse">
-                            Yes
-                        </Text>
-                    </View>
-                    <View style={styles.previewPill}>
-                        <Text variant="callout" tone="ink2">
-                            No
-                        </Text>
-                    </View>
-                </View>
-            ) : (
-                <View style={styles.previewLine}>
-                    <Text variant="body" tone="muted">
-                        {previewValue(kind, options)}
-                    </Text>
-                    {kind === 'select' ? <Chevron direction="down" tone="muted" /> : null}
-                </View>
-            )}
-
-            <Text variant="caption" tone="muted">
-                Preview only — nothing here is saved.
-            </Text>
-        </Card>
-    );
-}
-
-function previewValue(kind: QuestionKind, options: string[]): string {
-    switch (kind) {
-        case 'select':
-            return options[0] ?? 'Pick one';
-        case 'number':
-            return '0';
-        case 'date':
-            return 'DD / MM / YYYY';
-        default:
-            return 'Their answer';
-    }
 }
 
 function toKey(label: string): string {
@@ -608,7 +563,7 @@ const styles = StyleSheet.create({
     dimmed: { opacity: 0.5 },
     note: { paddingHorizontal: space[1] },
     intro: { paddingHorizontal: space[0.5] },
-    form: { gap: space[4] },
+    labelPair: { gap: space[2] },
     fixed: { gap: space[3] },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
     fixedChip: {
@@ -626,29 +581,5 @@ const styles = StyleSheet.create({
         paddingHorizontal: space[4],
         paddingVertical: space[3],
         minHeight: size.row,
-    },
-    preview: { gap: space[2] },
-    previewLabel: { flexDirection: 'row', gap: space[1] },
-    previewPills: { flexDirection: 'row', gap: space[2] },
-    previewPill: {
-        minHeight: size.row,
-        justifyContent: 'center',
-        paddingHorizontal: space[4],
-        borderRadius: radius.full,
-        borderWidth: 1,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-    },
-    previewPillOn: { backgroundColor: color.ink, borderColor: color.ink },
-    previewLine: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2],
-        minHeight: size.control,
-        paddingHorizontal: space[3],
-        borderRadius: radius.lg,
-        borderWidth: 1,
-        borderColor: color.line,
-        backgroundColor: color.surface,
     },
 });

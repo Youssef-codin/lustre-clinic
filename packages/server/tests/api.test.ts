@@ -119,7 +119,13 @@ describe('every path in §13 answers', () => {
         expect(detail.patient.name).toBe('Nadia H.');
         expect(detail.history).toEqual([]);
         expect(detail.questionnaireGaps).toEqual([
-            { key: 'allergies', label: 'Known allergies', required: false, reason: 'unanswered' },
+            {
+                key: 'allergies',
+                label: 'Known allergies',
+                labelAr: null,
+                required: false,
+                reason: 'unanswered',
+            },
         ]);
 
         const settings = await client.settings.update.mutate({ clinicName: 'Lustre Clinic' });

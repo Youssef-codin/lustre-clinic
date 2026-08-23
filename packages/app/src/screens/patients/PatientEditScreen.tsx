@@ -22,9 +22,11 @@
 // a failure keeps every field on screen with a `Callout` saying why. Android is
 // `adjustResize`, so the window shrinks around the keyboard and the footer
 // stays above it without being translated.
+import { resolveLabel } from '@lustre/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Callout, EmptyState } from '../../components/ui';
+import { useLocale } from '../../shell/localeStore';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { SkeletonRows } from './components/_LocalSkeleton';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
@@ -122,6 +124,7 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
     // question answered, including the ones drawn read-only — so Save is refused
     // and the reason is named. Counting it in `owed` would be a lie: the number
     // there is what the desk can still go and do, and this is not.
+    const locale = useLocale();
     const unaskable = creating ? unaskableRequired(questions.data ?? []) : [];
 
     const change = (patch: Partial<PatientForm>) =>
@@ -201,7 +204,7 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
                         {unaskable.length > 0 && (
                             <View style={styles.callout}>
                                 <Callout tone="warning" title="This form cannot be completed">
-                                    {`${unaskable.map((question) => question.label).join(', ')} ${
+                                    {`${unaskable.map((question) => resolveLabel(question, locale)).join(', ')} ${
                                         unaskable.length === 1 ? 'is' : 'are'
                                     } required, and cannot be answered here yet. Make ${
                                         unaskable.length === 1 ? 'it' : 'them'

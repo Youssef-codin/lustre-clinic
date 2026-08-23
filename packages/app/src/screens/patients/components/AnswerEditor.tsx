@@ -9,8 +9,10 @@
 // label — label and star together — in `due`, and `Field` draws a `danger` star
 // against an `ink2` label, which is the louder "you got this wrong" and not the
 // quieter "this is still to ask". Everything below the label is `ui/`.
+import { resolveLabel } from '@lustre/shared';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Button, Placeholder, Select, TextField } from '../../../components/ui';
+import { useLocale } from '../../../shell/localeStore';
 import { color, font, radius, size, space, Text, type } from '../../../theme';
 import type { CustomQuestion } from '../data/types';
 import type { DraftValue } from './customFields';
@@ -26,11 +28,13 @@ export type AnswerEditorProps = {
 };
 
 export function AnswerEditor({ question, value, onChange, missing = false, error }: AnswerEditorProps) {
+    const label = resolveLabel(question, useLocale());
+
     return (
         <View style={styles.field}>
             <View style={styles.labelRow}>
                 <Text variant="footnote" weight="medium" tone={missing ? 'due' : 'muted'}>
-                    {question.label}
+                    {label}
                 </Text>
                 {question.required ? (
                     <Text variant="footnote" weight="medium" tone={missing ? 'due' : 'muted'}>
@@ -53,6 +57,8 @@ export function AnswerEditor({ question, value, onChange, missing = false, error
 }
 
 function Control({ question, value, onChange, error }: Omit<AnswerEditorProps, 'missing'>) {
+    const label = resolveLabel(question, useLocale());
+
     switch (question.kind) {
         // Two buttons and not `ui/Switch`: a switch has no third state, and a
         // question nobody has asked yet is exactly that. `secondary` is the
@@ -92,7 +98,7 @@ function Control({ question, value, onChange, error }: Omit<AnswerEditorProps, '
                     value={value === '' ? null : value}
                     onChange={onChange}
                     placeholder="Not answered"
-                    sheetTitle={question.label}
+                    sheetTitle={label}
                     error={error}
                     testID={`answer-${question.key}`}
                 />
@@ -122,6 +128,8 @@ function Control({ question, value, onChange, error }: Omit<AnswerEditorProps, '
 }
 
 function NumberBox({ question, value, onChange, error }: Omit<AnswerEditorProps, 'missing'>) {
+    const label = resolveLabel(question, useLocale());
+
     return (
         <View style={[styles.box, error ? styles.errored : null]}>
             {/* The input and its placeholder share a wrapper, as they do in
@@ -132,7 +140,7 @@ function NumberBox({ question, value, onChange, error }: Omit<AnswerEditorProps,
                 inset, and the field reads as two different left margins. */}
             <View style={styles.inputWrap}>
                 <TextInput
-                    accessibilityLabel={question.label}
+                    accessibilityLabel={label}
                     value={value}
                     onChangeText={onChange}
                     keyboardType="decimal-pad"
@@ -152,11 +160,13 @@ function NumberBox({ question, value, onChange, error }: Omit<AnswerEditorProps,
  * and is what deactivating a question means.
  */
 export function ReadOnlyAnswer({ question, shown }: { question: CustomQuestion; shown: string | null }) {
+    const label = resolveLabel(question, useLocale());
+
     return (
         <View style={styles.field}>
             <View style={styles.labelRow}>
                 <Text variant="footnote" weight="medium" tone="muted">
-                    {question.label}
+                    {label}
                 </Text>
             </View>
 

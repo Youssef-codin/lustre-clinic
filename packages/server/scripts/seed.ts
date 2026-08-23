@@ -177,6 +177,7 @@ const questions = [
         id: id(),
         key: 'referral',
         label: 'How did you hear about us?',
+        labelAr: 'كيف سمعت عنا؟',
         kind: 'select' as const,
         options: ['Friend', 'Instagram', 'Walk-by', 'Other'],
         required: false,
@@ -187,6 +188,7 @@ const questions = [
         id: id(),
         key: 'allergies',
         label: 'Allergies',
+        labelAr: 'الحساسية',
         kind: 'text' as const,
         options: null,
         required: false,
@@ -197,12 +199,15 @@ const questions = [
         id: id(),
         key: 'diabetic',
         label: 'Diabetic?',
+        labelAr: 'هل تعاني من السكري؟',
         kind: 'boolean' as const,
         options: null,
         required: true,
         sortOrder: 2,
         active: true,
     },
+    // The rest are English-only, as a real clinic's back half usually is —
+    // they exercise the fallback in `resolveLabel` on an Arabic phone.
     {
         id: id(),
         key: 'last_visit_elsewhere',

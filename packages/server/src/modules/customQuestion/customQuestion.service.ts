@@ -43,6 +43,7 @@ export type QuestionnaireGapReason = 'unanswered' | 'answer_no_longer_valid';
 export interface QuestionnaireGap {
     key: string;
     label: string;
+    labelAr: string | null;
     required: boolean;
     reason: QuestionnaireGapReason;
 }
@@ -69,6 +70,7 @@ export const customQuestionService = {
                     id: Bun.randomUUIDv7(),
                     key: input.key,
                     label: input.label,
+                    labelAr: input.labelAr ?? null,
                     kind: input.kind,
                     options: input.kind === 'select' ? (input.options ?? []) : null,
                     required: input.required,
@@ -141,6 +143,7 @@ export const customQuestionService = {
             gaps.push({
                 key: question.key,
                 label: question.label,
+                labelAr: question.labelAr,
                 required: question.required,
                 reason,
             });

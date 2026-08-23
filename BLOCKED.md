@@ -965,7 +965,23 @@ are unchanged, so no existing caller moves.
   "answers are kept but hidden" sheet describes deactivation in delete's words.
 - **Bilingual labels.** `settings-patient-fields.html` and
   `settings-procedures.html` both draw an English and an Arabic input per name.
-  `custom_questions.label` and `procedures.name` are single columns, so the
-  panes take one label and `Text` picks the face per string. Two columns and a
-  migration, not a screen change.
+
+  **Resolved for questions.** `custom_questions` has `label_ar`
+  (`0003_custom_question_arabic_label.sql`), nullable and unbackfilled, and
+  `PatientFieldsScreen` grows the second input the mockup draws. Which of the
+  two shows is `resolveLabel` in `@lustre/shared` — one rule, taking the locale
+  as an argument rather than reading it, because the patient tablet will ask the
+  patient and pass a different one against the same rows. The locale it is
+  passed today comes from `shell/localeStore`, which is where the App pane's
+  picker moved to; it was a `useState` in `SettingsScreen` while nothing outside
+  settings read it.
+
+  **Still single-column:** `procedure_types.name`, `branches.name` and
+  `settings.clinic_name`. `settings-procedures.html` draws the pair for
+  procedures and categories, so that pane is the next one to want this. The
+  migration is the same shape and the rule is already written — only the column
+  and the editor are missing.
+
+  The answer is not bilingual and is not meant to become so: it is stored once,
+  in whichever language it was given.
 

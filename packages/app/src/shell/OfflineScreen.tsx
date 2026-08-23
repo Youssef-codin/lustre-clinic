@@ -109,5 +109,7 @@ const styles = StyleSheet.create({
     },
     body: { textAlign: 'center' },
     action: { marginTop: space[4], marginBottom: space[2] },
-    reconfigure: { marginTop: space[2] },
+    // `Button` bases at `alignSelf: 'flex-start'`, which opts it out of the
+    // card's centring — every other child here is centred by the parent.
+    reconfigure: { marginTop: space[2], alignSelf: 'center' },
 });

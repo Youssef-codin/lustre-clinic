@@ -6,6 +6,18 @@
 import { questionKindSchema } from '@lustre/shared';
 import { z } from 'zod';
 
+/**
+ * The Arabic label is optional and empty means absent: the editor sends `''`
+ * for an input nobody filled in, and storing that instead of NULL would make
+ * `resolveLabel`'s fallback depend on which screen wrote the row.
+ */
+const labelAr = z
+    .string()
+    .trim()
+    .max(200)
+    .transform((value) => value || null)
+    .nullish();
+
 const key = z
     .string()
     .trim()
@@ -17,6 +29,7 @@ export const createCustomQuestionInput = z
     .object({
         key,
         label: z.string().trim().min(1).max(200),
+        labelAr,
         kind: questionKindSchema,
         options: z.array(z.string().trim().min(1).max(120)).min(1).max(50).nullish(),
         required: z.boolean().default(false),
@@ -30,6 +43,7 @@ export const createCustomQuestionInput = z
 export const updateCustomQuestionInput = z.object({
     id: z.uuid(),
     label: z.string().trim().min(1).max(200).optional(),
+    labelAr,
     options: z.array(z.string().trim().min(1).max(120)).min(1).max(50).nullish(),
     required: z.boolean().optional(),
     sortOrder: z.number().int().min(0).max(9999).optional(),

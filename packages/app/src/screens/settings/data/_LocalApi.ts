@@ -130,6 +130,7 @@ const questions: CustomQuestion[] = [
         id: 'cq-diabetes',
         key: 'diabetic',
         label: 'Diabetic?',
+        labelAr: 'هل تعاني من السكري؟',
         kind: 'boolean',
         options: null,
         required: true,
@@ -139,7 +140,8 @@ const questions: CustomQuestion[] = [
     {
         id: 'cq-blood',
         key: 'blood_thinners',
-        label: 'هل تتناول مسيلات الدم؟',
+        label: 'Do you take blood thinners?',
+        labelAr: 'هل تتناول مسيلات الدم؟',
         kind: 'boolean',
         options: null,
         required: true,
@@ -150,16 +152,20 @@ const questions: CustomQuestion[] = [
         id: 'cq-referral',
         key: 'referral',
         label: 'How did you hear about us?',
+        labelAr: 'كيف سمعت عنا؟',
         kind: 'select',
         options: ['Friend or family', 'Facebook', 'Instagram', 'Passing by', 'Another doctor'],
         required: false,
         sortOrder: 2,
         active: true,
     },
+    // Untranslated on purpose: the clinic wrote these two in English only, so
+    // they exercise the fallback on an Arabic phone.
     {
         id: 'cq-allergies',
         key: 'allergies',
         label: 'Allergies',
+        labelAr: null,
         kind: 'text',
         options: null,
         required: false,
@@ -170,6 +176,7 @@ const questions: CustomQuestion[] = [
         id: 'cq-last-xray',
         key: 'last_xray',
         label: 'Date of last x-ray',
+        labelAr: null,
         kind: 'date',
         options: null,
         required: false,
@@ -243,6 +250,7 @@ export interface UpdateProcedureInput {
 export interface CreateQuestionInput {
     key: string;
     label: string;
+    labelAr: string | null;
     kind: CustomQuestion['kind'];
     options: string[] | null;
     required: boolean;
@@ -255,6 +263,7 @@ export function optionsOf(question: CustomQuestion): string[] {
 export interface UpdateQuestionInput {
     id: string;
     label?: string;
+    labelAr?: string | null;
     options?: string[] | null;
     required?: boolean;
     active?: boolean;
@@ -428,6 +437,7 @@ export const api = {
                 id: nextId('cq'),
                 key,
                 label: input.label.trim(),
+                labelAr: input.labelAr?.trim() || null,
                 kind: input.kind,
                 options: input.kind === 'select' ? (input.options ?? []) : null,
                 required: input.required,
@@ -443,6 +453,7 @@ export const api = {
             if (!row) throw notFound('custom question');
 
             if (input.label !== undefined) row.label = input.label.trim();
+            if (input.labelAr !== undefined) row.labelAr = input.labelAr?.trim() || null;
             if (input.required !== undefined) row.required = input.required;
             if (input.active !== undefined) row.active = input.active;
             if (input.options !== undefined && row.kind === 'select') {

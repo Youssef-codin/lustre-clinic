@@ -50,6 +50,7 @@ export interface CustomQuestion {
     id: string;
     key: string;
     label: string;
+    labelAr: string | null;
     kind: QuestionKind;
     options: unknown;
     required: boolean;

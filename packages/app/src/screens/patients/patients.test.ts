@@ -36,6 +36,7 @@ const question = (over: Partial<CustomQuestion> = {}): CustomQuestion => ({
     id: 'q',
     key: 'k',
     label: 'Question',
+    labelAr: null,
     kind: 'text',
     options: null,
     required: false,
