@@ -988,6 +988,29 @@ are unchanged, so no existing caller moves.
 
 ---
 
+### 29. The settings icons were hand-drawn, and are now the library's
+**Fixed, recorded for the substitutions.** `settings.html` ships its own `IC`
+table of monoline glyphs and `screens/settings/components/icons.tsx` traced all
+of them, on the reasoning that eight icons sitting in one column had to look
+like one set. CLAUDE.MD forecloses that reasoning in as many words — icons come
+from the library, "not to match a mockup" — and the file's own doc comment
+argued against the rule rather than following it. `domain/BottomTabBar` had the
+same three traced glyphs and is converted with it.
+Most are a like-for-like swap. These change what the glyph depicts, not just how
+it is drawn, and are the ones to look at on a device:
+| Row | Mockup draws | Now |
+| --- | --- | --- |
+| App | a window with a title bar | `AppWindow` |
+| Clinic | a house with a cross | `Hospital` |
+| Procedures & prices | a case with a lid | `Tags` |
+| Patient fields | ruled lines with a `+` | `ListPlus` |
+| Switch role | two arrows doubling back | `Repeat` |
+WhatsApp is the documented carve-out and comes from `@expo/vector-icons`, as it
+already does in `screens/day/components/Reminders.tsx`.
+**Still outstanding.** `screens/money/components/icons.tsx` is the last
+hand-drawn set in the app. It is untouched here because nothing in this branch
+goes near it; it is covered by the standing task to convert it.
+
 ## Data entry — 23 Aug 2026
 
 Settings → Data entry: bulk entry of the old system's register, secretary-only.

@@ -18,11 +18,9 @@
  * this is answers more questions than what the screen contains.
  */
 import type { ClientRole } from '@lustre/shared';
-import { Headset, Stethoscope } from 'lucide-react-native';
-import type { ReactNode } from 'react';
+import { Calendar, CreditCard, Headset, Stethoscope, Users } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { border, color, radius, size, space, Text } from '../../theme';
 
 export type TabKey = 'day' | 'patients' | 'money' | 'settings';
@@ -37,30 +35,13 @@ export type BottomTabBarProps = {
 const SIZE = 22;
 const STROKE = 2;
 
-function drawn(children: (stroke: string) => ReactNode) {
-    return (stroke: string) => (
-        <Svg
-            width={SIZE}
-            height={SIZE}
-            viewBox="0 0 24 24"
-            fill="none"
-            strokeWidth={STROKE}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            {children(stroke)}
-        </Svg>
-    );
-}
-
 /**
  * The fourth tab opens Settings, but its glyph is the role this device is on —
  * a stethoscope for the doctor, a headset for the desk. It is the one thing
  * about the app that is true before you tap anything, and the tab is where it
- * belongs now that the role is no longer a tab of its own. Both are Lucide's;
- * the other three are the mockup's own shapes.
+ * belongs now that the role is no longer a tab of its own.
  */
-const ROLE_ICON: Record<ClientRole, typeof Stethoscope> = {
+const ROLE_ICON: Record<ClientRole, typeof Calendar> = {
     doctor: Stethoscope,
     secretary: Headset,
 };
@@ -70,27 +51,10 @@ const ROLE_LABEL: Record<ClientRole, string> = {
     secretary: 'Secretary',
 };
 
-const ICONS: Record<Exclude<TabKey, 'settings'>, (stroke: string) => ReactNode> = {
-    day: drawn((stroke) => (
-        <>
-            <Rect x={3} y={5} width={18} height={16} rx={3} stroke={stroke} />
-            <Path d="M3 10h18M8 3v4M16 3v4" stroke={stroke} />
-        </>
-    )),
-    patients: drawn((stroke) => (
-        <>
-            <Circle cx={9} cy={8} r={3.4} stroke={stroke} />
-            <Path d="M3.5 19c.6-3 2.9-4.6 5.5-4.6S13.9 16 14.5 19" stroke={stroke} />
-            <Path d="M16 8.2a3 3 0 0 1 0 5.6M18.5 19c-.3-1.8-1-3.1-2-4" stroke={stroke} />
-        </>
-    )),
-    money: drawn((stroke) => (
-        <>
-            <Rect x={3} y={6} width={18} height={13} rx={3} stroke={stroke} />
-            <Path d="M3 11h18" stroke={stroke} />
-            <Circle cx={17} cy={15} r={1.3} stroke={stroke} />
-        </>
-    )),
+const TAB_ICON: Record<Exclude<TabKey, 'settings'>, typeof Calendar> = {
+    day: Calendar,
+    patients: Users,
+    money: CreditCard,
 };
 
 export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
@@ -109,6 +73,7 @@ export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
             {tabs.map((tab) => {
                 const selected = tab.key === active;
                 const stroke = selected ? color.ink : color.muted;
+                const Glyph = tab.key === 'settings' ? RoleGlyph : TAB_ICON[tab.key];
                 return (
                     <Pressable
                         key={tab.key}
@@ -119,11 +84,7 @@ export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
                         style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
                         testID={`tab-${tab.key}`}
                     >
-                        {tab.key === 'settings' ? (
-                            <RoleGlyph size={SIZE} color={stroke} strokeWidth={STROKE} />
-                        ) : (
-                            ICONS[tab.key](stroke)
-                        )}
+                        <Glyph size={SIZE} color={stroke} strokeWidth={STROKE} />
                         <Text
                             variant="caption"
                             weight={selected ? 'semibold' : 'medium'}
