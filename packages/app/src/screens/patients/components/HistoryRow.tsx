@@ -4,9 +4,14 @@
  * it saying what the amount means.
  *
  * The row leads with the work, not the reference: a record is read to answer
- * "what did we do last time", and `160826-7M69` answers nothing a person asks.
- * The ref is a desk artefact for the paper book and the WhatsApp round trip, so
- * it is not on the row at all.
+ * "what did we do last time", and `160826-7M69` answers nothing a person asks
+ * out loud. But it is on the row, quietly — this is the screen someone is on
+ * with the paper file open in front of them, and the ref (§5) is the only thing
+ * that matches one to the other. So it rides beside the status pill at `caption`
+ * in mono and muted, in space the row was not using: legible when it is what you
+ * came for, and beneath notice the rest of the time. Its alphabet drops `0/O`
+ * and `1/I/L` so it survives being read down a phone, which is the other half of
+ * the same job.
  *
  * Full-bleed on the page's own colour with a hairline under it, not a card. The
  * design draws a ledger: rows running edge to edge in one continuous tone,
@@ -95,10 +100,16 @@ export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
                     <Work procedures={entry.procedures} />
                 )}
 
-                <View style={[styles.pill, PILL[status.tone]]}>
-                    <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />
-                    <Text variant="tag" weight="bold" tone={status.tone === 'ink' ? 'ink' : status.tone}>
-                        {status.label}
+                <View style={styles.meta}>
+                    <View style={[styles.pill, PILL[status.tone]]}>
+                        <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />
+                        <Text variant="tag" weight="bold" tone={status.tone === 'ink' ? 'ink' : status.tone}>
+                            {status.label}
+                        </Text>
+                    </View>
+
+                    <Text variant="caption" script="mono" tone="muted" numberOfLines={1}>
+                        {entry.ref}
                     </Text>
                 </View>
             </View>
@@ -220,6 +231,9 @@ const styles = StyleSheet.create({
     },
     stamp: { width: 30, alignItems: 'center' },
     body: { flex: 1, alignItems: 'flex-start', gap: space[1] },
+    // Wraps, so a long procedure name pushing the pill wide drops the ref to its
+    // own line rather than squeezing it — a half-shown ref is worse than none.
+    meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2] },
     pill: {
         flexDirection: 'row',
         alignItems: 'center',

@@ -4,6 +4,7 @@
 // error states can be looked at on a device; it goes when the real client
 // lands (#2).
 export { setStubFailing } from './_LocalMoneyApi';
+export type { MoneyClusterProps, OpenPatientBalanceRequest } from './MoneyCluster';
 export { MoneyCluster } from './MoneyCluster';
 export type { MoneyScreenProps } from './MoneyScreen';
 export { MoneyScreen } from './MoneyScreen';
