@@ -36,6 +36,16 @@ export const procedureTreeInput = z
     })
     .default({ includeInactive: false });
 
+/**
+ * The whole new order of one group of siblings, applied as one write. A row's
+ * position is its index, so a half-applied list cannot exist — see
+ * `procedureService.reorder`.
+ */
+export const reorderProceduresInput = z.object({
+    ids: z.array(z.uuid()).min(1).max(500),
+});
+
 export type CreateProcedureInput = z.infer<typeof createProcedureInput>;
 export type UpdateProcedureInput = z.infer<typeof updateProcedureInput>;
 export type ProcedureTreeInput = z.infer<typeof procedureTreeInput>;
+export type ReorderProceduresInput = z.infer<typeof reorderProceduresInput>;

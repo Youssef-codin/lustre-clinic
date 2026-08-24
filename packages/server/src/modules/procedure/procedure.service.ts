@@ -8,11 +8,16 @@
  * `findCheckup` supplies the line seeded on check-in (§8).
  */
 import { ERROR_CODE } from '@lustre/shared';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { procedureTypes } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
-import type { CreateProcedureInput, ProcedureTreeInput, UpdateProcedureInput } from './procedure.schema.ts';
+import type {
+    CreateProcedureInput,
+    ProcedureTreeInput,
+    ReorderProceduresInput,
+    UpdateProcedureInput,
+} from './procedure.schema.ts';
 
 export type Procedure = typeof procedureTypes.$inferSelect;
 
@@ -144,6 +149,39 @@ export const procedureService = {
 
         if (!row) throw AppError.notFound('procedure');
         return row;
+    },
+
+    /**
+     * The whole order of one sibling group, in one transaction. The client
+     * sends the list it wants and every row is stamped with its index, so a
+     * connection that drops mid-write leaves the previous order intact rather
+     * than half of each.
+     *
+     * The ids must be siblings: `sortOrder` is only ever compared within a
+     * group, so a list spanning two categories would write positions that mean
+     * nothing next to each other.
+     */
+    async reorder({ ids }: ReorderProceduresInput): Promise<void> {
+        if (new Set(ids).size !== ids.length) {
+            throw new AppError(ERROR_CODE.VALIDATION, 'the same procedure appears twice in the order', 422);
+        }
+
+        await db.transaction(async (tx) => {
+            const rows = await tx
+                .select({ id: procedureTypes.id, parentId: procedureTypes.parentId })
+                .from(procedureTypes)
+                .where(inArray(procedureTypes.id, ids));
+
+            if (rows.length !== ids.length) throw AppError.notFound('procedure');
+
+            if (new Set(rows.map((row) => row.parentId)).size > 1) {
+                throw new AppError(ERROR_CODE.VALIDATION, 'a reorder must name one group of siblings', 422);
+            }
+
+            for (const [index, id] of ids.entries()) {
+                await tx.update(procedureTypes).set({ sortOrder: index }).where(eq(procedureTypes.id, id));
+            }
+        });
     },
 
     async selectableList(): Promise<Procedure[]> {

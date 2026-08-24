@@ -329,6 +329,80 @@ describe('procedure', () => {
         const root = (await procedureService.tree()).find((n) => n.id === category.id);
         expect(root?.selectable).toBe(false);
     });
+
+    describe('reorder', () => {
+        async function threeRoots() {
+            const names = ['Checkup', 'Extraction', 'Scaling'];
+            const rows = [];
+            for (const [index, name] of names.entries()) {
+                rows.push(
+                    await procedureService.create({
+                        name,
+                        defaultPrice: CHECKUP_PRICE,
+                        hasQuantity: false,
+                        isToothSpecific: false,
+                        isCheckup: false,
+                        sortOrder: index,
+                    }),
+                );
+            }
+            return rows;
+        }
+
+        test('applies the whole order in one write', async () => {
+            const [first, second, third] = await threeRoots();
+            if (!first || !second || !third) throw new Error('fixture');
+
+            await procedureService.reorder({ ids: [third.id, first.id, second.id] });
+
+            const tree = await procedureService.tree();
+            expect(tree.map((n) => n.id)).toEqual([third.id, first.id, second.id]);
+        });
+
+        // The point of the procedure: a list naming a row that is not there
+        // leaves the old order intact rather than applying the first half.
+        test('leaves the order untouched when one id does not exist', async () => {
+            const [first, second, third] = await threeRoots();
+            if (!first || !second || !third) throw new Error('fixture');
+
+            await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+                procedureService.reorder({ ids: [third.id, second.id, crypto.randomUUID()] }),
+            );
+
+            const tree = await procedureService.tree();
+            expect(tree.map((n) => n.id)).toEqual([first.id, second.id, third.id]);
+        });
+
+        test('refuses a list spanning two categories, and one naming a row twice', async () => {
+            const [root] = await threeRoots();
+            if (!root) throw new Error('fixture');
+
+            const category = await procedureService.create({
+                name: 'Endodontics',
+                defaultPrice: 0,
+                hasQuantity: false,
+                isToothSpecific: false,
+                isCheckup: false,
+                sortOrder: 0,
+            });
+            const child = await procedureService.create({
+                parentId: category.id,
+                name: 'Root canal',
+                defaultPrice: ROOT_CANAL_PRICE,
+                hasQuantity: false,
+                isToothSpecific: false,
+                isCheckup: false,
+                sortOrder: 0,
+            });
+
+            await expectAppError(ERROR_CODE.VALIDATION, () =>
+                procedureService.reorder({ ids: [root.id, child.id] }),
+            );
+            await expectAppError(ERROR_CODE.VALIDATION, () =>
+                procedureService.reorder({ ids: [root.id, root.id] }),
+            );
+        });
+    });
 });
 
 describe('customQuestion', () => {
@@ -401,6 +475,47 @@ describe('customQuestion', () => {
                 sortOrder: 0,
             }),
         );
+    });
+
+    describe('reorder', () => {
+        async function threeQuestions() {
+            const keys = ['diabetic', 'blood_thinners', 'allergies'];
+            const rows = [];
+            for (const [index, key] of keys.entries()) {
+                rows.push(
+                    await customQuestionService.create({
+                        key,
+                        label: key,
+                        kind: 'text',
+                        required: false,
+                        sortOrder: index,
+                    }),
+                );
+            }
+            return rows;
+        }
+
+        test('applies the whole order in one write', async () => {
+            const [first, second, third] = await threeQuestions();
+            if (!first || !second || !third) throw new Error('fixture');
+
+            await customQuestionService.reorder({ ids: [third.id, first.id, second.id] });
+
+            const rows = await customQuestionService.list();
+            expect(rows.map((q) => q.id)).toEqual([third.id, first.id, second.id]);
+        });
+
+        test('leaves the order untouched when one id does not exist', async () => {
+            const [first, second, third] = await threeQuestions();
+            if (!first || !second || !third) throw new Error('fixture');
+
+            await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+                customQuestionService.reorder({ ids: [third.id, second.id, crypto.randomUUID()] }),
+            );
+
+            const rows = await customQuestionService.list();
+            expect(rows.map((q) => q.id)).toEqual([first.id, second.id, third.id]);
+        });
     });
 
     test('intake enforces required answers', async () => {

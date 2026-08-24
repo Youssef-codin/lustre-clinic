@@ -2,6 +2,7 @@ import { publicProcedure, router } from '../../trpc/init.ts';
 import {
     createCustomQuestionInput,
     listCustomQuestionInput,
+    reorderCustomQuestionsInput,
     updateCustomQuestionInput,
 } from './customQuestion.schema.ts';
 import { customQuestionService } from './customQuestion.service.ts';
@@ -18,4 +19,8 @@ export const customQuestionRouter = router({
     update: publicProcedure
         .input(updateCustomQuestionInput)
         .mutation(({ input }) => customQuestionService.update(input)),
+
+    reorder: publicProcedure
+        .input(reorderCustomQuestionsInput)
+        .mutation(({ input }) => customQuestionService.reorder(input)),
 });
