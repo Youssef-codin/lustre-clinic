@@ -22,8 +22,10 @@
  * In reorder mode the price is dropped rather than sat beside the arrows — a
  * tappable price next to small buttons reprises by accident.
  */
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { type RouterOutput, useTRPC } from '../../api';
 import {
     ActionBar,
     AddButton,
@@ -51,28 +53,37 @@ import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components
 import { EditIcon, HideIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
-import type { Procedure, ProcedureNode } from './data/types';
+import { errorText } from './data/errors';
+
+export type ProcedureNode = RouterOutput['procedure']['tree'][number];
+export type Procedure = ProcedureNode['children'][number];
 
 export function ProceduresScreen({ onBack }: { onBack: () => void }) {
-    const tree = useQuery(useCallback(() => api.procedure.tree({ includeInactive: true }), []));
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
-    const reorder = useMutation((ids: string[]) => api.procedure.reorder(ids));
+    const reorder = useMutation(
+        trpc.procedure.reorder.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.procedure.pathFilter()),
+        }),
+    );
 
-    async function move(siblings: readonly { id: string }[], index: number, delta: number) {
+    // One write for the whole group, so a dropped connection leaves the order
+    // it had rather than half of the new one.
+    function move(siblings: readonly { id: string }[], index: number, delta: number) {
         const next = [...siblings];
         const moved = next[index];
         const target = next[index + delta];
         if (!moved || !target) return;
         next[index] = target;
         next[index + delta] = moved;
-        await reorder.run(next.map((row) => row.id));
-        tree.reload();
+        reorder.mutate({ ids: next.map((row) => row.id) });
     }
 
     // The tree is fetched whole so parenthood — and therefore which rows are
@@ -81,9 +92,14 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     // Only the rendering drops them.
     const all = tree.data ?? [];
 
+    function nextSortOrder(parentId: string | null): number {
+        if (parentId === null) return all.length;
+        return all.find((node) => node.id === parentId)?.children.length ?? 0;
+    }
+
     const nodes = all
-        .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }))
-        .filter((node) => node.active && (node.selectable || node.children.length > 0));
+        .filter((node) => node.active)
+        .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }));
 
     const empty = nodes.length === 0;
 
@@ -91,8 +107,8 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     // would replace, and a price list that reshuffles under a finger is worse
     // than a stale one.
     const refreshControl = usePullToRefresh(() => {
-        if (!reordering) tree.reload();
-    }, tree.loading || tree.reloading);
+        if (!reordering) void tree.refetch();
+    }, tree.isFetching);
 
     return (
         <>
@@ -114,19 +130,19 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
             >
-                {tree.loading ? <SkeletonRows count={4} trailing /> : null}
+                {tree.isLoading ? <SkeletonRows count={4} trailing /> : null}
 
                 {tree.error ? (
                     <ErrorState
-                        message={errorMessage(tree.error) ?? ''}
-                        onRetry={tree.reload}
-                        retrying={tree.reloading}
+                        message={errorText(tree.error)}
+                        onRetry={tree.refetch}
+                        retrying={tree.isFetching}
                     />
                 ) : null}
 
                 {reorder.error ? (
                     <Callout tone="warning" title="Order not saved">
-                        {errorMessage(reorder.error) ?? ''}
+                        {errorText(reorder.error)}
                     </Callout>
                 ) : null}
 
@@ -146,7 +162,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                             <ProcedureRow
                                 procedure={node}
                                 reordering={reordering}
-                                reorderDisabled={reorder.pending}
+                                reorderDisabled={reorder.isPending}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
                                 onPress={() => setEditing(node)}
@@ -189,7 +205,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                         <ProcedureRow
                                             procedure={child}
                                             reordering={reordering}
-                                            reorderDisabled={reorder.pending}
+                                            reorderDisabled={reorder.isPending}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
                                             onPress={() => setEditing(child)}
@@ -201,7 +217,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
 
                                 {reordering ? null : (
                                     <>
-                                        <CardDivider />
+                                        {node.children.length > 0 ? <CardDivider /> : null}
                                         <AddButton
                                             variant="footer"
                                             label={`Add to ${node.name}`}
@@ -232,6 +248,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         procedure={editing !== null && editing !== 'new' ? editing : null}
                         parent={addingTo}
                         categories={all.filter((node) => !node.selectable)}
+                        nextSortOrder={nextSortOrder}
                         onClose={() => {
                             setEditing(null);
                             setAddingTo(null);
@@ -240,7 +257,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                             setEditing(null);
                             setAddingTo(null);
                             setToast(message);
-                            tree.reload();
                         }}
                     />
                 ) : null}
@@ -320,13 +336,26 @@ type ProcedureEditorProps = {
     procedure: Procedure | null;
     parent: ProcedureNode | null;
     categories: ProcedureNode[];
+    /** Where a new row lands in its group: after everything already in it. */
+    nextSortOrder: (parentId: string | null) => number;
     onClose: () => void;
     onSaved: (message: string) => void;
 };
 
 const NO_CATEGORY = 'none';
 
-function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: ProcedureEditorProps) {
+function ProcedureEditor({
+    procedure,
+    parent,
+    categories,
+    nextSortOrder,
+    onClose,
+    onSaved,
+}: ProcedureEditorProps) {
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+    const onProcedureWritten = () => queryClient.invalidateQueries(trpc.procedure.pathFilter());
+
     const [name, setName] = useState(procedure?.name ?? '');
     const [price, setPrice] = useState(procedure ? String(Math.round(procedure.defaultPrice / 100)) : '');
     const [parentId, setParentId] = useState<string>(procedure?.parentId ?? parent?.id ?? NO_CATEGORY);
@@ -338,40 +367,52 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
 
     const isCategory = categories.some((category) => category.id === procedure?.id);
 
-    const save = useMutation(async () => {
-        const input = {
-            parentId: parentId === NO_CATEGORY ? null : parentId,
-            name,
+    const create = useMutation(trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }));
+    const update = useMutation(trpc.procedure.update.mutationOptions({ onSuccess: onProcedureWritten }));
+
+    const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
+    const saving = create.isPending || (update.isPending && !confirming);
+    const busy = create.isPending || update.isPending;
+    const failure = create.error ?? update.error;
+
+    function onSave() {
+        setSubmitted(true);
+        if (name.trim() === '') return;
+
+        const chosenParent = parentId === NO_CATEGORY ? null : parentId;
+        const details = {
+            parentId: chosenParent,
+            name: name.trim(),
             defaultPrice: poundsToPiastres(price),
             hasQuantity,
             isToothSpecific: toothSpecific,
             isCheckup,
         };
-        return procedure ? api.procedure.update({ id: procedure.id, ...input }) : api.procedure.create(input);
-    });
 
-    const setActive = useMutation((active: boolean) =>
-        api.procedure.update({ id: procedure?.id ?? '', active }),
-    );
-
-    const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
-    const busy = save.pending || setActive.pending;
-
-    async function onSave() {
-        setSubmitted(true);
-        if (name.trim() === '') return;
-        const saved = await save.run(undefined);
-        if (saved) onSaved(procedure ? 'Procedure saved' : 'Procedure added');
+        if (procedure) {
+            update.mutate({ id: procedure.id, ...details }, { onSuccess: () => onSaved('Procedure saved') });
+            return;
+        }
+        create.mutate(
+            { ...details, sortOrder: nextSortOrder(chosenParent) },
+            { onSuccess: () => onSaved('Procedure added') },
+        );
     }
 
     // One-way: `active` is still the column, because the server and every
     // history query already read it. Only the app's language and the way out
     // have changed.
-    async function onHide() {
+    function onHide() {
         if (!procedure) return;
-        const updated = await setActive.run(false);
-        setConfirming(false);
-        if (updated) onSaved('Procedure hidden');
+        update.mutate(
+            { id: procedure.id, active: false },
+            {
+                onSuccess: () => {
+                    setConfirming(false);
+                    onSaved('Procedure hidden');
+                },
+            },
+        );
     }
 
     return (
@@ -384,16 +425,16 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                 // button, and a Cancel beside Save on a screen reached by a row
                 // tap is a second way to do what backing out already does.
                 <ActionBar
-                    primaryLabel={save.pending ? 'Saving' : 'Save'}
+                    primaryLabel={saving ? 'Saving' : 'Save'}
                     onPrimary={onSave}
-                    primaryLoading={save.pending}
-                    primaryDisabled={setActive.pending}
+                    primaryLoading={saving}
+                    primaryDisabled={busy}
                 />
             }
         >
-            {save.error || setActive.error ? (
+            {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorMessage(save.error ?? setActive.error) ?? ''}
+                    {errorText(failure)}
                 </Callout>
             ) : null}
 
@@ -480,7 +521,7 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                         variant="danger"
                         icon={<HideIcon size={15} stroke={color.danger} width={2.2} />}
                         onPress={() => setConfirming(true)}
-                        loading={setActive.pending}
+                        loading={update.isPending && confirming}
                         block
                     />
                     <Text variant="caption" tone="muted" style={styles.dangerHint}>
@@ -497,7 +538,7 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                 body="It stops appearing when adding work to a visit, and comes off this screen for good — you won't be able to bring it back from here. Nothing is deleted: past visits keep it and keep what they charged."
                 confirmLabel="Hide"
                 destructive
-                loading={setActive.pending}
+                loading={update.isPending && confirming}
                 onConfirm={onHide}
                 onCancel={() => setConfirming(false)}
             />

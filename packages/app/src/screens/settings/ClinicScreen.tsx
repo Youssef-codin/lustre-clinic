@@ -1,27 +1,34 @@
 /**
  * Settings → Clinic: the name and number that identify the practice itself.
  *
- * Two fields and a save bar, and the hint under them is the whole reason the
- * pane is separate from Branches: this is what a patient sees on a receipt and
- * at the top of a reminder message, while the number they would actually call
- * is the branch's. Editing the wrong one is the mistake worth preventing, so
- * the pane says which is which rather than listing four fields together.
+ * Two fields and a save bar. The hint under them says where the number shows
+ * up, because this is the practice's number — the one on a receipt and at the
+ * top of a reminder message — and not the number of any one branch. `branches`
+ * has no phone column, so there is nothing to confuse it with yet.
  */
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { StyleSheet } from 'react-native';
+import { useTRPC } from '../../api';
 import { ActionBar, Callout, Card, SectionLabel, TextField, Toast } from '../../components/ui';
 import { space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
+import { errorText } from './data/errors';
 
 export function ClinicScreen({ onBack }: { onBack: () => void }) {
-    const clinic = useQuery(useCallback(() => api.clinic.get(), []));
-    const save = useMutation((input: { name: string; phone: string }) => api.clinic.update(input));
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const clinic = useQuery(trpc.settings.get.queryOptions());
+    const save = useMutation(
+        trpc.settings.update.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
+        }),
+    );
 
     // `undefined` means "not edited": the fields show what the server said
-    // until someone types, so a reload landing behind an untouched pane is not
+    // until someone types, so a refetch landing behind an untouched pane is not
     // overwritten by a stale draft.
     const [name, setName] = useState<string>();
     const [phone, setPhone] = useState<string>();
@@ -29,50 +36,53 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const [toast, setToast] = useState(false);
 
     const data = clinic.data;
-    const nameValue = name ?? data?.name ?? '';
-    const phoneValue = phone ?? data?.phone ?? '';
+    const nameValue = name ?? data?.clinicName ?? '';
+    const phoneValue = phone ?? data?.clinicPhone ?? '';
 
     const nameError = submitted && nameValue.trim() === '' ? 'The clinic needs a name.' : undefined;
     const phoneError = submitted && phoneValue.trim() === '' ? 'The clinic needs a phone number.' : undefined;
 
-    async function onSave() {
+    function onSave() {
         setSubmitted(true);
         if (nameValue.trim() === '' || phoneValue.trim() === '') return;
 
-        const saved = await save.run({ name: nameValue, phone: phoneValue });
-        if (!saved) return;
-
-        setName(undefined);
-        setPhone(undefined);
-        setSubmitted(false);
-        setToast(true);
-        clinic.reload();
+        save.mutate(
+            { clinicName: nameValue.trim(), clinicPhone: phoneValue.trim() },
+            {
+                onSuccess: () => {
+                    setName(undefined);
+                    setPhone(undefined);
+                    setSubmitted(false);
+                    setToast(true);
+                },
+            },
+        );
     }
 
     return (
         <Pane
             title="Clinic"
-            onBack={save.pending ? () => {} : onBack}
+            onBack={save.isPending ? () => {} : onBack}
             testID="settings-clinic"
             overlay={<Toast visible={toast} message="Clinic saved" onDismiss={() => setToast(false)} />}
             footer={
                 data ? (
                     <ActionBar
-                        primaryLabel={save.pending ? 'Saving' : 'Save'}
+                        primaryLabel={save.isPending ? 'Saving' : 'Save'}
                         onPrimary={onSave}
-                        primaryLoading={save.pending}
+                        primaryLoading={save.isPending}
                         testID="clinic-save"
                     />
                 ) : undefined
             }
         >
-            {clinic.loading ? <SkeletonRows count={2} /> : null}
+            {clinic.isLoading ? <SkeletonRows count={2} /> : null}
 
             {clinic.error ? (
                 <ErrorState
-                    message={errorMessage(clinic.error) ?? ''}
-                    onRetry={clinic.reload}
-                    retrying={clinic.reloading}
+                    message={errorText(clinic.error)}
+                    onRetry={clinic.refetch}
+                    retrying={clinic.isFetching}
                 />
             ) : null}
 
@@ -80,7 +90,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                 <>
                     {save.error ? (
                         <Callout tone="warning" title="Not saved">
-                            {errorMessage(save.error) ?? ''}
+                            {errorText(save.error)}
                         </Callout>
                     ) : null}
 
@@ -110,7 +120,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                     </Card>
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
-                        Appears on receipts and in reminder messages. Branch phone numbers are set per branch.
+                        Appears on receipts and in reminder messages.
                     </Text>
                 </>
             ) : null}

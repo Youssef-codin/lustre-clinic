@@ -13,8 +13,10 @@
  * `TextField` detect the Arabic script per string.
  */
 import { type QuestionKind, resolveLabel } from '@lustre/shared';
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { type RouterOutput, useTRPC } from '../../api';
 import {
     ActionBar,
     AddButton,
@@ -40,9 +42,14 @@ import { useLocale } from '../../shell/localeStore';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api, optionsOf } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
-import type { CustomQuestion } from './data/types';
+import { errorText } from './data/errors';
+
+type CustomQuestion = RouterOutput['customQuestion']['list'][number];
+
+/** `options` is `jsonb`, so it arrives as `unknown` for every other kind. */
+function optionsOf(question: CustomQuestion): string[] {
+    return Array.isArray(question.options) ? (question.options as string[]) : [];
+}
 
 const FIXED_DETAILS = ['Full name', 'Phone', 'Email', 'Age', 'Sex'] as const;
 
@@ -57,32 +64,40 @@ const KIND_LABEL: Record<QuestionKind, string> = {
 const KINDS: readonly QuestionKind[] = ['boolean', 'select', 'text', 'number', 'date'];
 
 export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
-    const questions = useQuery(useCallback(() => api.customQuestion.list({ includeInactive: true }), []));
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const questions = useQuery(trpc.customQuestion.list.queryOptions({ includeInactive: true }));
     const [editing, setEditing] = useState<CustomQuestion | 'new' | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
-    const reorder = useMutation((ids: string[]) => api.customQuestion.reorder(ids));
+    const reorder = useMutation(
+        trpc.customQuestion.reorder.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.customQuestion.pathFilter()),
+        }),
+    );
 
     const rows = questions.data ?? [];
     const active = rows.filter((q) => q.active);
     const inactive = rows.filter((q) => !q.active);
 
-    async function move(index: number, delta: number) {
+    // One write for the whole list, so a dropped connection leaves the order it
+    // had rather than half of the new one.
+    function move(index: number, delta: number) {
         const next = [...active];
         const moved = next[index];
         const target = next[index + delta];
         if (!moved || !target) return;
         next[index] = target;
         next[index + delta] = moved;
-        await reorder.run(next.map((row) => row.id));
-        questions.reload();
+        reorder.mutate({ ids: next.map((row) => row.id) });
     }
 
     // Not while reordering — the same reason as `ProceduresScreen`.
     const refreshControl = usePullToRefresh(() => {
-        if (!reordering) questions.reload();
-    }, questions.loading || questions.reloading);
+        if (!reordering) void questions.refetch();
+    }, questions.isFetching);
 
     return (
         <>
@@ -111,19 +126,19 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
 
                 <FixedDetailsCard />
 
-                {questions.loading ? <SkeletonRows count={3} /> : null}
+                {questions.isLoading ? <SkeletonRows count={3} /> : null}
 
                 {questions.error ? (
                     <ErrorState
-                        message={errorMessage(questions.error) ?? ''}
-                        onRetry={questions.reload}
-                        retrying={questions.reloading}
+                        message={errorText(questions.error)}
+                        onRetry={questions.refetch}
+                        retrying={questions.isFetching}
                     />
                 ) : null}
 
                 {reorder.error ? (
                     <Callout tone="warning" title="Order not saved">
-                        {errorMessage(reorder.error) ?? ''}
+                        {errorText(reorder.error)}
                     </Callout>
                 ) : null}
 
@@ -157,7 +172,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                                             <QuestionRow
                                                 question={question}
                                                 reordering={reordering}
-                                                reorderDisabled={reorder.pending}
+                                                reorderDisabled={reorder.isPending}
                                                 isFirst={index === 0}
                                                 isLast={index === active.length - 1}
                                                 onPress={() => setEditing(question)}
@@ -210,11 +225,11 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                 {editing !== null ? (
                     <QuestionEditor
                         question={editing === 'new' ? null : editing}
+                        nextSortOrder={rows.length}
                         onClose={() => setEditing(null)}
                         onSaved={(message) => {
                             setEditing(null);
                             setToast(message);
-                            questions.reload();
                         }}
                     />
                 ) : null}
@@ -327,11 +342,17 @@ function QuestionRow({
 
 type QuestionEditorProps = {
     question: CustomQuestion | null;
+    /** Where a new question lands: after every one already asked. */
+    nextSortOrder: number;
     onClose: () => void;
     onSaved: (message: string) => void;
 };
 
-function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
+function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionEditorProps) {
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+    const onQuestionWritten = () => queryClient.invalidateQueries(trpc.customQuestion.pathFilter());
+
     const [label, setLabel] = useState(question?.label ?? '');
     const [labelAr, setLabelAr] = useState(question?.labelAr ?? '');
     const [key, setKey] = useState(question?.key ?? '');
@@ -342,29 +363,8 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
     const [submitted, setSubmitted] = useState(false);
     const [confirming, setConfirming] = useState(false);
 
-    const save = useMutation(async () => {
-        if (question) {
-            return api.customQuestion.update({
-                id: question.id,
-                label,
-                labelAr,
-                options: kind === 'select' ? options : undefined,
-                required,
-            });
-        }
-        return api.customQuestion.create({
-            key,
-            label,
-            labelAr,
-            kind,
-            options: kind === 'select' ? options : null,
-            required,
-        });
-    });
-
-    const setActive = useMutation((active: boolean) =>
-        api.customQuestion.update({ id: question?.id ?? '', active }),
-    );
+    const create = useMutation(trpc.customQuestion.create.mutationOptions({ onSuccess: onQuestionWritten }));
+    const update = useMutation(trpc.customQuestion.update.mutationOptions({ onSuccess: onQuestionWritten }));
 
     const labelError = submitted && label.trim() === '' ? 'A question needs to say something.' : undefined;
     const keyError =
@@ -373,28 +373,60 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
             : undefined;
     const optionsError =
         submitted && kind === 'select' && options.length < 2 ? 'A dropdown needs at least two options.' : '';
-    const busy = save.pending || setActive.pending;
+    const saving = create.isPending || (update.isPending && !confirming);
+    const busy = create.isPending || update.isPending;
+    const failure = create.error ?? update.error;
 
     function onChangeLabel(next: string) {
         setLabel(next);
         if (!keyEdited) setKey(toKey(next));
     }
 
-    async function onSave() {
+    function onSave() {
         setSubmitted(true);
         if (label.trim() === '') return;
         if (!question && !/^[a-z][a-z0-9_]*$/.test(key)) return;
         if (kind === 'select' && options.length < 2) return;
 
-        const saved = await save.run(undefined);
-        if (saved) onSaved(question ? 'Question saved' : 'Question added');
+        if (question) {
+            update.mutate(
+                {
+                    id: question.id,
+                    label: label.trim(),
+                    labelAr,
+                    options: kind === 'select' ? options : undefined,
+                    required,
+                },
+                { onSuccess: () => onSaved('Question saved') },
+            );
+            return;
+        }
+
+        create.mutate(
+            {
+                key,
+                label: label.trim(),
+                labelAr,
+                kind,
+                options: kind === 'select' ? options : null,
+                required,
+                sortOrder: nextSortOrder,
+            },
+            { onSuccess: () => onSaved('Question added') },
+        );
     }
 
-    async function onToggleActive() {
+    function onToggleActive() {
         if (!question) return;
-        const updated = await setActive.run(!question.active);
-        setConfirming(false);
-        if (updated) onSaved(updated.active ? 'Question reactivated' : 'Question deactivated');
+        update.mutate(
+            { id: question.id, active: !question.active },
+            {
+                onSuccess: (updated) => {
+                    setConfirming(false);
+                    onSaved(updated.active ? 'Question reactivated' : 'Question deactivated');
+                },
+            },
+        );
     }
 
     return (
@@ -403,18 +435,18 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
             onBack={busy ? () => {} : onClose}
             footer={
                 <ActionBar
-                    primaryLabel={save.pending ? 'Saving' : 'Save'}
+                    primaryLabel={saving ? 'Saving' : 'Save'}
                     onPrimary={onSave}
-                    primaryLoading={save.pending}
-                    primaryDisabled={setActive.pending}
+                    primaryLoading={saving}
+                    primaryDisabled={busy}
                     secondaryLabel="Cancel"
                     onSecondary={busy ? undefined : onClose}
                 />
             }
         >
-            {save.error || setActive.error ? (
+            {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorMessage(save.error ?? setActive.error) ?? ''}
+                    {errorText(failure)}
                 </Callout>
             ) : null}
 
@@ -516,7 +548,7 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
                     label={question.active ? 'Deactivate question' : 'Reactivate question'}
                     variant={question.active ? 'danger' : 'secondary'}
                     onPress={() => setConfirming(true)}
-                    loading={setActive.pending}
+                    loading={update.isPending && confirming}
                     block
                 />
             ) : null}
@@ -531,7 +563,7 @@ function QuestionEditor({ question, onClose, onSaved }: QuestionEditorProps) {
                 }
                 confirmLabel={question?.active ? 'Deactivate' : 'Reactivate'}
                 destructive={question?.active}
-                loading={setActive.pending}
+                loading={update.isPending && confirming}
                 onConfirm={onToggleActive}
                 onCancel={() => setConfirming(false)}
             />
