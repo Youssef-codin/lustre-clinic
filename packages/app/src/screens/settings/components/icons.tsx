@@ -8,7 +8,7 @@
  * every one of these was traced from it. That was wrong — CLAUDE.MD is explicit
  * that icons come from the library, "not to match a mockup" — so each is now
  * the nearest Lucide equivalent. Where the substitution changes what the glyph
- * depicts rather than just how it is drawn, it is noted in BLOCKED.md #29.
+ * depicts rather than just how it is drawn, it is noted in DECISIONS.md.
  *
  * WhatsApp is the documented exception: Lucide carries no brand marks, so it
  * comes from `@expo/vector-icons`, as it already does in
@@ -27,6 +27,7 @@ import {
     ClipboardList,
     Clock,
     EyeOff,
+    Folder,
     Hospital,
     Info,
     ListPlus,
@@ -117,6 +118,9 @@ export const HideIcon = icon(EyeOff, { size: 15, stroke: color.ink, width: 2.2 }
 
 /** Renaming a category, from its section heading. */
 export const EditIcon = icon(Pencil, { size: 15, stroke: color.muted, width: 2 });
+
+/** The ghost "Category" button beside "Add a procedure", as the mockup draws it. */
+export const CategoryIcon = icon(Folder, { size: 15, stroke: color.muted, width: 2 });
 
 /**
  * The reminder preview's channel mark. A brand glyph, so `@expo/vector-icons`

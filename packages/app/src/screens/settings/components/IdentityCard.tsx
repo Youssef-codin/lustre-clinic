@@ -17,7 +17,9 @@ import { ReprobeIcon, SwitchRoleIcon } from './icons';
 export type IdentityCardProps = {
     roleName: string;
     roleInitial: string;
-    branchName: string;
+    /** The clinic, under the role. Not the branch — nothing tracks which
+     * branch a phone is standing in yet, so the card does not claim to. */
+    clinicName: string;
     connection: ConnectionView;
     onSwitchRole: () => void;
     testID?: string;
@@ -26,7 +28,7 @@ export type IdentityCardProps = {
 export function IdentityCard({
     roleName,
     roleInitial,
-    branchName,
+    clinicName,
     connection,
     onSwitchRole,
     testID,
@@ -45,7 +47,7 @@ export function IdentityCard({
                         {roleName}
                     </Text>
                     <Text variant="subhead" tone="inverse" numberOfLines={1} style={styles.branch}>
-                        {branchName}
+                        {clinicName}
                     </Text>
                 </View>
             </View>

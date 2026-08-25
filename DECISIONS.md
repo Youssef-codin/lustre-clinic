@@ -186,19 +186,17 @@ prefers the server schedule (`settings.schedule`, `clinic_days`) and falls back
 to hardcoded defaults when the clinic has never configured one, so an
 unconfigured clinic does not render seven closed days.
 
-## Data entry runs on the real client while its cluster runs on fixtures
+## The settings cluster localizes failures in one place
 
-Odd on sight, deliberate. Every other settings pane calls `data/_LocalApi`; the
-data entry pane calls `../../../api` directly. It has to — it writes real
-patients into the real register, and a morning of typing into a store that does
-not survive a reload is a morning thrown away.
+`data/errors.ts` holds one sentence per `ERROR_CODE`, and a pane that can say
+something better for a code passes it in. Data entry is the reason the override
+exists: during a migration session, "something went wrong" is the one thing the
+desk must not be told, because what it needs to know is that the row is still on
+screen and nothing was lost.
 
-It also carries its own `errorText` rather than using `data/hooks`'
-`errorMessage`, which would flatten a real offline failure into "Something went
-wrong" — the one thing it must not say during a migration session, since the
-desk needs to know the row is still on screen.
-
-Both halves go away when `_LocalApi` is retired.
+This replaced two error mappers — the cluster's and the data entry pane's own —
+which existed because that pane ran on the real client while everything around
+it ran on `data/_LocalApi`. Both are gone with the stand-in.
 
 ---
 
@@ -322,11 +320,44 @@ action (merge, deactivate, export) gives the menu something to be.
   answer type locked once a question exists. The delete that orphans answers was
   removed on purpose; the mockup's "answers are kept but hidden" sheet describes
   deactivation in delete's words.
+- **The branch card drops its second line.** The design gives each branch a
+  phone number, a patient count, the year it opened and the month it closed, and
+  tags the one the phone is standing in. `branches` is `id, name, address,
+  active`, and nothing tracks which branch a phone is in. Every one of those
+  would have been a number the pane made up, which is the bug the cluster was
+  just taken off fixtures to fix. The identity card names the clinic for the
+  same reason. They come back when the columns do — see the tasks split out of
+  *Ten Settings panes run on fixtures*.
 - **Working hours is a row in the CLINIC group** though `settings.html`'s index
   (GENERAL / CLINIC / ABOUT) has no slot for it. The alternative was deleting a
   working screen over an omission in a design file that never mentions opening
   hours at all. `glyph="hours"` is the one icon without mockup path data behind
   it. Delete the row and the import if the omission was intentional.
+
+## Making a category writes two rows, or none
+
+`settings-procedures.html`'s ghost "Category" button opens a sheet that names a
+category and adds it to the tree on its own. It cannot work that way here: a row
+is a category because something else names it as a parent, so a category with
+nothing under it is just a root with a price — and `procedure.list` would offer
+it on a visit.
+
+So the sheet names the category and the editor behind it asks for the first
+subtype. Both rows are written by one call — `procedure.createCategory`, in one
+transaction — when that editor saves; backing out writes nothing. Two client
+calls would have left a childless root priced 0 behind whenever the second
+failed, which is the very thing this is avoiding. An empty category therefore cannot exist, which is this branch's answer
+to the open question on the task ("what happens if you later file nothing under
+it").
+
+The alternative was a column — `is_category`, or a nullable price — which is a
+migration on the shared database for a button, and forecloses nothing if it is
+wanted later.
+
+The other half of the same rule: a category whose only visible subtype is hidden
+still draws, as a heading with its "Add to" button and nothing under it. It used
+to vanish from the list while remaining unselectable, which left a row nothing
+on this screen could reach.
 
 ## Bilingual labels: one rule, taking the locale as an argument
 
@@ -338,8 +369,9 @@ different one against the same rows.
 
 Still single-column: `procedure_types.name`, `branches.name`,
 `settings.clinic_name`. `settings-procedures.html` draws the pair for procedures
-and categories, so that pane is the next to want it. Same migration shape, and
-the rule is already written.
+and categories — the new category sheet asks in English only for exactly this
+reason — so that pane is the next to want it. Same migration shape, and the rule
+is already written.
 
 **The answer is not bilingual and is not meant to become so:** it is stored once,
 in whichever language it was given.

@@ -40,10 +40,12 @@
  *
  * There is no mockup for this screen — the Open Design folder has fourteen and
  * none of them is this. Built from the tokens and from the card `patient-edit`
- * settles, and recorded in BLOCKED.md rather than passed off as drawn.
+ * settles, and recorded in DECISIONS.md rather than passed off as drawn.
  */
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { trpcClient, useTRPC } from '../../../api';
 import {
     ActionBar,
     Callout,
@@ -59,8 +61,7 @@ import { formatDate, offsetForDate, todayKey } from '../../day/time';
 import { formatEgp } from '../../money/money';
 import { Pane } from '../components/Pane';
 import { ErrorState, SkeletonRows } from '../components/QueryStates';
-import { useMutation, useQuery } from '../data/hooks';
-import { errorText, migrationApi, type PhoneMatch } from './api';
+import { errorText } from '../data/errors';
 import type { Cutoff, EntryForm, Session } from './entryForm';
 import {
     ageDigits,
@@ -86,10 +87,37 @@ import {
 /** Long enough that a number is finished being typed, short enough to land before the save. */
 const DUPLICATE_DELAY_MS = 400;
 
+/** Only what the duplicate warning draws. The whole patient is more than the line needs. */
+type PhoneMatch = { id: string; name: string };
+
+/**
+ * What a failure says at the desk. Four codes mean something specific during a
+ * migration session, and the general sentence for them is not good enough:
+ * the row is still on screen, and saying so is the difference between retyping
+ * it and not.
+ */
+const ENTRY_ERRORS = {
+    INVALID_PHONE: 'That phone number was not accepted. Check it and try again.',
+    INVALID_AMOUNT: 'That balance is outside what the system will hold. Check it and try again.',
+    NOT_FOUND: 'That branch is no longer set up. Pick another one above.',
+    VALIDATION: 'Something in the row was not accepted. Check it and try again.',
+} as const;
+
 export function DataEntryScreen({ onBack }: { onBack: () => void }) {
-    const branches = useQuery(useCallback(() => migrationApi.branches(), []));
-    const progress = useQuery(useCallback(() => migrationApi.progress(), []));
-    const save = useMutation(migrationApi.enter);
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    // Active branches only — a balance is dated at a branch that still exists.
+    const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: false }));
+    const progress = useQuery(trpc.migration.progress.queryOptions());
+    const save = useMutation(
+        trpc.migration.enter.mutationOptions({
+            onSuccess: () => {
+                void queryClient.invalidateQueries(trpc.migration.pathFilter());
+                void queryClient.invalidateQueries(trpc.patient.pathFilter());
+            },
+        }),
+    );
 
     const [form, setForm] = useState<EntryForm>(emptyForm);
     const [session, setSession] = useState<Session>(EMPTY_SESSION);
@@ -142,11 +170,11 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
 
         lookup.current = setTimeout(() => {
             asked.current = next;
-            migrationApi
-                .duplicates(next)
+            trpcClient.patient.byPhone
+                .query({ phone: next })
                 .then((found) => {
                     if (asked.current !== next) return;
-                    setDuplicates(found);
+                    setDuplicates(found.map((row) => ({ id: row.id, name: row.name })));
                 })
                 // A duplicate check that cannot reach the server is not a
                 // reason to stop typing. The save below reports its own
@@ -155,25 +183,25 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
         }, DUPLICATE_DELAY_MS);
     }
 
-    async function commit() {
+    function commit() {
         const input = enterInputOf(form, state);
         if (input === null) return;
 
-        const entered = await save.run(input);
-        if (!entered) return;
+        save.mutate(input, {
+            onSuccess: () => {
+                const carried = balancePiastres(form.balance);
+                setSession((current) => recorded(current, carried));
+                setForm(emptyForm());
+                setDuplicates([]);
+                setAcknowledged(false);
+                setCutoffOpen(false);
+                setToast(`${input.name} entered`);
 
-        const carried = balancePiastres(form.balance);
-        setSession((current) => recorded(current, carried));
-        setForm(emptyForm());
-        setDuplicates([]);
-        setAcknowledged(false);
-        setCutoffOpen(false);
-        setToast(`${input.name} entered`);
-        progress.reload();
-
-        // Straight back to the top of an empty form. This is the whole reason
-        // the fields are raw inputs.
-        legacyRef.current?.focus();
+                // Straight back to the top of an empty form. This is the whole
+                // reason the fields are raw inputs.
+                legacyRef.current?.focus();
+            },
+        });
     }
 
     const branchOptions = useMemo(
@@ -181,13 +209,13 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
         [branches.data],
     );
 
-    const loading = branches.loading && !branches.data;
+    const loading = branches.isLoading;
 
     return (
         <Pane
             title="Data entry"
             subtitle="Bulk entry from the old system"
-            onBack={save.pending ? () => {} : onBack}
+            onBack={save.isPending ? () => {} : onBack}
             testID="settings-data-entry"
             overlay={
                 <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
@@ -195,9 +223,9 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
             footer={
                 branches.data ? (
                     <ActionBar
-                        primaryLabel={saveLabel(owed, save.pending)}
+                        primaryLabel={saveLabel(owed, save.isPending)}
                         onPrimary={commit}
-                        primaryLoading={save.pending}
+                        primaryLoading={save.isPending}
                         primaryDisabled={owed.length > 0}
                         testID="data-entry-save"
                     />
@@ -209,8 +237,8 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
             {branches.error ? (
                 <ErrorState
                     message={errorText(branches.error)}
-                    onRetry={branches.reload}
-                    retrying={branches.reloading}
+                    onRetry={branches.refetch}
+                    retrying={branches.isFetching}
                 />
             ) : null}
 
@@ -220,7 +248,7 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
 
                     {save.error ? (
                         <Callout tone="warning" title="Not saved">
-                            {errorText(save.error)}
+                            {errorText(save.error, ENTRY_ERRORS)}
                         </Callout>
                     ) : null}
 
