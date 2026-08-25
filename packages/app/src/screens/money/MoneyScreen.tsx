@@ -6,10 +6,10 @@
 // The debtor list is deliberately not period-filtered — an outstanding balance
 // is standing, not period-scoped, and a list that emptied on "Today" would read
 // as nobody owing anything. Search is client-side because `balance.outstanding`
-// takes no argument (BLOCKED.md #6), and the total beside "Who owe" is the
-// report's own total: it is hidden while searching rather than recomputed over
-// the filtered rows, because a figure that shrank as you typed would read as
-// the clinic being owed less than it is.
+// takes no argument, and the total beside "Who owe" is the report's own total:
+// it is hidden while searching rather than recomputed over the filtered rows,
+// because a figure that shrank as you typed would read as the clinic being owed
+// less than it is.
 import { useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -17,14 +17,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
 import { DropdownMenu, IconButton, ScreenHeader, usePullToRefresh } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
-import {
-    type PatientBalance,
-    PERIOD_LABEL,
-    type Period,
-    useBalanceSummary,
-    useOutstanding,
-    useTakings,
-} from './_LocalMoneyApi';
 import { DebtorRow } from './components/DebtorRow';
 import { DockedSearch, SEARCH_HEIGHT } from './components/DockedSearch';
 import { HeroCollectionCard } from './components/HeroCollectionCard';
@@ -34,25 +26,39 @@ import { OweHead } from './components/OweHead';
 import { PeriodTabs } from './components/PeriodTabs';
 import { StatCard, StatCardSkeleton } from './components/StatCard';
 import { TakingsCard } from './components/TakingsCard';
+import { type PatientBalance, useBalanceSummary, useOutstanding, useTakings } from './data';
 import { dueLabel, statsPeriodLabel, takingsLabel } from './format';
-import { DEBTOR_SORT_LABEL, DEBTOR_SORTS, type DebtorSort, sortDebtors } from './money';
+import {
+    DEBTOR_SORT_LABEL,
+    DEBTOR_SORTS,
+    type DebtorSort,
+    PERIOD_LABEL,
+    type Period,
+    periodRange,
+    sortDebtors,
+} from './money';
 
 const HEADER_BUTTON = 40;
 
 export type MoneyScreenProps = {
-    version: number;
+    /** False while a pane is pushed over this screen — see `MoneyCluster`. */
+    searchVisible?: boolean;
     onOpenPatient: (patientId: string, name: string) => void;
 };
 
-export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
+export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreenProps) {
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<DebtorSort>('balance');
     const [sortAnchor, setSortAnchor] = useState<MenuAnchor | null>(null);
 
-    const summary = useBalanceSummary(period, version);
-    const takings = useTakings(period, version);
-    const outstanding = useOutstanding(version);
+    // Recomputed per period, not per render: it closes over `new Date()`, and a
+    // fresh object every render is a fresh query key every render.
+    const range = useMemo(() => periodRange(period), [period]);
+
+    const summary = useBalanceSummary(range);
+    const takings = useTakings(range);
+    const outstanding = useOutstanding();
 
     const periodLabel = PERIOD_LABEL[period];
     const searching = search.trim() !== '';
@@ -213,7 +219,7 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
                 </View>
             </Animated.ScrollView>
 
-            {dock.ready ? (
+            {dock.ready && searchVisible ? (
                 <DockedSearch
                     value={search}
                     onChangeText={setSearch}

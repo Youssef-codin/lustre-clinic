@@ -3,9 +3,9 @@
 // here; a wrong payment is corrected where the visit is edited.
 import { StyleSheet, View } from 'react-native';
 import { size, space, Text } from '../../../theme';
-import type { VisitPayment } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { VisitPayment } from '../data';
 import { longDateTime, methodLabel } from '../format';
+import { MoneyValue } from '../MoneyValue';
 
 export type PaymentRowProps = {
     payment: VisitPayment;

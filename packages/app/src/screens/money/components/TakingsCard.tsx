@@ -1,7 +1,8 @@
-// A collected total and one row per payment method. The endpoint behind this
-// does not exist yet (BLOCKED.md #5); the stub serves the shape. Amounts are
-// full, never compact (§7.12). Each row's share is a ratio, not money — nothing
-// is summed here, and the percentage is never rendered as an amount.
+// A collected total and one row per payment method, from `balance.takings`.
+// Amounts are full, never compact (§7.12). Each row's share is a ratio, not
+// money — nothing is summed here, and the percentage is never rendered as an
+// amount. A method the clinic has never taken is absent rather than a zero row,
+// so the list is as long as the period earns.
 //
 // The share label rides above the head of its own bar rather than sitting in a
 // column: four bars of different lengths read as one comparison that way, and
@@ -11,9 +12,9 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { duration, easing, useReducedMotion } from '../../../components/ui';
 import { color, radius, space, Text } from '../../../theme';
-import type { MethodTaking, TakingsReport } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { MethodTaking, TakingsReport } from '../data';
 import { methodLabel } from '../format';
+import { MoneyValue } from '../MoneyValue';
 import { BankIcon, MethodIcon } from './icons';
 
 const BAR_HEIGHT = 6;

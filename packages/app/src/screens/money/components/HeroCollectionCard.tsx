@@ -11,8 +11,8 @@
 // contents with it.
 import { StyleSheet, View } from 'react-native';
 import { color, gradient, radius, shadow, space, Text } from '../../../theme';
-import type { BalanceSummary } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { BalanceSummary } from '../data';
+import { MoneyValue } from '../MoneyValue';
 import { amountStillDue, collectedAhead, collectionRate } from '../money';
 
 const BAR_HEIGHT = 16;

@@ -1,10 +1,17 @@
 // Money → patient balances → payment history, three panes on `ui/PushView`
-// because there is no navigator yet (BLOCKED.md #4); each screen takes its ids
-// and `onBack` as props, so they drop onto a real stack unchanged. `version` is
-// the cluster's cache invalidation — a payment three panes deep changes the
-// dashboard's figures, and the honest fix is to ask the server again. The visit
-// route carries `visitRef`/`startsAt` because `visit.byId` returns neither
-// (BLOCKED.md #14).
+// because there is no navigator yet; each screen takes its ids and `onBack` as
+// props, so they drop onto a real stack unchanged. The visit route carries
+// `visitRef`/`startsAt` because `visit.byId` joins neither the appointment nor
+// the patient.
+//
+// There is no `version` any more. The cluster used to bump a counter after a
+// payment so every stub query re-keyed on it; the real client has a query
+// cache, and `useRecordPayment` invalidates `balance` and `visit` instead.
+//
+// `onOpenRecord` is the cross-cluster route the shell owns. A debtor row still
+// opens the balance screen — that pane is the only way to a `RecordPayment`
+// against an old visit, and sending the row to the record instead would orphan
+// the flow the tab exists for. The record gets its own affordance one level in.
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { PushView } from '../../components/ui';
@@ -25,16 +32,23 @@ type Route =
           patientName: string;
       };
 
-export function MoneyCluster() {
+export type MoneyClusterProps = {
+    onOpenRecord?: (patientId: string) => void;
+};
+
+export function MoneyCluster({ onOpenRecord }: MoneyClusterProps) {
     const [route, setRoute] = useState<Route>({ name: 'dashboard' });
-    const [version, setVersion] = useState(0);
 
     const patient = route.name === 'dashboard' ? null : route;
 
     return (
         <View style={styles.root}>
             <MoneyScreen
-                version={version}
+                // The pill is an overlay on the dashboard, and the dashboard
+                // stays mounted under a pushed pane. Rendering a search for a
+                // list that is not on screen is what put it over the balance
+                // screen; not rendering it is not a z-order to get right.
+                searchVisible={patient === null}
                 onOpenPatient={(patientId, patientName) =>
                     setRoute({ name: 'patient', patientId, patientName })
                 }
@@ -45,8 +59,8 @@ export function MoneyCluster() {
                     <PatientBalanceScreen
                         patientId={patient.patientId}
                         patientName={patient.patientName}
-                        version={version}
                         onBack={() => setRoute({ name: 'dashboard' })}
+                        onOpenRecord={onOpenRecord && (() => onOpenRecord(patient.patientId))}
                         onOpenVisit={(visit) =>
                             setRoute({
                                 name: 'visit',
@@ -68,7 +82,6 @@ export function MoneyCluster() {
                         visitRef={route.visitRef}
                         startsAt={route.startsAt}
                         patientName={route.patientName}
-                        version={version}
                         onBack={() =>
                             setRoute({
                                 name: 'patient',
@@ -76,7 +89,6 @@ export function MoneyCluster() {
                                 patientName: route.patientName,
                             })
                         }
-                        onPaymentRecorded={() => setVersion((value) => value + 1)}
                     />
                 ) : null}
             </PushView>

@@ -15,11 +15,12 @@
  * from the old system is still owed, and a patient's total has to say so.
  * `summary` does not: see the note on its charged query.
  */
+import type { PaymentMethod } from '@lustre/shared';
 import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { appointments, patients, payments, visits } from '../../db/schema.ts';
 import { dayRange } from '../../util/time.ts';
-import type { BalanceSummaryInput } from './balance.schema.ts';
+import type { BalanceSummaryInput, BalanceTakingsInput } from './balance.schema.ts';
 
 export interface PatientBalance {
     patientId: string;
@@ -48,6 +49,28 @@ export interface BalanceSummary {
     charged: number;
     collected: number;
     difference: number;
+    /** Distinct patients carrying a balance on a visit charged inside the range. */
+    duePatients: number;
+    /**
+     * The part of `collected` that paid for work charged before the range
+     * started. A real join of payment date against visit date — emphatically
+     * not `collected - charged`, which is only the period's net position and
+     * goes negative for reasons that have nothing to do with old visits.
+     */
+    olderCollected: number;
+    /** Distinct visits that `olderCollected` arrived against. */
+    olderVisits: number;
+}
+
+export interface MethodTaking {
+    method: PaymentMethod;
+    amount: number;
+    count: number;
+}
+
+export interface TakingsReport {
+    total: number;
+    byMethod: MethodTaking[];
 }
 
 function paidPerVisit() {
@@ -139,6 +162,39 @@ export const balanceService = {
             .from(payments)
             .where(and(gte(payments.paidAt, from), lt(payments.paidAt, to)));
 
+        const paid = paidPerVisit();
+
+        // Who the period's shortfall is spread across, for the hero's
+        // "· 12 patients". One patient with three unpaid visits is one patient,
+        // hence the DISTINCT; opening balances are excluded for the same reason
+        // they are excluded from `charged` above.
+        const [due] = await db
+            .select({ patients: sql<number>`COUNT(DISTINCT ${appointments.patientId})::int` })
+            .from(visits)
+            .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
+            .leftJoin(paid, eq(paid.visitId, visits.id))
+            .where(
+                and(
+                    gte(appointments.startsAt, from),
+                    lt(appointments.startsAt, to),
+                    eq(appointments.isOpeningBalance, false),
+                    sql`${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0) > 0`,
+                ),
+            );
+
+        // Money that arrived in the range against a visit dated before it.
+        // Opening balances belong here: they are the oldest debt there is, and
+        // a payment against one is exactly this period settling older work.
+        const [older] = await db
+            .select({
+                collected: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int`,
+                visitCount: sql<number>`COUNT(DISTINCT ${payments.visitId})::int`,
+            })
+            .from(payments)
+            .innerJoin(visits, eq(payments.visitId, visits.id))
+            .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
+            .where(and(gte(payments.paidAt, from), lt(payments.paidAt, to), lt(appointments.startsAt, from)));
+
         const chargedTotal = charged?.total ?? 0;
         const collectedTotal = collected?.total ?? 0;
 
@@ -146,6 +202,36 @@ export const balanceService = {
             charged: chargedTotal,
             collected: collectedTotal,
             difference: chargedTotal - collectedTotal,
+            duePatients: due?.patients ?? 0,
+            olderCollected: older?.collected ?? 0,
+            olderVisits: older?.visitCount ?? 0,
         };
+    },
+
+    /**
+     * What was collected in the range, split by how it was paid. Attributed to
+     * `paid_at` like `summary.collected`, so the two agree — the takings card
+     * and the hero's "Collected" are the same money counted two ways.
+     *
+     * A method nobody used is absent rather than a zero row: the screen already
+     * has a sentence for a period that collected nothing, and a 0% bar for
+     * Instapay in a clinic that has never taken one is noise. Refunds are
+     * negative payments (`0002_payment_corrections.sql`), so a method's total
+     * can come out below zero, and that is the honest figure.
+     */
+    async takings(input: BalanceTakingsInput): Promise<TakingsReport> {
+        const { from } = dayRange(input.from, input.offsetMinutes);
+        const { to } = dayRange(input.to, input.offsetMinutes);
+
+        const amount = sql<number>`SUM(${payments.amount})::int`;
+
+        const byMethod = await db
+            .select({ method: payments.method, amount, count: sql<number>`COUNT(*)::int` })
+            .from(payments)
+            .where(and(gte(payments.paidAt, from), lt(payments.paidAt, to)))
+            .groupBy(payments.method)
+            .orderBy(desc(amount));
+
+        return { total: byMethod.reduce((sum, row) => sum + row.amount, 0), byMethod };
     },
 };

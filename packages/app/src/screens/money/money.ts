@@ -1,5 +1,6 @@
-// Money arithmetic and formatting for the cluster, in a module with no React
-// Native import so it is testable under `bun test`. §7.12: integer piastres end
+// Money arithmetic, formatting and period ranges for the cluster, in a module
+// with no React Native import so it is testable under `bun test`. §7.12:
+// integer piastres end
 // to end, formatted at the edge in `MoneyValue` only. `toEgp` rounds rather
 // than truncates so a figure carrying piastres reads as the nearer pound, never
 // less than is owed. Grouping is written out rather than taken from `Intl`,
@@ -11,6 +12,8 @@
 // `decimal-pad` and `ui/` is frozen): stripping a separator would read `12.50`
 // as `1250`, a hundredfold overcharge. The collection rate clamps to 0–1
 // because a day settling old debt can collect more than it charged.
+import { addDays, dateKey, localOffsetMinutes } from '../day/time';
+
 const PIASTRES_PER_EGP = 100;
 
 const COMPACT_FLOOR = 10_000;
@@ -87,6 +90,57 @@ export function collectedAhead(difference: number): number {
 
 export function currencyLeads(locale: MoneyLocale): boolean {
     return locale !== 'ar';
+}
+
+export const PERIODS = ['today', 'week', 'month', 'year', 'all'] as const;
+
+export type Period = (typeof PERIODS)[number];
+
+export const PERIOD_LABEL: Record<Period, string> = {
+    today: 'Today',
+    week: 'This week',
+    month: 'This month',
+    year: 'This year',
+    all: 'All time',
+};
+
+export type DateRange = { from: string; to: string; offsetMinutes: number };
+
+// `balance.summary` and `balance.takings` take a closed range, so "All time"
+// needs a floor rather than an open start. No clinic record predates this.
+const FIRST_RECORD = '2000-01-01';
+
+/**
+ * The pills, as the two range queries want them: local `YYYY-MM-DD` days plus
+ * the offset the server derives the boundaries with. `to` is inclusive, so
+ * every period ends today rather than at the end of the calendar unit — a
+ * "This year" that ran to December would be counting a future nobody has
+ * charged yet.
+ *
+ * The week starts Sunday: Egypt's weekend is Friday and Saturday, so Sunday is
+ * the first working day and "This week" that began on Saturday would open on
+ * the weekend. This matches `Date#getDay` and `clinic_days.weekday`.
+ *
+ * One offset covers both ends, because that is the shape the server's input
+ * takes. Across a DST changeover the far boundary is an hour out, which cannot
+ * move a total that is aggregated over whole days.
+ */
+export function periodRange(period: Period, now: Date = new Date()): DateRange {
+    const today = dateKey(now);
+
+    return {
+        from: periodStart(period, now, today),
+        to: today,
+        offsetMinutes: localOffsetMinutes(now),
+    };
+}
+
+function periodStart(period: Period, now: Date, today: string): string {
+    if (period === 'today') return today;
+    if (period === 'week') return addDays(today, -now.getDay());
+    if (period === 'month') return dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+    if (period === 'year') return dateKey(new Date(now.getFullYear(), 0, 1));
+    return FIRST_RECORD;
 }
 
 export const DEBTOR_SORTS = ['balance', 'oldest', 'name'] as const;

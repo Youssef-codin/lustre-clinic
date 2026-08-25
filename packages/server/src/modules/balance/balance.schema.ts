@@ -6,11 +6,16 @@ import { z } from 'zod';
 
 export const byPatientInput = z.object({ patientId: z.uuid() });
 
-export const balanceSummaryInput = z.object({
+const range = {
     from: z.iso.date(),
     to: z.iso.date(),
     offsetMinutes: z.number().int().min(-840).max(840).default(0),
-});
+};
+
+export const balanceSummaryInput = z.object(range);
+
+export const balanceTakingsInput = z.object(range);
 
 export type ByPatientInput = z.infer<typeof byPatientInput>;
 export type BalanceSummaryInput = z.infer<typeof balanceSummaryInput>;
+export type BalanceTakingsInput = z.infer<typeof balanceTakingsInput>;

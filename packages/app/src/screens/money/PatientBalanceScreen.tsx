@@ -3,32 +3,40 @@
 // it can never drift from the dashboard's number. A patient absent from the
 // report owes nothing — a real state here, reached by paying the last balance
 // off. `onOpenVisit` passes the whole row because `visit.byId` does not join
-// the appointment, so `ref`/`startsAt` come from here (BLOCKED.md #14).
+// the appointment, so `ref`/`startsAt` come from here.
+//
+// The patient's record is reached from here rather than from the debtor row on
+// the dashboard. The row has to keep opening this screen — it is the only way
+// into `VisitPaymentsScreen` → `RecordPaymentSheet`, which is how a payment
+// gets recorded against an old visit. So the two destinations sit one level
+// apart instead of one list meaning two things depending on whether a search
+// happens to be running.
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Card, EmptyState, SectionLabel, TopBar, usePullToRefresh } from '../../components/ui';
+import { Button, Card, EmptyState, SectionLabel, TopBar, usePullToRefresh } from '../../components/ui';
 import { size, space, Text } from '../../theme';
-import { useOutstanding, useVisitsByPatient, type VisitBalance } from './_LocalMoneyApi';
-import { MoneyValue } from './_LocalMoneyValue';
 import { LoadState, SkeletonCard, SkeletonRows } from './components/LoadState';
 import { VisitBalanceRow } from './components/VisitBalanceRow';
+import { useOutstanding, useVisitsByPatient, type VisitBalance } from './data';
+import { MoneyValue } from './MoneyValue';
 
 export type PatientBalanceScreenProps = {
     patientId: string;
     patientName: string;
-    version: number;
     onBack: () => void;
     onOpenVisit: (visit: VisitBalance) => void;
+    /** Absent when nothing above the cluster owns the cross-tab record route. */
+    onOpenRecord?: () => void;
 };
 
 export function PatientBalanceScreen({
     patientId,
     patientName,
-    version,
     onBack,
     onOpenVisit,
+    onOpenRecord,
 }: PatientBalanceScreenProps) {
-    const visits = useVisitsByPatient(patientId, version);
-    const outstanding = useOutstanding(version);
+    const visits = useVisitsByPatient(patientId);
+    const outstanding = useOutstanding();
 
     const patient = outstanding.data?.patients.find((row) => row.patientId === patientId);
 
@@ -70,6 +78,21 @@ export function PatientBalanceScreen({
                         ) : null}
                     </LoadState>
                 </View>
+
+                {/* Outside `LoadState`: the record does not depend on the
+                    balance query, and a failed refresh must not take away the
+                    way to the patient. */}
+                {onOpenRecord ? (
+                    <View style={styles.gutter}>
+                        <Button
+                            label="Open patient record"
+                            onPress={onOpenRecord}
+                            variant="secondary"
+                            block
+                            testID="money-open-record"
+                        />
+                    </View>
+                ) : null}
 
                 <View style={styles.section}>
                     <SectionLabel count={visits.data?.length}>Unpaid visits</SectionLabel>
