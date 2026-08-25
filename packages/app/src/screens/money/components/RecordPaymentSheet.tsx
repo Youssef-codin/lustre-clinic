@@ -3,8 +3,9 @@
 // and the clamp announced. §7.12: the field takes whole pounds only, and the
 // piastre clamp is repeated on submit because the field's own clamp rounds
 // against a pound figure and can round upward past the balance. The clamp is a
-// courtesy, not an invariant: the server takes any positive amount (BLOCKED.md
-// #7). The notice lives inside the sheet because `ui/Sheet` is a native Modal
+// courtesy, not an invariant: the server takes any positive amount up to
+// `MAX_AMOUNT_PIASTRES` and will not refuse an overpayment.
+// The notice lives inside the sheet because `ui/Sheet` is a native Modal
 // and a screen-level toast would render beneath it; the sheet is not
 // dismissable mid-write because the write crosses Tailscale and a closed sheet
 // would leave the outcome unknowable.
@@ -13,9 +14,9 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
 import { space, Text } from '../../../theme';
-import type { RecordPaymentInput } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { RecordPaymentInput } from '../data';
 import { methodLabel } from '../format';
+import { MoneyValue } from '../MoneyValue';
 import { clampToBalance, formatEgp, isWholePounds, toEgp } from '../money';
 
 export type RecordPaymentSheetProps = {

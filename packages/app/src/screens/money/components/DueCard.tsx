@@ -5,7 +5,7 @@
 import { StyleSheet, View } from 'react-native';
 import { Card, CardDivider, Dot } from '../../../components/ui';
 import { color, space, Text } from '../../../theme';
-import { MoneyValue } from '../_LocalMoneyValue';
+import { MoneyValue } from '../MoneyValue';
 
 export type DueCardProps = {
     balance: number;

@@ -170,7 +170,11 @@ export function AppShell() {
                 </Pane>
 
                 <Pane visible={tab === 'money'} mounted={visited.includes('money')}>
-                    <MoneyCluster open={balance} goHome={home.money} />
+                    <MoneyCluster
+                        open={balance}
+                        goHome={home.money}
+                        onOpenRecord={(patientId) => openRecord(patientId, 'Money')}
+                    />
                 </Pane>
 
                 <Pane visible={tab === 'settings'} mounted={visited.includes('settings')}>

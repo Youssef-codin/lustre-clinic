@@ -32,7 +32,7 @@ Three places where the design and the system disagreed, and what won:
   This was built the other way first, on the strength of §7.11 pinning money to
   DM Mono for tabular alignment, and it was wrong: held next to the design the
   mono reads as a different product. The figures are sans and bold here, and
-  `_LocalMoneyValue` takes `face="mono"` for the one case §7.11 is actually
+  this cluster's own `MoneyValue` takes `face="mono"` for the one case §7.11 is actually
   about — a column of amounts that has to align digit for digit. Nothing on
   these screens is that column yet. **`domain/MoneyValue` is still mono**, so
   the day view and the patient rows do not match this cluster; that is a real
@@ -95,8 +95,8 @@ Two bugs got it here, both worth not repeating:
 Spec §10: `balance = charged_total - SUM(payments.amount)`, per visit, derived at
 read time and never stored. Every figure on these screens arrives already
 computed — `balance.outstanding` for the standing totals, `balance.summary` for
-the period figures, `visit.byId` for one visit's payments — and the screens
-render what they were given.
+the period figures, `balance.takings` for the split by method, `visit.byId` for
+one visit's payments — and the screens render what they were given.
 
 Concretely, and deliberately:
 
@@ -106,8 +106,9 @@ Concretely, and deliberately:
 - The dashboard's debtor total is the report's `total`, and it is **hidden while
   searching** rather than recomputed over the filtered rows. A total that shrank
   as you typed would read as the clinic being owed less than it is.
-- After a payment, nothing patches a balance locally. The cluster bumps a
-  `version`, every query re-keys on it, and the server is asked again.
+- After a payment, nothing patches a balance locally. `useRecordPayment`
+  invalidates the whole `balance` and `visit` paths on success and the server is
+  asked again — a payment three panes deep moves the dashboard behind it.
 - The only arithmetic on money in the cluster is the overpayment clamp, in
   [`money.ts`](./money.ts), and it is tested.
 
@@ -169,62 +170,82 @@ the fields are disabled while it is in flight. `ui/Button` also swallows a repea
 press for 500ms, which on this screen is the difference between one payment and
 two.
 
-## What is missing, and where it is written down
+## Where the data comes from
 
-[`BLOCKED.md`](../../../../../BLOCKED.md) at the repo root, entries 1–14 — read
-it before reviewing this cluster. The short version:
+[`data/`](./data), over the real tRPC client. `data/hooks.ts` wraps `useTRPC()`
+and hands back the `{ data, isLoading, error, refetch }` the screens read;
+`data/types.ts` infers every shape from `AppRouter` and rewrites the date fields
+to strings, which is the one thing inference cannot do while there is no
+transformer on the wire.
 
-- `components/domain/MoneyValue` **has since landed**, and this cluster has not
-  moved onto it — it still formats through `_LocalMoneyValue`. The two agree on
-  every rule that matters (piastres in, whole pounds out, DM Mono numerals,
-  `ج.م` trailing in Arabic) and differ in props: `_LocalMoneyValue` carries the
-  `currencyVariant`, `currencySuffix` and `currencyStyle` the dashboard's hero
-  and stat cards need, and `domain/MoneyValue` carries none of them. Folding
-  them together is a real piece of work and belongs with the move off the stub,
-  not in front of it
-- the rest of the app is on the real tRPC client; this cluster is not. It still
-  runs on `_LocalMoneyApi.ts`, a stub with fixtures behind
-  TanStack-Query-shaped hooks, and `balance.outstanding` / `balance.byPatient` /
-  `balance.summary` all exist on the server now
-- `balance.takings` (takings by payment method) has no endpoint at all
-- the overpayment clamp is client-side only; the server accepts any positive
-  amount
-- `balance.summary` has no `duePatients`, `olderCollected` or `olderVisits`, and
-  the hero's "· 12 patients" and the whole "Older visits" card are those three
-  fields. The stub serves them; the server does not compute them
-- `--discount` is left out: it has no rule saying when it applies
-- `visit.byId` joins neither the appointment nor the patient, so the visit
+The cluster ran on `_LocalMoneyApi.ts` until this landed — an in-memory store
+whose fixtures were the design's own dataset. A payment recorded against it
+updated the screen and was gone on reload, having never reached Postgres. That
+file, its `setStubFailing` switch and the `version` counter every screen threaded
+are all gone.
+
+`balance.summary` grew `duePatients`, `olderCollected` and `olderVisits`, and
+`balance.takings` was written, both in
+[`modules/balance`](../../../../server/src/modules/balance). `olderCollected`
+is a join of payment date against visit date, **not** `collected - charged` —
+the two disagree whenever a period's own work is part-paid, which is most of
+them.
+
+## Still open
+
+- **`domain/MoneyValue` is not used here.** This cluster keeps its own
+  [`MoneyValue`](./MoneyValue.tsx). The two agree on every rule that decides a
+  figure and differ in props: the hero and the stat cards need
+  `currencyVariant`, `currencySuffix`, `currencyStyle` and `weight`, and the
+  shared component carries none of them and pins DM Mono where these screens are
+  drawn in Instrument Sans. Folding them together means widening the shared
+  component and re-deciding the face for the day view and the patient rows at
+  the same time — a call for whoever owns `components/domain`.
+- **The overpayment clamp is client-side only.** The server takes any positive
+  amount up to `MAX_AMOUNT_PIASTRES`.
+- **`balance.outstanding` takes no argument**, so the debtor search filters the
+  report client-side.
+- **`visit.byId` joins neither the appointment nor the patient**, so the visit
   reference, its date and the patient's name are threaded in from the
-  `balance.byPatient` row the screen was opened through
-
-The two files named `_Local*` are the §10 escape hatch and are meant to be
-deleted, not maintained.
+  `balance.byPatient` row the screen was opened through. It also returns the
+  payment rows unordered, so the history is sorted newest-first on the screen.
+- **`--discount` is left out**: it has no rule saying when it applies.
 
 ## Seeing it
 
-The app shell mounts the cluster on the Money tab — `bun emu`, then Money.
-
-`setStubFailing(true)` from the barrel flips every query to a transport failure,
-which is how the error states are looked at rather than reasoned about. The stub
-adds 450ms of latency to every call so the pending states are visible.
+The app shell mounts the cluster on the Money tab — `bun emu`, then Money. The
+server has to be up: every figure on these screens now comes off it, and the
+loading and failure states are what an unreachable clinic actually produces.
 
 ## Verified
 
-`bun test packages/app` — 131 pass. [`money.test.ts`](./money.test.ts) covers
-everything that decides a figure: the piastre conversion, the compact form, the
-currency position, the whole-pounds guard, the overpayment clamp, the
-collection rate on a period that collects more than it charges, the derived
-balances, and the shape of the mirrored contract. There is no renderer in
-`bun test`, so the screens themselves are not covered.
+`bun test` — 580 pass. [`money.test.ts`](./money.test.ts) covers everything the
+client still decides: the piastre conversion, the compact form, the currency
+position, the whole-pounds guard, the overpayment clamp, the collection rate on
+a period that collects more than it charges, the period pills as date ranges,
+and the payment-method narrowing. The derived balances moved to
+[`tests/balance.test.ts`](../../../../server/tests/balance.test.ts) and
+`modules.test.ts`, where they run against real Postgres — asserting a mirrored
+copy of that arithmetic only proved the copy agreed with itself. There is no
+renderer in `bun test`, so the screens themselves are not covered.
+
+The server suite needs a database of its own to be deterministic; every worktree
+otherwise truncates the same one:
+
+```
+DATABASE_URL=postgres://lustre:lustre@localhost:5432/lustre_<name>_test bun test
+```
 
 `bun typecheck`, `bun lint` and `bun format` are clean, including the theme's
 raw-colour and physical-direction checks.
 
-Seen on the Android emulator (`lustre_note`, API 36): every period, the sort
-menu, the search filter and its empty state, and the search pill docking and
-settling — the last one over repeated cycles in both directions, slow drags and
-fast flings, because that is the case its two rewrites both failed. Not yet
-seen on a physical device — `shadow.hero` and `shadow.dock`
-are multi-layer `boxShadow`, which Android has historically flattened to a
-single elevation, and `experimental_backgroundImage` on the hero is exactly
-what its name says.
+**Not seen on a device since the rewiring** — the emulator belongs to another
+worktree. What that leaves unverified: the icon swap's optical sizes, the "Open
+patient record" button against the mockup, and the search pill no longer
+rendering under a pushed pane. The layout itself was seen before, on the Android
+emulator (`lustre_note`, API 36) — every period, the sort menu, the search
+filter and its empty state, and the pill docking and settling over repeated
+cycles in both directions. Never seen on a physical device: `shadow.hero` and
+`shadow.dock` are multi-layer `boxShadow`, which Android has historically
+flattened to a single elevation, and `experimental_backgroundImage` on the hero
+is exactly what its name says.

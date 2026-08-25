@@ -1,9 +1,5 @@
 // The money cluster. `MoneyCluster` is the entry point; the screens are
-// exported individually for when a real navigator mounts them (BLOCKED.md #4).
-// `setStubFailing` flips the stub to a transport failure so the loading and
-// error states can be looked at on a device; it goes when the real client
-// lands (#2).
-export { setStubFailing } from './_LocalMoneyApi';
+// exported individually for when a real navigator mounts them.
 export type { MoneyClusterProps, OpenPatientBalanceRequest } from './MoneyCluster';
 export { MoneyCluster } from './MoneyCluster';
 export type { MoneyScreenProps } from './MoneyScreen';
