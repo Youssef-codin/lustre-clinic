@@ -22,14 +22,28 @@ export type FieldProps = {
     required?: boolean;
     hint?: string;
     error?: string;
+    /**
+     * Required and still empty. Marked on the label and never with a message —
+     * a field the desk has not reached yet has nothing to correct — so that a
+     * footer counting what is owed has something on screen to point at.
+     */
+    due?: boolean;
     layout?: FieldLayout;
     children: ReactNode;
 };
 
-export function Field({ label, required = false, hint, error, layout = 'stacked', children }: FieldProps) {
+export function Field({
+    label,
+    required = false,
+    hint,
+    error,
+    due = false,
+    layout = 'stacked',
+    children,
+}: FieldProps) {
     const labelBlock = label ? (
         <View style={styles.labelRow}>
-            <Text variant="subhead" weight="medium" tone={error ? 'danger' : 'ink2'}>
+            <Text variant="subhead" weight="medium" tone={error ? 'danger' : due ? 'due' : 'ink2'}>
                 {label}
             </Text>
             {required ? (

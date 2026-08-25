@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { Cutoff, EntryForm } from './entryForm';
+import type { Cutoff, EntryFieldName, EntryForm, EntryRefs } from './entryForm';
 import {
     balanceDigits,
     balancePiastres,
@@ -10,9 +10,13 @@ import {
     cutoffError,
     cutoffIso,
     EMPTY_SESSION,
+    ENTRY_ORDER,
     emptyForm,
     enterInputOf,
+    FIRST_FIELD,
+    focusField,
     malformedFields,
+    nextField,
     phoneDigits,
     recorded,
 } from './entryForm';
@@ -163,6 +167,51 @@ describe('the session tally', () => {
         const two = recorded(one, null);
 
         expect(two).toEqual({ entered: 2, carried: 1, carriedTotal: 80_000 });
+    });
+});
+
+/**
+ * The caret, as far as it can be checked without a renderer: which field is next
+ * and which one a saved row returns to. What is *not* checked here is that the
+ * screen wires its refs to these names and that Android actually moves the
+ * keyboard's focus — both want a device.
+ */
+describe('the caret', () => {
+    function stubs(): { refs: EntryRefs; focused: EntryFieldName[] } {
+        const focused: EntryFieldName[] = [];
+        const refs: EntryRefs = {};
+        for (const field of ENTRY_ORDER) refs[field] = { focus: () => focused.push(field) };
+        return { refs, focused };
+    }
+
+    test('the return key walks the row in order and commits at the end', () => {
+        const { refs, focused } = stubs();
+
+        let field = nextField(FIRST_FIELD);
+        while (field !== null) {
+            focusField(refs, field);
+            field = nextField(field);
+        }
+
+        expect(focused).toEqual(['name', 'phone', 'age', 'balance']);
+        // The last field has nowhere to go, which is what makes its return key
+        // `done` and what commits the row without reaching for the button.
+        expect(nextField('balance')).toBeNull();
+    });
+
+    // The whole reason the screen exists: submit a row, get an empty form back
+    // with the caret already in it, hundreds of times, without tapping.
+    test('a saved row puts the caret back at the top of the form', () => {
+        const { refs, focused } = stubs();
+
+        focusField(refs, FIRST_FIELD);
+
+        expect(focused).toEqual(['legacyRef']);
+    });
+
+    test('a field that never mounted is not a reason to throw mid-save', () => {
+        expect(() => focusField({}, FIRST_FIELD)).not.toThrow();
+        expect(() => focusField({ legacyRef: null }, FIRST_FIELD)).not.toThrow();
     });
 });
 

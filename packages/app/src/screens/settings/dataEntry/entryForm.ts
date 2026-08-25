@@ -151,6 +151,37 @@ export function cutoffDigitsOf(iso: string): string {
     return `${day}${month}${year}`;
 }
 
+// --- the caret ------------------------------------------------------------
+//
+// The order the return key walks, and where a saved row puts the caret back.
+// It lives here rather than in the screen because it is the feature — enter a
+// row, get an empty form with the caret already at the top of it, no tapping —
+// and `bun test` has no renderer to check it with. The screen holds the refs;
+// everything about *which* field is next is decided by these three.
+
+export const ENTRY_ORDER = ['legacyRef', 'name', 'phone', 'age', 'balance'] as const;
+
+export type EntryFieldName = (typeof ENTRY_ORDER)[number];
+
+/** The old ref is first because it is the number on the front of the file she is holding. */
+export const FIRST_FIELD: EntryFieldName = ENTRY_ORDER[0];
+
+/** Anything that can take the caret. `TextInput` is one; a test stub is another. */
+export type Focusable = { focus: () => void };
+
+export type EntryRefs = Partial<Record<EntryFieldName, Focusable | null>>;
+
+/** Where the return key goes from `field`, or null at the end of the row — where it commits instead. */
+export function nextField(field: EntryFieldName): EntryFieldName | null {
+    return ENTRY_ORDER[ENTRY_ORDER.indexOf(field) + 1] ?? null;
+}
+
+/** A field that never mounted is not a reason to throw in the middle of a save. */
+export function focusField(refs: EntryRefs, field: EntryFieldName | null): void {
+    if (field === null) return;
+    refs[field]?.focus();
+}
+
 export type EntryField = 'name' | 'phone' | 'age' | 'balance';
 
 /**

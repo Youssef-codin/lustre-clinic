@@ -35,6 +35,7 @@ export type NumericFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextC
     required?: boolean;
     hint?: string;
     error?: string;
+    due?: boolean;
     variant?: NumericFieldVariant;
     /** Ignored by `display`, which is the 30px figure and has its own size. */
     size?: NumericFieldSize;
@@ -49,6 +50,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
         required,
         hint,
         error,
+        due,
         variant = 'end',
         size = 'amount',
         layout,
@@ -64,7 +66,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
     const figure = display ? 'figure' : size;
 
     return (
-        <Field label={label} required={required} hint={hint} error={error} layout={layout}>
+        <Field label={label} required={required} hint={hint} error={error} due={due} layout={layout}>
             <View
                 style={[
                     styles.box,
