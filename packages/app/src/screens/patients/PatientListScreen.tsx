@@ -19,7 +19,7 @@
 // costs only the row's amount. A refresh that failed over an existing list
 // leaves it up — stale, not gone (§7.14). The search is debounced because it
 // runs over Tailscale; stale answers are dropped by `useQuery`.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, EmptyState, SearchField, SectionLabel, Toast, usePullToRefresh } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
@@ -41,11 +41,18 @@ export type PatientListScreenProps = {
      * already follow.
      */
     onNewPatient?: () => void;
+    /**
+     * Bumped when the Patients tab is tapped while this screen is already up.
+     * The stack is already home, so what is left is the search field, which is
+     * at the top of a register that can be several screens long. The term
+     * itself is kept — it is what the desk typed, not a route.
+     */
+    goHome?: number;
 };
 
 const DEBOUNCE_MS = 250;
 
-export function PatientListScreen({ onNewPatient, onOpen }: PatientListScreenProps) {
+export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientListScreenProps) {
     const [term, setTerm] = useState('');
     const [toast, setToast] = useState<string | null>(null);
     const query = useDebounced(term, DEBOUNCE_MS);
@@ -80,9 +87,22 @@ export function PatientListScreen({ onNewPatient, onOpen }: PatientListScreenPro
         balances.refetch();
     }, list.loading || balances.loading);
 
+    // An effect because scrolling is imperative and there is nothing to derive:
+    // the signal is a number that says a tap happened, and the answer is a call
+    // on the view. It is skipped on mount — a list that has just been mounted is
+    // already at the top, and animating there would be a jolt for nothing.
+    const scroller = useRef<ScrollView>(null);
+    const shown = useRef(goHome);
+    useEffect(() => {
+        if (shown.current === goHome) return;
+        shown.current = goHome;
+        scroller.current?.scrollTo({ y: 0, animated: true });
+    }, [goHome]);
+
     return (
         <View style={styles.screen}>
             <ScrollView
+                ref={scroller}
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={refreshControl}

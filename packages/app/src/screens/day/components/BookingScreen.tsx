@@ -54,6 +54,13 @@ export type BookingScreenProps = {
     /** Answered by `BookPatientSheet`, or handed straight in by a screen that
      * already has the patient — the patient record books this way. */
     patient: PatientDraft;
+    /**
+     * Which answer to "when" the page opens on. Set by a caller that has already
+     * asked the question — the record's Walk-in means now and its Book means a
+     * day to be chosen. Left off, the day on screen decides, which is what the
+     * FAB wants.
+     */
+    timing?: Timing;
     branchId: string | null;
     branches: readonly Branch[];
     schedule: readonly ClinicDay[] | undefined;
@@ -81,6 +88,7 @@ const STEPS: { key: Step; label: string }[] = [
 
 export function BookingScreen({
     patient,
+    timing: asked,
     branchId,
     branches,
     schedule,
@@ -96,7 +104,7 @@ export function BookingScreen({
     const [index, setIndex] = useState(0);
     const [plan, setPlan] = useState<PlannedProcedure[]>([]);
     const [timing, setTiming] = useState<Timing>(
-        !isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later',
+        asked ?? (!isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later'),
     );
     const [date, setDate] = useState(dateKey < today ? today : dateKey);
     const [slotMinutes, setSlotMinutes] = useState<number | null>(null);

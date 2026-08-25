@@ -91,6 +91,50 @@ replaced an entire Users pane with a confirm sheet on the settings index.
 
 # Client architecture
 
+## Crossing clusters is the shell's job, and it moves requests, not routes
+
+Each cluster owns its own stack, so none of them can push a screen into another
+one — which is why the patient record drew Book, Walk-in and Record payment and
+let all three toast. The fix is in `shell/routes.ts`: the ask goes up to
+`AppShell` and back down as a *request* carrying what the destination needs plus
+a `seq`, and the destination cluster decides which of its screens that means.
+`seq` is what makes one ask distinguishable from the last, so the same patient
+can be booked twice; a cluster reads it during render, not in an effect, so the
+screen is up in the same commit as the tab switch.
+
+Going home — tapping the tab you are already on — runs the same wire backwards
+and for the same reason. The shell cannot pop a route it does not own, so it
+bumps a counter per tab and each cluster resets itself, deciding for itself what
+home is. The Patients tab also scrolls its list to the top, because home there
+is the search field and the register is longer than a screen; the other three
+only pop.
+
+A real navigator (SPEC §18 F3) gives both of these for free and both are written
+to be deleted when one lands: every request is already the shape of a route's
+params, and `goHome` is `popToTop`.
+
+## Record payment opens the balances, not a payment form
+
+The record's outstanding strip knows a patient-level total that can span several
+unsettled visits, and `visit.recordPayment` takes one `visitId`. Rather than
+spread a payment across the oldest debts — a second, invisible rule about money
+— the button lands on that patient's balances in the money cluster, which is the
+list the total is made of, and the visit is chosen there. That is what the Money
+tab already does from its own debtor rows; the record joins it instead of
+growing a second way to take a payment.
+
+## Book and Walk-in are one screen with two openings
+
+`BookingScreen` already made the walk-in the "now" answer to *when*, so the
+record's two buttons are not two flows: both push that screen for the patient
+they are on, and differ only in the answer it opens on. What they skip is
+`BookPatientSheet`, whose only question — who is this for — the record has
+already answered.
+
+They are passed only on the secretary's phone. The doctor's day view has no
+booking on it to reach, so on his the record keeps the screen's own fallback,
+which names where the flow lives rather than failing silently.
+
 ## One branch or all of them — deliberately unsettled
 
 The day view queries every branch (`appointment.byDate`'s `branchId` is optional

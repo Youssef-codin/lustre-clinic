@@ -56,11 +56,17 @@ export type PatientEditScreenProps = {
     /** Absent = registering someone new. Present = correcting the record it names. */
     patientId?: string;
     onCancel: () => void;
+    /**
+     * A save is open. Cancel goes missing while one is, and the cluster above
+     * holds the same line against a tab tap asking it to go home — leaving mid
+     * write is the one thing this screen never does.
+     */
+    onSavingChange?: (saving: boolean) => void;
     /** The patient that now exists, or the one that was just corrected. */
     onSaved: (patientId: string) => void;
 };
 
-export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditScreenProps) {
+export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
     const creating = patientId === undefined;
 
     const questions = useQuery(() => patientsApi.listQuestions(), []);
@@ -144,7 +150,9 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
         if (creating) {
             const input = createInputOf(form, editable);
             if (input === null) return;
+            onSavingChange?.(true);
             const saved = await create.mutate(input);
+            onSavingChange?.(false);
             if (!saved) return;
             onSaved(saved.id);
             return;
@@ -159,7 +167,9 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
             return;
         }
 
+        onSavingChange?.(true);
         const saved = await update.mutate(patch);
+        onSavingChange?.(false);
         if (!saved) return;
         onSaved(patientId);
     };
