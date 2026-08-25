@@ -14,6 +14,7 @@ import { db, type Executor } from '../../db/index.ts';
 import { procedureTypes } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import type {
+    CreateCategoryInput,
     CreateProcedureInput,
     ProcedureTreeInput,
     ReorderProceduresInput,
@@ -133,6 +134,48 @@ export const procedureService = {
             if (!row) throw AppError.internal('procedure insert returned nothing');
             if (row.isCheckup) await clearOtherCheckups(tx, row.id);
             return row;
+        });
+    },
+
+    /**
+     * A category and the first subtype under it, in one transaction. Two calls
+     * would leave a childless root priced 0 behind whenever the second failed —
+     * which is not a category at all but a procedure `list` would happily offer
+     * on a visit, and a retry would write the heading twice.
+     */
+    async createCategory(input: CreateCategoryInput): Promise<{ category: Procedure; first: Procedure }> {
+        return db.transaction(async (tx) => {
+            const [category] = await tx
+                .insert(procedureTypes)
+                .values({
+                    id: Bun.randomUUIDv7(),
+                    parentId: null,
+                    name: input.name,
+                    defaultPrice: 0,
+                    sortOrder: input.sortOrder,
+                })
+                .returning();
+
+            if (!category) throw AppError.internal('category insert returned nothing');
+
+            const [first] = await tx
+                .insert(procedureTypes)
+                .values({
+                    id: Bun.randomUUIDv7(),
+                    parentId: category.id,
+                    name: input.first.name,
+                    defaultPrice: input.first.defaultPrice,
+                    hasQuantity: input.first.hasQuantity,
+                    isToothSpecific: input.first.isToothSpecific,
+                    isCheckup: input.first.isCheckup,
+                    sortOrder: 0,
+                })
+                .returning();
+
+            if (!first) throw AppError.internal('procedure insert returned nothing');
+            if (first.isCheckup) await clearOtherCheckups(tx, first.id);
+
+            return { category, first };
         });
     },
 

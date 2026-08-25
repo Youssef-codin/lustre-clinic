@@ -1,5 +1,6 @@
 import { publicProcedure, router } from '../../trpc/init.ts';
 import {
+    createCategoryInput,
     createProcedureInput,
     procedureTreeInput,
     reorderProceduresInput,
@@ -15,6 +16,10 @@ export const procedureRouter = router({
     create: publicProcedure
         .input(createProcedureInput)
         .mutation(({ input }) => procedureService.create(input)),
+
+    createCategory: publicProcedure
+        .input(createCategoryInput)
+        .mutation(({ input }) => procedureService.createCategory(input)),
 
     update: publicProcedure
         .input(updateProcedureInput)

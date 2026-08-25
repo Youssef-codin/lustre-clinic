@@ -29,13 +29,13 @@
  * that already had a child, so nothing could receive its first one. The ghost
  * "Category" button from `settings-procedures.html` is the way in, and it asks
  * for the first subtype in the same breath — a category and the procedure under
- * it are written together, when the editor is saved.
+ * it are one write, `procedure.createCategory`, sent when the editor is saved.
  *
  * That is the answer to "what if you file nothing under it": you cannot make an
  * empty one. An empty category has no way to be a category — with no children
  * it is a root with a price, which `procedure.list` would happily offer on a
  * visit — so rather than write one and hope, nothing is written until there is
- * a subtype to write with it. A category that loses its last visible subtype
+ * a subtype to write with it, and then both go in one transaction. A category that loses its last visible subtype
  * still draws here, as a heading with its "Add to" button and nothing under it.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -482,7 +482,7 @@ function ProcedureEditor({
 
     const create = useMutation(trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }));
     const createCategory = useMutation(
-        trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }),
+        trpc.procedure.createCategory.mutationOptions({ onSuccess: onProcedureWritten }),
     );
     const update = useMutation(trpc.procedure.update.mutationOptions({ onSuccess: onProcedureWritten }));
 
@@ -510,27 +510,23 @@ function ProcedureEditor({
             return;
         }
 
-        // The category first, then the subtype that makes it one. A category
-        // with nothing under it is a priceable root, so it is not written on
-        // its own — see the note at the top of the file.
+        // The category and this subtype are one write, because a category with
+        // nothing under it is a priceable root — see the note at the top of the
+        // file. Two calls would leave one behind whenever the second failed.
         if (newCategory !== null) {
             createCategory.mutate(
                 {
-                    parentId: null,
                     name: newCategory,
-                    defaultPrice: 0,
-                    hasQuantity: false,
-                    isToothSpecific: false,
-                    isCheckup: false,
                     sortOrder: nextSortOrder(null),
+                    first: {
+                        name: details.name,
+                        defaultPrice: details.defaultPrice,
+                        hasQuantity: details.hasQuantity,
+                        isToothSpecific: details.isToothSpecific,
+                        isCheckup: details.isCheckup,
+                    },
                 },
-                {
-                    onSuccess: (category) =>
-                        create.mutate(
-                            { ...details, parentId: category.id, sortOrder: 0 },
-                            { onSuccess: () => onSaved(`${newCategory} added`) },
-                        ),
-                },
+                { onSuccess: () => onSaved(`${newCategory} added`) },
             );
             return;
         }

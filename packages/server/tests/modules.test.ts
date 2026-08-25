@@ -330,6 +330,54 @@ describe('procedure', () => {
         expect(root?.selectable).toBe(false);
     });
 
+    describe('createCategory', () => {
+        test('writes the heading and its first subtype together', async () => {
+            const { category, first } = await procedureService.createCategory({
+                name: 'Crowns',
+                sortOrder: 0,
+                first: {
+                    name: 'Zirconia',
+                    defaultPrice: ROOT_CANAL_PRICE,
+                    hasQuantity: false,
+                    isToothSpecific: true,
+                    isCheckup: false,
+                },
+            });
+
+            expect(category.defaultPrice).toBe(0);
+            expect(first.parentId).toBe(category.id);
+
+            const tree = await procedureService.tree();
+            const root = tree.find((n) => n.id === category.id);
+            expect(root?.selectable).toBe(false);
+            expect(root?.children.map((c) => c.id)).toEqual([first.id]);
+
+            // The heading is never bookable, the subtype always is.
+            expect((await procedureService.selectableList()).map((p) => p.id)).toEqual([first.id]);
+        });
+
+        // Without the transaction the heading survives a failed subtype, and a
+        // childless root priced 0 is a procedure `list` offers on a visit.
+        test('writes neither when the subtype cannot be written', async () => {
+            await expect(
+                procedureService.createCategory({
+                    name: 'Crowns',
+                    sortOrder: 0,
+                    first: {
+                        // Past int4 — Postgres refuses it after the heading is in.
+                        defaultPrice: Number.MAX_SAFE_INTEGER,
+                        name: 'Zirconia',
+                        hasQuantity: false,
+                        isToothSpecific: false,
+                        isCheckup: false,
+                    },
+                }),
+            ).rejects.toThrow();
+
+            expect(await procedureService.tree({ includeInactive: true })).toEqual([]);
+        });
+    });
+
     // The pane says "only one procedure can hold it", and the waiver (§9) has to
     // know which line it is waiving.
     test('the checkup flag is handed over, never shared', async () => {

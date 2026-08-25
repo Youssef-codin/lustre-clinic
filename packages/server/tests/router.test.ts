@@ -19,6 +19,7 @@ const EXPECTED = [
     'branch.update',
     'procedure.tree',
     'procedure.create',
+    'procedure.createCategory',
     'procedure.update',
     'procedure.reorder',
     'patient.search',

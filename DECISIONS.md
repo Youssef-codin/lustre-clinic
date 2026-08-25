@@ -299,8 +299,10 @@ nothing under it is just a root with a price — and `procedure.list` would offe
 it on a visit.
 
 So the sheet names the category and the editor behind it asks for the first
-subtype. Both rows are written when that editor saves; backing out writes
-nothing. An empty category therefore cannot exist, which is this branch's answer
+subtype. Both rows are written by one call — `procedure.createCategory`, in one
+transaction — when that editor saves; backing out writes nothing. Two client
+calls would have left a childless root priced 0 behind whenever the second
+failed, which is the very thing this is avoiding. An empty category therefore cannot exist, which is this branch's answer
 to the open question on the task ("what happens if you later file nothing under
 it").
 
