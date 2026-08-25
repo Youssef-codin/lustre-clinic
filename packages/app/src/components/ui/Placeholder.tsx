@@ -8,17 +8,23 @@
  * under it.
  */
 import { StyleSheet, View } from 'react-native';
-import type { TextVariant } from '../../theme';
+import type { TextProps, TextVariant } from '../../theme';
 import { Text } from '../../theme';
 
 export type PlaceholderProps = {
     text?: string;
     visible: boolean;
     variant?: TextVariant;
+    /**
+     * Forced when the value that replaces it has a face the variant does not
+     * imply — a numeric field at `body` size is still mono, and a placeholder in
+     * sans would move the caret on the first keystroke.
+     */
+    script?: TextProps['script'];
     align?: 'start' | 'end' | 'top';
 };
 
-export function Placeholder({ text, visible, variant = 'body', align = 'start' }: PlaceholderProps) {
+export function Placeholder({ text, visible, variant = 'body', script, align = 'start' }: PlaceholderProps) {
     if (!visible || !text) return null;
 
     return (
@@ -26,7 +32,7 @@ export function Placeholder({ text, visible, variant = 'body', align = 'start' }
             pointerEvents="none"
             style={[styles.overlay, align === 'end' && styles.end, align === 'top' && styles.top]}
         >
-            <Text variant={variant} tone="muted" numberOfLines={1}>
+            <Text variant={variant} script={script} tone="muted" numberOfLines={1}>
                 {text}
             </Text>
         </View>

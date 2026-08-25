@@ -13,6 +13,12 @@
 // record after it has been backed out of, and `backLabel` says where back goes
 // in the caller's words.
 //
+// The traffic runs the other way too: the record's Book, Walk-in and Record
+// payment all land in a cluster this one cannot reach, so they are handed back
+// up to the shell with the patient and nothing else. `goHome` comes down the
+// same wire — the shell cannot pop a route it does not own, so it says only
+// that the tab was tapped and this decides that home is the list.
+//
 // The editor is reachable from both screens and returns to whichever asked for
 // it, which is the one thing a two-route union could not express: `from` is the
 // route Cancel goes back to. Saving does not go back — registering someone lands
@@ -21,6 +27,7 @@
 // rather than showing what it was holding before the write.
 import { useState } from 'react';
 import { PushView } from '../../components/ui';
+import type { PatientTarget } from '../../shell/routes';
 import { VisitPage } from '../day';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
@@ -40,11 +47,36 @@ export type OpenRecordRequest = {
 
 export type PatientsClusterProps = {
     open?: OpenRecordRequest;
+    /**
+     * Bumped by the shell when the Patients tab is tapped while it is already
+     * up. Home here is the list with its search field, which is the one thing
+     * the shell could not decide for itself.
+     */
+    goHome?: number;
+    /**
+     * The record's three openers, which all land in another cluster — booking
+     * and the walk-in in the day view, settling a balance in money. The shell
+     * owns those routes (`shell/routes.ts`); this passes the patient up and
+     * nothing more. Absent leaves the record screen's own fallback in place,
+     * which names where the flow lives rather than failing silently.
+     */
+    onBook?: (patient: PatientTarget) => void;
+    onWalkIn?: (patient: PatientTarget) => void;
+    onRecordPayment?: (patient: PatientTarget) => void;
 };
 
-export function PatientsCluster({ open }: PatientsClusterProps) {
+export function PatientsCluster({
+    open,
+    goHome = 0,
+    onBook,
+    onWalkIn,
+    onRecordPayment,
+}: PatientsClusterProps) {
     const [route, setRoute] = useState<Route>({ name: 'list' });
     const [seen, setSeen] = useState(0);
+    const [seenHome, setSeenHome] = useState(goHome);
+    /** The editor, mid-write. A tab tap must not take the screen out from under it. */
+    const [saving, setSaving] = useState(false);
     /** Bumped by a save, so the record behind the editor remounts onto fresh data. */
     const [read, setRead] = useState(0);
     // A visit opened off a history row. It is a page over the record rather
@@ -62,6 +94,16 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
         setRoute({ name: 'record', patientId: open.patientId, backLabel: open.backLabel });
     }
 
+    // The tap is spent either way: a save in flight swallows it rather than
+    // queueing it, the same way the editor drops Cancel instead of greying it.
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        if (!saving) {
+            setRoute({ name: 'list' });
+            setVisitOpen(false);
+        }
+    }
+
     if (route.name === 'edit') {
         const back = route.from;
         return (
@@ -75,6 +117,7 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
                             : { name: 'list' },
                     )
                 }
+                onSavingChange={setSaving}
                 onSaved={(patientId) => {
                     setRead((n) => n + 1);
                     setRoute({ name: 'record', patientId });
@@ -92,6 +135,9 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
                     backLabel={route.backLabel}
                     onBack={() => setRoute({ name: 'list' })}
                     onEdit={() => setRoute({ name: 'edit', patientId: route.patientId, from: 'record' })}
+                    onBook={onBook}
+                    onWalkIn={onWalkIn}
+                    onRecordPayment={onRecordPayment}
                     onOpenVisit={(entry) => {
                         if (!entry.visitId) return;
                         setVisit({ appointmentId: entry.appointmentId, visitId: entry.visitId });
@@ -118,6 +164,7 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
 
     return (
         <PatientListScreen
+            goHome={goHome}
             onOpen={(patientId) => setRoute({ name: 'record', patientId })}
             onNewPatient={() => setRoute({ name: 'edit', from: 'list' })}
         />

@@ -1,6 +1,6 @@
 // The money cluster. `MoneyCluster` is the entry point; the screens are
 // exported individually for when a real navigator mounts them.
-export type { MoneyClusterProps } from './MoneyCluster';
+export type { MoneyClusterProps, OpenPatientBalanceRequest } from './MoneyCluster';
 export { MoneyCluster } from './MoneyCluster';
 export type { MoneyScreenProps } from './MoneyScreen';
 export { MoneyScreen } from './MoneyScreen';
