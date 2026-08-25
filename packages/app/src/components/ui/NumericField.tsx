@@ -1,7 +1,11 @@
 /**
  * Numerals only, always DM Mono, always Latin digits (§7.11), so columns of
  * amounts stay aligned in Arabic too. `decimal-pad` rather than `numeric`: the
- * numeric pad on Android carries a newline key that commits nothing. The `end`
+ * numeric pad on Android carries a newline key that commits nothing, and
+ * `number-pad` is the override for a field that takes whole numbers only, where
+ * the decimal key is a hazard rather than a convenience — a balance typed
+ * `12.50` and stripped to `1250` is a hundredfold overcharge nobody sees. The
+ * `end`
  * variant uses a physical textAlign resolved from the layout direction — React
  * Native has no logical `textAlign`, and `auto` would put a Latin numeral on the
  * wrong edge of an Arabic screen. Prefixes are units, never formatted numbers;
@@ -36,6 +40,8 @@ export type NumericFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextC
     hint?: string;
     error?: string;
     due?: boolean;
+    /** The two that are safe. Never `numeric` — see above. */
+    keyboardType?: 'decimal-pad' | 'number-pad';
     variant?: NumericFieldVariant;
     /** Ignored by `display`, which is the 30px figure and has its own size. */
     size?: NumericFieldSize;
@@ -51,6 +57,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
         hint,
         error,
         due,
+        keyboardType = 'decimal-pad',
         variant = 'end',
         size = 'amount',
         layout,
@@ -87,7 +94,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                         ref={ref}
                         accessibilityLabel={label ?? placeholder}
                         {...input}
-                        keyboardType="decimal-pad"
+                        keyboardType={keyboardType}
                         onFocus={(event) => {
                             setFocused(true);
                             input.onFocus?.(event);

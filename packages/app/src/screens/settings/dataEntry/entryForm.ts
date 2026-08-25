@@ -24,11 +24,13 @@
 //
 // ## Money
 //
-// Whole pounds in, integer piastres out (§7.12). The field takes digits only:
-// `ui/NumericField` hardcodes `decimal-pad`, and stripping a separator would
-// read `12.50` as `1250` — a hundredfold overcharge, which on a migration is
-// a hundredfold overcharge told to a patient months later with no visit to
-// check it against.
+// Whole pounds in, integer piastres out (§7.12). The field takes digits only,
+// and `balanceDigits` strips anything else — which is why the field asks
+// `ui/NumericField` for `number-pad` rather than taking its default
+// `decimal-pad`. Stripping a separator reads `12.50` as `1250`, and on a
+// migration that is a hundredfold overcharge told to a patient months later
+// with no visit to check it against. A keypad with no decimal key is what stops
+// it being typed; the stripping is only what catches a paste.
 import { daysInMonth, todayKey } from '@lustre/shared';
 import { ageError, birthDateOf, orNull, phoneError } from '../../../components/domain/patientDraft';
 
@@ -161,23 +163,23 @@ export function cutoffDigitsOf(iso: string): string {
 
 export const ENTRY_ORDER = ['legacyRef', 'name', 'phone', 'age', 'balance'] as const;
 
-export type EntryFieldName = (typeof ENTRY_ORDER)[number];
+export type CaretField = (typeof ENTRY_ORDER)[number];
 
 /** The old ref is first because it is the number on the front of the file she is holding. */
-export const FIRST_FIELD: EntryFieldName = ENTRY_ORDER[0];
+export const FIRST_FIELD: CaretField = ENTRY_ORDER[0];
 
 /** Anything that can take the caret. `TextInput` is one; a test stub is another. */
 export type Focusable = { focus: () => void };
 
-export type EntryRefs = Partial<Record<EntryFieldName, Focusable | null>>;
+export type CaretRefs = Partial<Record<CaretField, Focusable | null>>;
 
 /** Where the return key goes from `field`, or null at the end of the row — where it commits instead. */
-export function nextField(field: EntryFieldName): EntryFieldName | null {
+export function nextField(field: CaretField): CaretField | null {
     return ENTRY_ORDER[ENTRY_ORDER.indexOf(field) + 1] ?? null;
 }
 
 /** A field that never mounted is not a reason to throw in the middle of a save. */
-export function focusField(refs: EntryRefs, field: EntryFieldName | null): void {
+export function focusField(refs: CaretRefs, field: CaretField | null): void {
     if (field === null) return;
     refs[field]?.focus();
 }

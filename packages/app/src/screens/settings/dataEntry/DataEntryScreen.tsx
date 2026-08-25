@@ -65,7 +65,7 @@ import { border, color, radius, space, Text } from '../../../theme';
 import { Pane } from '../components/Pane';
 import { ErrorState, SkeletonRows } from '../components/QueryStates';
 import { errorText } from '../data/errors';
-import type { Cutoff, EntryFieldName, EntryForm, Session } from './entryForm';
+import type { CaretField, Cutoff, EntryForm, Session } from './entryForm';
 import {
     ageDigits,
     balanceDigits,
@@ -141,7 +141,7 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
 
     // Read at the moment the caret moves rather than at render, so the first
     // Return after a mount lands on a field that is actually attached.
-    function goTo(field: EntryFieldName | null) {
+    function goTo(field: CaretField | null) {
         focusField(
             {
                 legacyRef: legacyRef.current,
@@ -368,6 +368,7 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
                                         onSubmitEditing={() => goTo(nextField('age'))}
                                         returnKeyType="next"
                                         submitBehavior="submit"
+                                        keyboardType="number-pad"
                                         placeholder="—"
                                         testID="entry-age"
                                     />
@@ -378,7 +379,12 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
                         </Field>
 
                         {/* The last field, so the return key commits the row —
-                            the desk never has to reach for the button. */}
+                            the desk never has to reach for the button.
+
+                            `number-pad`, not the field's default `decimal-pad`:
+                            `balanceDigits` strips a separator, so `12.50` typed
+                            here would be read as 1250 pounds. A keypad with no
+                            decimal key is what stops that being typed at all. */}
                         <NumericField
                             ref={balance}
                             label="Owed"
@@ -392,6 +398,7 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
                             onChangeText={(text) => change({ balance: balanceDigits(text) })}
                             onSubmitEditing={commit}
                             returnKeyType="done"
+                            keyboardType="number-pad"
                             placeholder="Nothing owed"
                             testID="entry-balance"
                         />
@@ -503,6 +510,7 @@ function CutoffCard({
                     accessibilityLabel="Cutoff date"
                     value={cutoffDisplay(digits)}
                     onChangeText={onDigits}
+                    keyboardType="number-pad"
                     placeholder="DD / MM / YYYY"
                     testID="entry-cutoff"
                 />

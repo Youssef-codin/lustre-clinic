@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { Cutoff, EntryFieldName, EntryForm, EntryRefs } from './entryForm';
+import type { CaretField, CaretRefs, Cutoff, EntryForm } from './entryForm';
 import {
     balanceDigits,
     balancePiastres,
@@ -177,9 +177,9 @@ describe('the session tally', () => {
  * keyboard's focus — both want a device.
  */
 describe('the caret', () => {
-    function stubs(): { refs: EntryRefs; focused: EntryFieldName[] } {
-        const focused: EntryFieldName[] = [];
-        const refs: EntryRefs = {};
+    function stubs(): { refs: CaretRefs; focused: CaretField[] } {
+        const focused: CaretField[] = [];
+        const refs: CaretRefs = {};
         for (const field of ENTRY_ORDER) refs[field] = { focus: () => focused.push(field) };
         return { refs, focused };
     }

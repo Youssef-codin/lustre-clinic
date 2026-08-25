@@ -132,7 +132,11 @@ ported. `HomeIndicator` is the device's, not ours.
   `size` is the figure in it. `amount` is the 20px price the money screens are
   built around and it is wrong for a number that is not money — an age, a count,
   "14 months ago" — which reads as a total being announced. The face stays mono
-  either way; the digits are still tabular.
+  either way; the digits are still tabular. Its `keyboardType` is `decimal-pad`
+  or `number-pad` and nothing else: a field whose caller strips the separator
+  wants the keypad that has no decimal key, because `12.50` stripped to `1250`
+  is a hundredfold overcharge. Never `numeric` — Android's numeric pad carries a
+  newline key that commits nothing.
 - **`Button` `primary` is ink, not blue.** §3.1 scopes the blue to the FAB,
   progress fill, links and dashed add buttons; System B calls `--fg` the "primary
   fill" and the designs draw black primaries. `accent` is a separate variant for
