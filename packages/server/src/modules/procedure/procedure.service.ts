@@ -5,11 +5,12 @@
  *
  * Parenthood is computed over every row, active or not, everywhere — a
  * deactivated subtype must not make its category look selectable to a picker.
- * `findCheckup` supplies the line seeded on check-in (§8).
+ * `findCheckup` supplies the line seeded on check-in (§8), and exactly one row
+ * carries the flag it looks for — see `clearOtherCheckups`.
  */
 import { ERROR_CODE } from '@lustre/shared';
-import { and, asc, eq, inArray } from 'drizzle-orm';
-import { db } from '../../db/index.ts';
+import { and, asc, eq, inArray, ne } from 'drizzle-orm';
+import { db, type Executor } from '../../db/index.ts';
 import { procedureTypes } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import type {
@@ -39,6 +40,19 @@ async function hasChildren(id: string): Promise<boolean> {
         .where(eq(procedureTypes.parentId, id))
         .limit(1);
     return child !== undefined;
+}
+
+/**
+ * The checkup is held by exactly one procedure (§8/§9): it is the line seeded on
+ * check-in and waived when other work is done, and two of them would make which
+ * one gets waived a matter of `sortOrder`. Taking the flag hands it over rather
+ * than sharing it, in the same transaction as the write that took it.
+ */
+async function clearOtherCheckups(tx: Executor, keep: string): Promise<void> {
+    await tx
+        .update(procedureTypes)
+        .set({ isCheckup: false })
+        .where(and(eq(procedureTypes.isCheckup, true), ne(procedureTypes.id, keep)));
 }
 
 async function assertUsableAsParent(parentId: string): Promise<void> {
@@ -101,22 +115,25 @@ export const procedureService = {
     async create(input: CreateProcedureInput): Promise<Procedure> {
         if (input.parentId) await assertUsableAsParent(input.parentId);
 
-        const [row] = await db
-            .insert(procedureTypes)
-            .values({
-                id: Bun.randomUUIDv7(),
-                parentId: input.parentId ?? null,
-                name: input.name,
-                defaultPrice: input.defaultPrice,
-                hasQuantity: input.hasQuantity,
-                isToothSpecific: input.isToothSpecific,
-                isCheckup: input.isCheckup,
-                sortOrder: input.sortOrder,
-            })
-            .returning();
+        return db.transaction(async (tx) => {
+            const [row] = await tx
+                .insert(procedureTypes)
+                .values({
+                    id: Bun.randomUUIDv7(),
+                    parentId: input.parentId ?? null,
+                    name: input.name,
+                    defaultPrice: input.defaultPrice,
+                    hasQuantity: input.hasQuantity,
+                    isToothSpecific: input.isToothSpecific,
+                    isCheckup: input.isCheckup,
+                    sortOrder: input.sortOrder,
+                })
+                .returning();
 
-        if (!row) throw AppError.internal('procedure insert returned nothing');
-        return row;
+            if (!row) throw AppError.internal('procedure insert returned nothing');
+            if (row.isCheckup) await clearOtherCheckups(tx, row.id);
+            return row;
+        });
     },
 
     async update({ id, ...patch }: UpdateProcedureInput): Promise<Procedure> {
@@ -141,14 +158,20 @@ export const procedureService = {
             }
         }
 
-        const [row] = await db
-            .update(procedureTypes)
-            .set({ ...patch, parentId: patch.parentId === undefined ? current.parentId : patch.parentId })
-            .where(eq(procedureTypes.id, id))
-            .returning();
+        return db.transaction(async (tx) => {
+            const [row] = await tx
+                .update(procedureTypes)
+                .set({
+                    ...patch,
+                    parentId: patch.parentId === undefined ? current.parentId : patch.parentId,
+                })
+                .where(eq(procedureTypes.id, id))
+                .returning();
 
-        if (!row) throw AppError.notFound('procedure');
-        return row;
+            if (!row) throw AppError.notFound('procedure');
+            if (patch.isCheckup) await clearOtherCheckups(tx, row.id);
+            return row;
+        });
     },
 
     /**

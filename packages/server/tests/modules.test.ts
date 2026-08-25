@@ -330,6 +330,35 @@ describe('procedure', () => {
         expect(root?.selectable).toBe(false);
     });
 
+    // The pane says "only one procedure can hold it", and the waiver (§9) has to
+    // know which line it is waiving.
+    test('the checkup flag is handed over, never shared', async () => {
+        const first = await procedureService.create({
+            name: 'Checkup',
+            defaultPrice: CHECKUP_PRICE,
+            hasQuantity: false,
+            isToothSpecific: false,
+            isCheckup: true,
+            sortOrder: 0,
+        });
+
+        const second = await procedureService.create({
+            name: 'Consultation',
+            defaultPrice: CHECKUP_PRICE,
+            hasQuantity: false,
+            isToothSpecific: false,
+            isCheckup: true,
+            sortOrder: 1,
+        });
+
+        expect((await procedureService.byId(first.id)).isCheckup).toBe(false);
+        expect(await procedureService.findCheckup()).toMatchObject({ id: second.id });
+
+        const back = await procedureService.update({ id: first.id, isCheckup: true });
+        expect(back.isCheckup).toBe(true);
+        expect((await procedureService.byId(second.id)).isCheckup).toBe(false);
+    });
+
     describe('reorder', () => {
         async function threeRoots() {
             const names = ['Checkup', 'Extraction', 'Scaling'];

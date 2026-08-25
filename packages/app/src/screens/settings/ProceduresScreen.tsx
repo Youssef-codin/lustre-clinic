@@ -281,6 +281,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         and each has its own price.
                     </Text>
                 ) : null}
+
                 {namingCategory ? (
                     <CategorySheet
                         onClose={() => setNamingCategory(false)}
