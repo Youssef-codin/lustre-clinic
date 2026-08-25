@@ -10,13 +10,14 @@
 // it is hidden while searching rather than recomputed over the filtered rows,
 // because a figure that shrank as you typed would read as the clinic being owed
 // less than it is.
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
-import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, AppState, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
 import { DropdownMenu, IconButton, ScreenHeader, usePullToRefresh } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
+import { todayKey } from '../day/time';
 import { DebtorRow } from './components/DebtorRow';
 import { DockedSearch, SEARCH_HEIGHT } from './components/DockedSearch';
 import { HeroCollectionCard } from './components/HeroCollectionCard';
@@ -52,9 +53,8 @@ export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreen
     const [sort, setSort] = useState<DebtorSort>('balance');
     const [sortAnchor, setSortAnchor] = useState<MenuAnchor | null>(null);
 
-    // Recomputed per period, not per render: it closes over `new Date()`, and a
-    // fresh object every render is a fresh query key every render.
-    const range = useMemo(() => periodRange(period), [period]);
+    const [today, rereadToday] = useToday();
+    const range = useMemo(() => periodRange(period, today), [period, today]);
 
     const summary = useBalanceSummary(range);
     const takings = useTakings(range);
@@ -87,6 +87,9 @@ export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreen
     // while searching re-reads the same list and re-filters it.
     const refreshControl = usePullToRefresh(
         () => {
+            // Before the refetches, not after: a pull at 00:05 has to ask for
+            // the new day, not re-send yesterday's range.
+            rereadToday();
             summary.refetch();
             takings.refetch();
             outstanding.refetch();
@@ -299,6 +302,34 @@ function DebtorList({
 
 function plural(count: number, noun: string): string {
     return `${count} ${count === 1 ? noun : `${noun}s`}`;
+}
+
+// Which local day the period pills are measured from.
+//
+// `shell/AppShell` mounts a tab once and then hides it rather than unmounting
+// it, so this screen can sit untouched for days. A day captured at first render
+// would have the phone asking for yesterday under "Today" the next morning, and
+// because the stale day is part of the query key, a pull would re-send the same
+// range and re-confirm the wrong figures — there is no way out of it from the
+// screen. So the day is re-read when the app comes back to the foreground, and
+// again on every pull.
+//
+// Cheap to be liberal about: TanStack hashes an unchanged key identically, so a
+// re-read on the same day is not a refetch. `AppState` is a subscription, which
+// is what `useEffect` is actually for.
+function useToday(): [string, () => void] {
+    const [today, setToday] = useState(todayKey);
+
+    const reread = useCallback(() => setToday(todayKey()), []);
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') reread();
+        });
+        return () => subscription.remove();
+    }, [reread]);
+
+    return [today, reread];
 }
 
 // The search pill is an overlay, so its position has to be driven from here:

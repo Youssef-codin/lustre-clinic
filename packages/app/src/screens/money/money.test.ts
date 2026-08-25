@@ -131,29 +131,39 @@ describe('outstanding age', () => {
 
 describe('the period pills, as a range the server can answer', () => {
     // A Wednesday, so the week start is four days back and not the same day.
-    const now = new Date(2026, 7, 19, 14, 30);
+    const today = '2026-08-19';
 
     it('ends every period today rather than at the end of the calendar unit', () => {
         for (const period of PERIODS) {
-            expect(periodRange(period, now).to).toBe('2026-08-19');
+            expect(periodRange(period, today).to).toBe(today);
         }
     });
 
     it('starts today on today', () => {
-        expect(periodRange('today', now).from).toBe('2026-08-19');
+        expect(periodRange('today', today).from).toBe('2026-08-19');
     });
 
     it('starts the week on Sunday, the first working day', () => {
-        expect(periodRange('week', now).from).toBe('2026-08-16');
+        expect(periodRange('week', today).from).toBe('2026-08-16');
+    });
+
+    it('starts the week on the day itself when the day is a Sunday', () => {
+        expect(periodRange('week', '2026-08-16').from).toBe('2026-08-16');
     });
 
     it('starts the month on the first and the year on 1 January', () => {
-        expect(periodRange('month', now).from).toBe('2026-08-01');
-        expect(periodRange('year', now).from).toBe('2026-01-01');
+        expect(periodRange('month', today).from).toBe('2026-08-01');
+        expect(periodRange('year', today).from).toBe('2026-01-01');
+    });
+
+    it('crosses a month and a year boundary without arithmetic on the wrong unit', () => {
+        expect(periodRange('month', '2026-01-01').from).toBe('2026-01-01');
+        expect(periodRange('week', '2026-01-01').from).toBe('2025-12-28');
+        expect(periodRange('year', '2026-12-31').from).toBe('2026-01-01');
     });
 
     it('floors all time, because the server takes a closed range', () => {
-        const range = periodRange('all', now);
+        const range = periodRange('all', today);
 
         expect(range.from).toBe('2000-01-01');
         expect(range.from < range.to).toBe(true);
@@ -161,14 +171,22 @@ describe('the period pills, as a range the server can answer', () => {
 
     it('never starts a period after it ends', () => {
         for (const period of PERIODS) {
-            const range = periodRange(period, now);
+            const range = periodRange(period, today);
             expect(range.from <= range.to).toBe(true);
         }
     });
 
-    it('sends local days, never a UTC date — a late evening must not roll over', () => {
-        const lateEvening = new Date(2026, 7, 19, 23, 45);
-        expect(periodRange('today', lateEvening).from).toBe('2026-08-19');
+    // The Money tab is never unmounted, so the day it measures from has to be
+    // an argument. A screen holding yesterday must produce yesterday's range —
+    // that is what makes the staleness visible instead of silent.
+    it('follows the day it is given, so a re-read moves the whole range', () => {
+        expect(periodRange('today', '2026-08-19').from).toBe('2026-08-19');
+        expect(periodRange('today', '2026-08-20').from).toBe('2026-08-20');
+        expect(periodRange('month', '2026-09-01')).toEqual({
+            from: '2026-09-01',
+            to: '2026-09-01',
+            offsetMinutes: periodRange('month', '2026-09-01').offsetMinutes,
+        });
     });
 
     it('labels every period it can produce', () => {

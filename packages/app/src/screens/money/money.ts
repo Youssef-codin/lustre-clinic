@@ -12,7 +12,7 @@
 // `decimal-pad` and `ui/` is frozen): stripping a separator would read `12.50`
 // as `1250`, a hundredfold overcharge. The collection rate clamps to 0–1
 // because a day settling old debt can collect more than it charged.
-import { addDays, dateKey, localOffsetMinutes } from '../day/time';
+import { addDays, offsetForDate, weekdayOf } from '../day/time';
 
 const PIASTRES_PER_EGP = 100;
 
@@ -117,29 +117,34 @@ const FIRST_RECORD = '2000-01-01';
  * "This year" that ran to December would be counting a future nobody has
  * charged yet.
  *
+ * `today` is passed in rather than read from the clock here. The Money tab is
+ * mounted once and hidden rather than unmounted, so a screen that captured the
+ * day at first render would still be asking for it days later; taking it as an
+ * argument is what lets the caller re-read it, and what makes this testable
+ * without faking a clock.
+ *
  * The week starts Sunday: Egypt's weekend is Friday and Saturday, so Sunday is
- * the first working day and "This week" that began on Saturday would open on
- * the weekend. This matches `Date#getDay` and `clinic_days.weekday`.
+ * the first working day, and a week that began on Saturday would open on the
+ * weekend. This matches `Date#getDay` and `clinic_days.weekday`.
  *
  * One offset covers both ends, because that is the shape the server's input
- * takes. Across a DST changeover the far boundary is an hour out, which cannot
- * move a total that is aggregated over whole days.
+ * takes, and it is the offset in force on `today` — Egypt keeps DST. Across a
+ * changeover the far boundary is an hour out, which cannot move a total that is
+ * aggregated over whole days.
  */
-export function periodRange(period: Period, now: Date = new Date()): DateRange {
-    const today = dateKey(now);
-
+export function periodRange(period: Period, today: string): DateRange {
     return {
-        from: periodStart(period, now, today),
+        from: periodStart(period, today),
         to: today,
-        offsetMinutes: localOffsetMinutes(now),
+        offsetMinutes: offsetForDate(today),
     };
 }
 
-function periodStart(period: Period, now: Date, today: string): string {
+function periodStart(period: Period, today: string): string {
     if (period === 'today') return today;
-    if (period === 'week') return addDays(today, -now.getDay());
-    if (period === 'month') return dateKey(new Date(now.getFullYear(), now.getMonth(), 1));
-    if (period === 'year') return dateKey(new Date(now.getFullYear(), 0, 1));
+    if (period === 'week') return addDays(today, -weekdayOf(today));
+    if (period === 'month') return `${today.slice(0, 7)}-01`;
+    if (period === 'year') return `${today.slice(0, 4)}-01-01`;
     return FIRST_RECORD;
 }
 
