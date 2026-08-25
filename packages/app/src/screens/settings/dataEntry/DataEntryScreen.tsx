@@ -40,7 +40,7 @@
  *
  * There is no mockup for this screen — the Open Design folder has fourteen and
  * none of them is this. Built from the tokens and from the card `patient-edit`
- * settles, and recorded in BLOCKED.md rather than passed off as drawn.
+ * settles, and recorded in DECISIONS.md rather than passed off as drawn.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';

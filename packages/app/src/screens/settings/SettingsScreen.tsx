@@ -151,7 +151,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
                                     testID="settings-branches"
                                 />
                                 <CardDivider />
-                                {/* Not in `settings.html` — see BLOCKED.md. */}
+                                {/* Not in `settings.html` — see DECISIONS.md. */}
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"

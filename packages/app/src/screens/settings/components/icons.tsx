@@ -8,7 +8,7 @@
  * every one of these was traced from it. That was wrong — CLAUDE.MD is explicit
  * that icons come from the library, "not to match a mockup" — so each is now
  * the nearest Lucide equivalent. Where the substitution changes what the glyph
- * depicts rather than just how it is drawn, it is noted in BLOCKED.md #29.
+ * depicts rather than just how it is drawn, it is noted in DECISIONS.md.
  *
  * WhatsApp is the documented exception: Lucide carries no brand marks, so it
  * comes from `@expo/vector-icons`, as it already does in
