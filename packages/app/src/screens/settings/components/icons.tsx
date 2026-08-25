@@ -27,6 +27,7 @@ import {
     ClipboardList,
     Clock,
     EyeOff,
+    Folder,
     Hospital,
     Info,
     ListPlus,
@@ -117,6 +118,9 @@ export const HideIcon = icon(EyeOff, { size: 15, stroke: color.ink, width: 2.2 }
 
 /** Renaming a category, from its section heading. */
 export const EditIcon = icon(Pencil, { size: 15, stroke: color.muted, width: 2 });
+
+/** The ghost "Category" button beside "Add a procedure", as the mockup draws it. */
+export const CategoryIcon = icon(Folder, { size: 15, stroke: color.muted, width: 2 });
 
 /**
  * The reminder preview's channel mark. A brand glyph, so `@expo/vector-icons`

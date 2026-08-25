@@ -21,6 +21,22 @@
  *
  * In reorder mode the price is dropped rather than sat beside the arrows — a
  * tappable price next to small buttons reprises by accident.
+ *
+ * ## Making a category
+ *
+ * A row is a category because something names it as a parent, which used to
+ * mean no new one could ever be made: the Category picker only offered rows
+ * that already had a child, so nothing could receive its first one. The ghost
+ * "Category" button from `settings-procedures.html` is the way in, and it asks
+ * for the first subtype in the same breath — a category and the procedure under
+ * it are written together, when the editor is saved.
+ *
+ * That is the answer to "what if you file nothing under it": you cannot make an
+ * empty one. An empty category has no way to be a category — with no children
+ * it is a root with a price, which `procedure.list` would happily offer on a
+ * visit — so rather than write one and hope, nothing is written until there is
+ * a subtype to write with it. A category that loses its last visible subtype
+ * still draws here, as a heading with its "Add to" button and nothing under it.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -42,15 +58,16 @@ import {
     ReorderControls,
     SectionLabel,
     Select,
+    Sheet,
     Switch,
     Tag,
     TextField,
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { color, size, space, Text } from '../../theme';
+import { color, radius, size, space, Text } from '../../theme';
 import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
-import { EditIcon, HideIcon } from './components/icons';
+import { CategoryIcon, EditIcon, HideIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
@@ -65,6 +82,10 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
+    // A category being made: its name, held until the first subtype under it is
+    // saved, because the two are written together.
+    const [namingCategory, setNamingCategory] = useState(false);
+    const [newCategory, setNewCategory] = useState<string | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
@@ -231,7 +252,27 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                 )}
 
                 {tree.data && !empty && !reordering ? (
-                    <AddButton label="Add a procedure" onPress={() => setEditing('new')} />
+                    <View style={styles.addRow}>
+                        <View style={styles.addProcedure}>
+                            <AddButton
+                                label="Add a procedure"
+                                onPress={() => setEditing('new')}
+                                testID="procedure-add"
+                            />
+                        </View>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Add a category"
+                            onPress={() => setNamingCategory(true)}
+                            testID="category-add"
+                            style={({ pressed }) => [styles.addCategory, pressed && styles.pressed]}
+                        >
+                            <CategoryIcon />
+                            <Text variant="callout" weight="medium" tone="muted">
+                                Category
+                            </Text>
+                        </Pressable>
+                    </View>
                 ) : null}
 
                 {tree.data && !empty ? (
@@ -240,28 +281,94 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         and each has its own price.
                     </Text>
                 ) : null}
+                {namingCategory ? (
+                    <CategorySheet
+                        onClose={() => setNamingCategory(false)}
+                        onNamed={(name) => {
+                            setNamingCategory(false);
+                            setNewCategory(name);
+                        }}
+                    />
+                ) : null}
             </Pane>
 
-            <PushView visible={editing !== null || addingTo !== null}>
-                {editing !== null || addingTo !== null ? (
+            <PushView visible={editing !== null || addingTo !== null || newCategory !== null}>
+                {editing !== null || addingTo !== null || newCategory !== null ? (
                     <ProcedureEditor
                         procedure={editing !== null && editing !== 'new' ? editing : null}
                         parent={addingTo}
+                        newCategory={newCategory}
                         categories={all.filter((node) => !node.selectable)}
                         nextSortOrder={nextSortOrder}
                         onClose={() => {
                             setEditing(null);
                             setAddingTo(null);
+                            setNewCategory(null);
                         }}
                         onSaved={(message) => {
                             setEditing(null);
                             setAddingTo(null);
+                            setNewCategory(null);
                             setToast(message);
                         }}
                     />
                 ) : null}
             </PushView>
         </>
+    );
+}
+
+/**
+ * `catSheet` from the mockup, minus its Arabic name field: `procedure_types`
+ * has one `name` column, and giving the catalogue a second one is a migration
+ * of its own (the same one the patient questions are waiting on). Deferred by
+ * the user's decision, so this asks in English and says so nowhere, because a
+ * disabled field nobody can fill is worse than a field that is not there.
+ *
+ * Naming is where the sheet stops. Nothing is written until the editor behind
+ * it saves the first subtype — see the note at the top of the file.
+ */
+function CategorySheet({ onClose, onNamed }: { onClose: () => void; onNamed: (name: string) => void }) {
+    const [name, setName] = useState('');
+    const [submitted, setSubmitted] = useState(false);
+
+    const error = submitted && name.trim() === '' ? 'A category needs a name.' : undefined;
+
+    function onNext() {
+        setSubmitted(true);
+        if (name.trim() === '') return;
+        onNamed(name.trim());
+    }
+
+    return (
+        <Sheet
+            visible
+            onClose={onClose}
+            title="New category"
+            subtitle="A category groups procedures. It has no price of its own and can't be picked on a visit."
+            testID="category-sheet"
+            footer={
+                <View style={styles.sheetActions}>
+                    <View style={styles.sheetCancel}>
+                        <Button label="Cancel" variant="ghost" onPress={onClose} block />
+                    </View>
+                    <View style={styles.sheetConfirm}>
+                        <Button label="Next" onPress={onNext} block testID="category-next" />
+                    </View>
+                </View>
+            }
+        >
+            <TextField
+                value={name}
+                onChangeText={setName}
+                placeholder="Crowns"
+                accessibilityLabel="Category name"
+                autoCapitalize="words"
+                error={error}
+                hint="The next screen asks for the first procedure under it."
+                testID="category-name"
+            />
+        </Sheet>
     );
 }
 
@@ -335,6 +442,8 @@ function ProcedureRow({
 type ProcedureEditorProps = {
     procedure: Procedure | null;
     parent: ProcedureNode | null;
+    /** The name of a category being made with this procedure as its first subtype. */
+    newCategory: string | null;
     categories: ProcedureNode[];
     /** Where a new row lands in its group: after everything already in it. */
     nextSortOrder: (parentId: string | null) => number;
@@ -347,6 +456,7 @@ const NO_CATEGORY = 'none';
 function ProcedureEditor({
     procedure,
     parent,
+    newCategory,
     categories,
     nextSortOrder,
     onClose,
@@ -366,14 +476,19 @@ function ProcedureEditor({
     const [confirming, setConfirming] = useState(false);
 
     const isCategory = categories.some((category) => category.id === procedure?.id);
+    /** The category is fixed when it is being made here, or when adding under one. */
+    const fixedParent = newCategory ?? parent?.name ?? null;
 
     const create = useMutation(trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }));
+    const createCategory = useMutation(
+        trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }),
+    );
     const update = useMutation(trpc.procedure.update.mutationOptions({ onSuccess: onProcedureWritten }));
 
     const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
-    const saving = create.isPending || (update.isPending && !confirming);
-    const busy = create.isPending || update.isPending;
-    const failure = create.error ?? update.error;
+    const saving = create.isPending || createCategory.isPending || (update.isPending && !confirming);
+    const busy = create.isPending || createCategory.isPending || update.isPending;
+    const failure = create.error ?? createCategory.error ?? update.error;
 
     function onSave() {
         setSubmitted(true);
@@ -393,6 +508,32 @@ function ProcedureEditor({
             update.mutate({ id: procedure.id, ...details }, { onSuccess: () => onSaved('Procedure saved') });
             return;
         }
+
+        // The category first, then the subtype that makes it one. A category
+        // with nothing under it is a priceable root, so it is not written on
+        // its own — see the note at the top of the file.
+        if (newCategory !== null) {
+            createCategory.mutate(
+                {
+                    parentId: null,
+                    name: newCategory,
+                    defaultPrice: 0,
+                    hasQuantity: false,
+                    isToothSpecific: false,
+                    isCheckup: false,
+                    sortOrder: nextSortOrder(null),
+                },
+                {
+                    onSuccess: (category) =>
+                        create.mutate(
+                            { ...details, parentId: category.id, sortOrder: 0 },
+                            { onSuccess: () => onSaved(`${newCategory} added`) },
+                        ),
+                },
+            );
+            return;
+        }
+
         create.mutate(
             { ...details, sortOrder: nextSortOrder(chosenParent) },
             { onSuccess: () => onSaved('Procedure added') },
@@ -418,7 +559,7 @@ function ProcedureEditor({
     return (
         <Pane
             title={procedure ? 'Edit procedure' : 'New procedure'}
-            subtitle={parent && !procedure ? `Under ${parent.name}` : undefined}
+            subtitle={!procedure && fixedParent ? `Under ${fixedParent}` : undefined}
             onBack={busy ? () => {} : onClose}
             footer={
                 // Save alone, as the mockup draws it: the pane has a back
@@ -466,6 +607,10 @@ function ProcedureEditor({
                     <Callout tone="note">
                         This one has subtypes under it, so it is a heading. The price and the rules belong to
                         each subtype.
+                    </Callout>
+                ) : newCategory !== null ? (
+                    <Callout tone="note">
+                        {`Saving this makes “${newCategory}” a category with this as its first subtype. A category has no price of its own.`}
                     </Callout>
                 ) : (
                     <Select
@@ -571,6 +716,22 @@ function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
 
 const styles = StyleSheet.create({
     category: { gap: space[2] },
+    addRow: { flexDirection: 'row', alignItems: 'stretch', gap: space[2.5] },
+    addProcedure: { flex: 1 },
+    // The mockup's ghost twin of `AddButton`: same shape, muted rather than
+    // accented, sized to its own label. `ui/AddButton` draws one weight only.
+    addCategory: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: space[2],
+        minHeight: size.row,
+        paddingHorizontal: space[3.5],
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: color.outline,
+    },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -585,6 +746,9 @@ const styles = StyleSheet.create({
     note: { paddingHorizontal: space[1] },
     dangerHint: { textAlign: 'center' },
     form: { gap: space[4] },
+    sheetActions: { flexDirection: 'row', gap: space[2] },
+    sheetCancel: { flex: 1 },
+    sheetConfirm: { flex: 1.4 },
     flagRow: {
         flexDirection: 'row',
         alignItems: 'center',
