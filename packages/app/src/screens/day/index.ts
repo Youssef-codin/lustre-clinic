@@ -8,5 +8,7 @@
 // the caller needs none of this cluster's data layer.
 export type { VisitPageProps } from './components/VisitPage';
 export { VisitPage } from './components/VisitPage';
+export type { DayScreenProps, OpenBookingRequest } from './DayScreen';
 export { DayScreen } from './DayScreen';
+export type { DoctorDayScreenProps } from './DoctorDayScreen';
 export { DoctorDayScreen } from './DoctorDayScreen';

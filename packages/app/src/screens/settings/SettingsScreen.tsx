@@ -11,9 +11,11 @@
  * drawing labels with empty subs under them.
  */
 import type { ClientRole } from '@lustre/shared';
+import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { type RouterOutput, useTRPC } from '../../api';
 import { BrandMark } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel } from '../../components/ui';
 // The store module directly, not the `shell` barrel: that barrel exports
@@ -30,9 +32,9 @@ import { DataEntryIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
-import { api } from './data/_LocalApi';
 import { useConnectionView } from './data/connection';
-import { errorMessage, useQuery } from './data/hooks';
+import { errorText } from './data/errors';
+import { minutesFromTime } from './data/reminders';
 import { DataEntryScreen } from './dataEntry';
 import { PatientFieldsScreen } from './PatientFieldsScreen';
 import { ProceduresScreen } from './ProceduresScreen';
@@ -57,18 +59,31 @@ const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' }
 export type SettingsScreenProps = {
     role?: ClientRole;
     onChangeRole?: (role: ClientRole) => void;
+    /**
+     * Bumped when the fourth tab is tapped while it is already up. Home is the
+     * index; the panes above it are all reads and settings already written, so
+     * there is nothing in flight to protect.
+     */
+    goHome?: number;
 };
 
-export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenProps) {
+export function SettingsScreen({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
     const [route, setRoute] = useState<Route>('index');
     const [switching, setSwitching] = useState(false);
+    const [seenHome, setSeenHome] = useState(goHome);
+
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        setRoute('index');
+        setSwitching(false);
+    }
 
     const [localRole, setLocalRole] = useState<ClientRole>('doctor');
     const role = roleProp ?? localRole;
 
     const locale = useLocale();
 
-    const summary = useQuery(loadSummary);
+    const summary = useSummary();
     const connection = useConnectionView();
 
     const back = () => setRoute('index');
@@ -86,7 +101,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
             <IdentityCard
                 roleName={ROLE_NAME[role]}
                 roleInitial={ROLE_INITIAL[role]}
-                branchName={summary.data?.branchName ?? 'No branch yet'}
+                clinicName={summary.data?.clinicName ?? ''}
                 connection={connection}
                 onSwitchRole={() => setSwitching(true)}
                 testID="settings-identity"
@@ -97,7 +112,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
 
                 {summary.error ? (
                     <ErrorState
-                        message={errorMessage(summary.error) ?? ''}
+                        message={errorText(summary.error)}
                         onRetry={summary.reload}
                         retrying={summary.reloading}
                     />
@@ -149,7 +164,7 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
                                     testID="settings-branches"
                                 />
                                 <CardDivider />
-                                {/* Not in `settings.html` — see BLOCKED.md. */}
+                                {/* Not in `settings.html` — see DECISIONS.md. */}
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"
@@ -231,25 +246,11 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
             </PushView>
 
             <PushView visible={route === 'appointments'}>
-                {route === 'appointments' ? (
-                    <AppointmentsScreen
-                        onBack={() => {
-                            back();
-                            summary.reload();
-                        }}
-                    />
-                ) : null}
+                {route === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
             </PushView>
 
             <PushView visible={route === 'reminders'}>
-                {route === 'reminders' ? (
-                    <RemindersScreen
-                        onBack={() => {
-                            back();
-                            summary.reload();
-                        }}
-                    />
-                ) : null}
+                {route === 'reminders' ? <RemindersScreen onBack={back} /> : null}
             </PushView>
 
             <PushView visible={route === 'clinic'}>
@@ -257,51 +258,21 @@ export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenP
             </PushView>
 
             <PushView visible={route === 'branches'}>
-                {route === 'branches' ? (
-                    <BranchesScreen
-                        onBack={() => {
-                            back();
-                            summary.reload();
-                        }}
-                    />
-                ) : null}
+                {route === 'branches' ? <BranchesScreen onBack={back} /> : null}
             </PushView>
 
             <PushView visible={route === 'hours'}>
-                {route === 'hours' ? (
-                    <WorkingHoursScreen
-                        onBack={() => {
-                            back();
-                            summary.reload();
-                        }}
-                    />
-                ) : null}
+                {route === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
             </PushView>
 
             <PushView visible={route === 'procedures'}>
-                {route === 'procedures' ? (
-                    <ProceduresScreen
-                        onBack={() => {
-                            back();
-                            summary.reload();
-                        }}
-                    />
-                ) : null}
+                {route === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
             </PushView>
 
             <PushView visible={route === 'patientFields'}>
-                {route === 'patientFields' ? (
-                    <PatientFieldsScreen
-                        onBack={() => {
-                            back();
-                            summary.reload();
-                        }}
-                    />
-                ) : null}
+                {route === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
             </PushView>
 
-            {/* No `summary.reload()` on the way out: this pane writes patients,
-                which is not one of the things the index counts. */}
             <PushView visible={route === 'dataEntry'}>
                 {route === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
             </PushView>
@@ -319,27 +290,62 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 /**
- * Everything the index's subs are counted from, in one round trip. The panes
- * below each load their own data again — these are summaries, and a pane that
- * trusted a count passed down to it would show a stale one after an edit.
+ * Everything the index's subs are counted from. Four reads go out together over
+ * one batched request; the panes below read the same cache, so an edit in a
+ * pane is on the index the moment it lands and nothing has to be handed back up
+ * on the way out.
+ *
+ * The identity card names the clinic rather than the branch this phone is
+ * standing in: nothing on the server tracks that yet, and a card that says the
+ * wrong branch is worse than one that does not claim to know.
  */
-async function loadSummary() {
-    const [branches, currentBranchId, procedures, questions, appointments, reminders, schedule] =
-        await Promise.all([
-            api.branch.list({ includeInactive: true }),
-            api.branch.current(),
-            api.procedure.tree({ includeInactive: true }),
-            api.customQuestion.list({ includeInactive: true }),
-            api.appointmentSettings.get(),
-            api.reminderSettings.get(),
-            api.settings.schedule(),
-        ]);
+function useSummary() {
+    const trpc = useTRPC();
 
+    const settings = useQuery(trpc.settings.get.queryOptions());
+    const schedule = useQuery(trpc.settings.schedule.queryOptions());
+    const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: true }));
+    const procedures = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
+    const questions = useQuery(trpc.customQuestion.list.queryOptions({ includeInactive: true }));
+
+    const reads = [settings, schedule, branches, procedures, questions];
+
+    const data =
+        settings.data && schedule.data && branches.data && procedures.data && questions.data
+            ? summarize({
+                  settings: settings.data,
+                  schedule: schedule.data,
+                  branches: branches.data,
+                  procedures: procedures.data,
+                  questions: questions.data,
+              })
+            : undefined;
+
+    return {
+        data,
+        loading: reads.some((read) => read.isLoading),
+        reloading: reads.some((read) => read.isFetching),
+        error: reads.find((read) => read.error !== null)?.error ?? null,
+        reload: () => {
+            for (const read of reads) void read.refetch();
+        },
+    };
+}
+
+type SummaryInput = {
+    settings: RouterOutput['settings']['get'];
+    schedule: RouterOutput['settings']['schedule'];
+    branches: RouterOutput['branch']['list'];
+    procedures: RouterOutput['procedure']['tree'];
+    questions: RouterOutput['customQuestion']['list'];
+};
+
+function summarize({ settings, schedule, branches, procedures, questions }: SummaryInput) {
     const flatProcedures = procedures.flatMap((node) => [node, ...node.children]);
     const activeQuestions = questions.filter((q) => q.active);
 
     return {
-        branchName: branches.find((b) => b.id === currentBranchId)?.name ?? 'No branch yet',
+        clinicName: settings.clinicName,
         activeBranches: branches.filter((b) => b.active).length,
         inactiveBranches: branches.filter((b) => !b.active).length,
         openDays: schedule.length,
@@ -347,9 +353,9 @@ async function loadSummary() {
         activeProcedures: flatProcedures.filter((p) => p.active).length,
         questions: activeQuestions.length,
         requiredQuestions: activeQuestions.filter((q) => q.required).length,
-        defaultDuration: appointments.defaultDuration,
-        leadHours: reminders.leadHours,
-        notifyAt: reminders.notifyAt,
+        defaultDuration: settings.defaultDuration,
+        leadHours: settings.reminderLeadHours,
+        notifyAt: minutesFromTime(settings.reminderNotifyAt),
     };
 }
 

@@ -9,8 +9,11 @@
  * remove control, because deleting it would leave the booking screen pre-filling
  * a duration that is no longer offered. Pick another default first.
  */
-import { useCallback, useState } from 'react';
+import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@lustre/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useTRPC } from '../../api';
 import {
     Button,
     Callout,
@@ -27,43 +30,53 @@ import { color, radius, size, space, Text } from '../../theme';
 import { CloseIcon, PlusIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
+import { errorText } from './data/errors';
 
 /** The three the mockup offers as one-tap fills, minus whatever is already on. */
 const QUICK_ADDS = [10, 25, 90] as const;
 
 export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
-    const settings = useQuery(useCallback(() => api.appointmentSettings.get(), []));
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const settings = useQuery(trpc.settings.get.queryOptions());
     const [draft, setDraft] = useState('');
 
-    const add = useMutation((minutes: number) => api.appointmentSettings.addDuration({ minutes }));
-    const remove = useMutation((minutes: number) => api.appointmentSettings.removeDuration({ minutes }));
-    const setDefault = useMutation((minutes: number) => api.appointmentSettings.setDefault({ minutes }));
+    // Every control on this pane writes the same row, so they are one mutation:
+    // the list of durations and which of them is the default are two columns of
+    // `settings`, not three procedures.
+    const save = useMutation(
+        trpc.settings.update.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
+        }),
+    );
 
-    const refreshControl = usePullToRefresh(settings.reload, settings.loading || settings.reloading);
+    const refreshControl = usePullToRefresh(settings.refetch, settings.isFetching);
 
     const data = settings.data;
-    const busy = add.pending || remove.pending || setDefault.pending;
-    const failure = add.error ?? remove.error ?? setDefault.error;
+    const durations = data?.durationOptions ?? [];
+    const busy = save.isPending;
 
-    async function onAdd() {
-        const minutes = Number.parseInt(draft, 10);
-        if (!Number.isFinite(minutes)) return;
+    const drafted = Number.parseInt(draft, 10);
+    const draftError = draftProblem(drafted, durations);
 
-        const saved = await add.run(minutes);
-        if (saved) {
-            setDraft('');
-            settings.reload();
-        }
+    function onAdd() {
+        if (draftError !== undefined || !Number.isFinite(drafted)) return;
+
+        save.mutate(
+            { durationOptions: [...durations, drafted].sort((a, b) => a - b) },
+            { onSuccess: () => setDraft('') },
+        );
     }
 
-    async function onRemove(minutes: number) {
-        if (await remove.run(minutes)) settings.reload();
+    // The default has to stay bookable, so it cannot be the row you remove.
+    // The pane hides the control on that row; the server refuses it too.
+    function onRemove(minutes: number) {
+        save.mutate({ durationOptions: durations.filter((d) => d !== minutes) });
     }
 
-    async function onSetDefault(minutes: number) {
-        if (await setDefault.run(minutes)) settings.reload();
+    function onSetDefault(minutes: number) {
+        save.mutate({ defaultDuration: minutes });
     }
 
     return (
@@ -73,21 +86,21 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
             refreshControl={refreshControl}
             testID="settings-appointments"
         >
-            {settings.loading ? <SkeletonRows count={5} /> : null}
+            {settings.isLoading ? <SkeletonRows count={5} /> : null}
 
             {settings.error ? (
                 <ErrorState
-                    message={errorMessage(settings.error) ?? ''}
-                    onRetry={settings.reload}
-                    retrying={settings.reloading}
+                    message={errorText(settings.error)}
+                    onRetry={settings.refetch}
+                    retrying={settings.isFetching}
                 />
             ) : null}
 
             {data ? (
                 <>
-                    {failure ? (
+                    {save.error ? (
                         <Callout tone="warning" title="Not saved">
-                            {errorMessage(failure) ?? ''}
+                            {errorText(save.error)}
                         </Callout>
                     ) : null}
 
@@ -104,7 +117,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                         </SectionLabel>
 
                         <Card>
-                            {data.durations.map((minutes, index) => {
+                            {durations.map((minutes, index) => {
                                 const isDefault = minutes === data.defaultDuration;
 
                                 return (
@@ -159,14 +172,15 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                                         onChangeText={setDraft}
                                         placeholder="—"
                                         accessibilityLabel="New duration in minutes"
+                                        error={draft.trim() === '' ? undefined : draftError}
                                         testID="duration-draft"
                                     />
                                 </View>
                                 <Button
                                     label="Add"
                                     onPress={onAdd}
-                                    loading={add.pending}
-                                    disabled={draft.trim() === '' || busy}
+                                    loading={save.isPending}
+                                    disabled={draft.trim() === '' || draftError !== undefined || busy}
                                     icon={<PlusIcon size={14} />}
                                     testID="duration-add"
                                 />
@@ -174,7 +188,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                         </Card>
 
                         <View style={styles.quick}>
-                            {QUICK_ADDS.filter((n) => !data.durations.includes(n)).map((n) => (
+                            {QUICK_ADDS.filter((n) => !durations.includes(n)).map((n) => (
                                 <Chip
                                     key={n}
                                     label={`+ ${n}`}
@@ -202,6 +216,21 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
             ) : null}
         </Pane>
     );
+}
+
+/**
+ * Answered on the phone rather than by the server: a duration already offered
+ * would be deduplicated silently, and one out of range would come back as a
+ * generic validation failure a second later. Both are worth saying under the
+ * field while the number is still being typed.
+ */
+function draftProblem(minutes: number, offered: readonly number[]): string | undefined {
+    if (!Number.isFinite(minutes)) return 'Whole minutes only.';
+    if (minutes < MIN_DURATION_MINUTES || minutes > MAX_DURATION_MINUTES) {
+        return `Between ${MIN_DURATION_MINUTES} and ${MAX_DURATION_MINUTES} minutes.`;
+    }
+    if (offered.includes(minutes)) return 'That one is already offered.';
+    return undefined;
 }
 
 const styles = StyleSheet.create({

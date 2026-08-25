@@ -9,6 +9,14 @@
  * tapped again — a second tap on Book is a second booking. The label stays
  * mounted and keeps its width while loading; `pressLockMs` covers the frame
  * between the finger going down and the caller's state flipping.
+ *
+ * `disabled` is two colours rather than one opacity, and one per variant. An
+ * opacity moves fill and label together, so a disabled `primary` fades an ink
+ * fill and white type into the same grey and `3 required left` — the sentence
+ * that says how to bring the control back — goes with it. The design draws
+ * `rgba(0,0,0,.12)` under `rgba(0,0,0,.45)`: `surface2` under `muted`, where
+ * the label darkens as the fill lightens. The two text variants have no fill to
+ * lighten, so they only lose their colour.
  */
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
@@ -70,6 +78,21 @@ const SPINNER: Record<ButtonVariant, string> = {
     whatsapp: color.inverse,
 };
 
+type DisabledLook = 'disabledFilled' | 'disabledOutlined' | 'disabledBare';
+
+const DISABLED: Record<ButtonVariant, DisabledLook> = {
+    primary: 'disabledFilled',
+    accent: 'disabledFilled',
+    accentSoft: 'disabledFilled',
+    inverse: 'disabledFilled',
+    secondary: 'disabledOutlined',
+    ghost: 'disabledOutlined',
+    text: 'disabledBare',
+    danger: 'disabledOutlined',
+    dangerText: 'disabledBare',
+    whatsapp: 'disabledFilled',
+};
+
 export function Button({
     label,
     onPress,
@@ -108,7 +131,7 @@ export function Button({
                 styles[variant],
                 block && styles.block,
                 pressed && styles.pressed,
-                disabled && styles.disabled,
+                disabled && styles[DISABLED[variant]],
                 style,
             ]}
         >
@@ -117,7 +140,7 @@ export function Button({
                 <Text
                     variant={sizeProp === 'lg' ? 'headline' : 'callout'}
                     weight="semibold"
-                    tone={LABEL_TONE[variant]}
+                    tone={disabled ? 'muted' : LABEL_TONE[variant]}
                 >
                     {label}
                 </Text>
@@ -125,7 +148,11 @@ export function Button({
 
             {loading && (
                 <View style={styles.spinner} pointerEvents="none">
-                    <ActivityIndicator size="small" color={SPINNER[variant]} />
+                    {/* A button can be loading and disabled at once — `ActionBar`
+                        passes both to its primary. The spinner follows the label
+                        onto the light fill, or a white one lands on `surface2`
+                        and the button reads as doing nothing at all. */}
+                    <ActivityIndicator size="small" color={disabled ? color.muted : SPINNER[variant]} />
                 </View>
             )}
         </Pressable>
@@ -172,5 +199,10 @@ const styles = StyleSheet.create({
     },
 
     pressed: { opacity: 0.72 },
-    disabled: { opacity: 0.32 },
+
+    disabledFilled: { backgroundColor: color.surface2 },
+    // The outlined variants keep their border, at `line` rather than at their
+    // own colour: a disabled Delete drawn in `danger` red still shouts.
+    disabledOutlined: { backgroundColor: color.surface2, borderColor: color.line },
+    disabledBare: { backgroundColor: color.transparent },
 });

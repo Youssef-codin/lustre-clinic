@@ -44,6 +44,7 @@ import {
     type Appointment,
     api,
     checkInTimes,
+    type Patient,
     useLocalMutation,
     useLocalQuery,
     type Visit,
@@ -53,11 +54,25 @@ import { dayDelay, delayLabel, delayReason } from './delay';
 import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
-import type { PatientDraft } from './patientDraft';
+import { draftFor, type PatientDraft } from './patientDraft';
 import { relativeDayLabel, todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
+
+/**
+ * A booking asked for from outside this cluster — the patient record's Book and
+ * Walk-in, routed here by the shell because a cluster cannot push into another
+ * one's stack. It skips `BookPatientSheet`, whose only question is already
+ * answered, and opens `BookingScreen` on the patient it names. `timing` is the
+ * difference between the two buttons: a walk-in is the "now" answer to when.
+ * `seq` makes each ask distinct, so the same patient can be booked twice.
+ */
+export type OpenBookingRequest = {
+    patient: Patient;
+    timing: 'now' | 'later';
+    seq: number;
+};
 
 export type DayScreenProps = {
     /** The booking page covers the day pane; the shell lights the Patients tab
@@ -72,9 +87,17 @@ export type DayScreenProps = {
      * to come back to Reminders, not to the day behind it.
      */
     onOpenRecord?: (patientId: string, said?: string, backLabel?: string) => void;
+    /** A booking pushed in from another cluster — the patient record's two openers. */
+    open?: OpenBookingRequest;
+    /**
+     * Bumped by the shell when the Day tab is tapped while it is already up.
+     * Home is the schedule: whatever is pushed over it closes, and the date and
+     * branch stay where they were — they are what the desk chose, not a route.
+     */
+    goHome?: number;
 };
 
-export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}) {
+export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
@@ -84,8 +107,15 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
     // the day (`PushView`), so the day keeps its date, branch and scroll and
     // the tab bar stays where it is. The draft outlives the page's exit
     // animation — clearing it on Back would unmount the pane mid-slide.
-    const [page, setPage] = useState<{ patient: PatientDraft; seq: number } | null>(null);
+    const [page, setPage] = useState<{
+        patient: PatientDraft;
+        /** Set only when the booking was asked for from outside, which says which button it was. */
+        timing?: 'now' | 'later';
+        seq: number;
+    } | null>(null);
     const [pageOpen, setPageOpen] = useState(false);
+    const [seenOpen, setSeenOpen] = useState(0);
+    const [seenHome, setSeenHome] = useState(goHome);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
         open: false,
@@ -117,6 +147,33 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
     } | null>(null);
     const [visitOpen, setVisitOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    // Both derived during render rather than in an effect, so the page is on
+    // screen in the same commit as the tab switch and the pane never paints the
+    // schedule for a frame first.
+    if (open && open.seq !== seenOpen) {
+        setSeenOpen(open.seq);
+        setBooking((current) => ({ ...current, open: false }));
+        setPage((current) => ({
+            patient: draftFor(open.patient),
+            timing: open.timing,
+            seq: (current?.seq ?? 0) + 1,
+        }));
+        setPageOpen(true);
+    }
+
+    // Everything pushed over the schedule comes down. The shell drops the
+    // booking highlight itself — it is what raised it — so nothing is reported
+    // back up from inside a render.
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        setTab('day');
+        setPageOpen(false);
+        setVisitOpen(false);
+        setBooking((current) => ({ ...current, open: false }));
+        setCalendar((current) => ({ ...current, open: false }));
+        setSelected((current) => ({ ...current, open: false }));
+    }
 
     const nowMinutes = useNowMinutes();
 
@@ -495,6 +552,7 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
                     <BookingScreen
                         key={`booking:${page.seq}`}
                         patient={page.patient}
+                        timing={page.timing}
                         branchId={branch}
                         branches={branches.data ?? []}
                         schedule={schedule.data}

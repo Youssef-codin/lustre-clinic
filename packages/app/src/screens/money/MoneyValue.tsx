@@ -1,6 +1,16 @@
-// `_Local` per §10: `domain/MoneyValue` does not exist yet. This is the only
-// place the cluster turns an amount into text; the arithmetic lives in
-// `money.ts`, which has no React Native import and is testable. The figure and
+// The money cluster's own money renderer. `components/domain/MoneyValue` has
+// landed and this is deliberately not it — yet. The two agree on every rule
+// that decides a figure (piastres in, whole pounds out, Latin numerals, `ج.م`
+// trailing in Arabic) and disagree on everything the money designs need from
+// the props: `currencyVariant`, `currencySuffix`, `currencyStyle` and `weight`,
+// none of which the shared one carries, and a figure face — the shared one
+// pins DM Mono per §7.11, these screens are drawn in Instrument Sans. Folding
+// them together means widening the shared component and re-deciding the face
+// for the day view and the patient rows at the same time, which is a call for
+// whoever owns `components/domain`, not a side effect of wiring up the server.
+//
+// This is the only place the cluster turns an amount into text; the arithmetic
+// lives in `money.ts`, which has no React Native import and is testable. The figure and
 // the currency are separate Texts, and both take Instrument Sans: §7.11 put
 // money in DM Mono for tabular alignment, but the money designs set every
 // figure in the sans face and that is what these screens are held against, so

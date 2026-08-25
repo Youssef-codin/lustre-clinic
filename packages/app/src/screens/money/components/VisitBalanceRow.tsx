@@ -5,9 +5,9 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
-import type { VisitBalance } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { VisitBalance } from '../data';
 import { dayStamp, outstandingAge } from '../format';
+import { MoneyValue } from '../MoneyValue';
 
 export type VisitBalanceRowProps = {
     visit: VisitBalance;

@@ -10,9 +10,16 @@
  * The preview is not decoration either: the template is the only place in the
  * app where a typo reaches every patient, so the pane renders the message as it
  * will actually be sent, with sample values substituted for the tokens.
+ *
+ * Two shapes are the pane's own and are converted at this edge, in
+ * `data/reminders`: the stepper steps minutes from midnight while the column is
+ * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
+ * the server accepts.
  */
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useTRPC } from '../../api';
 import {
     Callout,
     Card,
@@ -28,9 +35,8 @@ import { formatClock12 } from './components/_LocalClock';
 import { PlusIcon, WhatsAppIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
-import { REMINDER_TOKENS, TEMPLATE_MAX } from './data/types';
+import { errorText } from './data/errors';
+import { minutesFromTime, REMINDER_TOKENS, TEMPLATE_MAX, timeFromMinutes } from './data/reminders';
 
 /**
  * The values the preview substitutes. Deliberately one fixed patient rather
@@ -46,9 +52,14 @@ const SAMPLE: Record<string, string> = {
 };
 
 export function RemindersScreen({ onBack }: { onBack: () => void }) {
-    const settings = useQuery(useCallback(() => api.reminderSettings.get(), []));
-    const save = useMutation((input: Parameters<typeof api.reminderSettings.update>[0]) =>
-        api.reminderSettings.update(input),
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const settings = useQuery(trpc.settings.get.queryOptions());
+    const save = useMutation(
+        trpc.settings.update.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
+        }),
     );
 
     // The template is typed into, so it is local state while the pane is open
@@ -56,25 +67,24 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     // a tap is already a whole decision.
     const [template, setTemplate] = useState<string | null>(null);
 
-    const refreshControl = usePullToRefresh(settings.reload, settings.loading || settings.reloading);
+    const refreshControl = usePullToRefresh(settings.refetch, settings.isFetching);
 
     const data = settings.data;
-    const text = template ?? data?.template ?? '';
+    const text = template ?? data?.reminderTemplate ?? '';
     const overLimit = text.length > TEMPLATE_MAX;
+    const notifyAt = data ? minutesFromTime(data.reminderNotifyAt) : 0;
 
-    async function write(input: Parameters<typeof api.reminderSettings.update>[0]) {
-        if (await save.run(input)) settings.reload();
-    }
+    const write = save.mutate;
 
     return (
         <Pane title="Reminders" onBack={onBack} refreshControl={refreshControl} testID="settings-reminders">
-            {settings.loading ? <SkeletonRows count={3} trailing /> : null}
+            {settings.isLoading ? <SkeletonRows count={3} trailing /> : null}
 
             {settings.error ? (
                 <ErrorState
-                    message={errorMessage(settings.error) ?? ''}
-                    onRetry={settings.reload}
-                    retrying={settings.reloading}
+                    message={errorText(settings.error)}
+                    onRetry={settings.refetch}
+                    retrying={settings.isFetching}
                 />
             ) : null}
 
@@ -82,7 +92,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                 <>
                     {save.error ? (
                         <Callout tone="warning" title="Not saved">
-                            {errorMessage(save.error) ?? ''}
+                            {errorText(save.error)}
                         </Callout>
                     ) : null}
 
@@ -93,35 +103,35 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             <TimingRow
                                 label="Remind before"
                                 hint="How long before the appointment a reminder becomes due"
-                                value={data.leadHours}
+                                value={data.reminderLeadHours}
                                 min={1}
                                 max={96}
                                 format={(hours) => `${hours} h`}
-                                onChange={(leadHours) => write({ leadHours })}
+                                onChange={(reminderLeadHours) => write({ reminderLeadHours })}
                                 testID="reminder-lead"
                             />
                             <CardDivider />
                             <TimingRow
                                 label="Notify me at"
                                 hint="Daily notification time, if any reminders are pending"
-                                value={data.notifyAt}
+                                value={notifyAt}
                                 min={6 * 60}
                                 max={21 * 60}
                                 step={60}
                                 format={formatClock12}
-                                onChange={(notifyAt) => write({ notifyAt })}
+                                onChange={(minutes) => write({ reminderNotifyAt: timeFromMinutes(minutes) })}
                                 testID="reminder-notify"
                             />
                             <CardDivider />
                             <TimingRow
                                 label="Repeat every"
                                 hint="How often the notification repeats while reminders are still pending. Stops when the list is cleared or dismissed for the day, and never runs overnight."
-                                value={data.repeatMinutes}
+                                value={data.reminderRepeatMinutes}
                                 min={15}
                                 max={120}
                                 step={15}
                                 format={(minutes) => `${minutes} min`}
-                                onChange={(repeatMinutes) => write({ repeatMinutes })}
+                                onChange={(reminderRepeatMinutes) => write({ reminderRepeatMinutes })}
                                 testID="reminder-repeat"
                             />
                         </Card>
@@ -148,7 +158,8 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             value={text}
                             onChangeText={setTemplate}
                             onBlur={() => {
-                                if (template !== null && !overLimit) write({ template });
+                                const trimmed = template?.trim();
+                                if (trimmed && !overLimit) write({ reminderTemplate: trimmed });
                             }}
                             accessibilityLabel="Reminder message template"
                             testID="reminder-template"
@@ -178,7 +189,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                     WHATSAPP
                                 </Text>
                                 <Text variant="caption" tone="inverse" script="mono" style={styles.sendAt}>
-                                    {formatClock12(data.notifyAt)}
+                                    {formatClock12(notifyAt)}
                                 </Text>
                             </View>
 

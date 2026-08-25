@@ -2,9 +2,22 @@
 // test` has no renderer, so what is tested here is everything that decides a
 // figure: the piastre-to-pound conversion, the compact form, the currency
 // rule, the overpayment clamp, and the derivations the screens trust.
+//
+// The derived balances themselves are no longer asserted here. They were, back
+// when `_LocalMoneyApi` derived them from fixtures on the client; the server
+// derives them now, and `packages/server/tests/balance.test.ts` and
+// `modules.test.ts` assert them against real Postgres. Testing a mirrored copy
+// of that arithmetic would only prove the copy agreed with itself.
 import { describe, expect, it } from 'bun:test';
-import { moneyApi } from './_LocalMoneyApi';
-import { dueLabel, outstandingAge, statsPeriodLabel, takingsLabel } from './format';
+import { offsetForDate } from '../day/time';
+import {
+    dueLabel,
+    methodLabel,
+    outstandingAge,
+    paymentMethodOf,
+    statsPeriodLabel,
+    takingsLabel,
+} from './format';
 import {
     amountStillDue,
     clampToBalance,
@@ -14,7 +27,12 @@ import {
     DEBTOR_SORT_LABEL,
     DEBTOR_SORTS,
     formatEgp,
+    hasShareBase,
     isWholePounds,
+    methodShare,
+    PERIOD_LABEL,
+    PERIODS,
+    periodRange,
     sortDebtors,
     toEgp,
 } from './money';
@@ -114,61 +132,134 @@ describe('outstanding age', () => {
     });
 });
 
-describe('balances are derived, never stored (§10)', () => {
-    it('reports a patient total that is the sum of their unpaid visits', async () => {
-        const report = await moneyApi.outstanding();
+describe('the period pills, as a range the server can answer', () => {
+    // A Wednesday, so the week start is four days back and not the same day.
+    const today = '2026-08-19';
 
-        const mariam = report.patients.find((row) => row.name === 'Mariam Hassan');
-        expect(mariam?.balance).toBe(435_000);
+    it('ends every period today rather than at the end of the calendar unit', () => {
+        for (const period of PERIODS) {
+            expect(periodRange(period, today).to).toBe(today);
+        }
     });
 
-    it('reports a total that is the sum of the patient balances', async () => {
-        const report = await moneyApi.outstanding();
-        const summed = report.patients.reduce((total, row) => total + row.balance, 0);
-
-        expect(report.total).toBe(summed);
+    it('starts today on today', () => {
+        expect(periodRange('today', today).from).toBe('2026-08-19');
     });
 
-    it('excludes a visit that is settled in full — there is no unpaid status', async () => {
-        const report = await moneyApi.outstanding();
-
-        expect(report.patients.some((row) => row.name === 'Hana Mostafa')).toBe(false);
-        expect(await moneyApi.byPatient('p-6')).toEqual([]);
+    it('starts the week on Sunday, the first working day', () => {
+        expect(periodRange('week', today).from).toBe('2026-08-16');
     });
 
-    it('dates the balance from the oldest unpaid visit', async () => {
-        const report = await moneyApi.outstanding();
-        const nour = report.patients.find((row) => row.patientId === 'p-3');
-
-        expect(nour?.oldestUnpaidAt).toBe('2026-01-14T16:45:00.000Z');
+    it('starts the week on the day itself when the day is a Sunday', () => {
+        expect(periodRange('week', '2026-08-16').from).toBe('2026-08-16');
     });
 
-    it('moves the balance when a payment row is added, and only then', async () => {
-        const before = await moneyApi.visit('v-7');
-        expect(before.balance).toBe(520_000);
+    it('starts the month on the first and the year on 1 January', () => {
+        expect(periodRange('month', today).from).toBe('2026-08-01');
+        expect(periodRange('year', today).from).toBe('2026-01-01');
+    });
 
-        const after = await moneyApi.recordPayment({ visitId: 'v-7', amount: 20_000, method: 'cash' });
+    it('crosses a month and a year boundary without arithmetic on the wrong unit', () => {
+        expect(periodRange('month', '2026-01-01').from).toBe('2026-01-01');
+        expect(periodRange('week', '2026-01-01').from).toBe('2025-12-28');
+        expect(periodRange('year', '2026-12-31').from).toBe('2026-01-01');
+    });
 
-        expect(after.paidTotal).toBe(20_000);
-        expect(after.balance).toBe(500_000);
-        expect(after.chargedTotal).toBe(before.chargedTotal);
+    it('floors all time, because the server takes a closed range', () => {
+        const range = periodRange('all', today);
+
+        expect(range.from).toBe('2000-01-01');
+        expect(range.from < range.to).toBe(true);
+    });
+
+    it('never starts a period after it ends', () => {
+        for (const period of PERIODS) {
+            const range = periodRange(period, today);
+            expect(range.from <= range.to).toBe(true);
+        }
+    });
+
+    // The Money tab is never unmounted, so the day it measures from has to be
+    // an argument. A screen holding yesterday must produce yesterday's range —
+    // that is what makes the staleness visible instead of silent.
+    it('follows the day it is given, so a re-read moves the whole range', () => {
+        expect(periodRange('today', '2026-08-19').from).toBe('2026-08-19');
+        expect(periodRange('today', '2026-08-20').from).toBe('2026-08-20');
+
+        const newMonth = periodRange('month', '2026-09-01');
+        expect(newMonth.from).toBe('2026-09-01');
+        expect(newMonth.to).toBe('2026-09-01');
+    });
+
+    // Egypt keeps DST, so a range starting in the other regime has two offsets.
+    // The server expands each end with the one it is given, and one offset for
+    // both opened "This year" an hour before local midnight on 1 January.
+    // Asserted as the wiring rather than as a figure: under CI's UTC both
+    // offsets are zero, and it is which day each is read from that was wrong.
+    it('carries the offset in force at each end of the range', () => {
+        for (const period of PERIODS) {
+            const range = periodRange(period, today);
+
+            expect(range.offsetMinutes).toBe(offsetForDate(range.to));
+            expect(range.fromOffsetMinutes).toBe(offsetForDate(range.from));
+        }
+    });
+
+    it('labels every period it can produce', () => {
+        for (const period of PERIODS) {
+            expect(PERIOD_LABEL[period]).toBeTruthy();
+        }
     });
 });
 
-describe('takings', () => {
-    it('sums to the collected figure the summary reports, for every period', async () => {
-        for (const period of ['today', 'week', 'month', 'year', 'all'] as const) {
-            const [summary, takings] = await Promise.all([
-                moneyApi.summary(period),
-                moneyApi.takings(period),
-            ]);
+describe('a refund makes a takings row negative (§10)', () => {
+    // `visit.setPaid` writes the delta, so correcting a paid total downwards
+    // inserts a negative payment. Every case below is reachable from the desk.
+    it('takes an ordinary share as before', () => {
+        expect(methodShare(50_000, 200_000)).toBe(0.25);
+        expect(methodShare(200_000, 200_000)).toBe(1);
+    });
 
-            const summed = takings.byMethod.reduce((total, row) => total + row.amount, 0);
+    it('never draws a bar backwards for a method that refunded more than it took', () => {
+        expect(methodShare(-50_000, 150_000)).toBe(0);
+        expect(Math.round(methodShare(-50_000, 150_000) * 100)).toBe(0);
+    });
 
-            expect(takings.total).toBe(summed);
-            expect(summary.collected).toBe(takings.total);
-            expect(summary.difference).toBe(summary.charged - summary.collected);
-        }
+    it('has no share to take when the period netted to zero or below', () => {
+        expect(hasShareBase(0)).toBe(false);
+        expect(hasShareBase(-120_000)).toBe(false);
+        expect(methodShare(100_000, 0)).toBe(0);
+        expect(methodShare(-120_000, -120_000)).toBe(0);
+    });
+
+    it('still has a base when the period is positive', () => {
+        expect(hasShareBase(1)).toBe(true);
+    });
+
+    it('caps a share at the whole, so a bar cannot overrun its track', () => {
+        expect(methodShare(300_000, 200_000)).toBe(1);
+    });
+});
+
+describe('a payment method the enum does not know', () => {
+    // `visit.byId` widens the column to `string`, so the narrowing is the
+    // client's and a blank row is the failure it is there to avoid.
+    it('keeps every real method', () => {
+        expect(paymentMethodOf('cash')).toBe('cash');
+        expect(paymentMethodOf('visa')).toBe('visa');
+        expect(paymentMethodOf('instapay')).toBe('instapay');
+        expect(paymentMethodOf('other')).toBe('other');
+    });
+
+    it('falls back rather than rendering nothing', () => {
+        expect(paymentMethodOf('cheque')).toBe('other');
+        expect(methodLabel('cheque')).toBe('Other');
+    });
+
+    it('still prefers the note over the label for "other"', () => {
+        expect(methodLabel('other', 'Bank transfer')).toBe('Bank transfer');
+        expect(methodLabel('other', '   ')).toBe('Other');
+        expect(methodLabel('cash', 'ignored')).toBe('Cash');
     });
 });
 
@@ -222,42 +313,6 @@ describe('a period can collect more than it charged', () => {
         expect(amountStillDue(2_382_000)).toBe(2_382_000);
         expect(collectedAhead(2_382_000)).toBe(0);
         expect(Math.round(collectionRate(14_262_000, 11_880_000) * 100)).toBe(83);
-    });
-});
-
-describe('the mirrored contract matches what the server actually returns', () => {
-    it('exposes no appointment or patient fields on a visit', async () => {
-        const visit = await moneyApi.visit('v-1');
-
-        expect(visit).not.toHaveProperty('ref');
-        expect(visit).not.toHaveProperty('startsAt');
-        expect(visit).not.toHaveProperty('patientId');
-        expect(visit).not.toHaveProperty('patientName');
-    });
-
-    it('returns the visits-row columns and the derived totals', async () => {
-        const visit = await moneyApi.visit('v-1');
-
-        expect(Object.keys(visit).sort()).toEqual(
-            [
-                'appointmentId',
-                'balance',
-                'chargedTotal',
-                'checkedInAt',
-                'completedAt',
-                'computedTotal',
-                'paidTotal',
-                'payments',
-                'id',
-            ].sort(),
-        );
-    });
-
-    it('still carries the reference and date on a balance row, where they exist', async () => {
-        const [first] = await moneyApi.byPatient('p-1');
-
-        expect(first?.ref).toBe('020526-K7QP');
-        expect(first?.startsAt).toBe('2026-05-02T10:30:00.000Z');
     });
 });
 

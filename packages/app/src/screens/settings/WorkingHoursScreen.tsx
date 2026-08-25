@@ -8,8 +8,10 @@
  * placeholder. Times are zero-padded `HH:MM`, so string comparison is
  * chronological. `ui/` has no time field, so the half-hour slots are hardcoded.
  */
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { type RouterOutput, useTRPC } from '../../api';
 import {
     Button,
     Callout,
@@ -26,9 +28,10 @@ import {
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
-import type { Branch, ClinicDay } from './data/types';
+import { errorText } from './data/errors';
+
+type Branch = RouterOutput['branch']['list'][number];
+type ClinicDay = RouterOutput['settings']['schedule'][number];
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
@@ -40,24 +43,26 @@ const TIMES = Array.from({ length: 31 }, (_, index) => {
 });
 
 export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
-    const schedule = useQuery(useCallback(() => api.settings.schedule(), []));
-    const branches = useQuery(useCallback(() => api.branch.list({ includeInactive: true }), []));
+    const trpc = useTRPC();
+
+    const schedule = useQuery(trpc.settings.schedule.queryOptions());
+    const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: true }));
     const [editing, setEditing] = useState<number | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
-    const loading = schedule.loading || branches.loading;
+    const loading = schedule.isLoading || branches.isLoading;
     const error = schedule.error ?? branches.error;
     const byWeekday = new Map((schedule.data ?? []).map((day) => [day.weekday, day]));
     const branchName = (id: string) => branches.data?.find((b) => b.id === id)?.name ?? 'Unknown branch';
 
     function reload() {
-        schedule.reload();
-        branches.reload();
+        void schedule.refetch();
+        void branches.refetch();
     }
 
     // Both reads: a day names a branch, so a stale branch list draws a day
     // against "Unknown branch".
-    const refreshControl = usePullToRefresh(reload, loading || schedule.reloading || branches.reloading);
+    const refreshControl = usePullToRefresh(reload, schedule.isFetching || branches.isFetching);
 
     return (
         <Pane
@@ -72,9 +77,9 @@ export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
 
             {error ? (
                 <ErrorState
-                    message={errorMessage(error) ?? ''}
+                    message={errorText(error)}
                     onRetry={reload}
-                    retrying={schedule.reloading || branches.reloading}
+                    retrying={schedule.isFetching || branches.isFetching}
                 />
             ) : null}
 
@@ -111,7 +116,6 @@ export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
                     onSaved={(message) => {
                         setEditing(null);
                         setToast(message);
-                        schedule.reload();
                     }}
                 />
             ) : null}
@@ -182,37 +186,42 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
             label: branch.active ? branch.name : `${branch.name} (deactivated)`,
         }));
 
-    const save = useMutation(async () => {
-        if (!open) {
-            await api.settings.clearDay({ weekday });
-            return 'closed' as const;
-        }
-        if (!branchId) throw new Error('pick a branch');
-        await api.settings.setDay({ weekday, branchId, opensAt, closesAt });
-        return 'open' as const;
-    });
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+    const onSettingsWritten = () => queryClient.invalidateQueries(trpc.settings.pathFilter());
+
+    const setDay = useMutation(trpc.settings.setDay.mutationOptions({ onSuccess: onSettingsWritten }));
+    const clearDay = useMutation(trpc.settings.clearDay.mutationOptions({ onSuccess: onSettingsWritten }));
 
     const orderError = open && !(opensAt < closesAt) ? 'Closing time must be after opening.' : undefined;
     const canSave = !open || (branchId !== null && orderError === undefined);
+    const pending = setDay.isPending || clearDay.isPending;
+    const failure = setDay.error ?? clearDay.error;
 
-    async function onSave() {
-        const result = await save.run(undefined);
-        if (result === 'open') onSaved(`${name} saved`);
-        if (result === 'closed') onSaved(`${name} marked closed`);
+    function onSave() {
+        if (!open) {
+            clearDay.mutate({ weekday }, { onSuccess: () => onSaved(`${name} marked closed`) });
+            return;
+        }
+        if (!branchId) return;
+        setDay.mutate(
+            { weekday, branchId, opensAt, closesAt },
+            { onSuccess: () => onSaved(`${name} saved`) },
+        );
     }
 
     return (
         <Sheet
             visible
-            onClose={save.pending ? () => {} : onClose}
-            dismissable={!save.pending}
+            onClose={pending ? () => {} : onClose}
+            dismissable={!pending}
             title={name}
             subtitle={open ? 'Open this day' : 'Closed all day'}
-            footer={<Button label="Save" onPress={onSave} loading={save.pending} disabled={!canSave} block />}
+            footer={<Button label="Save" onPress={onSave} loading={pending} disabled={!canSave} block />}
         >
-            {save.error ? (
+            {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorMessage(save.error) ?? ''}
+                    {errorText(failure, { NOT_FOUND: 'That branch is no longer set up. Pick another one.' })}
                 </Callout>
             ) : null}
 

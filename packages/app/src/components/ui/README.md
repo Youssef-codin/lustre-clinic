@@ -71,7 +71,7 @@ in the content.
 | Fields | `Field` `TextField` `Textarea` `NumericField` `SearchField` `Select` `InlineEditor` `ListEditor` `Placeholder` |
 | Surfaces | `Card` `CardDivider` `SectionLabel` `Tag` `Dot` `ProgressBar` `Chevron` |
 | Overlays | `Sheet` `ConfirmSheet` `Scrim` `PopoverMenu` `DropdownMenu` |
-| Feedback | `Toast` `Callout` `Banner` `EmptyState` `RefreshView` |
+| Feedback | `Toast` `Callout` `Banner` `EmptyState` `ErrorState` `SkeletonRows` `RefreshView` |
 | Hooks | `useKeyboardHeight` `useReducedMotion` `usePullToRefresh` |
 | Motion | `duration` `easing` `PULSE` |
 
@@ -98,6 +98,39 @@ ported. `HomeIndicator` is the device's, not ours.
   edit never reaches the caller, so it never reaches the server.
 - **`PopoverMenu` takes its anchor** rather than measuring the trigger. The
   trigger is a top-bar button at a fixed inset on every screen that has one.
+- **`Button`'s `disabled` is two colours per variant, not one opacity.** An
+  opacity fades the fill and the label together, so a disabled `primary` becomes
+  grey type on grey — and the label of a disabled button is the one sentence that
+  has to survive, because it is the instruction for how to bring the control back
+  (`3 required left`). The design draws `rgba(0,0,0,.12)` under `rgba(0,0,0,.45)`:
+  `surface2` under `muted`, where the label darkens as the fill lightens. `text`
+  and `dangerText` have no fill to lighten and only lose their colour.
+- **`ProgressBar`'s light track is `outline`, not `surface2`.** `surface2`
+  (#f0f0f3) on `canvas` (#f4f4f6) is four values apart and invisible, and the
+  empty bar is the case that matters: at `0 of 4` the track *is* the control,
+  with no fill to infer it from. `outline` is what every other hairline on
+  `canvas` uses and it holds on `surface` too, so there is no `on=` prop to get
+  wrong.
+- **`ErrorState` is a normal state, not an edge case.** The clinic server is a PC
+  that gets switched off during a power cut, so "could not load, try again"
+  happens on every screen and every list owes the desk a Retry. `SkeletonRows` is
+  its loading half: static grey bars at row height, no shimmer, because a sweep
+  needs a gradient dependency the app does not have and pulsing eight rows costs
+  frames for no information.
+- **`Field` has a `layout`, and it is not `TextField`'s `inline`.** `layout`
+  is where the label sits — `stacked` for a form being filled in, `inline` for a
+  card being corrected, which is how the designs draw every "what is on file"
+  block. `TextField`'s own `inline` is the underlined control against the boxed
+  one. Either layout carries either control.
+- **`TextField` and `NumericField` forward a ref** to the inner `TextInput`. That
+  is what makes bulk entry work: submit a row, get an empty form back with the
+  caret already in the name field, instead of tapping back into it between every
+  row of a list hundreds long.
+- **`NumericField` has a `size` as well as a `variant`.** `variant` is the box;
+  `size` is the figure in it. `amount` is the 20px price the money screens are
+  built around and it is wrong for a number that is not money — an age, a count,
+  "14 months ago" — which reads as a total being announced. The face stays mono
+  either way; the digits are still tabular.
 - **`Button` `primary` is ink, not blue.** §3.1 scopes the blue to the FAB,
   progress fill, links and dashed add buttons; System B calls `--fg` the "primary
   fill" and the designs draw black primaries. `accent` is a separate variant for

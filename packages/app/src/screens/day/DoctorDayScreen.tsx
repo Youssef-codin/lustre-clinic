@@ -45,12 +45,19 @@ import { useNowMinutes } from './useNow';
 export type DoctorDayScreenProps = {
     /** A patient's record is the Patients tab's screen; the shell switches to it. */
     onOpenRecord: (patientId: string) => void;
+    /**
+     * Bumped by the shell when the Day tab is tapped while it is already up.
+     * This screen's stack is one sheet deep, so home is that sheet closed; the
+     * date and branch are what the doctor chose and stay.
+     */
+    goHome?: number;
 };
 
-export function DoctorDayScreen({ onOpenRecord }: DoctorDayScreenProps) {
+export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
+    const [seenHome, setSeenHome] = useState(goHome);
     // The appointment the sheet is about. Kept while the sheet slides back out;
     // dropping it on close would blank it mid-animation.
     const [opened, setOpened] = useState<{ appointment: Appointment | null; sheet: boolean }>({
@@ -58,6 +65,12 @@ export function DoctorDayScreen({ onOpenRecord }: DoctorDayScreenProps) {
         sheet: false,
     });
     const [toast, setToast] = useState<string | null>(null);
+
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        setOpened((current) => ({ ...current, sheet: false }));
+        setCalendar((current) => ({ ...current, open: false }));
+    }
 
     const nowMinutes = useNowMinutes();
 

@@ -91,6 +91,50 @@ replaced an entire Users pane with a confirm sheet on the settings index.
 
 # Client architecture
 
+## Crossing clusters is the shell's job, and it moves requests, not routes
+
+Each cluster owns its own stack, so none of them can push a screen into another
+one — which is why the patient record drew Book, Walk-in and Record payment and
+let all three toast. The fix is in `shell/routes.ts`: the ask goes up to
+`AppShell` and back down as a *request* carrying what the destination needs plus
+a `seq`, and the destination cluster decides which of its screens that means.
+`seq` is what makes one ask distinguishable from the last, so the same patient
+can be booked twice; a cluster reads it during render, not in an effect, so the
+screen is up in the same commit as the tab switch.
+
+Going home — tapping the tab you are already on — runs the same wire backwards
+and for the same reason. The shell cannot pop a route it does not own, so it
+bumps a counter per tab and each cluster resets itself, deciding for itself what
+home is. The Patients tab also scrolls its list to the top, because home there
+is the search field and the register is longer than a screen; the other three
+only pop.
+
+A real navigator (SPEC §18 F3) gives both of these for free and both are written
+to be deleted when one lands: every request is already the shape of a route's
+params, and `goHome` is `popToTop`.
+
+## Record payment opens the balances, not a payment form
+
+The record's outstanding strip knows a patient-level total that can span several
+unsettled visits, and `visit.recordPayment` takes one `visitId`. Rather than
+spread a payment across the oldest debts — a second, invisible rule about money
+— the button lands on that patient's balances in the money cluster, which is the
+list the total is made of, and the visit is chosen there. That is what the Money
+tab already does from its own debtor rows; the record joins it instead of
+growing a second way to take a payment.
+
+## Book and Walk-in are one screen with two openings
+
+`BookingScreen` already made the walk-in the "now" answer to *when*, so the
+record's two buttons are not two flows: both push that screen for the patient
+they are on, and differ only in the answer it opens on. What they skip is
+`BookPatientSheet`, whose only question — who is this for — the record has
+already answered.
+
+They are passed only on the secretary's phone. The doctor's day view has no
+booking on it to reach, so on his the record keeps the screen's own fallback,
+which names where the flow lives rather than failing silently.
+
 ## One branch or all of them — deliberately unsettled
 
 The day view queries every branch (`appointment.byDate`'s `branchId` is optional
@@ -142,19 +186,17 @@ prefers the server schedule (`settings.schedule`, `clinic_days`) and falls back
 to hardcoded defaults when the clinic has never configured one, so an
 unconfigured clinic does not render seven closed days.
 
-## Data entry runs on the real client while its cluster runs on fixtures
+## The settings cluster localizes failures in one place
 
-Odd on sight, deliberate. Every other settings pane calls `data/_LocalApi`; the
-data entry pane calls `../../../api` directly. It has to — it writes real
-patients into the real register, and a morning of typing into a store that does
-not survive a reload is a morning thrown away.
+`data/errors.ts` holds one sentence per `ERROR_CODE`, and a pane that can say
+something better for a code passes it in. Data entry is the reason the override
+exists: during a migration session, "something went wrong" is the one thing the
+desk must not be told, because what it needs to know is that the row is still on
+screen and nothing was lost.
 
-It also carries its own `errorText` rather than using `data/hooks`'
-`errorMessage`, which would flatten a real offline failure into "Something went
-wrong" — the one thing it must not say during a migration session, since the
-desk needs to know the row is still on screen.
-
-Both halves go away when `_LocalApi` is retired.
+This replaced two error mappers — the cluster's and the data entry pane's own —
+which existed because that pane ran on the real client while everything around
+it ran on `data/_LocalApi`. Both are gone with the stand-in.
 
 ---
 
@@ -278,11 +320,44 @@ action (merge, deactivate, export) gives the menu something to be.
   answer type locked once a question exists. The delete that orphans answers was
   removed on purpose; the mockup's "answers are kept but hidden" sheet describes
   deactivation in delete's words.
+- **The branch card drops its second line.** The design gives each branch a
+  phone number, a patient count, the year it opened and the month it closed, and
+  tags the one the phone is standing in. `branches` is `id, name, address,
+  active`, and nothing tracks which branch a phone is in. Every one of those
+  would have been a number the pane made up, which is the bug the cluster was
+  just taken off fixtures to fix. The identity card names the clinic for the
+  same reason. They come back when the columns do — see the tasks split out of
+  *Ten Settings panes run on fixtures*.
 - **Working hours is a row in the CLINIC group** though `settings.html`'s index
   (GENERAL / CLINIC / ABOUT) has no slot for it. The alternative was deleting a
   working screen over an omission in a design file that never mentions opening
   hours at all. `glyph="hours"` is the one icon without mockup path data behind
   it. Delete the row and the import if the omission was intentional.
+
+## Making a category writes two rows, or none
+
+`settings-procedures.html`'s ghost "Category" button opens a sheet that names a
+category and adds it to the tree on its own. It cannot work that way here: a row
+is a category because something else names it as a parent, so a category with
+nothing under it is just a root with a price — and `procedure.list` would offer
+it on a visit.
+
+So the sheet names the category and the editor behind it asks for the first
+subtype. Both rows are written by one call — `procedure.createCategory`, in one
+transaction — when that editor saves; backing out writes nothing. Two client
+calls would have left a childless root priced 0 behind whenever the second
+failed, which is the very thing this is avoiding. An empty category therefore cannot exist, which is this branch's answer
+to the open question on the task ("what happens if you later file nothing under
+it").
+
+The alternative was a column — `is_category`, or a nullable price — which is a
+migration on the shared database for a button, and forecloses nothing if it is
+wanted later.
+
+The other half of the same rule: a category whose only visible subtype is hidden
+still draws, as a heading with its "Add to" button and nothing under it. It used
+to vanish from the list while remaining unselectable, which left a row nothing
+on this screen could reach.
 
 ## Bilingual labels: one rule, taking the locale as an argument
 
@@ -294,8 +369,9 @@ different one against the same rows.
 
 Still single-column: `procedure_types.name`, `branches.name`,
 `settings.clinic_name`. `settings-procedures.html` draws the pair for procedures
-and categories, so that pane is the next to want it. Same migration shape, and
-the rule is already written.
+and categories — the new category sheet asks in English only for exactly this
+reason — so that pane is the next to want it. Same migration shape, and the rule
+is already written.
 
 **The answer is not bilingual and is not meant to become so:** it is stored once,
 in whichever language it was given.

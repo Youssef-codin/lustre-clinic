@@ -12,12 +12,11 @@
 //
 // ## What is deliberately shared, and what is not
 //
-// The age rule is imported from `patients/patientForm`, not copied. It is the
-// one genuinely lossy conversion in the app — an age of 34 is written as
-// 1 January of the year that reads back as 34, because the server has no age
-// column — and BLOCKED.md already records that rule existing in two places
-// (`day/patientDraft.ts` and `patients/patientForm.ts`). A third copy is how
-// the three drift.
+// The field-level rules come from `domain/patientDraft` — the lossy age
+// conversion above all, which is the one place in the app where what the desk
+// typed is not what is stored. This screen used to reach across to
+// `patients/patientForm` for them, which was the first cross-cluster import in
+// `screens/` and broke the rule SPEC §10 exists to enforce.
 //
 // Everything else here is this screen's own, because the rules genuinely
 // differ: no email, no notes, no questionnaire, and a field the editor has
@@ -30,10 +29,10 @@
 // read `12.50` as `1250` — a hundredfold overcharge, which on a migration is
 // a hundredfold overcharge told to a patient months later with no visit to
 // check it against.
-import { todayKey } from '../../day/time';
-import { ageDigits, birthDateOf, FEMALE, MALE } from '../../patients/patientForm';
+import { daysInMonth, todayKey } from '@lustre/shared';
+import { ageError, birthDateOf, orNull, phoneError } from '../../../components/domain/patientDraft';
 
-export { ageDigits, FEMALE, MALE };
+export { ageDigits, FEMALE, MALE } from '../../../components/domain/patientDraft';
 
 export type EntryForm = {
     /**
@@ -77,17 +76,8 @@ const PIASTRES_PER_EGP = 100;
 /** Above this and it is a mis-key, not a balance: a hundred thousand pounds owed by one patient. */
 const LARGEST_BALANCE_EGP = 100_000;
 
-/** The server refuses under 5 too. Short enough to be a mis-tap rather than a number. */
-const SHORTEST_PHONE = 5;
-
 export function emptyForm(): EntryForm {
     return { legacyRef: '', name: '', phone: '', age: '', gender: '', balance: '' };
-}
-
-/** Blank means the file had no number on it, and the record says so rather than storing an empty string. */
-function orNull(value: string): string | null {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
 }
 
 /** Six digits is a hundred thousand pounds; the range check below refuses more. */
@@ -111,12 +101,15 @@ export function balancePiastres(pounds: string): number | null {
 
 // --- the cutoff date ------------------------------------------------------
 //
-// Typed as digits and shown with separators, the way `day/patientDraft`'s date
-// of birth is — the same keypad, the same rhythm, so the desk learns one date
-// field and not two. The rule underneath is not the same one, which is why the
-// parse is here rather than imported: a date of birth is refused for being too
-// early and this is refused for being in the future. The old system stopped
+// Typed as digits and shown with separators, the way `domain/patientDraft`'s
+// date of birth is — the same keypad, the same rhythm, so the desk learns one
+// date field and not two. The rule underneath is not the same one, which is why
+// the parse is here rather than imported: a date of birth is refused for being
+// too early and this is refused for being in the future. The old system stopped
 // being the truth on a day that has already happened.
+//
+// `daysInMonth` is shared, because the length of February is the calendar and
+// not a rule about cutoffs.
 
 const CUTOFF_DIGITS = 8;
 
@@ -129,11 +122,6 @@ export function cutoffDisplay(digits: string): string {
     return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)]
         .filter((part) => part.length > 0)
         .join(' / ');
-}
-
-function daysInMonth(year: number, month: number): number {
-    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-    return [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
 }
 
 /** `YYYY-MM-DD` for the server, or null while the entry is incomplete or impossible. */
@@ -185,10 +173,11 @@ export function blankFields(form: EntryForm): EntryField[] {
 export function malformedFields(form: EntryForm): Partial<Record<EntryField, string>> {
     const found: Partial<Record<EntryField, string>> = {};
 
-    const phone = form.phone.trim().replace(/[\s+]/g, '');
-    if (phone.length > 0 && phone.length < SHORTEST_PHONE) found.phone = 'That is too short to be a number.';
+    const phone = phoneError(form.phone);
+    if (phone) found.phone = phone;
 
-    if (form.age.trim() !== '' && birthDateOf(form.age) === null) found.age = 'That is not an age.';
+    const age = ageError(form.age);
+    if (age) found.age = age;
 
     if (form.balance.trim() !== '' && balancePiastres(form.balance) === null) {
         found.balance = 'That is not an amount in pounds.';

@@ -8,9 +8,9 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';
 import { color, space, Text } from '../../../theme';
-import type { PatientBalance } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { PatientBalance } from '../data';
 import { outstandingAge } from '../format';
+import { MoneyValue } from '../MoneyValue';
 
 const MAX_STAGGER_STEPS = 8;
 const STAGGER_MS = 32;

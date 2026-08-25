@@ -51,7 +51,7 @@ import { PatientHeader } from './components/PatientHeader';
 import { useQuery } from './data/_LocalQuery';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
-import type { Answers, CustomQuestion, PatientHistoryEntry, QuestionnaireGap } from './data/types';
+import type { Answers, CustomQuestion, Patient, PatientHistoryEntry, QuestionnaireGap } from './data/types';
 
 export type PatientRecordScreenProps = {
     patientId: string;
@@ -60,11 +60,15 @@ export type PatientRecordScreenProps = {
     backLabel?: string;
     /** Correcting the record — `PatientEditScreen`, which the cluster above routes to. */
     onEdit?: () => void;
-    /** The design's two openers. Both are the day cluster's flows; see BLOCKED.md. */
-    onBook?: () => void;
-    onWalkIn?: () => void;
+    /**
+     * The design's two openers. Both are the day cluster's booking flow, which
+     * this cluster cannot reach — the shell routes them (`shell/routes.ts`), and
+     * they carry the patient because the booking page names and dials them.
+     */
+    onBook?: (patient: Patient) => void;
+    onWalkIn?: (patient: Patient) => void;
     /** Settling the balance is the money cluster's screen; the strip's button appears only if given a way there. */
-    onRecordPayment?: () => void;
+    onRecordPayment?: (patient: Patient) => void;
     /** A history row that became a visit — the cluster above opens it. */
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 };
@@ -132,10 +136,16 @@ export function PatientRecordScreen({
                     <View style={styles.top}>
                         <PatientHeader patient={patient} onFailed={setToast} />
 
-                        <Openers onBook={onBook} onWalkIn={onWalkIn} onUnavailable={setToast} />
+                        <Openers
+                            patient={patient}
+                            onBook={onBook}
+                            onWalkIn={onWalkIn}
+                            onUnavailable={setToast}
+                        />
 
                         <Outstanding
                             amount={outstanding}
+                            patient={patient}
                             onRecordPayment={onRecordPayment}
                             onUnavailable={setToast}
                         />
@@ -225,31 +235,38 @@ function RecordBar({
 }
 
 /**
- * The two things a record is opened to start. Both belong to the day cluster
- * and there is no route to it from here (BLOCKED.md), so without a handler the
- * button says where the flow lives instead of failing silently — the design
- * draws them, and a record that quietly lacks them looks broken rather than
- * unfinished.
+ * The two things a record is opened to start. Both belong to the day cluster,
+ * which this screen cannot reach on its own — the shell routes them. Without a
+ * handler the button still says where the flow lives instead of failing
+ * silently: that is a gallery or a test, and on the doctor's phone, where the
+ * day view has no booking on it to open.
  */
 function Openers({
+    patient,
     onBook,
     onWalkIn,
     onUnavailable,
 }: {
-    onBook?: () => void;
-    onWalkIn?: () => void;
+    patient: Patient;
+    onBook?: (patient: Patient) => void;
+    onWalkIn?: (patient: Patient) => void;
     onUnavailable: (message: string) => void;
 }) {
     const elsewhere = () => onUnavailable('Booking opens from the Day tab for now.');
 
     return (
         <View style={styles.openers}>
-            <Button label="Book appointment" size="md" onPress={onBook ?? elsewhere} style={styles.opener} />
+            <Button
+                label="Book appointment"
+                size="md"
+                onPress={onBook ? () => onBook(patient) : elsewhere}
+                style={styles.opener}
+            />
             <Button
                 label="Walk-in today"
                 variant="secondary"
                 size="md"
-                onPress={onWalkIn ?? elsewhere}
+                onPress={onWalkIn ? () => onWalkIn(patient) : elsewhere}
                 style={styles.opener}
             />
         </View>
@@ -272,16 +289,21 @@ function segments(visits: number) {
  * about money at all.
  *
  * `onRecordPayment` is optional because taking a payment is the money cluster's
- * screen and nothing hands it down yet (BLOCKED.md); without it the button says
- * where the flow lives rather than going missing.
+ * screen and the shell is what reaches it; without it the button says where the
+ * flow lives rather than going missing. The number here is the patient's whole
+ * outstanding and can span several unsettled visits, while a payment is taken
+ * against one — so the handler opens the visits this total is made of and the
+ * visit is chosen there, which is what the Money tab already does.
  */
 function Outstanding({
     amount,
+    patient,
     onRecordPayment,
     onUnavailable,
 }: {
     amount: number;
-    onRecordPayment?: () => void;
+    patient: Patient;
+    onRecordPayment?: (patient: Patient) => void;
     onUnavailable: (message: string) => void;
 }) {
     if (amount <= 0) return null;
@@ -296,8 +318,11 @@ function Outstanding({
             <Pill
                 label="Record payment"
                 onPress={
-                    onRecordPayment ?? (() => onUnavailable('Payments are taken from the Money tab for now.'))
+                    onRecordPayment
+                        ? () => onRecordPayment(patient)
+                        : () => onUnavailable('Payments are taken from the Money tab for now.')
                 }
+                testID="record-payment"
             />
         </View>
     );
