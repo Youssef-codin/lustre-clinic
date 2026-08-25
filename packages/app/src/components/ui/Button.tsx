@@ -148,7 +148,11 @@ export function Button({
 
             {loading && (
                 <View style={styles.spinner} pointerEvents="none">
-                    <ActivityIndicator size="small" color={SPINNER[variant]} />
+                    {/* A button can be loading and disabled at once — `ActionBar`
+                        passes both to its primary. The spinner follows the label
+                        onto the light fill, or a white one lands on `surface2`
+                        and the button reads as doing nothing at all. */}
+                    <ActivityIndicator size="small" color={disabled ? color.muted : SPINNER[variant]} />
                 </View>
             )}
         </Pressable>
