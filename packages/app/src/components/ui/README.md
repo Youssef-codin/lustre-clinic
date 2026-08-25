@@ -121,7 +121,9 @@ ported. `HomeIndicator` is the device's, not ours.
   is where the label sits — `stacked` for a form being filled in, `inline` for a
   card being corrected, which is how the designs draw every "what is on file"
   block. `TextField`'s own `inline` is the underlined control against the boxed
-  one. Either layout carries either control.
+  one. Either layout carries either control. `due` is the third label state,
+  between plain and `error`: required and still empty, marked without a message
+  because a field the desk has not reached yet has nothing to correct.
 - **`TextField` and `NumericField` forward a ref** to the inner `TextInput`. That
   is what makes bulk entry work: submit a row, get an empty form back with the
   caret already in the name field, instead of tapping back into it between every
@@ -130,7 +132,11 @@ ported. `HomeIndicator` is the device's, not ours.
   `size` is the figure in it. `amount` is the 20px price the money screens are
   built around and it is wrong for a number that is not money — an age, a count,
   "14 months ago" — which reads as a total being announced. The face stays mono
-  either way; the digits are still tabular.
+  either way; the digits are still tabular. Its `keyboardType` is `decimal-pad`
+  or `number-pad` and nothing else: a field whose caller strips the separator
+  wants the keypad that has no decimal key, because `12.50` stripped to `1250`
+  is a hundredfold overcharge. Never `numeric` — Android's numeric pad carries a
+  newline key that commits nothing.
 - **`Button` `primary` is ink, not blue.** §3.1 scopes the blue to the FAB,
   progress fill, links and dashed add buttons; System B calls `--fg` the "primary
   fill" and the designs draw black primaries. `accent` is a separate variant for
