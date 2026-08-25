@@ -38,6 +38,11 @@ export function statusLabel(status: AppointmentStatus): string {
     return LABEL[status];
 }
 
+/** The pill's colour without the pill, for rows that only have room for a word. */
+export function statusTone(status: AppointmentStatus): (typeof TONE)[AppointmentStatus] {
+    return TONE[status];
+}
+
 export function _LocalStatusPill({ status, withDot = false }: StatusPillProps) {
     const tone = TONE[status];
 

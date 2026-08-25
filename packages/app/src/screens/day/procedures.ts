@@ -129,23 +129,32 @@ export function describeProcedure(procedure: PlannedProcedure): string {
 }
 
 /**
- * Only what can actually go where the secretary is putting it. A tooth was
- * chosen, so the list is the procedures done *to* a tooth; "no tooth assigned"
- * is the list of those done to the mouth. The server refuses the other pairing
- * either way (§5 — TOOTH_REQUIRED, TOOTH_NOT_APPLICABLE), so offering it here
- * only holds the refusal back until confirm, with the whole plan already built
- * and the patient waiting on it.
+ * Only what can actually go where the secretary is putting it — which depends
+ * entirely on whether a tooth has been named yet.
  *
+ * With a tooth ("Add to UR6") the list is the procedures done *to* a tooth, and
+ * nothing else. A scaling belongs to the mouth; the server refuses it on a
+ * tooth (§5 — TOOTH_NOT_APPLICABLE) and offering it here only holds the refusal
+ * back until confirm, with the whole plan built and the patient waiting on it.
  * A heading keeps only the variants that fit, and a heading with none left is
  * not a heading worth opening.
+ *
+ * Without one, the sheet offers the whole catalogue. It used to mirror the
+ * strict match and show mouth-level work alone, which dropped every
+ * uncategorised tooth-specific procedure — Extraction, Simple extraction — out
+ * of a button labelled "Add procedure" with nothing to say where they had
+ * gone. The tooth is asked for after the pick instead (`needsTooth` on the
+ * chosen row), so the button means what it says and §5 still gets its tooth.
  */
 export function offeredFor(categories: readonly ProcedureCategory[], hasTooth: boolean): ProcedureCategory[] {
+    if (!hasTooth) return [...categories];
+
     return categories.flatMap((category) => {
         if (category.selectable) {
-            return category.isToothSpecific === hasTooth ? [category] : [];
+            return category.isToothSpecific ? [category] : [];
         }
 
-        const children = category.children.filter((child) => child.isToothSpecific === hasTooth);
+        const children = category.children.filter((child) => child.isToothSpecific);
         return children.length > 0 ? [{ ...category, children }] : [];
     });
 }

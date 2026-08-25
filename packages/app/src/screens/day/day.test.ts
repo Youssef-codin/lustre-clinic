@@ -96,6 +96,20 @@ describe('the agenda', () => {
         expect(upcoming.map((row) => row.id)).toEqual(['stale', 'later']);
     });
 
+    // The fold is relative to now, so only today has one. A past day is every
+    // row settled, and folding them all away drew nothing at all under a tab
+    // pill that went on counting them.
+    it('folds nothing off today, and still puts the day in order', () => {
+        const { past, upcoming } = splitDay(
+            [at('later', '13:00', 'done'), at('done', '09:30', 'done'), at('missed', '10:00', 'no_show')],
+            null,
+            false,
+        );
+
+        expect(past).toEqual([]);
+        expect(upcoming.map((row) => row.id)).toEqual(['done', 'missed', 'later']);
+    });
+
     it('does not draw the patient in the chair twice', () => {
         const { upcoming } = splitDay(
             [at('chair', '11:00', 'checked_in'), at('next', '11:30', 'booked')],
@@ -984,18 +998,23 @@ describe('what the catalogue offers', () => {
             })),
         }) as ProcedureCategory;
 
-    // The server refuses both pairings, so a plan that can be built here but
-    // not booked is a dead end found at the confirm step with a patient waiting.
+    // A tooth was named, so mouth-level work cannot go on it — the server
+    // refuses that pairing, and a plan built here but not bookable is a dead end
+    // found at the confirm step with a patient waiting.
     it('offers only tooth work once a tooth is chosen', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], true);
 
         expect(offered.map((row) => row.id)).toEqual(['extraction']);
     });
 
-    it('offers only mouth work when no tooth is assigned', () => {
+    // The other direction is not symmetric: without a tooth the sheet is the
+    // whole catalogue, and the tooth is asked for after the pick. Mirroring the
+    // strict match here is what hid every uncategorised tooth-specific
+    // procedure behind a button that just said "Add procedure".
+    it('offers the whole catalogue when no tooth is assigned', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], false);
 
-        expect(offered.map((row) => row.id)).toEqual(['scaling']);
+        expect(offered.map((row) => row.id)).toEqual(['extraction', 'scaling']);
     });
 
     it('keeps a heading only for the variants that fit', () => {
@@ -1010,9 +1029,20 @@ describe('what the catalogue offers', () => {
         expect(offered[0]?.children.map((child) => child.id)).toEqual(['class-i']);
     });
 
-    it('drops a heading whose every variant is the wrong kind', () => {
-        const filling = category('filling', false, [{ id: 'class-i', isToothSpecific: true }]);
+    it('drops a heading whose every variant is mouth work once a tooth is chosen', () => {
+        const filling = category('filling', false, [{ id: 'whitening', isToothSpecific: false }]);
 
-        expect(offeredFor([filling], false)).toEqual([]);
+        expect(offeredFor([filling], true)).toEqual([]);
+    });
+
+    it('keeps every variant of a heading when no tooth is assigned', () => {
+        const filling = category('filling', false, [
+            { id: 'class-i', isToothSpecific: true },
+            { id: 'whitening', isToothSpecific: false },
+        ]);
+
+        const offered = offeredFor([filling], false);
+
+        expect(offered[0]?.children.map((child) => child.id)).toEqual(['class-i', 'whitening']);
     });
 });
