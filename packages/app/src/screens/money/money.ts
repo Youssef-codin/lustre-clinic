@@ -80,6 +80,30 @@ export function collectionRate(charged: number, collected: number): number {
     return Math.min(1, Math.max(0, collected / charged));
 }
 
+/**
+ * One payment method's share of the period's takings.
+ *
+ * A share only exists against a positive base. A refund is a negative payment
+ * row (`payments_amount_nonzero` allows it; `visit.setPaid` writes one whenever
+ * a paid total is corrected downward), so a method's total can be negative and
+ * the period's total can net to zero or below. None of those are a length of
+ * bar: a negative share draws a bar backwards out of its track and labels it
+ * "-33%", and dividing by a zero or negative total is not a percentage of
+ * anything. Clamped like `collectionRate`, for the same reason.
+ *
+ * `hasShareBase` is the question the card has to ask *before* this: a period
+ * with rows but no positive total has amounts worth showing and no split worth
+ * drawing.
+ */
+export function methodShare(amount: number, total: number): number {
+    if (!hasShareBase(total)) return 0;
+    return Math.min(1, Math.max(0, amount / total));
+}
+
+export function hasShareBase(total: number): boolean {
+    return total > 0;
+}
+
 export function amountStillDue(difference: number): number {
     return Math.max(0, difference);
 }

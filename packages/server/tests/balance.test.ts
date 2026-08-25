@@ -212,4 +212,39 @@ describe('balance.takings', () => {
         expect(takings.total).toBe(0);
         expect(takings.byMethod).toEqual([]);
     });
+
+    /**
+     * `visit.setPaid` writes the delta against what is already on the visit, so
+     * correcting a paid total downwards inserts a negative payment row. The
+     * takings card divides by `total` to size its bars, so these two shapes are
+     * what stop it drawing a bar backwards or calling a busy day empty.
+     */
+    test('reports a method that refunded more than it took as negative', async () => {
+        const f = await fixtures();
+        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 300_000, 0);
+
+        await visitService.recordPayment({ visitId: visit.id, amount: 200_000, method: 'cash' });
+        await visitService.recordPayment({ visitId: visit.id, amount: 40_000, method: 'visa' });
+        // The desk over-recorded the card payment; correcting it writes -40_000.
+        await visitService.setPaid({ visitId: visit.id, paidTotal: 200_000, method: 'visa' });
+
+        const takings = await balanceService.takings(thisPeriod());
+
+        expect(takings.total).toBe(200_000);
+        expect(takings.byMethod).toContainEqual({ method: 'visa', amount: 0, count: 2 });
+    });
+
+    test('can net to zero with real movements on it', async () => {
+        const f = await fixtures();
+        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 300_000, 0);
+
+        await visitService.recordPayment({ visitId: visit.id, amount: 100_000, method: 'cash' });
+        await visitService.setPaid({ visitId: visit.id, paidTotal: 0, method: 'cash' });
+
+        const takings = await balanceService.takings(thisPeriod());
+
+        // Zero total, two payment rows — "nothing was collected" would be false.
+        expect(takings.total).toBe(0);
+        expect(takings.byMethod).toEqual([{ method: 'cash', amount: 0, count: 2 }]);
+    });
 });

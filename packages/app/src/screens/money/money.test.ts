@@ -26,7 +26,9 @@ import {
     DEBTOR_SORT_LABEL,
     DEBTOR_SORTS,
     formatEgp,
+    hasShareBase,
     isWholePounds,
+    methodShare,
     PERIOD_LABEL,
     PERIODS,
     periodRange,
@@ -193,6 +195,35 @@ describe('the period pills, as a range the server can answer', () => {
         for (const period of PERIODS) {
             expect(PERIOD_LABEL[period]).toBeTruthy();
         }
+    });
+});
+
+describe('a refund makes a takings row negative (§10)', () => {
+    // `visit.setPaid` writes the delta, so correcting a paid total downwards
+    // inserts a negative payment. Every case below is reachable from the desk.
+    it('takes an ordinary share as before', () => {
+        expect(methodShare(50_000, 200_000)).toBe(0.25);
+        expect(methodShare(200_000, 200_000)).toBe(1);
+    });
+
+    it('never draws a bar backwards for a method that refunded more than it took', () => {
+        expect(methodShare(-50_000, 150_000)).toBe(0);
+        expect(Math.round(methodShare(-50_000, 150_000) * 100)).toBe(0);
+    });
+
+    it('has no share to take when the period netted to zero or below', () => {
+        expect(hasShareBase(0)).toBe(false);
+        expect(hasShareBase(-120_000)).toBe(false);
+        expect(methodShare(100_000, 0)).toBe(0);
+        expect(methodShare(-120_000, -120_000)).toBe(0);
+    });
+
+    it('still has a base when the period is positive', () => {
+        expect(hasShareBase(1)).toBe(true);
+    });
+
+    it('caps a share at the whole, so a bar cannot overrun its track', () => {
+        expect(methodShare(300_000, 200_000)).toBe(1);
     });
 });
 
