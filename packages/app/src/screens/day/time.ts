@@ -8,9 +8,16 @@
  * the other side of the changeover moves the range by an hour, enough to drop
  * a late appointment off the end of its day. `dateKey` must never be
  * `toISOString`, which is UTC. Weekdays are 0 = Sunday … 6 = Saturday,
- * matching `Date#getDay` and `clinic_days.weekday`. `formatTime` is 24-hour so
- * the row and ruler line up in DM Mono's tabular figures; `clock12` returns the
- * meridiem separately because it is set at a different size. The weekday and
+ * matching `Date#getDay` and `clinic_days.weekday`.
+ *
+ * `clock12`/`time12` are what a row shows: they return the meridiem separately
+ * because it is set at a different size. `formatTime` is 24-hour and is now
+ * only for the two ends of a span — "09:00 – 09:30" on the detail sheet, the
+ * chair's window — where one meridiem per end doubles the width of a label
+ * nobody reads a time off. It used to be the row format too, "so the row and
+ * ruler line up in DM Mono's tabular figures"; the ruler went when the
+ * timeline became a list, and `AppointmentRow` was the last row still on it.
+ * A single time on screen is 12-hour. The weekday and
  * month names are English until the F4 localisation scaffold lands. The header
  * pill adds the weekday off today, because a bare date does not say whether
  * Thursday is the day she meant.

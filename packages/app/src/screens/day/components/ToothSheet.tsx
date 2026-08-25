@@ -17,9 +17,16 @@ export type ToothSheetProps = {
     visible: boolean;
     onClose: () => void;
     onPick: (tooth: Tooth | null) => void;
+    /**
+     * Asked *after* a procedure that is done to a tooth, rather than before the
+     * catalogue. There is no way out of it: §5 refuses the line without a tooth
+     * (TOOTH_REQUIRED), so "no tooth assigned" would only build a line the
+     * confirm then throws away. The named procedure says why it is asking.
+     */
+    required?: string;
 };
 
-export function ToothSheet({ visible, onClose, onPick }: ToothSheetProps) {
+export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetProps) {
     const [term, setTerm] = useState('');
     const query = term.trim().toUpperCase();
 
@@ -33,18 +40,24 @@ export function ToothSheet({ visible, onClose, onPick }: ToothSheetProps) {
             visible={visible}
             onClose={onClose}
             title="Which tooth?"
-            subtitle="Pick the tooth first, or skip if it does not apply."
+            subtitle={
+                required
+                    ? `${required} is done to a tooth. Pick the one it is for.`
+                    : 'Pick the tooth first, or skip if it does not apply.'
+            }
             testID="tooth-sheet"
             footer={
-                <Pressable
-                    accessibilityRole="button"
-                    onPress={() => onPick(null)}
-                    style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
-                >
-                    <Text variant="subhead" weight="medium" tone="muted">
-                        No tooth assigned
-                    </Text>
-                </Pressable>
+                required ? undefined : (
+                    <Pressable
+                        accessibilityRole="button"
+                        onPress={() => onPick(null)}
+                        style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
+                    >
+                        <Text variant="subhead" weight="medium" tone="muted">
+                            No tooth assigned
+                        </Text>
+                    </Pressable>
+                )
             }
         >
             <SearchField

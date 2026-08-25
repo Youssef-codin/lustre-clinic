@@ -150,7 +150,9 @@ export function AppShell() {
                             open={booked}
                             goHome={home.day}
                             onBookingChange={setBooking}
-                            onOpenRecord={(patientId, said) => openRecord(patientId, 'Day', said)}
+                            onOpenRecord={(patientId, said, backLabel) =>
+                                openRecord(patientId, backLabel ?? 'Day', said)
+                            }
                         />
                     )}
                 </Pane>

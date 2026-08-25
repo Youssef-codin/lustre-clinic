@@ -55,6 +55,8 @@ export type CalendarSheetProps = {
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 const FULL_AT = 0.9;
+/** Two slots' worth — a track, not a reading, and never wider than a real bar. */
+const PENDING_LOAD_WIDTH = 8;
 
 /**
  * The scope outlives the sheet: `DayScreen` remounts it by `seq` on every
@@ -88,6 +90,18 @@ export function CalendarSheet({
 
     const loads = scoped ? loadsFrom(days, scoped, schedule, branchId) : new Map<string, DayLoad>();
     const today = todayKey();
+
+    /**
+     * Where the second went, measured rather than guessed: switching months
+     * redraws the title and the whole grid in about 130ms — `monthDays` and
+     * `loadsFrom` are sub-millisecond on a month — and then the load bars land
+     * a third of a second later, because `useLocalQuery` is keyed on the month
+     * and refetches all ~31 days. Nothing here is worth micro-optimising; the
+     * grid was simply drawing a finished-looking month with every bar blank
+     * while the count was still in flight, which reads as "empty" and then
+     * changes under the reader. So the cells say they do not know yet.
+     */
+    const counting = query.status === 'loading';
 
     const leading = parseKey(days[0] ?? month).getDay();
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
@@ -184,7 +198,7 @@ export function CalendarSheet({
                             accessibilityRole="button"
                             accessibilityState={{ selected: day === pending }}
                             accessibilityLabel={`${day}${closed ? ', closed' : ''}${
-                                load ? `, ${load.count} booked` : ''
+                                counting ? ', still counting' : load ? `, ${load.count} booked` : ''
                             }${
                                 load?.busiest && load.busiest !== branchId
                                     ? `, mostly in ${branchOf(load.busiest) ?? 'another branch'}`
@@ -214,18 +228,27 @@ export function CalendarSheet({
                                     {parseKey(day).getDate()}
                                 </Text>
 
+                                {/* A track where the bar will be, so a month
+                                    mid-count reads as unknown rather than as
+                                    empty. Closed days never carry a bar, so
+                                    they stay blank and do not promise one. */}
                                 <View
                                     style={[
                                         styles.load,
-                                        {
-                                            width: Math.min(load?.count ?? 0, 4) * 4,
-                                            backgroundColor:
-                                                !load || closed || load.count === 0
-                                                    ? 'transparent'
-                                                    : full
-                                                      ? color.due
-                                                      : color.accent,
-                                        },
+                                        counting
+                                            ? {
+                                                  width: closed ? 0 : PENDING_LOAD_WIDTH,
+                                                  backgroundColor: color.line,
+                                              }
+                                            : {
+                                                  width: Math.min(load?.count ?? 0, 4) * 4,
+                                                  backgroundColor:
+                                                      !load || closed || load.count === 0
+                                                          ? 'transparent'
+                                                          : full
+                                                            ? color.due
+                                                            : color.accent,
+                                              },
                                     ]}
                                 />
                             </View>
