@@ -158,6 +158,77 @@ describe('balance.summary — older visits', () => {
     });
 });
 
+/**
+ * Egypt keeps DST, so a range that starts in the other regime has two offsets.
+ * The queries compare `paid_at` against an instant, so the boundary decides
+ * inclusion outright — this is not a day-bucket aggregation that rounds the
+ * difference away.
+ *
+ * Offsets are passed explicitly here rather than read from a clock, so the test
+ * says the same thing in any timezone CI runs in.
+ */
+describe('a range that crosses a DST changeover', () => {
+    const WINTER = 120; // UTC+2, in force on 1 January
+    const SUMMER = 180; // UTC+3, in force when "This year" is being read
+
+    async function payAt(paidAt: string, amount: number) {
+        const f = await fixtures();
+        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 1_000_000, 0);
+        await sql`
+            INSERT INTO payments (id, visit_id, amount, method, paid_at)
+            VALUES (${uuid()}, ${visit.id}, ${amount}, 'cash', ${paidAt}::timestamptz)
+        `;
+    }
+
+    // 23:30 local on 31 December under UTC+2 — the last half hour of the old
+    // year, and squarely outside "This year".
+    const NEW_YEARS_EVE = '2025-12-31T21:30:00Z';
+
+    function thisYear(fromOffsetMinutes?: number) {
+        return {
+            from: '2026-01-01',
+            to: isoDate(new Date()),
+            offsetMinutes: SUMMER,
+            fromOffsetMinutes,
+        };
+    }
+
+    test("leaves the old year's last hour out when each end carries its own offset", async () => {
+        await payAt(NEW_YEARS_EVE, 90_000);
+
+        const summary = await balanceService.summary(thisYear(WINTER));
+
+        expect(summary.collected).toBe(0);
+    });
+
+    test('takings agrees with summary on the same boundary', async () => {
+        await payAt(NEW_YEARS_EVE, 90_000);
+
+        const takings = await balanceService.takings(thisYear(WINTER));
+
+        expect(takings.total).toBe(0);
+        expect(takings.byMethod).toEqual([]);
+    });
+
+    test('one offset for both ends is what pulled it into the new year', async () => {
+        await payAt(NEW_YEARS_EVE, 90_000);
+
+        // The old behaviour: today's summer offset applied to 1 January opens
+        // the window at 21:00Z instead of 22:00Z.
+        const summary = await balanceService.summary(thisYear());
+
+        expect(summary.collected).toBe(90_000);
+    });
+
+    test('still counts a payment that is genuinely inside the range', async () => {
+        await payAt('2025-12-31T22:30:00Z', 90_000);
+
+        const summary = await balanceService.summary(thisYear(WINTER));
+
+        expect(summary.collected).toBe(90_000);
+    });
+});
+
 describe('balance.takings', () => {
     test('splits what was collected by method, largest first', async () => {
         const f = await fixtures();

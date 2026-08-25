@@ -91,6 +91,20 @@ function piastres(total: string | number | null): number {
     return total === null ? 0 : Number(total);
 }
 
+/**
+ * The two instants a range means. Each end is expanded with the offset in force
+ * on *its own* day: a range that crosses a DST changeover has two, and using
+ * today's for both opens the window an hour off at the far end. These queries
+ * compare a timestamp against the boundary, so that hour changes the answer —
+ * every "This year" read during Egypt's summer would otherwise count the last
+ * hour of 31 December.
+ */
+function rangeOf(input: { from: string; to: string; offsetMinutes: number; fromOffsetMinutes?: number }) {
+    const { from } = dayRange(input.from, input.fromOffsetMinutes ?? input.offsetMinutes);
+    const { to } = dayRange(input.to, input.offsetMinutes);
+    return { from, to };
+}
+
 function paidPerVisit() {
     return db
         .select({
@@ -164,8 +178,7 @@ export const balanceService = {
     },
 
     async summary(input: BalanceSummaryInput): Promise<BalanceSummary> {
-        const { from } = dayRange(input.from, input.offsetMinutes);
-        const { to } = dayRange(input.to, input.offsetMinutes);
+        const { from, to } = rangeOf(input);
 
         // Charged is what this clinic billed in the period. An opening balance
         // was billed by the old system before the cutoff, so it is excluded
@@ -246,8 +259,7 @@ export const balanceService = {
      * can come out below zero, and that is the honest figure.
      */
     async takings(input: BalanceTakingsInput): Promise<TakingsReport> {
-        const { from } = dayRange(input.from, input.offsetMinutes);
-        const { to } = dayRange(input.to, input.offsetMinutes);
+        const { from, to } = rangeOf(input);
 
         const amount = sql<string>`SUM(${payments.amount})::bigint`;
 

@@ -9,6 +9,7 @@
 // `modules.test.ts` assert them against real Postgres. Testing a mirrored copy
 // of that arithmetic would only prove the copy agreed with itself.
 import { describe, expect, it } from 'bun:test';
+import { offsetForDate } from '../day/time';
 import {
     dueLabel,
     methodLabel,
@@ -184,11 +185,24 @@ describe('the period pills, as a range the server can answer', () => {
     it('follows the day it is given, so a re-read moves the whole range', () => {
         expect(periodRange('today', '2026-08-19').from).toBe('2026-08-19');
         expect(periodRange('today', '2026-08-20').from).toBe('2026-08-20');
-        expect(periodRange('month', '2026-09-01')).toEqual({
-            from: '2026-09-01',
-            to: '2026-09-01',
-            offsetMinutes: periodRange('month', '2026-09-01').offsetMinutes,
-        });
+
+        const newMonth = periodRange('month', '2026-09-01');
+        expect(newMonth.from).toBe('2026-09-01');
+        expect(newMonth.to).toBe('2026-09-01');
+    });
+
+    // Egypt keeps DST, so a range starting in the other regime has two offsets.
+    // The server expands each end with the one it is given, and one offset for
+    // both opened "This year" an hour before local midnight on 1 January.
+    // Asserted as the wiring rather than as a figure: under CI's UTC both
+    // offsets are zero, and it is which day each is read from that was wrong.
+    it('carries the offset in force at each end of the range', () => {
+        for (const period of PERIODS) {
+            const range = periodRange(period, today);
+
+            expect(range.offsetMinutes).toBe(offsetForDate(range.to));
+            expect(range.fromOffsetMinutes).toBe(offsetForDate(range.from));
+        }
     });
 
     it('labels every period it can produce', () => {

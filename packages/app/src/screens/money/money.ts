@@ -128,7 +128,12 @@ export const PERIOD_LABEL: Record<Period, string> = {
     all: 'All time',
 };
 
-export type DateRange = { from: string; to: string; offsetMinutes: number };
+export type DateRange = {
+    from: string;
+    to: string;
+    offsetMinutes: number;
+    fromOffsetMinutes: number;
+};
 
 // `balance.summary` and `balance.takings` take a closed range, so "All time"
 // needs a floor rather than an open start. No clinic record predates this.
@@ -151,16 +156,22 @@ const FIRST_RECORD = '2000-01-01';
  * the first working day, and a week that began on Saturday would open on the
  * weekend. This matches `Date#getDay` and `clinic_days.weekday`.
  *
- * One offset covers both ends, because that is the shape the server's input
- * takes, and it is the offset in force on `today` — Egypt keeps DST. Across a
- * changeover the far boundary is an hour out, which cannot move a total that is
- * aggregated over whole days.
+ * Each end carries the offset in force on its own day, because Egypt keeps DST
+ * and a range can start in the other regime — "This year" does, every year,
+ * from the changeover in April until the one in October. One offset for both
+ * ends applied a summer +03:00 to 1 January and opened the window an hour
+ * before local midnight, which counted the last hour of 31 December as part of
+ * the new year. The server compares a timestamp against the boundary, not a day
+ * bucket, so the hour is really in or really out.
  */
 export function periodRange(period: Period, today: string): DateRange {
+    const from = periodStart(period, today);
+
     return {
-        from: periodStart(period, today),
+        from,
         to: today,
         offsetMinutes: offsetForDate(today),
+        fromOffsetMinutes: offsetForDate(from),
     };
 }
 
