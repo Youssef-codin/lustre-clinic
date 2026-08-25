@@ -133,11 +133,16 @@ them.
 Date arithmetic it needs — `todayKey`, `offsetForDate`, `daysInMonth` — is in
 `@lustre/shared/dates`, which has no cluster in it either.
 
-## No runtime tests here
+## No runtime tests for the components
 
 There is no React Native test environment in the repo yet — `bun test` runs on
 Bun, and importing anything from `react-native` fails outside Metro. That is why
 `theme/tokens.test.ts` and `ui/boundaries.test.ts` are source scanners rather
-than render tests. These components are covered by the same two scanners (no raw
-colours, no physical directions) and by nothing else. A render test needs a test
-renderer first; it is worth doing before the money screens land.
+than render tests. The *components* here are covered by the same two scanners (no
+raw colours, no physical directions) and by nothing else. A render test needs a
+test renderer first; it is worth doing before the money screens land.
+
+`patientDraft` is the exception in both directions: it imports no `react-native`,
+so `patientDraft.test.ts` runs on Bun like any other logic module. The three
+cluster suites cover their own submission shapes on top of it; that file covers
+the rules themselves at their edges.

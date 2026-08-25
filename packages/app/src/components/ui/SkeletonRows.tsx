@@ -22,16 +22,15 @@ export type SkeletonRowsProps = {
     trailing?: boolean;
 };
 
-/**
- * Keys for placeholder rows, which have no id of their own. Fixed rather than
- * generated so a `count` that grows does not rekey the rows already on screen.
- */
-const KEYS = Array.from({ length: 24 }, (_, index) => `skeleton-${index}`);
-
 export function SkeletonRows({ count = 3, trailing = false }: SkeletonRowsProps) {
+    // Keyed by position, since placeholder rows have no id of their own. Built
+    // from `count` rather than sliced out of a fixed table, which silently
+    // capped a longer list at the table's length.
+    const keys = Array.from({ length: Math.max(0, count) }, (_, index) => `skeleton-${index}`);
+
     return (
         <Card accessibilityLabel="Loading" accessibilityRole="progressbar">
-            {KEYS.slice(0, count).map((key, index) => (
+            {keys.map((key, index) => (
                 <View key={key}>
                     {index > 0 ? <CardDivider /> : null}
                     <View style={styles.row}>

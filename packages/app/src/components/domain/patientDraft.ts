@@ -76,10 +76,16 @@ export function emailError(email: string): string | null {
  * Spaces and the leading `+` do not count towards the length: `+20 101 234 5678`
  * is a real number and refusing it for having spaces in it refuses the form the
  * desk pastes it in.
+ *
+ * Whether the field was *answered* is judged on what was typed, and only the
+ * length on what is left after stripping. Judging both on the stripped string
+ * reads a lone `"+"` as an untouched field and lets it through to the server —
+ * separators are not an answer, but typing one is not nothing either.
  */
 export function phoneError(phone: string): string | null {
-    const digits = phone.trim().replace(/[\s+]/g, '');
-    if (digits.length === 0) return null;
+    const entered = phone.trim();
+    if (entered.length === 0) return null;
+    const digits = entered.replace(/[\s+]/g, '');
     return digits.length < SHORTEST_PHONE ? 'That is too short to be a number.' : null;
 }
 
