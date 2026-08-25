@@ -73,11 +73,29 @@ export interface TakingsReport {
     byMethod: MethodTaking[];
 }
 
+/**
+ * Every money SUM here is `::bigint`, never `::int`.
+ *
+ * `payments.amount` and `visits.charged_total` are `integer`, so a sum of them
+ * overflows int4 at 2^31−1 piastres — about 21.5M EGP. That is a lifetime of
+ * takings for a clinic, not an impossible number, and "All time" on the
+ * dashboard aggregates the whole table on every visit to it. Postgres does not
+ * saturate: the cast raises `integer out of range`, which would take the
+ * dashboard out permanently, at the point the clinic has been most successful.
+ *
+ * A bigint reaches the driver as a string, because a bigint does not fit a JS
+ * number in general. These do: `Number.MAX_SAFE_INTEGER` piastres is ninety
+ * trillion pounds, and piastres are already carried as numbers everywhere else.
+ */
+function piastres(total: string | number | null): number {
+    return total === null ? 0 : Number(total);
+}
+
 function paidPerVisit() {
     return db
         .select({
             visitId: payments.visitId,
-            paidTotal: sql<number>`SUM(${payments.amount})::int`.as('paid_total'),
+            paidTotal: sql<string>`SUM(${payments.amount})::bigint`.as('paid_total'),
         })
         .from(payments)
         .groupBy(payments.visitId)
@@ -87,7 +105,7 @@ function paidPerVisit() {
 export const balanceService = {
     async outstanding(): Promise<OutstandingReport> {
         const paid = paidPerVisit();
-        const balance = sql<number>`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0))::int`;
+        const balance = sql<string>`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0))::bigint`;
 
         const rows = await db
             .select({
@@ -105,10 +123,15 @@ export const balanceService = {
             .having(sql`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0)) > 0`)
             .orderBy(desc(balance));
 
-        return {
-            total: rows.reduce((sum, row) => sum + row.balance, 0),
-            patients: rows.map((row) => ({ ...row, oldestUnpaidAt: new Date(row.oldestUnpaidAt) })),
-        };
+        const owing = rows.map((row) => ({
+            patientId: row.patientId,
+            name: row.name,
+            phone: row.phone,
+            balance: piastres(row.balance),
+            oldestUnpaidAt: new Date(row.oldestUnpaidAt),
+        }));
+
+        return { total: owing.reduce((sum, row) => sum + row.balance, 0), patients: owing };
     },
 
     async byPatient(patientId: string): Promise<VisitBalance[]> {
@@ -121,7 +144,7 @@ export const balanceService = {
                 ref: appointments.ref,
                 startsAt: appointments.startsAt,
                 chargedTotal: visits.chargedTotal,
-                paidTotal: sql<number>`COALESCE(${paid.paidTotal}, 0)::int`,
+                paidTotal: sql<string>`COALESCE(${paid.paidTotal}, 0)::bigint`,
             })
             .from(visits)
             .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
@@ -134,7 +157,10 @@ export const balanceService = {
             )
             .orderBy(asc(appointments.startsAt));
 
-        return rows.map((row) => ({ ...row, balance: row.chargedTotal - row.paidTotal }));
+        return rows.map((row) => {
+            const paidTotal = piastres(row.paidTotal);
+            return { ...row, paidTotal, balance: row.chargedTotal - paidTotal };
+        });
     },
 
     async summary(input: BalanceSummaryInput): Promise<BalanceSummary> {
@@ -146,7 +172,7 @@ export const balanceService = {
         // here and left in `outstanding`, where it belongs — the patient owes
         // it either way, but nobody charged it on the day the row is dated.
         const [charged] = await db
-            .select({ total: sql<number>`COALESCE(SUM(${visits.chargedTotal}), 0)::int` })
+            .select({ total: sql<string>`COALESCE(SUM(${visits.chargedTotal}), 0)::bigint` })
             .from(visits)
             .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
             .where(
@@ -158,7 +184,7 @@ export const balanceService = {
             );
 
         const [collected] = await db
-            .select({ total: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
+            .select({ total: sql<string>`COALESCE(SUM(${payments.amount}), 0)::bigint` })
             .from(payments)
             .where(and(gte(payments.paidAt, from), lt(payments.paidAt, to)));
 
@@ -187,7 +213,7 @@ export const balanceService = {
         // a payment against one is exactly this period settling older work.
         const [older] = await db
             .select({
-                collected: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int`,
+                collected: sql<string>`COALESCE(SUM(${payments.amount}), 0)::bigint`,
                 visitCount: sql<number>`COUNT(DISTINCT ${payments.visitId})::int`,
             })
             .from(payments)
@@ -195,15 +221,15 @@ export const balanceService = {
             .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
             .where(and(gte(payments.paidAt, from), lt(payments.paidAt, to), lt(appointments.startsAt, from)));
 
-        const chargedTotal = charged?.total ?? 0;
-        const collectedTotal = collected?.total ?? 0;
+        const chargedTotal = piastres(charged?.total ?? 0);
+        const collectedTotal = piastres(collected?.total ?? 0);
 
         return {
             charged: chargedTotal,
             collected: collectedTotal,
             difference: chargedTotal - collectedTotal,
             duePatients: due?.patients ?? 0,
-            olderCollected: older?.collected ?? 0,
+            olderCollected: piastres(older?.collected ?? 0),
             olderVisits: older?.visitCount ?? 0,
         };
     },
@@ -223,14 +249,16 @@ export const balanceService = {
         const { from } = dayRange(input.from, input.offsetMinutes);
         const { to } = dayRange(input.to, input.offsetMinutes);
 
-        const amount = sql<number>`SUM(${payments.amount})::int`;
+        const amount = sql<string>`SUM(${payments.amount})::bigint`;
 
-        const byMethod = await db
+        const rows = await db
             .select({ method: payments.method, amount, count: sql<number>`COUNT(*)::int` })
             .from(payments)
             .where(and(gte(payments.paidAt, from), lt(payments.paidAt, to)))
             .groupBy(payments.method)
             .orderBy(desc(amount));
+
+        const byMethod = rows.map((row) => ({ ...row, amount: piastres(row.amount) }));
 
         return { total: byMethod.reduce((sum, row) => sum + row.amount, 0), byMethod };
     },

@@ -3,7 +3,7 @@ import { appointmentService } from '../src/modules/appointment/appointment.servi
 import { balanceService } from '../src/modules/balance/balance.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
-import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
+import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 import { clinic as fixtures, slot } from './helpers/factories.ts';
 
 /**
@@ -232,6 +232,55 @@ describe('balance.takings', () => {
 
         expect(takings.total).toBe(200_000);
         expect(takings.byMethod).toContainEqual({ method: 'visa', amount: 0, count: 2 });
+    });
+
+    /**
+     * `payments.amount` is `integer`, so a SUM of it overflows int4 at 2^31−1
+     * piastres — about 21.5M EGP, a lifetime of takings rather than an
+     * impossible number. Cast back to `::int` Postgres raises `integer out of
+     * range` rather than saturating, which would take the dashboard out for
+     * good the moment the clinic passed that figure. "All time" sums the whole
+     * table on every visit to the screen, so this is the query that finds it.
+     *
+     * Inserted directly: the zod input caps a single payment far below this.
+     * Nothing caps the sum.
+     */
+    test('sums past the 32-bit ceiling instead of throwing', async () => {
+        const f = await fixtures();
+        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 1_000_000, 0);
+
+        const each = 1_000_000_000;
+        for (let i = 0; i < 3; i++) {
+            await sql`
+                INSERT INTO payments (id, visit_id, amount, method, paid_at)
+                VALUES (${uuid()}, ${visit.id}, ${each}, 'cash', now())
+            `;
+        }
+
+        const [summary, takings] = await Promise.all([
+            balanceService.summary(thisPeriod()),
+            balanceService.takings(thisPeriod()),
+        ]);
+
+        expect(3 * each).toBeGreaterThan(2 ** 31 - 1);
+        expect(summary.collected).toBe(3 * each);
+        expect(takings.total).toBe(3 * each);
+        expect(takings.byMethod[0]?.amount).toBe(3 * each);
+    });
+
+    test('carries an outstanding balance past the same ceiling', async () => {
+        const f = await fixtures();
+        const first = await checkedOut(f.patient.id, f.branch.id, slot(), 1_000_000, 0);
+        const second = await checkedOut(f.patient.id, f.branch.id, slot(60), 1_000_000, 0);
+
+        const each = 2_000_000_000;
+        await sql`UPDATE visits SET charged_total = ${each} WHERE id IN (${first.id}, ${second.id})`;
+
+        const report = await balanceService.outstanding();
+
+        expect(2 * each).toBeGreaterThan(2 ** 31 - 1);
+        expect(report.total).toBe(2 * each);
+        expect(report.patients[0]?.balance).toBe(2 * each);
     });
 
     test('can net to zero with real movements on it', async () => {
