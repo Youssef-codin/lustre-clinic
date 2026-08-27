@@ -86,7 +86,7 @@ describe('money (§7.12, §7.13)', () => {
     });
 
     it('trails the symbol in Arabic and keeps the numerals Latin', () => {
-        expect(formatMoney(260000, 'ar')).toBe('2,600 ج.م');
+        expect(formatMoney(260000, { language: 'ar' })).toBe('2,600 ج.م');
     });
 
     it('rounds a negative amount the same way as its positive twin, and keeps the sign', () => {

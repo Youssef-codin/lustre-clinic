@@ -45,7 +45,7 @@ What the screen guarantees, and what is tested in
 - **Overpayment is refused**, and the message names the real total. The clamp on
   submit runs against piastres, not the rounded pound on screen — an outstanding
   of 12,050 displays as 121 pounds, and 121 pounds is more than is owed.
-- **One tap, one payment.** `ui/Button`'s press lock, plus `_LocalQuery`'s
+- **One tap, one payment.** `ui/Button`'s press lock, plus `data/hooks`'s
   `useMutation` refusing an overlapping call rather than queueing it. Never
   retried: a silent retry after a Tailscale timeout takes the money twice.
 - **A failure keeps the amount typed.** The desk is holding the cash; clearing
@@ -65,9 +65,10 @@ The bar's pencil is where `patient-view.html` draws a `⋯`; that departure is
 [`BLOCKED.md`](../../../../../BLOCKED.md) *Patient editor* 6, and it goes back to
 `⋯` when there is a second action to put in the menu.
 
-Everything imports from frozen `ui/` and `theme/` and edits neither (§10). What
-was missing is listed in [`BLOCKED.md`](../../../../../BLOCKED.md) — chiefly the
-tRPC client and a navigator, both stood in for locally under a `_Local` name.
+Everything imports from frozen `ui/` and `theme/` and edits neither (§10), plus
+`components/domain` for the pieces more than one cluster draws — `PatientRow`,
+`MoneyValue`, `patientDraft`. The cluster's own `_Local` stand-ins are gone: the
+tRPC client, TanStack Query and `domain/` all exist now.
 
 ## Custom fields
 
@@ -132,7 +133,7 @@ phone number. See [`BLOCKED.md`](../../../../../BLOCKED.md).
 
 Arabic and Latin names sit in one list and Arabic and Latin question labels sit
 in one card. No component here sets a font face; `<Text>` detects the script per
-string (§6). The one place a face is forced is `_LocalMoneyValue`, which pins
+string (§6). The one place a face is forced is `domain/MoneyValue`, which pins
 mono so `ج.م` cannot drag the digits beside it onto the Naskh face and out of
 tabular alignment.
 
@@ -169,7 +170,7 @@ the money is. If it fails, the rows lose their amounts and nothing else.
 ## Seeing the failure states
 
 The cluster runs against the real tRPC client — `_LocalPatientsApi` and its
-`!fail` strings are gone (BLOCKED.md, *Patient record*). The failures are now
+`!fail` strings are long gone. The failures are now
 produced by the thing that actually causes them at the clinic: stop the server
 and every screen here takes its offline path, which is the one the desk sees
 during a power cut. `patient.search` for a term nothing matches gives the empty

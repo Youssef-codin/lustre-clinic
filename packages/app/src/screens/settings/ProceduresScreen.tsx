@@ -42,6 +42,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
+import { MoneyValue } from '../../components/domain';
+import { poundsToPiastres, sanitisePounds } from '../../components/domain/money';
 import {
     ActionBar,
     AddButton,
@@ -66,7 +68,7 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
-import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
+
 import { CategoryIcon, EditIcon, HideIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -434,7 +436,7 @@ function ProcedureRow({
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
             {body}
-            <_LocalMoneyValue piastres={procedure.defaultPrice} />
+            <MoneyValue piastres={procedure.defaultPrice} />
             <Chevron direction="forward" tone="muted" />
         </Pressable>
     );

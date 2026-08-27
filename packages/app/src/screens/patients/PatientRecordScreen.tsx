@@ -30,6 +30,7 @@
 // (§7.8).
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { MoneyValue } from '../../components/domain';
 import {
     Banner,
     Button,
@@ -38,21 +39,20 @@ import {
     EmptyState,
     RefreshView,
     SegmentedControl,
+    SkeletonRows,
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
-import { _LocalMoneyValue } from './components/_LocalMoneyValue';
-import { SkeletonRows } from './components/_LocalSkeleton';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
 import { EditIcon } from './components/icons';
 import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
-import { useMutation, useQuery } from './data/_LocalQuery';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
+import { useMutation, useQuery } from './data/hooks';
 import type {
     Answers,
     CustomQuestion,
@@ -95,8 +95,8 @@ export function PatientRecordScreen({
     const [toast, setToast] = useState<string | null>(null);
     const [payingOpen, setPayingOpen] = useState(false);
 
-    const record = useQuery(() => patientsApi.byId(patientId), [patientId]);
-    const questions = useQuery(() => patientsApi.listQuestions(), []);
+    const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
+    const questions = useQuery(['questions'], () => patientsApi.listQuestions());
     const settle = useMutation(patientsApi.settle);
 
     const patient = record.data?.patient;
@@ -142,7 +142,7 @@ export function PatientRecordScreen({
             )}
 
             {record.loading && !record.data ? (
-                <SkeletonRows count={5} gutter={size.gutter} />
+                <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : record.error && !record.data ? (
                 <RefreshView refreshControl={refreshControl}>
                     <EmptyState
@@ -349,7 +349,7 @@ function Outstanding({ amount, onRecordPayment }: { amount: number; onRecordPaym
             <Text variant="subhead" tone="muted" style={styles.stripLabel}>
                 Outstanding
             </Text>
-            <_LocalMoneyValue amount={amount} tone="due" variant="headline" weight="bold" />
+            <MoneyValue piastres={amount} tone="due" variant="headline" weight="bold" showCurrency={false} />
             <Pill label="Record payment" onPress={onRecordPayment} testID="record-payment" />
         </View>
     );
@@ -412,7 +412,7 @@ function History({
                     desk — the clause is left off rather than reading `EGP 0`. */}
                 {paid > 0 ? (
                     <View style={styles.summaryPaid}>
-                        <_LocalMoneyValue amount={paid} variant="footnote" tone="muted" />
+                        <MoneyValue piastres={paid} variant="footnote" tone="muted" showCurrency={false} />
                         <Text variant="footnote" tone="muted">
                             paid
                         </Text>
@@ -505,7 +505,7 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
             )}
 
             {questions.loading && !questions.data ? (
-                <SkeletonRows count={3} gutter={space[4]} />
+                <SkeletonRows count={3} gutter={space[4]} ruled />
             ) : questions.error && !questions.data ? (
                 <EmptyState
                     title="Could not load the clinic's questions"

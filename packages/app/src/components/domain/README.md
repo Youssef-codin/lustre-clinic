@@ -13,12 +13,12 @@ it lives here. `domain/` composes `ui/` and the theme, and may import
 `@lustre/shared` and types inferred from `AppRouter`. The barrel is the only entry
 point.
 
-Three components are here because three of the four screen clusters need them.
+These are here because more than one of the four screen clusters needs them.
 Everything else in §5 belongs to whichever screen builds it first.
 
-`patientDraft` is the one thing here that is not a component, and the one thing
-imported by its own path rather than through the barrel. See the bottom of this
-file.
+`patientDraft` and `money` are the two things here that are not components, and
+the two imported by their own path rather than through the barrel. See the
+bottom of this file.
 
 ## `MoneyValue`
 
@@ -42,10 +42,20 @@ Every amount in the app, and **the only place money is formatted** (§7.12).
   reads the layout direction, which is the seam the localization scaffold (F4)
   will take over.
 
+- `weight` is for the places the design sets one — a bold outstanding, a medium
+  figure in a list — and is the only typographic prop; everything else about the
+  face is the component's.
+- `showCurrency={false}` drops `EGP` for a column that has already said it holds
+  money. The history's amounts run down one edge and the three letters on every
+  row are noise. A number alone in running text always keeps it.
+
 For the places a component cannot go — a WhatsApp reminder template, a toast, an
 accessibility label — `formatMoney(piastres)` and `formatAmount(piastres)` are
 exported from the same file. Those are the whole list. **No screen formats an
 amount itself**: no `/ 100`, no `toLocaleString`, no `EGP` string literal.
+
+The arithmetic behind both lives in [`money.ts`](./money.ts), which imports no
+`react-native` — see the bottom of this file.
 
 ## `PatientRow`
 
@@ -60,8 +70,15 @@ The `patient` prop is the server's shape (`patient.search`'s element type) with
 `age` and `gender` optional, so a balance row — which knows only a name and a
 phone — passes the same object through without a mapping layer.
 
-`balance` is piastres and renders in `due` with a dot. It is not a failure
-state: partial payment is normal (PRD), and nothing here presents it as an error.
+`balance` is piastres and renders bare in `due` with a dot — a flag that
+something is owed, not a statement of the balance, which is read in full on the
+record under a heading that says it is money. It is not a failure state either:
+partial payment is normal (PRD), and nothing here presents it as an error.
+
+The row is full-bleed on the page ground with a hairline above every row, not a
+card. `patients-list.html` runs the register edge to edge, and a white rounded
+block per row stripes the list and turns each patient into an object of their
+own.
 
 ## `StatusPill`
 
@@ -69,13 +86,20 @@ Where an appointment is, per §7's six statuses.
 
 ```tsx
 <StatusPill status={appointment.status} />
-<StatusPill status="checked_in" animated={false} />   // long lists
+<StatusPill status={appointment.status} withDot />     // a sheet headline
+<StatusPill status="checked_in" animated={false} />    // long lists
 ```
 
-`checked_in` pulses — it is the in-the-chair state the day view reads from
+`withDot` is opt-in because a dot is for a pill being read on its own. In a list
+every row would carry one and the column stops meaning anything. `checked_in`
+pulses when it has a dot — it is the in-the-chair state the day view reads from
 across a desk. `awaiting_payment` is the patient at the desk, not an unpaid
-status; balance is derived and shown separately (§10). Labels are English until
-F4 lands, and `label` is the override that scaffold will use.
+status; balance is derived and shown separately (§10).
+
+The wording is the mockups': "In the chair", "At the desk", "No-show". Labels are
+English until F4 lands, and `label` is the override that scaffold will use.
+`statusLabel` and `statusTone` are the same mapping without the markup, for an
+accessibility string or a row that only has room for a word.
 
 ## `ToothGroupCard`
 
@@ -89,6 +113,11 @@ procedure plan. The grouping was already shared (`toothGroupsOf`, wrapped by
 <ToothGroupCard … variant="row" />                       // flush, inside a shared card
 <ToothGroupCard … subtotal={<MoneyValue piastres={group.subtotal} />} onToggle={…} expanded={open} />
 ```
+
+Its three callers are the doctor's visit sheet (`row`), the booking screen
+(`card`, read-only) and the procedure plan (`card`, toggling, with a price input
+per line and its own "Add to UL6" footer). Giving `onToggle` draws the head's
+chevron; a card that opens says so itself rather than each caller drawing one.
 
 - `variant` is the two arrangements the screens actually draw. `card` is a
   bordered box per tooth with a head row — a plan being built, where each tooth
@@ -131,7 +160,30 @@ renderer and need none. A barrel re-export would drag React Native into all of
 them.
 
 Date arithmetic it needs — `todayKey`, `offsetForDate`, `daysInMonth` — is in
-`@lustre/shared/dates`, which has no cluster in it either.
+`@lustre/shared/dates`, which has no cluster in it either. `clock12` and
+`formatClock12` went the same way, for the same reason: the day view and the
+settings panes both put a time on screen.
+
+## `money`
+
+The money rules themselves, and the second thing here **imported by path** —
+`components/domain/money`. Same reason as `patientDraft`: `MoneyValue.tsx`
+imports `react-native`, and cluster suites format an amount under `bun test`
+with no renderer.
+
+```ts
+import { formatAmount, poundsToPiastres, toPounds } from '../../components/domain/money';
+```
+
+`formatAmount`, `formatMoney`, `toPounds`, `sanitisePounds`, `poundsToPiastres`.
+Rounding is applied to the magnitude, not the signed value — `Math.round` breaks
+ties toward +∞, so `-950` piastres rounded signed lands on `-9` while `+950`
+lands on `10`, the same half-pound reading differently either side of zero.
+
+The one thing it cannot do is infer the language: that reads `I18nManager`, so
+the direction-aware `formatMoney` is the one `MoneyValue.tsx` exports and the
+barrel re-exports. This file's takes an explicit `language` and defaults to
+English. **On screen, always use the barrel's.**
 
 ## No runtime tests for the components
 

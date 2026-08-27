@@ -1,71 +1,80 @@
 /**
  * Where an appointment is, as a pill (Component Inventory §5 — `StatusChip`).
  * The six statuses are the server's (§7); this owns nothing but how each one
- * looks and reads. `checked_in` pulses a live dot so the day view reads it from
- * across a desk; `awaiting_payment` says where the patient is, not what they
- * owe; `no_show` is `due` because that tone carries late as well as owed. The
- * label is English until the localization scaffold lands (F4); `label`
- * overrides it.
+ * looks and reads.
+ *
+ * The mapping is the point — a status is one word and one colour, decided once,
+ * so a cancelled appointment cannot read as a settled one. The wording is the
+ * mockups': "In the chair", "No-show", "At the desk". `awaiting_payment` says
+ * where the patient is, not what they owe; balance is derived and shown
+ * separately (§10). Labels are English until the localization scaffold lands
+ * (F4), and `label` is the override that scaffold will use.
+ *
+ * `withDot` is opt-in because a dot is for a pill being read on its own — a
+ * sheet headline, a visit head. In a list every row would carry one and the
+ * column stops meaning anything. `checked_in` pulses when it has a dot: it is
+ * the in-the-chair state the day view reads from across a desk. The chair's dot
+ * is accent rather than `live`, which disappears on white.
+ *
+ * `statusLabel` and `statusTone` are the same mapping without the markup, for
+ * an accessibility string or a row that only has room for a word.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
-import type { TextTone } from '../../theme';
-import { color, radius, space, Text } from '../../theme';
-import { Dot, type DotTone } from '../ui';
+import { space } from '../../theme';
+import { Dot, Tag } from '../ui';
+
+export type StatusTone = 'muted' | 'accent' | 'due' | 'success';
 
 export type StatusPillProps = {
     status: AppointmentStatus;
     label?: string;
+    withDot?: boolean;
+    /** Off for a long list, where a dot per row animates once per row. */
     animated?: boolean;
     testID?: string;
 };
 
-interface Appearance {
-    label: string;
-    text: TextTone;
-    fill: string;
-    dot: DotTone | null;
-    pulse: boolean;
-}
-
-const APPEARANCE: Record<AppointmentStatus, Appearance> = {
-    booked: { label: 'Booked', text: 'muted', fill: color.surface2, dot: null, pulse: false },
-    checked_in: { label: 'In progress', text: 'ink', fill: color.surface2, dot: 'wa', pulse: true },
-    awaiting_payment: {
-        label: 'At the desk',
-        text: 'accent',
-        fill: color.accentSoft,
-        dot: 'accent',
-        pulse: false,
-    },
-    done: { label: 'Completed', text: 'success', fill: color.successSoft, dot: null, pulse: false },
-    cancelled: { label: 'Cancelled', text: 'muted', fill: color.surface2, dot: null, pulse: false },
-    no_show: { label: 'Did not attend', text: 'due', fill: color.dueSoft, dot: 'due', pulse: false },
+const LABEL: Record<AppointmentStatus, string> = {
+    booked: 'Booked',
+    checked_in: 'In the chair',
+    awaiting_payment: 'At the desk',
+    done: 'Done',
+    cancelled: 'Cancelled',
+    no_show: 'No-show',
 };
 
-export function StatusPill({ status, label, animated = true, testID }: StatusPillProps) {
-    const appearance = APPEARANCE[status];
+const TONE = {
+    booked: 'muted',
+    checked_in: 'accent',
+    awaiting_payment: 'due',
+    done: 'success',
+    cancelled: 'muted',
+    no_show: 'due',
+} as const satisfies Record<AppointmentStatus, StatusTone>;
+
+export function statusLabel(status: AppointmentStatus): string {
+    return LABEL[status];
+}
+
+/** The pill's colour without the pill, for rows that only have room for a word. */
+export function statusTone(status: AppointmentStatus): StatusTone {
+    return TONE[status];
+}
+
+export function StatusPill({ status, label, withDot = false, animated = true, testID }: StatusPillProps) {
+    const tone = TONE[status];
 
     return (
-        <View style={[styles.pill, { backgroundColor: appearance.fill }]} testID={testID}>
-            {appearance.dot ? (
-                <Dot tone={appearance.dot} size={5} pulse={appearance.pulse && animated} />
-            ) : null}
-            <Text variant="tag" tone={appearance.text}>
-                {label ?? appearance.label}
-            </Text>
+        <View style={styles.row} testID={testID}>
+            {withDot ? <Dot tone={tone} pulse={animated && status === 'checked_in'} /> : null}
+            <Tag tone={tone} variant={status === 'checked_in' ? 'filled' : 'outline'}>
+                {label ?? LABEL[status]}
+            </Tag>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    pill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        alignSelf: 'flex-start',
-        gap: space[1],
-        paddingHorizontal: space[1.5],
-        paddingVertical: space[0.5],
-        borderRadius: radius.full,
-    },
+    row: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
 });

@@ -1,28 +1,34 @@
 /**
- * The only place money is formatted (Component Inventory §7.12): integer piastres
- * in, whole EGP out — piastres are never shown. Latin numerals are pinned to
- * en-US in both languages because DM Mono has no Arabic-Indic coverage and the
- * money screens depend on tabular alignment (§7.11); in Arabic the symbol is
- * `ج.م` and trails the figure (§7.13). Until the localization scaffold lands
- * (F4), the language is inferred from the layout direction.
+ * Every amount on screen (Component Inventory §7.12): integer piastres in,
+ * whole EGP out — piastres are never shown. Latin numerals are pinned to Latin
+ * in both languages because DM Mono has no Arabic-Indic coverage and the money
+ * screens depend on tabular alignment (§7.11); in Arabic the symbol is `ج.م`
+ * and trails the figure (§7.13). Until the localization scaffold lands (F4),
+ * the language is inferred from the layout direction.
+ *
+ * The arithmetic is in `./money`, which imports no `react-native` so the logic
+ * suites can format an amount without a renderer. This file adds the two things
+ * that need React Native: the markup, and reading the layout direction. The
+ * `formatMoney`/`formatAmount` re-exported here are that direction-aware pair —
+ * they are what `components/domain` exports and what a screen should use.
  */
 import type { Locale } from '@lustre/shared';
-import { PIASTRES_PER_POUND } from '@lustre/shared';
 import { I18nManager, StyleSheet, View } from 'react-native';
-import type { TextTone, TextVariant } from '../../theme';
+import type { TextTone, TextVariant, TextWeight } from '../../theme';
 import { space, Text } from '../../theme';
+import { CURRENCY, formatAmount, formatMoney as formatIn, type MoneyOptions } from './money';
 
 export type MoneyValueProps = {
     piastres: number;
     compact?: boolean;
     variant?: TextVariant;
+    weight?: TextWeight;
     tone?: TextTone;
+    /** Off for a column that has already said it holds money; a number in running text keeps it. */
     showCurrency?: boolean;
     language?: Locale;
     testID?: string;
 };
-
-const CURRENCY: Record<Locale, string> = { en: 'EGP', ar: 'ج.م' };
 
 const SYMBOL_VARIANT: Partial<Record<TextVariant, TextVariant>> = {
     display: 'callout',
@@ -33,35 +39,10 @@ const SYMBOL_VARIANT: Partial<Record<TextVariant, TextVariant>> = {
     amount: 'footnote',
 };
 
-const GROUPED = new Intl.NumberFormat('en-US');
-const COMPACT_FLOOR = 10_000;
+export { formatAmount };
 
-function pounds(piastres: number): number {
-    return Math.round(piastres / PIASTRES_PER_POUND);
-}
-
-function compactPounds(value: number): string {
-    const sign = value < 0 ? '-' : '';
-    const magnitude = Math.abs(value);
-
-    if (magnitude >= 1_000_000) return `${sign}${trim(magnitude / 1_000_000)}m`;
-    if (magnitude >= COMPACT_FLOOR) return `${sign}${trim(magnitude / 1_000)}k`;
-    return GROUPED.format(value);
-}
-
-function trim(value: number): string {
-    return value.toFixed(1).replace(/\.0$/, '');
-}
-
-export function formatAmount(piastres: number, compact = false): string {
-    const value = pounds(piastres);
-    return compact ? compactPounds(value) : GROUPED.format(value);
-}
-
-export function formatMoney(piastres: number, options: { compact?: boolean; language?: Locale } = {}) {
-    const language = options.language ?? currentLanguage();
-    const amount = formatAmount(piastres, options.compact);
-    return language === 'ar' ? `${amount} ${CURRENCY.ar}` : `${CURRENCY.en} ${amount}`;
+export function formatMoney(piastres: number, options: MoneyOptions = {}): string {
+    return formatIn(piastres, { ...options, language: options.language ?? currentLanguage() });
 }
 
 function currentLanguage(): Locale {
@@ -72,6 +53,7 @@ export function MoneyValue({
     piastres,
     compact = false,
     variant = 'amount',
+    weight,
     tone = 'ink',
     showCurrency = true,
     language,
@@ -86,8 +68,11 @@ export function MoneyValue({
         </Text>
     ) : null;
 
+    // `script="mono"` is explicit rather than left to detection: the Arabic
+    // symbol would otherwise pull the whole string — digits included — onto the
+    // Naskh face and out of tabular alignment.
     const figure = (
-        <Text variant={variant} tone={tone} script="mono">
+        <Text variant={variant} weight={weight} tone={tone} script="mono">
             {amount}
         </Text>
     );
@@ -96,7 +81,7 @@ export function MoneyValue({
         <View
             style={styles.row}
             accessible
-            accessibilityLabel={formatMoney(piastres, { compact, language: locale })}
+            accessibilityLabel={formatIn(piastres, { compact, language: locale })}
             testID={testID}
         >
             {locale === 'ar' ? (

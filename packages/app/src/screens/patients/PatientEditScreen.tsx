@@ -25,17 +25,16 @@
 import { resolveLabel } from '@lustre/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Callout, EmptyState, ProgressBar } from '../../components/ui';
+import { Button, Callout, EmptyState, ProgressBar, SkeletonRows } from '../../components/ui';
 import { useLocale } from '../../shell/localeStore';
 import { border, color, radius, size, space, Text } from '../../theme';
-import { SkeletonRows } from './components/_LocalSkeleton';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
 import { CloseIcon } from './components/icons';
-import { useMutation, useQuery } from './data/_LocalQuery';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
+import { useMutation, useQuery } from './data/hooks';
 import type { CustomQuestion, PatientDetail } from './data/types';
 import type { PatientForm } from './patientForm';
 import {
@@ -69,11 +68,12 @@ export type PatientEditScreenProps = {
 export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
     const creating = patientId === undefined;
 
-    const questions = useQuery(() => patientsApi.listQuestions(), []);
+    const questions = useQuery(['questions'], () => patientsApi.listQuestions());
     const record = useQuery(
+        ['byId', patientId],
         (): Promise<PatientDetail | undefined> =>
-            patientId ? patientsApi.byId(patientId) : Promise.resolve(undefined),
-        [patientId],
+            patientId === undefined ? Promise.resolve(undefined) : patientsApi.byId(patientId),
+        { enabled: patientId !== undefined },
     );
 
     const create = useMutation(patientsApi.create);
@@ -182,7 +182,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
             />
 
             {loading && !form ? (
-                <SkeletonRows count={5} gutter={size.gutter} />
+                <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : failed && !form ? (
                 <EmptyState
                     title={creating ? 'Could not open the form' : 'Could not open this record'}
@@ -324,7 +324,7 @@ function Questions({
     if (loading) {
         return (
             <View style={styles.section}>
-                <SkeletonRows count={3} gutter={0} />
+                <SkeletonRows count={3} gutter={0} ruled />
             </View>
         );
     }

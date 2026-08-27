@@ -21,15 +21,21 @@
 // runs over Tailscale; stale answers are dropped by `useQuery`.
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, EmptyState, SearchField, SectionLabel, Toast, usePullToRefresh } from '../../components/ui';
+import { PatientRow } from '../../components/domain';
+import {
+    Banner,
+    EmptyState,
+    SearchField,
+    SectionLabel,
+    SkeletonRows,
+    Toast,
+    usePullToRefresh,
+} from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
-import { _LocalPatientRow } from './components/_LocalPatientRow';
-import { SkeletonRows } from './components/_LocalSkeleton';
 import { PlusIcon, SearchIcon } from './components/icons';
-import { useQuery } from './data/_LocalQuery';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
-import type { Patient } from './data/types';
+import { useQuery } from './data/hooks';
 
 export type PatientListScreenProps = {
     onOpen: (patientId: string) => void;
@@ -65,14 +71,12 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // Idle, the search resolves to `undefined` rather than `[]` — `[]` is an
     // answer, and the first keystroke would spend the round trip showing "No
     // patients found" instead of the skeleton.
-    const recent = useQuery(() => patientsApi.recent(), []);
-    const results = useQuery(
-        (): Promise<Patient[] | undefined> =>
-            searching ? patientsApi.search(query) : Promise.resolve(undefined),
-        [query],
-    );
+    const recent = useQuery(['recent'], () => patientsApi.recent());
+    const results = useQuery(['search', query], () => patientsApi.search(query), {
+        enabled: searching,
+    });
 
-    const balances = useQuery(() => patientsApi.outstanding(), []);
+    const balances = useQuery(['outstanding'], () => patientsApi.outstanding());
     const dueByPatient = new Map((balances.data ?? []).map((row) => [row.patientId, row.balance]));
 
     const list = searching ? results : recent;
@@ -157,10 +161,10 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                     <View>
                         <SectionLabel>{searching ? 'RESULTS' : 'RECENT'}</SectionLabel>
                         {rows.map((patient) => (
-                            <_LocalPatientRow
+                            <PatientRow
                                 key={patient.id}
                                 patient={patient}
-                                due={dueByPatient.get(patient.id) ?? 0}
+                                balance={dueByPatient.get(patient.id) ?? 0}
                                 onPress={() => onOpen(patient.id)}
                             />
                         ))}

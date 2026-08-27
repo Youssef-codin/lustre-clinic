@@ -108,7 +108,7 @@ export const patientsApi = {
      * (§10). What comes back is the split, which the sheet reads out.
      *
      * Never retried: a silent retry after a Tailscale timeout takes the money
-     * twice. `useMutation` in `_LocalQuery` refuses an overlapping call rather
+     * twice. `useMutation` in `./hooks` refuses an overlapping call rather
      * than queueing it, which is the other half of the same guarantee.
      */
     settle(input: SettleInput): Promise<SettleReport> {

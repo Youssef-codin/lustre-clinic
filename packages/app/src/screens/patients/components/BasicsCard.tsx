@@ -12,7 +12,7 @@
 // The name sets no face — `<Text>`-style script detection is what puts an
 // Arabic name in Noto Naskh, so the input picks its family from the value it
 // holds (§6). The phone and the age are pinned to DM Mono for the same reason
-// `_LocalMoneyValue` is: they are figures, and an Arabic name in the row above
+// `domain/MoneyValue` is: they are figures, and an Arabic name in the row above
 // must not drag them onto the Naskh face (§7.11).
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
