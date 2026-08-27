@@ -12,7 +12,7 @@ import {
     toDraft,
     YES,
 } from './components/customFields';
-import { formatMoney } from './components/money';
+import { clampToOutstanding, formatMoney, isWholePounds, paymentReceipt, toPounds } from './components/money';
 import { errorText } from './data/errors';
 import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion, Patient } from './data/types';
@@ -47,6 +47,7 @@ const question = (over: Partial<CustomQuestion> = {}): CustomQuestion => ({
 
 const patient = (over: Partial<Patient> = {}): Patient => ({
     id: '11111111-1111-1111-1111-111111111111',
+    ref: 'W5F5',
     name: 'Nour El-Sayed',
     phone: '+201002248891',
     email: null,
@@ -92,6 +93,92 @@ describe('money (§7.12, §7.13)', () => {
         expect(formatMoney(-250)).toBe('EGP -3');
         expect(formatMoney(250)).toBe('EGP 3');
         expect(formatMoney(-40)).toBe('EGP 0');
+    });
+});
+
+/**
+ * The payment sheet's entry rules. Everything else about a payment — how it
+ * splits, whether it is allowed — is the server's; this is only what stands
+ * between the keypad and the wire.
+ */
+describe('taking a payment — what the field accepts', () => {
+    it('accepts digits and an empty field', () => {
+        expect(isWholePounds('6000')).toBe(true);
+        expect(isWholePounds('')).toBe(true);
+    });
+
+    it('refuses a decimal rather than reinterpreting it', () => {
+        expect(isWholePounds('12.50')).toBe(false);
+        expect(isWholePounds('12.')).toBe(false);
+        expect(isWholePounds('12,50')).toBe(false);
+        // Arabic-Indic digits: §7.11 keeps numerals Latin in both languages.
+        expect(isWholePounds('١٢')).toBe(false);
+        expect(isWholePounds('-5')).toBe(false);
+        expect(isWholePounds('1e3')).toBe(false);
+    });
+
+    it('would have overcharged a hundredfold under the old strip-the-dot rule', () => {
+        const stripped = Number('12.50'.replace(/[^0-9]/g, ''));
+        expect(stripped).toBe(1250);
+        expect(clampToOutstanding(stripped, 500_000)).toBe(125_000);
+        expect(isWholePounds('12.50')).toBe(false);
+    });
+
+    it('shows the amount due as the nearer pound', () => {
+        expect(toPounds(955_000)).toBe(9_550);
+        expect(toPounds(12_050)).toBe(121);
+    });
+
+    /**
+     * The clamp is against piastres, never the pound figure on screen. An
+     * outstanding of 12,050 displays as a due of 121 pounds, and 121 pounds is
+     * 50 piastres more than is owed — which `balance.settle` now refuses
+     * outright rather than quietly accepting.
+     */
+    it('never sends more than the real balance, even when the display rounds up', () => {
+        expect(clampToOutstanding(121, 12_050)).toBe(12_050);
+        expect(clampToOutstanding(60, 955_000)).toBe(6_000);
+        expect(clampToOutstanding(9_550, 955_000)).toBe(955_000);
+    });
+
+    it('never produces a negative or fractional payment', () => {
+        expect(clampToOutstanding(0, 955_000)).toBe(0);
+        expect(clampToOutstanding(-10, 955_000)).toBe(0);
+        expect(clampToOutstanding(Number.NaN, 955_000)).toBe(0);
+        expect(clampToOutstanding(10.7, 955_000)).toBe(1_000);
+    });
+
+    // The strip is absent at zero, so the sheet cannot be opened here — this is
+    // the belt to that brace, and `balance.settle` refuses it a third time.
+    it('allows nothing against a patient who owes nothing', () => {
+        expect(clampToOutstanding(500, 0)).toBe(0);
+    });
+});
+
+/**
+ * The paper book is one page per patient, so the desk posts one line against one
+ * page: what came in, and what is left. The confirmation says exactly that and
+ * names no visits — the per-visit split is the server's bookkeeping and matches
+ * nothing anyone is holding.
+ */
+describe('what a recorded payment says it did', () => {
+    it('says what came in and what is still owed', () => {
+        expect(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 })).toBe(
+            'EGP 6,000 recorded — EGP 3,550 still owed',
+        );
+    });
+
+    // "EGP 0 still owed" is a true sentence nobody wants to read: closing a page
+    // is a different mark from writing a balance on it.
+    it('says paid in full rather than nothing owed', () => {
+        expect(paymentReceipt({ amount: 955_000, outstandingAfter: 0 })).toBe(
+            'EGP 9,550 recorded — paid in full',
+        );
+    });
+
+    it('names no visit refs at all', () => {
+        const line = paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 });
+        expect(line).not.toMatch(/\d{6}-/);
     });
 });
 

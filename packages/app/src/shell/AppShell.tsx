@@ -5,7 +5,7 @@ import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
 import { Toast } from '../components/ui';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
-import { MoneyCluster, type OpenPatientBalanceRequest } from '../screens/money';
+import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
@@ -22,12 +22,16 @@ import { ask, type BookingTiming, bumpHome, type HomeSignals, NO_HOME, type Pati
 // It also owns every route that crosses clusters, because a cluster holds its
 // own stack and cannot push into another one's. A patient's record is the
 // oldest of them: wherever it is asked for — a row in the list, an appointment
-// in the doctor's day view — it opens on the Patients tab and the tab bar moves
-// with it, because that is the screen's home and a record drawn inside the Day
-// tab left the highlight on a day nobody was looking at. The patient record's
-// three openers go the other way, into the day and money clusters. All of them
-// travel as requests (`shell/routes.ts`) and the destination decides which of
-// its screens that means.
+// in the doctor's day view, a debtor on the money dashboard — it opens on the
+// Patients tab and the tab bar moves with it, because that is the screen's home
+// and a record drawn inside the Day tab left the highlight on a day nobody was
+// looking at. The patient record's two openers go the other way, into the day
+// cluster. All of them travel as requests (`shell/routes.ts`) and the
+// destination decides which of its screens that means.
+//
+// Record payment was a third opener and is not routed at all any more. The
+// server allocates a payment across a patient's unsettled visits, so there is
+// no visit to go and pick and the sheet opens on the record in place.
 //
 // And it owns going home: tapping the tab you are already on pops that cluster
 // back to its root. The shell cannot pop one from outside, so it bumps that
@@ -47,7 +51,6 @@ export function AppShell() {
     // already holding.
     const [record, setRecord] = useState<OpenRecordRequest | undefined>(undefined);
     const [booked, setBooked] = useState<OpenBookingRequest | undefined>(undefined);
-    const [balance, setBalance] = useState<OpenPatientBalanceRequest | undefined>(undefined);
     // Tapping the tab you are already on. One counter per tab, bumped up here
     // and read down there, because only the cluster knows what its home is.
     const [home, setHome] = useState<HomeSignals>(NO_HOME);
@@ -120,20 +123,6 @@ export function AppShell() {
         setBooking(true);
     }
 
-    /**
-     * Settling a balance. The record's strip knows a patient-level total that
-     * can span several unsettled visits, and a payment is taken against one
-     * visit — so this lands on that patient's balances, which is the list the
-     * total is made of, and the visit is chosen there. It is what the Money tab
-     * already does from its own debtor rows; the record joins it rather than
-     * growing a second way to take a payment.
-     */
-    function openBalance(patient: PatientTarget) {
-        setBalance((current) => ask(current, { patientId: patient.id, patientName: patient.name }));
-        reveal('money');
-        setBooking(false);
-    }
-
     return (
         <View style={styles.root}>
             <View style={styles.body}>
@@ -167,13 +156,14 @@ export function AppShell() {
                         // where the flow lives instead of failing silently.
                         onBook={role === 'secretary' ? (patient) => openBooking(patient, 'later') : undefined}
                         onWalkIn={role === 'secretary' ? (patient) => openBooking(patient, 'now') : undefined}
-                        onRecordPayment={openBalance}
                     />
                 </Pane>
 
                 <Pane visible={tab === 'money'} mounted={visited.includes('money')}>
+                    {/* The debtor rows are the whole tab now: tapping one opens
+                        that patient's record, which is where a payment is taken.
+                        Nothing pushes *into* this cluster any more. */}
                     <MoneyCluster
-                        open={balance}
                         goHome={home.money}
                         onOpenRecord={(patientId) => openRecord(patientId, 'Money')}
                     />

@@ -3,15 +3,17 @@
  * the date stamp, what was done and how it went, and the money with a line under
  * it saying what the amount means.
  *
- * The row leads with the work, not the reference: a record is read to answer
- * "what did we do last time", and `160826-7M69` answers nothing a person asks
- * out loud. But it is on the row, quietly — this is the screen someone is on
- * with the paper file open in front of them, and the ref (§5) is the only thing
- * that matches one to the other. So it rides beside the status pill at `caption`
- * in mono and muted, in space the row was not using: legible when it is what you
- * came for, and beneath notice the rest of the time. Its alphabet drops `0/O`
- * and `1/I/L` so it survives being read down a phone, which is the other half of
- * the same job.
+ * The row leads with the work: a record is read to answer "what did we do last
+ * time", and `160826-7M69` answers nothing a person asks out loud.
+ *
+ * The appointment ref used to ride beside the status pill, on the reasoning that
+ * this is the screen someone is on with the paper file open and the ref was what
+ * matched one to the other. That was wrong about the paper: the book is one page
+ * per patient, so there is nothing per visit to match and the ref pointed at a
+ * page that does not exist. The patient's own ref is on the header instead,
+ * once. The appointment ref is still in the payload, still on the day view's
+ * detail sheet, and still what a reminder quotes down the phone — it just is not
+ * an identifier the desk writes anywhere.
  *
  * Full-bleed on the page's own colour with a hairline under it, not a card. The
  * design draws a ledger: rows running edge to edge in one continuous tone,
@@ -107,10 +109,6 @@ export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
                             {status.label}
                         </Text>
                     </View>
-
-                    <Text variant="caption" script="mono" tone="muted" numberOfLines={1}>
-                        {entry.ref}
-                    </Text>
                 </View>
             </View>
 

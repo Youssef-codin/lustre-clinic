@@ -20,7 +20,6 @@ import {
 } from './format';
 import {
     amountStillDue,
-    clampToBalance,
     collectedAhead,
     collectionRate,
     currencyLeads,
@@ -28,7 +27,6 @@ import {
     DEBTOR_SORTS,
     formatEgp,
     hasShareBase,
-    isWholePounds,
     methodShare,
     PERIOD_LABEL,
     PERIODS,
@@ -94,31 +92,9 @@ describe('compact form — hero and stat cards only (§7.12)', () => {
     });
 });
 
-describe('overpayment does not exist (§7.6)', () => {
-    it('caps a payment at the balance', () => {
-        expect(clampToBalance(5_000, 260_000)).toBe(260_000);
-    });
-
-    it('passes a payment under the balance through untouched', () => {
-        expect(clampToBalance(1_000, 260_000)).toBe(100_000);
-    });
-
-    it('caps against the balance in piastres, not the rounded pound figure', () => {
-        expect(toEgp(12_050)).toBe(121);
-        expect(clampToBalance(121, 12_050)).toBe(12_050);
-    });
-
-    it('never produces a negative or fractional payment', () => {
-        expect(clampToBalance(-50, 260_000)).toBe(0);
-        expect(clampToBalance(0, 260_000)).toBe(0);
-        expect(clampToBalance(Number.NaN, 260_000)).toBe(0);
-        expect(clampToBalance(10.7, 260_000)).toBe(1_000);
-    });
-
-    it('allows nothing against a settled visit', () => {
-        expect(clampToBalance(500, 0)).toBe(0);
-    });
-});
+// Overpayment and the whole-pounds guard moved to `patients.test.ts` with the
+// payment sheet — this cluster no longer takes money, so it no longer has an
+// amount to clamp.
 
 describe('outstanding age', () => {
     const now = new Date('2026-08-09T12:00:00.000Z');
@@ -256,33 +232,9 @@ describe('a payment method the enum does not know', () => {
         expect(methodLabel('cheque')).toBe('Other');
     });
 
-    it('still prefers the note over the label for "other"', () => {
-        expect(methodLabel('other', 'Bank transfer')).toBe('Bank transfer');
-        expect(methodLabel('other', '   ')).toBe('Other');
-        expect(methodLabel('cash', 'ignored')).toBe('Cash');
-    });
-});
-
-describe('the payment field takes whole pounds only (§7.12)', () => {
-    it('accepts digits and an empty field', () => {
-        expect(isWholePounds('')).toBe(true);
-        expect(isWholePounds('2600')).toBe(true);
-    });
-
-    it('refuses a decimal rather than reinterpreting it', () => {
-        expect(isWholePounds('12.50')).toBe(false);
-        expect(isWholePounds('12.')).toBe(false);
-        expect(isWholePounds('12,50')).toBe(false);
-        expect(isWholePounds('١٢')).toBe(false);
-        expect(isWholePounds('-5')).toBe(false);
-        expect(isWholePounds('1e3')).toBe(false);
-    });
-
-    it('would have overcharged a hundredfold under the old strip-the-dot rule', () => {
-        const stripped = Number('12.50'.replace(/[^0-9]/g, ''));
-        expect(stripped).toBe(1250);
-        expect(clampToBalance(stripped, 500_000)).toBe(125_000);
-        expect(isWholePounds('12.50')).toBe(false);
+    it('labels a method the enum does not know as Other', () => {
+        expect(methodLabel('cash')).toBe('Cash');
+        expect(methodLabel('visa')).toBe('Card');
     });
 });
 

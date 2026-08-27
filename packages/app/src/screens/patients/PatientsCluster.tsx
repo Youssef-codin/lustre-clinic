@@ -13,11 +13,11 @@
 // record after it has been backed out of, and `backLabel` says where back goes
 // in the caller's words.
 //
-// The traffic runs the other way too: the record's Book, Walk-in and Record
-// payment all land in a cluster this one cannot reach, so they are handed back
-// up to the shell with the patient and nothing else. `goHome` comes down the
-// same wire — the shell cannot pop a route it does not own, so it says only
-// that the tab was tapped and this decides that home is the list.
+// The traffic runs the other way too: the record's Book and Walk-in both land
+// in a cluster this one cannot reach, so they are handed back up to the shell
+// with the patient and nothing else. `goHome` comes down the same wire — the
+// shell cannot pop a route it does not own, so it says only that the tab was
+// tapped and this decides that home is the list.
 //
 // The editor is reachable from both screens and returns to whichever asked for
 // it, which is the one thing a two-route union could not express: `from` is the
@@ -54,24 +54,20 @@ export type PatientsClusterProps = {
      */
     goHome?: number;
     /**
-     * The record's three openers, which all land in another cluster — booking
-     * and the walk-in in the day view, settling a balance in money. The shell
+     * The record's two openers, which both land in the day cluster. The shell
      * owns those routes (`shell/routes.ts`); this passes the patient up and
      * nothing more. Absent leaves the record screen's own fallback in place,
      * which names where the flow lives rather than failing silently.
+     *
+     * Record payment used to be a third. It is not a cross-cluster request any
+     * more — the sheet opens on the record itself, because the server allocates
+     * a patient-level payment and there is no longer a visit to go and pick.
      */
     onBook?: (patient: PatientTarget) => void;
     onWalkIn?: (patient: PatientTarget) => void;
-    onRecordPayment?: (patient: PatientTarget) => void;
 };
 
-export function PatientsCluster({
-    open,
-    goHome = 0,
-    onBook,
-    onWalkIn,
-    onRecordPayment,
-}: PatientsClusterProps) {
+export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
     const [route, setRoute] = useState<Route>({ name: 'list' });
     const [seen, setSeen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
@@ -137,7 +133,6 @@ export function PatientsCluster({
                     onEdit={() => setRoute({ name: 'edit', patientId: route.patientId, from: 'record' })}
                     onBook={onBook}
                     onWalkIn={onWalkIn}
-                    onRecordPayment={onRecordPayment}
                     onOpenVisit={(entry) => {
                         if (!entry.visitId) return;
                         setVisit({ appointmentId: entry.appointmentId, visitId: entry.visitId });

@@ -1,10 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { ERROR_CODE } from '@lustre/shared';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
-import { clinic as fixtures, slot } from './helpers/factories.ts';
+import { expectAppError, clinic as fixtures, slot } from './helpers/factories.ts';
 
 /**
  * The three period figures the money dashboard draws that `summary` did not
@@ -68,6 +69,299 @@ beforeAll(async () => {
 
 beforeEach(async () => {
     await truncateAll();
+});
+
+/**
+ * The task's own worked example, in piastres. Kareem owes 9,550 EGP over three
+ * visits and hands over 6,000: the oldest settles, the middle takes a partial,
+ * the newest is untouched.
+ */
+const KAREEM = { oldest: 585_000, middle: 20_000, newest: 350_000 };
+const KAREEM_OWES = KAREEM.oldest + KAREEM.middle + KAREEM.newest;
+
+/** Three unsettled visits, oldest first — `slot(n)` is tomorrow 09:00 plus n minutes. */
+async function threeDebts(patientId: string, branchId: string) {
+    const oldest = await checkedOut(patientId, branchId, slot(), KAREEM.oldest, 0);
+    const middle = await checkedOut(patientId, branchId, slot(60), KAREEM.middle, 0);
+    const newest = await checkedOut(patientId, branchId, slot(120), KAREEM.newest, 0);
+    return { oldest, middle, newest };
+}
+
+/** What each of a patient's visits still owes, keyed by visit id. */
+async function owedPerVisit(patientId: string): Promise<Record<string, number>> {
+    const rows = await balanceService.byPatient(patientId);
+    return Object.fromEntries(rows.map((row) => [row.visitId, row.balance]));
+}
+
+describe('balance.settle — allocation', () => {
+    test('fills the oldest debt first and leaves the newest untouched', async () => {
+        const f = await fixtures();
+        const { oldest, middle, newest } = await threeDebts(f.patient.id, f.branch.id);
+
+        const report = await balanceService.settle({
+            patientId: f.patient.id,
+            amount: 600_000,
+            method: 'cash',
+        });
+
+        expect(report.outstandingBefore).toBe(KAREEM_OWES);
+        expect(report.outstandingAfter).toBe(KAREEM_OWES - 600_000);
+
+        // The newest is absent rather than present with a zero — an untouched
+        // visit is not part of what this payment did.
+        expect(report.visits.map((v) => [v.visitId, v.amount, v.settled])).toEqual([
+            [oldest.id, KAREEM.oldest, true],
+            [middle.id, 600_000 - KAREEM.oldest, false],
+        ]);
+
+        const owed = await owedPerVisit(f.patient.id);
+        expect(owed[oldest.id]).toBeUndefined();
+        expect(owed[middle.id]).toBe(KAREEM.middle - (600_000 - KAREEM.oldest));
+        expect(owed[newest.id]).toBe(KAREEM.newest);
+    });
+
+    test('paying the whole total takes every visit to zero', async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        const report = await balanceService.settle({
+            patientId: f.patient.id,
+            amount: KAREEM_OWES,
+            method: 'visa',
+        });
+
+        expect(report.outstandingAfter).toBe(0);
+        expect(report.visits).toHaveLength(3);
+        expect(report.visits.every((visit) => visit.settled)).toBe(true);
+        expect(await balanceService.byPatient(f.patient.id)).toEqual([]);
+    });
+
+    test('names the visit ref on every slice — the paper file is written per visit', async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        const report = await balanceService.settle({
+            patientId: f.patient.id,
+            amount: 600_000,
+            method: 'cash',
+        });
+
+        for (const visit of report.visits) {
+            expect(visit.ref).toMatch(/^\d{6}-[A-Z0-9]+$/);
+            expect(visit.outstandingAfter).toBe(visit.outstandingBefore - visit.amount);
+        }
+    });
+
+    /**
+     * Money carried over from the old system is the oldest debt a patient has,
+     * and `outstanding`/`byPatient` both count it. Allocation follows them
+     * rather than inventing a second rule about it.
+     */
+    test('allocates against an opening balance before this clinic’s own work', async () => {
+        const f = await fixtures();
+        const carried = await checkedOut(f.patient.id, f.branch.id, slot(), 400_000, 0);
+        await sql`
+            UPDATE appointments SET is_opening_balance = true
+            WHERE id = (SELECT appointment_id FROM visits WHERE id = ${carried.id})
+        `;
+        const recent = await checkedOut(f.patient.id, f.branch.id, slot(60), 100_000, 0);
+
+        const report = await balanceService.settle({
+            patientId: f.patient.id,
+            amount: 400_000,
+            method: 'cash',
+        });
+
+        expect(report.visits.map((v) => v.visitId)).toEqual([carried.id]);
+        expect((await owedPerVisit(f.patient.id))[recent.id]).toBe(100_000);
+    });
+});
+
+describe('balance.settle — what it refuses', () => {
+    test('refuses more than the patient owes, and writes nothing', async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        await expectAppError(ERROR_CODE.PAYMENT_EXCEEDS_BALANCE, () =>
+            balanceService.settle({
+                patientId: f.patient.id,
+                amount: KAREEM_OWES + 1,
+                method: 'cash',
+            }),
+        );
+
+        const report = await balanceService.outstanding();
+        expect(report.total).toBe(KAREEM_OWES);
+    });
+
+    test('refuses a patient who owes nothing', async () => {
+        const f = await fixtures();
+        await checkedOut(f.patient.id, f.branch.id, slot(), 100_000, 100_000);
+
+        await expectAppError(ERROR_CODE.NOTHING_OUTSTANDING, () =>
+            balanceService.settle({ patientId: f.patient.id, amount: 10_000, method: 'cash' }),
+        );
+    });
+
+    test('refuses a patient with no visits at all', async () => {
+        const f = await fixtures();
+
+        await expectAppError(ERROR_CODE.NOTHING_OUTSTANDING, () =>
+            balanceService.settle({ patientId: f.patient.id, amount: 10_000, method: 'cash' }),
+        );
+    });
+
+    test("refuses 'other' with no note, the way a single payment does", async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        await expectAppError(ERROR_CODE.PAYMENT_NOTE_REQUIRED, () =>
+            balanceService.settle({
+                patientId: f.patient.id,
+                amount: 10_000,
+                method: 'other',
+                methodNote: null,
+            }),
+        );
+    });
+});
+
+/**
+ * `procedure.reorder`'s rule, with money instead of sort order. Three inserts of
+ * which the second fails would leave the patient having handed over 6,000 with
+ * 5,850 recorded — and 5,850 is the figure the desk reads back to them. The
+ * trigger fails the *second* slice specifically, so this is a genuine
+ * mid-allocation failure and not a request that never started.
+ */
+describe('balance.settle — one transaction or none', () => {
+    // `sql.unsafe` because a bind parameter cannot appear inside a function
+    // body — Postgres plans the body separately and has no type for it. The
+    // interpolated value is a uuid this test just generated.
+    async function failPaymentsAgainst(visitId: string): Promise<void> {
+        await sql.unsafe(`
+            CREATE FUNCTION refuse_this_visit() RETURNS trigger AS $$
+            BEGIN
+                IF NEW.visit_id = '${visitId}'::uuid THEN
+                    RAISE EXCEPTION 'the disk went away mid-allocation';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+        `);
+        await sql`
+            CREATE TRIGGER refuse_this_visit BEFORE INSERT ON payments
+            FOR EACH ROW EXECUTE FUNCTION refuse_this_visit()
+        `;
+    }
+
+    async function stopFailing(): Promise<void> {
+        await sql`DROP TRIGGER IF EXISTS refuse_this_visit ON payments`;
+        await sql`DROP FUNCTION IF EXISTS refuse_this_visit()`;
+    }
+
+    test('a failure mid-allocation leaves every balance byte-identical', async () => {
+        const f = await fixtures();
+        const { oldest, middle, newest } = await threeDebts(f.patient.id, f.branch.id);
+        const before = await owedPerVisit(f.patient.id);
+
+        await failPaymentsAgainst(middle.id);
+        try {
+            await expect(
+                balanceService.settle({
+                    patientId: f.patient.id,
+                    amount: 600_000,
+                    method: 'cash',
+                }),
+            ).rejects.toThrow();
+        } finally {
+            await stopFailing();
+        }
+
+        // The first slice committed nothing either: the oldest is still owed in
+        // full, which is the assertion that the whole allocation rolled back.
+        expect(await owedPerVisit(f.patient.id)).toEqual(before);
+        expect(before[oldest.id]).toBe(KAREEM.oldest);
+        expect(before[newest.id]).toBe(KAREEM.newest);
+
+        const rows = await sql<Array<{ count: number }>>`SELECT COUNT(*)::int AS count FROM payments`;
+        expect(rows[0]?.count).toBe(0);
+    });
+});
+
+/**
+ * Two phones settling the same patient at once. Whichever commits first, the
+ * loser reads the outstanding the winner left behind rather than the one it
+ * started from — so the pair can never allocate more than the patient owes.
+ */
+describe('balance.settle — two phones at once', () => {
+    test('the second settle sees what the first left, and is refused', async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        const settled = await Promise.allSettled([
+            balanceService.settle({ patientId: f.patient.id, amount: 600_000, method: 'cash' }),
+            balanceService.settle({ patientId: f.patient.id, amount: 600_000, method: 'visa' }),
+        ]);
+
+        expect(settled.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        expect(settled.filter((r) => r.status === 'rejected')).toHaveLength(1);
+
+        const report = await balanceService.outstanding();
+        expect(report.total).toBe(KAREEM_OWES - 600_000);
+    });
+
+    test('two payments that both fit are both taken', async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        await Promise.all([
+            balanceService.settle({ patientId: f.patient.id, amount: 400_000, method: 'cash' }),
+            balanceService.settle({ patientId: f.patient.id, amount: 400_000, method: 'visa' }),
+        ]);
+
+        const report = await balanceService.outstanding();
+        expect(report.total).toBe(KAREEM_OWES - 800_000);
+    });
+});
+
+/**
+ * Each slice is an ordinary `payments` row, which is the whole reason there is
+ * no patient-level payments table: everything downstream keeps working without
+ * learning a new concept.
+ */
+describe('balance.settle — the rows it writes are ordinary payments', () => {
+    test('summary and takings pick them up unchanged', async () => {
+        const f = await fixtures();
+        await threeDebts(f.patient.id, f.branch.id);
+
+        await balanceService.settle({ patientId: f.patient.id, amount: 600_000, method: 'visa' });
+
+        const [summary, takings] = await Promise.all([
+            balanceService.summary(thisPeriod()),
+            balanceService.takings(thisPeriod()),
+        ]);
+
+        expect(summary.collected).toBe(600_000);
+        expect(takings.total).toBe(600_000);
+        // Two visits were touched, so the method split carries two rows of one
+        // payment each rather than one row of 600,000.
+        expect(takings.byMethod).toEqual([{ method: 'visa', amount: 600_000, count: 2 }]);
+    });
+
+    test('a slice against an older visit counts as older money collected', async () => {
+        const f = await fixtures();
+        const old = await checkedOut(f.patient.id, f.branch.id, slot(), 200_000, 0);
+        await backdate(old.id, 30);
+        await checkedOut(f.patient.id, f.branch.id, slot(60), 100_000, 0);
+
+        await balanceService.settle({ patientId: f.patient.id, amount: 250_000, method: 'cash' });
+
+        const summary = await balanceService.summary(thisPeriod());
+
+        expect(summary.olderCollected).toBe(200_000);
+        expect(summary.olderVisits).toBe(1);
+        expect(summary.collected).toBe(250_000);
+    });
 });
 
 describe('balance.summary — duePatients', () => {

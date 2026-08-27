@@ -42,6 +42,8 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
                     reach them on one line. Here it leads the line it belongs
                     to — the row of small facts about who this is. */}
                 <View style={styles.meta}>
+                    <RefChip value={patient.ref} />
+
                     {patient.legacyRef !== null ? <LegacyBadge /> : null}
 
                     {metaParts(patient).map((part, index) => (
@@ -81,16 +83,39 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
     );
 }
 
+/**
+ * The clinic's own number for this patient, and **the one ref anywhere in the
+ * app** (§5). It leads the meta line because it is what the desk copies onto the
+ * top of the patient's page in the paper book, and a number you have to hunt for
+ * is a number that gets written down wrong.
+ *
+ * Drawn as a chip rather than as another part of the line: the rest of the line
+ * is muted mono figures, and a fourth one would read as a second phone number.
+ * Outlined rather than filled, so it does not compete with `LEGACY` — that badge
+ * is a warning and this is an identifier, and the loud one should stay the
+ * warning.
+ */
+function RefChip({ value }: { value: string }) {
+    return (
+        <View style={styles.ref} accessibilityLabel={`Patient reference ${value}`}>
+            <Text variant="tag" weight="bold" script="mono">
+                {value}
+            </Text>
+        </View>
+    );
+}
+
 /** `Female, 34` and `+201004001008` — with whatever of it the record actually holds. */
 function metaParts(patient: Patient): string[] {
     const who = [sentenceCase(patient.gender), patient.age === null ? null : String(patient.age)]
         .filter(Boolean)
         .join(', ');
 
-    // The old system's number is stored but not drawn here. It is a figure that
-    // answers nothing anyone asks out loud, and a second number beside the
-    // phone in a line of mono digits reads as a second phone number. Where the
-    // refs belong on a record is its own question — see the Notion task.
+    // The old system's number is stored, and its presence is what `LEGACY` says,
+    // but the figure itself is still not drawn. That was true when the phone was
+    // the only number on this line and it is more true now there is a ref beside
+    // it: three numbers in mono on one line is a line nobody reads. It belongs on
+    // the Details tab if it belongs anywhere on screen.
     return [who, patient.phone].filter((part): part is string => Boolean(part));
 }
 
@@ -133,6 +158,16 @@ const styles = StyleSheet.create({
         paddingVertical: space[1],
         borderRadius: radius.sm,
         backgroundColor: color.ink,
+    },
+    // Outlined and in ink, against `LEGACY`'s solid fill next to it. Same
+    // vertical metrics as that badge so the two sit on one line without either
+    // shifting the row's height.
+    ref: {
+        paddingHorizontal: space[2],
+        paddingVertical: space[1],
+        borderRadius: radius.sm,
+        borderWidth: border.hair,
+        borderColor: color.outline,
     },
     meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2.5] },
     divider: { width: 1, height: 11, backgroundColor: color.outline },
