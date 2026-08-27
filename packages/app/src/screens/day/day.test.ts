@@ -367,8 +367,9 @@ describe('errors', () => {
 describe('money', () => {
     it('formats piastres as whole pounds, grouped', () => {
         expect(formatMoney(260_000)).toBe('EGP 2,600');
-        expect(formatMoney(260_000, 'trail')).toBe('2,600 EGP');
         expect(formatMoney(0)).toBe('EGP 0');
+        // §7.13 — the symbol trails in Arabic, and it is the Arabic symbol that trails.
+        expect(formatMoney(260_000, { language: 'ar' })).toBe('2,600 ج.م');
     });
 
     it('takes what has already been paid off the amount due', () => {

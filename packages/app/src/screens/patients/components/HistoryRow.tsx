@@ -29,9 +29,9 @@
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { MoneyValue } from '../../../components/domain';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
-import { _LocalMoneyValue } from './_LocalMoneyValue';
 
 export type HistoryRowProps = {
     entry: PatientHistoryEntry;
@@ -114,11 +114,11 @@ export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
 
             <View style={styles.amounts}>
                 {came ? (
-                    <_LocalMoneyValue
-                        amount={entry.chargedTotal}
+                    <MoneyValue
+                        piastres={entry.chargedTotal}
                         variant="callout"
                         weight="bold"
-                        symbol={false}
+                        showCurrency={false}
                         tone={due ? 'due' : 'ink'}
                     />
                 ) : null}
@@ -179,7 +179,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
     if (entry.balance > 0) {
         return (
             <View style={styles.meaning}>
-                <_LocalMoneyValue amount={entry.balance} variant="caption" tone="due" />
+                <MoneyValue piastres={entry.balance} variant="caption" tone="due" showCurrency={false} />
                 <Text variant="caption" tone="due">
                     due
                 </Text>

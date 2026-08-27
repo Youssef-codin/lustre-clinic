@@ -2,11 +2,13 @@
 // and adds product meaning (Component Inventory §2). The barrel is the only
 // entry point: screens import from `components/domain`, never from a file.
 //
-// `patientDraft` is the one exception, and is imported by its own path. It is
-// rules rather than markup, it is covered by `bun test`, and every component
-// below imports `react-native` — which fails outside Metro, so a barrel that
-// re-exported it would drag React Native into three suites that have no
-// renderer and do not need one.
+// `patientDraft` and `money` are the exceptions, and are imported by their own
+// paths. They are rules rather than markup, they are covered by `bun test`, and
+// every component below imports `react-native` — which fails outside Metro, so a
+// barrel that re-exported them would drag React Native into suites that have no
+// renderer and do not need one. `formatMoney` and `formatAmount` are re-exported
+// here anyway in their direction-aware form, which does need React Native; that
+// pair is what a screen should reach for.
 
 export type { BottomTabBarProps, TabKey } from './BottomTabBar';
 export { BottomTabBar } from './BottomTabBar';
@@ -16,7 +18,7 @@ export type { MoneyValueProps } from './MoneyValue';
 export { formatAmount, formatMoney, MoneyValue } from './MoneyValue';
 export type { PatientRowProps, PatientSummary } from './PatientRow';
 export { PatientRow } from './PatientRow';
-export type { StatusPillProps } from './StatusPill';
-export { StatusPill } from './StatusPill';
+export type { StatusPillProps, StatusTone } from './StatusPill';
+export { StatusPill, statusLabel, statusTone } from './StatusPill';
 export type { ToothGroupCardProps, ToothGroupLine } from './ToothGroupCard';
 export { ToothGroupCard } from './ToothGroupCard';

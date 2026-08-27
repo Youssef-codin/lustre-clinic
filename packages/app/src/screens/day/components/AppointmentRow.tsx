@@ -1,15 +1,15 @@
 /**
  * The list form of an appointment — for the places a timeline makes no sense
  * (a closed day, the calendar's day summary). §5 lists `domain/AppointmentRow`
- * under the day views only, so it stays in the cluster rather than being a
- * `_Local` awaiting promotion.
+ * under the day views only, so it stays in the cluster rather than moving to
+ * `domain/`.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import { StatusPill } from '../../../components/domain';
 import { Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { clock12, minutesOfDay, time12 } from '../time';
-import { _LocalStatusPill } from './_LocalStatusPill';
 
 export type AppointmentRowProps = {
     appointment: Appointment;
@@ -56,7 +56,7 @@ export function AppointmentRow({ appointment, onPress, projectedMinutes = null }
                     <Text variant="subhead" tone="muted">
                         {appointment.durationMinutes} min
                     </Text>
-                    <_LocalStatusPill status={appointment.status} />
+                    <StatusPill status={appointment.status} />
                 </View>
             </View>
 

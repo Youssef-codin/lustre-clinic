@@ -23,31 +23,25 @@
  * Thursday is the day she meant.
  */
 
-export const DAY_MINUTES = 24 * 60;
+// The calendar arithmetic and the 12-hour clock are `@lustre/shared/dates` —
+// they have no cluster in them and the settings panes want the same ones.
+// Re-exported here so the day cluster keeps one import for time.
+import type { Clock12 } from '@lustre/shared';
+import {
+    clock12,
+    DAY_MINUTES,
+    dateKey,
+    localOffsetMinutes,
+    offsetForDate,
+    parseKey,
+    todayKey,
+} from '@lustre/shared';
 
-export function localOffsetMinutes(now: Date = new Date()): number {
-    return -now.getTimezoneOffset();
-}
-
-export function offsetForDate(key: string): number {
-    return localOffsetMinutes(parseKey(key));
-}
+export type { Clock12 };
+export { clock12, DAY_MINUTES, dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey };
 
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
-}
-
-export function dateKey(date: Date): string {
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-export function todayKey(now: Date = new Date()): string {
-    return dateKey(now);
-}
-
-export function parseKey(key: string): Date {
-    const [year = 1970, month = 1, day = 1] = key.split('-').map(Number);
-    return new Date(year, month - 1, day);
 }
 
 export function addDays(key: string, days: number): string {
@@ -79,16 +73,7 @@ export function formatTime(iso: string): string {
     return minutesToClock(minutesOfDay(iso));
 }
 
-export function clock12(minutes: number): { time: string; meridiem: 'AM' | 'PM' } {
-    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
-    const hours = Math.floor(wrapped / 60);
-    return {
-        time: `${hours % 12 === 0 ? 12 : hours % 12}:${pad(wrapped % 60)}`,
-        meridiem: hours < 12 ? 'AM' : 'PM',
-    };
-}
-
-export function time12(iso: string): { time: string; meridiem: 'AM' | 'PM' } {
+export function time12(iso: string): Clock12 {
     return clock12(minutesOfDay(iso));
 }
 

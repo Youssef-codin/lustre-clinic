@@ -30,6 +30,7 @@ import type { Tooth } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { border, color, radius, space, Text } from '../../theme';
+import { Chevron } from '../ui';
 
 export type ToothGroupLine = {
     id: string;
@@ -72,7 +73,7 @@ export function ToothGroupCard({
     if (variant === 'row') {
         return (
             <View style={styles.row} testID={testID}>
-                <ToothBadge tooth={tooth} />
+                <ToothBadge tooth={tooth} variant="row" />
                 <View style={styles.rowBody}>
                     {lines.map((line) => (
                         <Line key={line.id} line={line} stacked />
@@ -87,11 +88,12 @@ export function ToothGroupCard({
 
     const head = (
         <>
-            <ToothBadge tooth={tooth} />
+            <ToothBadge tooth={tooth} variant="card" />
             <Text variant="subhead" tone="muted" numberOfLines={1} style={styles.grow}>
                 {position}
             </Text>
             {subtotal}
+            {onToggle ? <Chevron direction={expanded ? 'up' : 'down'} size={9} /> : null}
         </>
     );
 
@@ -128,9 +130,15 @@ export function ToothGroupCard({
  * a scaling belongs to no tooth — and is drawn as an empty slot, dashed, so it
  * reads as "nothing here" and not as a code that failed to load.
  */
-function ToothBadge({ tooth }: { tooth: Tooth | null }) {
+function ToothBadge({ tooth, variant }: { tooth: Tooth | null; variant: 'card' | 'row' }) {
     return (
-        <View style={[styles.badge, !tooth && styles.badgeNone]}>
+        <View
+            style={[
+                styles.badge,
+                variant === 'card' ? styles.badgeCard : styles.badgeRow,
+                !tooth && styles.badgeNone,
+            ]}
+        >
             <Text variant="footnote" script="sans" weight="bold" tone={tooth ? 'ink' : 'muted'}>
                 {tooth ?? '—'}
             </Text>
@@ -187,15 +195,17 @@ const styles = StyleSheet.create({
 
     badge: {
         minWidth: 46,
-        height: 34,
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: space[1.5],
-        borderRadius: radius.md,
         borderWidth: border.hair,
         borderColor: color.line,
-        backgroundColor: color.surface2,
     },
+    // The two the screens draw. A card's head is 54 tall and carries a badge to
+    // match; a row's badge sits against stacked text and is the smaller of the
+    // two, on the tint that separates it from the card it shares.
+    badgeCard: { height: 37, borderRadius: radius.md, backgroundColor: color.surface },
+    badgeRow: { height: 32, borderRadius: radius.sm, backgroundColor: color.surface2 },
     badgeNone: { backgroundColor: color.surface, borderStyle: 'dashed' },
 
     line: {

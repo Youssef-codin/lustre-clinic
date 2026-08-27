@@ -21,10 +21,10 @@
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { MoneyValue } from '../../../components/domain';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
 import { space, Text } from '../../../theme';
 import type { SettleInput } from '../data/types';
-import { _LocalMoneyValue } from './_LocalMoneyValue';
 import { clampToOutstanding, formatMoney, isWholePounds, methodLabel, toPounds } from './money';
 
 export type RecordPaymentSheetProps = {
@@ -123,7 +123,7 @@ export function RecordPaymentSheet({
                 <Text variant="subhead" tone="muted">
                     Outstanding
                 </Text>
-                <_LocalMoneyValue amount={outstanding} variant="amount" tone="due" weight="bold" />
+                <MoneyValue piastres={outstanding} variant="amount" tone="due" weight="bold" />
             </View>
 
             <NumericField

@@ -29,6 +29,7 @@ import { useState } from 'react';
 import { PushView } from '../../components/ui';
 import type { PatientTarget } from '../../shell/routes';
 import { VisitPage } from '../day';
+import { useInvalidatePatients } from './data/hooks';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
 import { PatientRecordScreen } from './PatientRecordScreen';
@@ -73,8 +74,22 @@ export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: Patients
     const [seenHome, setSeenHome] = useState(goHome);
     /** The editor, mid-write. A tab tap must not take the screen out from under it. */
     const [saving, setSaving] = useState(false);
-    /** Bumped by a save, so the record behind the editor remounts onto fresh data. */
+    /**
+     * Bumped by a save, so the record behind the editor remounts onto fresh data.
+     *
+     * The remount alone is no longer enough to make it fresh: the cluster reads
+     * through a real query cache now, and a new mount re-attaches to whatever is
+     * cached rather than going back to the server. So a bump drops the cache
+     * with it — `reread` is the two together, and nothing may bump `read` on its
+     * own.
+     */
     const [read, setRead] = useState(0);
+    const invalidate = useInvalidatePatients();
+
+    const reread = () => {
+        invalidate();
+        setRead((n) => n + 1);
+    };
     // A visit opened off a history row. It is a page over the record rather
     // than a fourth route, because backing out of it returns to the row you
     // tapped with the record's scroll where you left it. `VisitPage` is the day
@@ -115,7 +130,7 @@ export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: Patients
                 }
                 onSavingChange={setSaving}
                 onSaved={(patientId) => {
-                    setRead((n) => n + 1);
+                    reread();
                     setRoute({ name: 'record', patientId });
                 }}
             />
@@ -148,8 +163,11 @@ export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: Patients
                             visitId={visit.visitId}
                             onClose={() => setVisitOpen(false)}
                             // The record's totals move with the visit, so it is
-                            // re-read rather than left showing what it held.
-                            onChanged={() => setRead((n) => n + 1)}
+                            // re-read rather than left showing what it held. The
+                            // write happened in the day cluster, over the raw
+                            // tRPC client, so nothing has touched this cluster's
+                            // cache — `reread` is what makes the remount real.
+                            onChanged={reread}
                         />
                     ) : null}
                 </PushView>

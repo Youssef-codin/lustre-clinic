@@ -10,7 +10,7 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import type { ClientRole } from '@lustre/shared';
+import { type ClientRole, formatClock12 } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { useState } from 'react';
@@ -26,7 +26,6 @@ import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
-import { formatClock12 } from './components/_LocalClock';
 import { IdentityCard } from './components/IdentityCard';
 import { DataEntryIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';

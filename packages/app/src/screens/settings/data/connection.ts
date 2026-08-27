@@ -10,10 +10,10 @@
  * the card on every re-probe — the spinner on the button is what says the app
  * is working. Only a settled answer changes the words.
  */
+import { formatClock12 } from '@lustre/shared';
 import { useRef } from 'react';
 import { serverAddresses, useConnection } from '../../../api';
 import type { DotTone } from '../../../components/ui';
-import { formatStamp } from '../components/_LocalClock';
 
 export type ConnectionKind = 'wifi' | 'remote' | 'offline';
 
@@ -70,8 +70,14 @@ export function useConnectionView(): ConnectionView {
         pulse: PULSE[kind],
         serverName: 'Clinic server',
         serverAddress: (kind === 'remote' ? tailscale : lan) ?? lan ?? tailscale ?? '—',
-        stamp: lastOnlineAt === null ? undefined : `Last checked ${formatStamp(lastOnlineAt)}`,
+        stamp: lastOnlineAt === null ? undefined : `Last checked ${wallClock(lastOnlineAt)}`,
         probing: status === 'probing',
         reprobe: () => void retry(),
     };
+}
+
+/** The probe stamp: a wall-clock timestamp on the same 12-hour clock the panes use. */
+function wallClock(at: number): string {
+    const date = new Date(at);
+    return formatClock12(date.getHours() * 60 + date.getMinutes());
 }

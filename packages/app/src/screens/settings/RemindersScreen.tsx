@@ -16,6 +16,7 @@
  * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
  * the server accepts.
  */
+import { formatClock12 } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -30,8 +31,8 @@ import {
     Textarea,
     usePullToRefresh,
 } from '../../components/ui';
+import { useNotificationsAllowed } from '../../notifications';
 import { color, radius, space, Text } from '../../theme';
-import { formatClock12 } from './components/_LocalClock';
 import { PlusIcon, WhatsAppIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -52,6 +53,7 @@ const SAMPLE: Record<string, string> = {
 };
 
 export function RemindersScreen({ onBack }: { onBack: () => void }) {
+    const allowed = useNotificationsAllowed();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
@@ -93,6 +95,19 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                     {save.error ? (
                         <Callout tone="warning" title="Not saved">
                             {errorText(save.error)}
+                        </Callout>
+                    ) : null}
+
+                    {/* A time set here cannot take effect while the OS is
+                        blocking the app, and the pane would otherwise read back
+                        perfectly against a phone that stays silent — which is
+                        the whole failure this pane is meant to be the front of.
+                        Said once, above the settings it disables, not as a
+                        badge on each. */}
+                    {allowed === 'blocked' ? (
+                        <Callout tone="warning" title="Notifications are off for this app">
+                            The daily reminder will not appear until notifications are turned on for Lustre
+                            Clinic in Android settings. Everything below still saves.
                         </Callout>
                     ) : null}
 
