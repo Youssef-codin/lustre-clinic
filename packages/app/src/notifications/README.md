@@ -36,11 +36,19 @@ not a server.
 
 ## One arm path
 
-`armNudges` is always cancel-then-schedule. Every trigger — foregrounding, a
-reminder marked sent or skipped, a day dismissed — works by invalidating the two
-queries the hook reads, so the effect re-arms off the new values. Nothing arms
-directly. A second path is how a phone ends up with two series layered over each
-other, each buzzing on its own half-hour.
+`armNudges` is always cancel-then-schedule, and the effect in
+`useReminderNudges` is its only caller. Nothing arms directly — a second path is
+how a phone ends up with two series layered over each other, each buzzing on its
+own half-hour.
+
+A reminder marked sent or skipped, or a day dismissed, feeds it by invalidating
+the two queries the hook reads. **Foregrounding does both**: it invalidates, and
+it bumps a counter in the effect's dependencies. That second half is not
+redundant — whether the OS still refuses notifications, what the wall clock says
+and which day it is are not in the query answers, so a refetch that comes back
+identical would move no dependency and re-arm nothing. Without it, a user who
+enables notifications in Android settings and returns stays unarmed, and a
+process alive at midnight never gets the new day's series.
 
 ## What it deliberately does not do
 

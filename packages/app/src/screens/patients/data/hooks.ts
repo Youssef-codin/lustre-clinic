@@ -81,7 +81,15 @@ export interface MutationResult<TInput, TOutput> {
 export function useMutation<TInput, TOutput>(
     run: (input: TInput) => Promise<TOutput>,
 ): MutationResult<TInput, TOutput> {
-    const mutation = useTanstackMutation({ mutationFn: run });
+    const invalidate = useInvalidatePatients();
+
+    // Every write this cluster makes moves more than the thing it wrote: a
+    // correction moves the record and the list's recent page, a payment moves
+    // the record, its history and the outstanding column. There are three of
+    // them, they all cross Tailscale anyway, and invalidating the root is
+    // cheaper than being right about which reads each one touched — and than
+    // discovering a year from now that one call site forgot.
+    const mutation = useTanstackMutation({ mutationFn: run, onSuccess: invalidate });
     const inFlight = useRef(false);
 
     const { mutateAsync } = mutation;
@@ -105,7 +113,11 @@ export function useMutation<TInput, TOutput>(
     };
 }
 
-/** Drop everything this cluster has cached — after a write that moves more than one read. */
+/**
+ * Drop everything this cluster has cached. `useMutation` calls it on every
+ * successful write; `PatientsCluster` calls it for the writes that happen
+ * somewhere else and come back as a remount.
+ */
 export function useInvalidatePatients(): () => void {
     const client = useQueryClient();
     return useCallback(() => void client.invalidateQueries({ queryKey: [PATIENTS_KEY] }), [client]);
