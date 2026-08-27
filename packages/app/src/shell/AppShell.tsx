@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
 import { Toast } from '../components/ui';
+import { useReminderNudges } from '../notifications';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
@@ -60,6 +61,12 @@ export function AppShell() {
     // patient's record has to report itself from up here.
     const [toast, setToast] = useState<string | null>(null);
     const { isOffline, isOnline } = useConnection();
+
+    // The daily reminder nudge (§11). It belongs to the shell rather than to the
+    // day cluster: it has to stay armed while the app sits on another tab or in
+    // the background, and the day cluster is unmounted for neither of those but
+    // is the wrong owner for something the whole app has.
+    useReminderNudges();
 
     // Sticky: `reprobe` passes through 'probing' on its way to an answer, and
     // reading `isOffline` directly would drop the overlay for those few hundred

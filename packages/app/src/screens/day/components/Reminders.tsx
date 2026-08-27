@@ -15,10 +15,11 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, EmptyState, type RefreshControlElement, RefreshView } from '../../../components/ui';
+import { useRearmReminderNudges } from '../../../notifications';
 import { border, color, size, space, Text } from '../../../theme';
 import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
-import { dateKey, relativeDayLabel, time12 } from '../time';
+import { dateKey, relativeDayLabel, time12, todayKey } from '../time';
 import { DaySkeleton } from './DayStates';
 import { CloseIcon } from './icons';
 
@@ -37,6 +38,11 @@ export type RemindersProps = {
 export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProps) {
     const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
     const [failed, setFailed] = useState<string | null>(null);
+    const [quietToday, setQuietToday] = useState(false);
+
+    // Every action here moves what the daily nudge should be armed against, and
+    // they all go over the raw tRPC client, which leaves the query cache alone.
+    const rearm = useRearmReminderNudges();
 
     const pending = (query.data ?? []).filter((row) => !settled.has(row.id));
 
@@ -58,6 +64,7 @@ export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProp
             } else {
                 await api.markReminderSkipped(reminder.id);
             }
+            rearm();
         } catch {
             forget(reminder.id);
             setFailed(reminder.patient.name);
@@ -73,6 +80,17 @@ export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProp
 
     function skipAll() {
         for (const reminder of pending) void settle(reminder, 'skipped');
+    }
+
+    /**
+     * Stop today's notification without touching the list. The reminders stay
+     * pending and still have to go out — this is the desk saying it has been
+     * told enough for one day, which is the stop condition the repeat setting
+     * promises and the only thing `reminder_dismissed_on` was ever for.
+     */
+    async function dismissToday() {
+        setQuietToday(true);
+        await api.dismissRemindersToday(todayKey()).then(rearm, () => setQuietToday(false));
     }
 
     if (query.status === 'loading') return <DaySkeleton />;
@@ -133,6 +151,17 @@ export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProp
                     stretched across a half it no longer shares. */}
                 <View style={styles.footer}>
                     <Button label="Skip all" variant="secondary" size="md" onPress={skipAll} />
+                    {/* Not a second Skip all. This one leaves every reminder
+                        pending and only quiets today's notification — the two
+                        sit together because this is where the desk is when it
+                        decides it has had enough nudging. */}
+                    <Button
+                        label={quietToday ? 'Quiet until tomorrow' : 'Not today'}
+                        variant="ghost"
+                        size="md"
+                        disabled={quietToday}
+                        onPress={() => void dismissToday()}
+                    />
                 </View>
             </ScrollView>
         </View>
@@ -255,5 +284,9 @@ const styles = StyleSheet.create({
     send: { paddingHorizontal: space[3.5] },
     // No `alignItems` here: `ui/Button` carries `alignSelf: 'flex-start'`, which
     // wins, and the gutter is where the list's left edge already is.
-    footer: { marginTop: space[5] },
+    // Two buttons at their own widths rather than stretched across a half
+    // each: they are not a pair of equals — one ends the messages, the other
+    // only quiets tonight's nudge — and equal halves read as a choice between
+    // two versions of the same thing.
+    footer: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[5] },
 });
