@@ -21,7 +21,7 @@
 
 import { offsetForDate, todayKey } from '@lustre/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { AppState } from 'react-native';
 import { api, useTRPC } from '../api';
 import { armNudges } from './notifications';
@@ -79,12 +79,16 @@ export function useReminderNudges(): void {
  * Re-read what the nudge is armed against. For the actions that change the list
  * from inside this app — a reminder marked sent or skipped, a day dismissed —
  * which go over the raw tRPC client and so leave the query cache untouched.
+ *
+ * Stable across renders, because the effect above holds it in a dependency list:
+ * a fresh identity every render would tear down and re-add the `AppState`
+ * listener on every one of them.
  */
 export function useRearmReminderNudges(): () => void {
     const client = useQueryClient();
 
-    return () => {
+    return useCallback(() => {
         void client.invalidateQueries(api.reminder.pathFilter());
         void client.invalidateQueries(api.settings.pathFilter());
-    };
+    }, [client]);
 }
