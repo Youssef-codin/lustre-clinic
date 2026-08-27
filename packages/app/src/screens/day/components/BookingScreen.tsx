@@ -21,7 +21,7 @@
  * refusal lands above that button in the words of what was being attempted
  * (§4/§14) — never a toast that slides away while the patient is standing there.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
@@ -46,7 +46,7 @@ import {
     time12,
     todayKey,
 } from '../time';
-import { CheckIcon } from './icons';
+import { CalendarIcon, CheckIcon, DurationIcon, PatientIcon, PinIcon } from './icons';
 import { ProcedurePlan } from './ProcedurePlan';
 import { SlotPicker } from './SlotPicker';
 
@@ -493,18 +493,21 @@ export function BookingScreen({
                                         ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
                                         : 'Now — walk-in'
                                 }
+                                icon={<CalendarIcon size={17} />}
                                 lead
                             />
-                            <SummaryRow label="How long" value={`${duration} min`} />
+                            <SummaryRow label="How long" value={`${duration} min`} icon={<DurationIcon />} />
                             {branches.length > 1 ? (
                                 <SummaryRow
                                     label="Branch"
                                     value={branches.find((row) => row.id === branch)?.name ?? '—'}
+                                    icon={<PinIcon />}
                                 />
                             ) : null}
                             <SummaryRow
                                 label="Patient"
                                 value={patient.mode === 'new' ? `${name} · new record` : name}
+                                icon={<PatientIcon />}
                             />
                         </View>
 
@@ -673,13 +676,31 @@ function Steps({ index }: { index: number }) {
     );
 }
 
-/** `lead` is the one row the eye should land on first — the time it is booked for. */
-function SummaryRow({ label, value, lead = false }: { label: string; value: string; lead?: boolean }) {
+/**
+ * `lead` is the one row the eye should land on first — the time it is booked
+ * for. `icon` is a slot rather than an icon name so the caller sizes the glyph
+ * to its own row; the lead row's text is larger and the icon goes with it.
+ * Centred rather than baseline-aligned: a glyph has no baseline to share.
+ */
+function SummaryRow({
+    label,
+    value,
+    icon,
+    lead = false,
+}: {
+    label: string;
+    value: string;
+    icon?: ReactNode;
+    lead?: boolean;
+}) {
     return (
         <View style={styles.summaryLine}>
-            <Text variant="subhead" tone="muted" style={styles.grow}>
-                {label}
-            </Text>
+            <View style={[styles.summaryLabel, styles.grow]}>
+                {icon}
+                <Text variant="subhead" tone="muted" numberOfLines={1}>
+                    {label}
+                </Text>
+            </View>
             <Text
                 variant={lead ? 'headline' : 'callout'}
                 weight={lead ? 'bold' : 'semibold'}
@@ -806,7 +827,8 @@ const styles = StyleSheet.create({
         borderColor: color.line,
         backgroundColor: color.surface,
     },
-    summaryLine: { flexDirection: 'row', alignItems: 'baseline', gap: space[3] },
+    summaryLine: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+    summaryLabel: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
 
     emptyPlan: {
         padding: space[4],
