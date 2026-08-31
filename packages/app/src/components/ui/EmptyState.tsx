@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { color, radius, space, Text } from '../../theme';
+import { color, radius, shadow, space, Text } from '../../theme';
 import { Button } from './Button';
 
 export type EmptyStateProps = {
@@ -68,7 +68,15 @@ const styles = StyleSheet.create({
         backgroundColor: color.canvas,
     },
     glyph: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', marginBottom: space[1] },
-    ring: { borderRadius: radius.full, borderWidth: 1, borderColor: color.line },
+    // The same fill, hairline and shadow the ghost button carries — the glyph
+    // reads as the thing you press rather than a drawn outline.
+    ring: {
+        borderRadius: radius.full,
+        borderWidth: 1,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+        boxShadow: shadow.pill,
+    },
     tile: { borderRadius: radius.xl, backgroundColor: color.surface2 },
     body: { textAlign: 'center' },
     action: { alignSelf: 'center', marginTop: space[2] },

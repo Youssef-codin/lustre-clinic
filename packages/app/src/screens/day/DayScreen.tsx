@@ -466,7 +466,7 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
                     />
                 ) : appointments.length === 0 ? (
                     <RefreshView refreshControl={refreshControl}>
-                        <DayEmpty past={dateKey < todayKey()} onBook={openBooking} elsewhere={elsewhere} />
+                        <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
                     </RefreshView>
                 ) : (
                     <ScrollView

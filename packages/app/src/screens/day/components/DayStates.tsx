@@ -4,8 +4,8 @@
  * nothing like a quiet Tuesday. The retry button carries no `loading`: the
  * whole panel is replaced by the skeleton the moment the query goes back to
  * loading, so a spinner here would never be seen. Past days get a statement
- * rather than an offer, and the booking action is omitted on the doctor's
- * screen, where booking one is the desk's job.
+ * rather than an offer. The empty day carries no button of its own — the FAB
+ * is already the way to book, and two offers on one screen is one too many.
  *
  * `elsewhere` is the branch working a day this one is not. The day is fetched
  * for the whole clinic, so the count is already to hand, and an empty branch
@@ -56,13 +56,10 @@ export function DayError({ error, onRetry }: DayErrorProps) {
 
 export type DayEmptyProps = {
     past: boolean;
-    onBook?: () => void;
     elsewhere?: { name: string; count: number; onGo: () => void };
 };
 
-export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
-    const offer = !past && onBook !== undefined;
-
+export function DayEmpty({ past, elsewhere }: DayEmptyProps) {
     return (
         <View style={styles.centred}>
             <EmptyState
@@ -74,8 +71,6 @@ export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
                         ? 'No appointments were booked, and nobody walked in.'
                         : 'The day is clear. Book someone in for later, or start a walk-in who is at the desk now.'
                 }
-                actionLabel={offer ? 'Book someone in' : undefined}
-                onAction={offer ? onBook : undefined}
             />
 
             {elsewhere ? (
