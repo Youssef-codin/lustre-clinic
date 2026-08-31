@@ -253,15 +253,26 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     ),
                 )}
 
-                {tree.data && !empty && !reordering ? (
-                    <View style={styles.addRow}>
-                        <View style={styles.addProcedure}>
-                            <AddButton
-                                label="Add a procedure"
-                                onPress={() => setEditing('new')}
-                                testID="procedure-add"
-                            />
-                        </View>
+                {/* The ghost Category button belongs on the zero state too.
+                    It is the only way to make a category, so gating it on a
+                    row already existing means the first thing a new clinic can
+                    create is always a bare procedure — and a plain root is
+                    never offered as a parent afterwards, so that first
+                    procedure can never become the heading it should have been.
+                    On empty the panel above already carries "Add a procedure"
+                    as its primary action, so only the ghost twin is drawn
+                    here, centred under it rather than stranded to one side. */}
+                {tree.data && !reordering ? (
+                    <View style={[styles.addRow, empty && styles.addRowAlone]}>
+                        {empty ? null : (
+                            <View style={styles.addProcedure}>
+                                <AddButton
+                                    label="Add a procedure"
+                                    onPress={() => setEditing('new')}
+                                    testID="procedure-add"
+                                />
+                            </View>
+                        )}
                         <Pressable
                             accessibilityRole="button"
                             accessibilityLabel="Add a category"
@@ -716,6 +727,7 @@ function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
 const styles = StyleSheet.create({
     category: { gap: space[2] },
     addRow: { flexDirection: 'row', alignItems: 'stretch', gap: space[2.5] },
+    addRowAlone: { justifyContent: 'center' },
     addProcedure: { flex: 1 },
     // The mockup's ghost twin of `AddButton`: same shape, muted rather than
     // accented, sized to its own label. `ui/AddButton` draws one weight only.

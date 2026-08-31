@@ -131,6 +131,22 @@ export function ProcedureSheet({
 
                                 {open ? (
                                     <View style={styles.variants}>
+                                        {/* Hide every subtype of a category and
+                                            it is still a heading here, because
+                                            the no-tooth sheet offers the
+                                            catalogue whole. Opening it used to
+                                            reveal nothing at all — the chevron
+                                            was the only thing that moved. The
+                                            catalogue screen keeps the heading
+                                            and reads "ONLAYS 0"; saying so here
+                                            costs a line and keeps the two
+                                            screens telling the same story. */}
+                                        {category.children.length === 0 ? (
+                                            <Text variant="subhead" tone="muted" style={styles.emptyCategory}>
+                                                Nothing in this category yet. Settings → Procedures.
+                                            </Text>
+                                        ) : null}
+
                                         {category.children.map((child: ProcedureRow) => (
                                             <Pressable
                                                 key={child.id}
@@ -235,6 +251,7 @@ const styles = StyleSheet.create({
         borderColor: color.line,
         backgroundColor: color.surface,
     },
+    emptyCategory: { paddingVertical: space[1.5], paddingHorizontal: space[1] },
     failure: { gap: space[2] },
     pressed: { opacity: 0.72 },
 });

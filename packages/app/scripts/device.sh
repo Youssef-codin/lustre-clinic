@@ -80,9 +80,24 @@ if [ "$mode" = "start" ]; then
     exec bunx expo start --dev-client --localhost --port "$METRO_PORT"
 fi
 
+# `--device` matches the name Expo gives a device, which for a USB phone is its
+# `model:` field — not the adb serial (`AndroidDeviceManager.resolveFromNameAsync`
+# compares against `getDevicesAsync()`, and that reads `model:` out of
+# `adb devices -l`). Passing the serial fails every physical device with
+# "Could not find device with name". Everything above is adb, which only knows
+# the serial, so both are kept. An emulator is named for its AVD instead, but
+# `emulator.sh` is the path for those; fall back to the serial rather than
+# guessing wrong.
+case "$serial" in
+    emulator-*) name="$serial" ;;
+    *) name=$(adb devices -l | awk -v s="$serial" '$1 == s {
+            for (i = 2; i <= NF; i++) if ($i ~ /^model:/) { sub(/^model:/, "", $i); print $i; exit }
+        }') ;;
+esac
+
 # `expo run:android` prebuilds the native project when missing, builds the debug
 # APK with Gradle, installs it over adb, and then starts the bundler.
-args=(run:android --device "$serial" --port "$METRO_PORT")
+args=(run:android --device "${name:-$serial}" --port "$METRO_PORT")
 [ "$mode" = "build" ] && args+=(--no-build-cache)
 
 exec bunx expo "${args[@]}"
