@@ -32,6 +32,24 @@ export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
  */
 export const SLOT_HOLDING_STATUSES = ['booked', 'checked_in'] as const satisfies readonly AppointmentStatus[];
 
+/**
+ * Statuses that took up room on their day, for "how full was this day" rather
+ * than "can I book over this slot now".
+ *
+ * Wider than `SLOT_HOLDING_STATUSES` on purpose. That one is about the overlap
+ * constraint, so it drops `awaiting_payment` and `done` — those slots are free
+ * to rebook. But a finished visit filled its slot exactly as much as a booked
+ * one, and counting only the live two made the calendar's load bar vanish from
+ * every past day as soon as its appointments were checked out. Cancelled and
+ * no-show rows are the only ones that never took the room.
+ */
+export const DAY_FILLING_STATUSES = [
+    'booked',
+    'checked_in',
+    'awaiting_payment',
+    'done',
+] as const satisfies readonly AppointmentStatus[];
+
 /** How the appointment came to exist. A walk-in is booked and checked in at once. */
 export const APPOINTMENT_CHANNELS = ['desk', 'walk_in'] as const;
 export const appointmentChannelSchema = z.enum(APPOINTMENT_CHANNELS);

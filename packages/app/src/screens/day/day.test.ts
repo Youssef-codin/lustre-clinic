@@ -340,6 +340,21 @@ describe('the month', () => {
         expect(loads.get(SATURDAY)?.busiest).toBe('maadi');
     });
 
+    it('still counts a day that has been worked through', () => {
+        // Checkout frees the slot for rebooking, but the day was still full —
+        // so the bar has to survive it. Counting only the live statuses left
+        // every past month drawing empty once its days had been worked.
+        const loads = loadsFrom(
+            [SATURDAY],
+            [[at('a', 'maadi', 'done'), at('b', 'maadi', 'awaiting_payment'), at('c', 'maadi', 'no_show')]],
+            undefined,
+            'maadi',
+        );
+
+        expect(loads.get(SATURDAY)?.count).toBe(2);
+        expect(loads.get(SATURDAY)?.busiest).toBe('maadi');
+    });
+
     it('leaves a closed day at no load rather than dividing by nothing', () => {
         const loads = loadsFrom([FRIDAY], [[at('a', 'maadi')]], undefined, 'maadi');
         expect(loads.get(FRIDAY)?.fill).toBe(0);
