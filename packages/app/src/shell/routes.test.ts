@@ -1,8 +1,9 @@
-// The shell's two navigation rules, which is all of them that can be checked
+// The shell's navigation rules, which is all of them that can be checked
 // without a renderer: an ask has to be distinguishable from the one before it,
-// and a home signal has to reach one tab without disturbing the other three.
+// a home signal has to reach one tab without disturbing the other three, and
+// the disconnected route has to go up on a drop without flickering on a probe.
 import { describe, expect, it } from 'bun:test';
-import { ask, bumpHome, isUnseen, NO_HOME } from './routes';
+import { ALL_TABS, ask, bumpHome, isUnseen, NO_HOME, nextRoute } from './routes';
 
 describe('a cross-cluster ask (SPEC §18 F3 — no navigator yet)', () => {
     it('starts at 1, so an untouched cluster reading 0 sees the first one', () => {
@@ -60,5 +61,40 @@ describe('going home (tapping the tab you are already on)', () => {
         bumpHome(NO_HOME, 'day');
 
         expect(NO_HOME.day).toBe(0);
+    });
+});
+
+describe('the disconnected route', () => {
+    it('goes up the moment the connection says so, from any tab', () => {
+        expect(nextRoute('app', 'offline')).toBe('offline');
+    });
+
+    it('comes down only on a confirmed answer', () => {
+        expect(nextRoute('offline', 'online')).toBe('app');
+    });
+
+    it('sits still while a probe is running, which is what stops the flicker', () => {
+        // `retry` and every re-probe pass through 'probing' on the way to an
+        // answer: reading it either way flashes the stale app under the screen
+        // she is on, or the screen over an app that is about to be told it is
+        // fine.
+        expect(nextRoute('offline', 'probing')).toBe('offline');
+        expect(nextRoute('app', 'probing')).toBe('app');
+    });
+
+    it('sits still before anything has been asked', () => {
+        expect(nextRoute('app', 'unknown')).toBe('app');
+        expect(nextRoute('offline', 'unknown')).toBe('offline');
+    });
+
+    it('is idempotent — a second offline report does not re-enter it', () => {
+        expect(nextRoute('offline', 'offline')).toBe('offline');
+        expect(nextRoute('app', 'online')).toBe('app');
+    });
+});
+
+describe('warming the tabs', () => {
+    it('names every tab, so the warm-up mounts all of them and not the three it remembers', () => {
+        expect([...ALL_TABS].sort()).toEqual(['day', 'money', 'patients', 'settings']);
     });
 });
