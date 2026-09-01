@@ -13,10 +13,12 @@ import { reprobe, type ServerAddresses, serverAddresses, setServerAddresses, trp
 const LAN_KEY = 'lustre.server.lan';
 const TAILSCALE_KEY = 'lustre.server.tailscale';
 
-// What the boot sequence is waiting on. The default is probed rather than
-// trusted because `app.json` ships one address for every clinic: it is right
-// for the clinic it was written for and wrong everywhere else, and the only
-// honest way to tell the two apart is to ask the network.
+// What the boot sequence is waiting on. A default is probed rather than
+// trusted: one address is shipped to every clinic, so it is right for the one
+// it was written for and wrong everywhere else, and the only honest way to
+// tell the two apart is to ask the network. The shipped `app.json` sets none,
+// which is not a probe that failed but a question nobody has answered yet —
+// `hydrate` skips the network for it and goes straight to setup.
 type DefaultProbe = 'probing' | 'reachable' | 'unreachable';
 
 export interface SetupState {
@@ -79,6 +81,8 @@ async function hydrate(): Promise<void> {
     const fallback = serverAddresses();
     emit({ ...state, hydrated: true, addresses: fallback, stored: false });
 
+    // The shipped build's own path: nothing to probe, so setup opens on empty
+    // fields rather than on a failure report for an address nobody chose.
     if (!fallback.lan && !fallback.tailscale) {
         emit({ ...state, defaultProbe: 'unreachable' });
         return;

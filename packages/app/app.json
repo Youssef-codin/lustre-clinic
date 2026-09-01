@@ -23,7 +23,7 @@
         "plugins": ["expo-font", "./plugins/withBuildTuning"],
         "extra": {
             "server": {
-                "lan": "http://192.168.1.20:3000",
+                "lan": null,
                 "tailscale": null
             }
         }

@@ -12,11 +12,13 @@ import { color, useAppFonts } from './src/theme';
 // because the query cache and connection state outlive any one tab.
 //
 // Setup (F1) stands in front of it until the phone knows where the clinic
-// server is — which, on a clinic wired to the address `app.json` ships, is
-// never: the default is probed during the blank hold and a phone that finds the
-// server goes straight to the shell. The hold covers reading the stored address
-// off the device and that probe as well as the fonts, because mounting either
-// screen before the answer is in flashes the wrong one.
+// server is, which on a shipped build is on first launch: `app.json` names no
+// address, so there is nothing to probe and the fields open empty. A build
+// carrying a default — a dev machine's, a clinic's own — probes it during the
+// blank hold instead and goes straight to the shell if it answers. The hold
+// covers reading the stored address off the device and that probe as well as
+// the fonts, because mounting either screen before the answer is in flashes
+// the wrong one.
 export default function App() {
     const fontsLoaded = useAppFonts();
     const { ready, showSetup } = useServerSetup();
