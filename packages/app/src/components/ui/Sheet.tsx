@@ -25,6 +25,7 @@ import {
     useWindowDimensions,
     View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
 import { duration, easing } from './motion';
 import { Scrim } from './Scrim';
@@ -56,17 +57,40 @@ export function Sheet({
 }: SheetProps) {
     const progress = useRef(new Animated.Value(0)).current;
     const [mounted, setMounted] = useState(visible);
-    const [sheetHeight, setSheetHeight] = useState(0);
     const [head, setHead] = useState(0);
     const [foot, setFoot] = useState(0);
     const body = useRef(new Animated.Value(0)).current;
     const bodyMeasured = useRef(0);
     const keyboard = useKeyboardHeight();
     const reducedMotion = useReducedMotion();
+    const insets = useSafeAreaInsets();
     const window = useWindowDimensions();
+
+    /**
+     * How far the sheet rides in, and `0` until this open has been measured.
+     *
+     * The distance is the sheet's own height, which arrives from the `onLayout`
+     * of the very view being animated — so it is taken once, before the ride
+     * starts, and then left alone for the duration. Feeding a fresh height into
+     * the interpolation mid-ride replaces its `outputRange` underneath the
+     * running animation and the sheet jumps onto the new curve: that is the pop,
+     * and it is worst on a sheet whose content resizes just after it opens, like
+     * the calendar's day summary resolving from "Counting the month…".
+     *
+     * Until it is measured the sheet parks a whole window down, which is
+     * off-screen for anything `maxHeightRatio` allows, so the frame it waits
+     * shows nothing. It resets on close so the next open measures its own
+     * content rather than riding the last one's height.
+     */
+    const [travel, setTravel] = useState(0);
+    const riding = useRef(false);
 
     useEffect(() => {
         if (visible) setMounted(true);
+        if (!visible && !mounted) return;
+        if (visible && travel === 0) return;
+
+        riding.current = true;
 
         const animation = Animated.timing(progress, {
             toValue: visible ? 1 : 0,
@@ -75,11 +99,28 @@ export function Sheet({
             useNativeDriver: true,
         });
         animation.start(({ finished }) => {
-            if (finished && !visible) setMounted(false);
+            if (!finished) return;
+
+            riding.current = false;
+            if (!visible) {
+                setMounted(false);
+                setTravel(0);
+            }
         });
 
         return () => animation.stop();
-    }, [visible, progress, reducedMotion]);
+    }, [visible, mounted, progress, reducedMotion, travel]);
+
+    /**
+     * Taken only at rest. Mid-ride it is the pop; once the ride is over,
+     * adopting a resize keeps the exit dropping the sheet its full height.
+     */
+    function measureSheet(height: number) {
+        if (riding.current) return;
+
+        const next = Math.round(height * 1.02);
+        if (next !== travel) setTravel(next);
+    }
 
     function requestClose() {
         if (!dismissable) return;
@@ -123,9 +164,19 @@ export function Sheet({
 
     if (!mounted) return null;
 
-    const travel = sheetHeight > 0 ? sheetHeight * 1.02 : window.height;
+    const rideFrom = travel > 0 ? travel : window.height;
     const availableHeight = window.height - (Platform.OS === 'ios' ? keyboard : 0);
-    const bodyCap = availableHeight * maxHeightRatio - head - foot - space[6];
+
+    /**
+     * The system navigation bar is the same class of problem as the keyboard and
+     * was not being subtracted anywhere: on a three-button phone it is ~48dp of
+     * the sheet's own bottom edge, which ate the footer's primary action and
+     * sliced the last row of any sheet without one. A gesture bar asks for 24dp,
+     * which `space[6]` already happened to cover — which is why this only ever
+     * showed on a phone. The tab bar at the same edge reads the inset the same way.
+     */
+    const floor = space[6] + insets.bottom;
+    const bodyCap = availableHeight * maxHeightRatio - head - foot - floor;
 
     return (
         <Modal
@@ -145,16 +196,16 @@ export function Sheet({
                     pointerEvents="box-none"
                 >
                     <Animated.View
-                        onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
+                        onLayout={(event) => measureSheet(event.nativeEvent.layout.height)}
                         style={[
                             styles.sheet,
-                            { maxHeight: availableHeight * maxHeightRatio },
+                            { maxHeight: availableHeight * maxHeightRatio, paddingBottom: floor },
                             {
                                 transform: [
                                     {
                                         translateY: progress.interpolate({
                                             inputRange: [0, 1],
-                                            outputRange: [travel, 0],
+                                            outputRange: [rideFrom, 0],
                                         }),
                                     },
                                 ],
@@ -213,7 +264,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
         borderTopStartRadius: radius.sheet,
         borderTopEndRadius: radius.sheet,
-        paddingBottom: space[6],
     },
     handleRow: { alignItems: 'center', paddingTop: space[2.5], paddingBottom: space[1] },
     handle: { width: 38, height: 4, borderRadius: radius.full, backgroundColor: color.line },
