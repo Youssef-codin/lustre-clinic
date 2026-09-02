@@ -7,7 +7,7 @@
  * view moves with it. Cancelled and no-show rows hold no slot, so they neither
  * make a day look busy nor pull the pick to their branch.
  */
-import { DEFAULT_DURATION_MINUTES, SLOT_HOLDING_STATUSES } from '@lustre/shared';
+import { DAY_FILLING_STATUSES, DEFAULT_DURATION_MINUTES, SLOT_HOLDING_STATUSES } from '@lustre/shared';
 import type { Appointment, ClinicDay } from './data/types';
 import { openMinutes } from './hours';
 
@@ -25,6 +25,17 @@ export interface DayLoad {
 
 export function holdsSlot(appointment: Appointment): boolean {
     return (SLOT_HOLDING_STATUSES as readonly string[]).includes(appointment.status);
+}
+
+/**
+ * Whether the row took up room on its day, which is the month grid's question
+ * and not `holdsSlot`'s. `holdsSlot` answers "is this slot bookable now", so it
+ * drops a visit the moment it is checked out — right for booking, wrong here:
+ * it left every past day drawing an empty bar once the day had been worked
+ * through, which reads as a month with nothing in it.
+ */
+export function filledSlot(appointment: Appointment): boolean {
+    return (DAY_FILLING_STATUSES as readonly string[]).includes(appointment.status);
 }
 
 /**
@@ -59,7 +70,7 @@ export function loadsFrom(
     const loads = new Map<string, DayLoad>();
 
     days.forEach((day, index) => {
-        const holding = (perDay[index] ?? []).filter(holdsSlot);
+        const holding = (perDay[index] ?? []).filter(filledSlot);
         const booked = holding.reduce((total, row) => total + row.durationMinutes, 0);
         const open = openMinutes(day, schedule);
         const slots = Math.floor(open / DEFAULT_DURATION_MINUTES);
