@@ -2,6 +2,7 @@ import { databaseName } from '../../src/backup/pg.ts';
 import { config } from '../../src/config.ts';
 import { sql as dbSql } from '../../src/db/index.ts';
 import { runMigrations } from '../../src/db/migrate.ts';
+import { buildPatientRef } from '../../src/util/ref.ts';
 
 /**
  * Tests run against a real Postgres, because the things worth testing here are
@@ -68,8 +69,17 @@ export async function insertBranch(name = 'Main'): Promise<string> {
     return id;
 }
 
+/**
+ * A patient row straight into the table, for suites that need one to exist and
+ * do not care what is on it. The `ref` is generated the same way the service
+ * generates it — the column is NOT NULL, and every patient carries this clinic's
+ * own number (§5).
+ */
 export async function insertPatient(name = 'Test Patient'): Promise<string> {
     const id = uuid();
-    await sql`INSERT INTO patients (id, name, phone) VALUES (${id}, ${name}, '+201000000000')`;
+    await sql`
+        INSERT INTO patients (id, ref, name, phone)
+        VALUES (${id}, ${buildPatientRef()}, ${name}, '+201000000000')
+    `;
     return id;
 }

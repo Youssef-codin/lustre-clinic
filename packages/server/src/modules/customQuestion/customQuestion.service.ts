@@ -24,13 +24,14 @@
  * never the answer, which is patient data.
  */
 import { ERROR_CODE } from '@lustre/shared';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { customQuestions } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import type {
     CreateCustomQuestionInput,
     ListCustomQuestionInput,
+    ReorderCustomQuestionsInput,
     UpdateCustomQuestionInput,
 } from './customQuestion.schema.ts';
 
@@ -99,6 +100,31 @@ export const customQuestionService = {
 
         if (!row) throw AppError.notFound('custom question');
         return row;
+    },
+
+    /**
+     * The whole order of the questionnaire, in one transaction. The client
+     * sends the list it wants and every row is stamped with its index, so a
+     * connection that drops mid-write leaves the previous order intact rather
+     * than half of each.
+     */
+    async reorder({ ids }: ReorderCustomQuestionsInput): Promise<void> {
+        if (new Set(ids).size !== ids.length) {
+            throw new AppError(ERROR_CODE.VALIDATION, 'the same question appears twice in the order', 422);
+        }
+
+        await db.transaction(async (tx) => {
+            const rows = await tx
+                .select({ id: customQuestions.id })
+                .from(customQuestions)
+                .where(inArray(customQuestions.id, ids));
+
+            if (rows.length !== ids.length) throw AppError.notFound('custom question');
+
+            for (const [index, id] of ids.entries()) {
+                await tx.update(customQuestions).set({ sortOrder: index }).where(eq(customQuestions.id, id));
+            }
+        });
     },
 
     async byKey(): Promise<Map<string, CustomQuestion>> {

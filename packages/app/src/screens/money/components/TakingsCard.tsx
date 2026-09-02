@@ -1,7 +1,8 @@
-// A collected total and one row per payment method. The endpoint behind this
-// does not exist yet (BLOCKED.md #5); the stub serves the shape. Amounts are
-// full, never compact (§7.12). Each row's share is a ratio, not money — nothing
-// is summed here, and the percentage is never rendered as an amount.
+// A collected total and one row per payment method, from `balance.takings`.
+// Amounts are full, never compact (§7.12). Each row's share is a ratio, not
+// money — nothing is summed here, and the percentage is never rendered as an
+// amount. A method the clinic has never taken is absent rather than a zero row,
+// so the list is as long as the period earns.
 //
 // The share label rides above the head of its own bar rather than sitting in a
 // column: four bars of different lengths read as one comparison that way, and
@@ -11,9 +12,10 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { duration, easing, useReducedMotion } from '../../../components/ui';
 import { color, radius, space, Text } from '../../../theme';
-import type { MethodTaking, TakingsReport } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
+import type { MethodTaking, TakingsReport } from '../data';
 import { methodLabel } from '../format';
+import { MoneyValue } from '../MoneyValue';
+import { hasShareBase, methodShare } from '../money';
 import { BankIcon, MethodIcon } from './icons';
 
 const BAR_HEIGHT = 6;
@@ -29,6 +31,16 @@ export type TakingsCardProps = {
 export function TakingsCard({ takings, label }: TakingsCardProps) {
     const { total, byMethod } = takings;
 
+    // Nothing came in is a period with no payment rows, not a period whose
+    // total happens to be zero. Refunds are negative rows, so a day that took
+    // 1,000 and gave 1,000 back nets to zero with two real movements on it —
+    // "Nothing was collected" over them would be false.
+    const nothingCollected = byMethod.length === 0;
+
+    // Shares need a positive base. Without one the amounts are still the truth
+    // and the split is not: see `methodShare`.
+    const split = hasShareBase(total);
+
     return (
         <View style={styles.card} testID="money-takings">
             <View style={styles.total}>
@@ -39,10 +51,18 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
                     <BankIcon />
                 </View>
 
-                <MoneyValue amount={total} variant="figure" currencyVariant="figure" tone="success" />
+                {/* Green means money came in. A net refund is money going the
+                    other way, so it is drawn neutral rather than as a negative
+                    success. */}
+                <MoneyValue
+                    amount={total}
+                    variant="figure"
+                    currencyVariant="figure"
+                    tone={total > 0 ? 'success' : 'ink'}
+                />
             </View>
 
-            {total === 0 ? (
+            {nothingCollected ? (
                 <View style={styles.empty}>
                     <Text variant="subhead" tone="muted">
                         Nothing was collected in this period.
@@ -51,16 +71,24 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
             ) : (
                 <View style={styles.methods}>
                     {byMethod.map((row) => (
-                        <MethodRow key={row.method} row={row} total={total} />
+                        <MethodRow key={row.method} row={row} total={total} split={split} />
                     ))}
                 </View>
             )}
+
+            {!nothingCollected && !split ? (
+                <View style={styles.note}>
+                    <Text variant="footnote" tone="muted">
+                        Refunds cancelled out what was taken, so there is no split to show.
+                    </Text>
+                </View>
+            ) : null}
         </View>
     );
 }
 
-function MethodRow({ row, total }: { row: MethodTaking; total: number }) {
-    const share = total > 0 ? row.amount / total : 0;
+function MethodRow({ row, total, split }: { row: MethodTaking; total: number; split: boolean }) {
+    const share = methodShare(row.amount, total);
     const percent = Math.round(share * 100);
 
     const width = useRef(new Animated.Value(0)).current;
@@ -87,27 +115,36 @@ function MethodRow({ row, total }: { row: MethodTaking; total: number }) {
             </View>
 
             <View style={styles.barCol}>
-                <View
-                    style={styles.track}
-                    accessibilityRole="progressbar"
-                    accessibilityLabel={`${methodLabel(row.method)} share of takings`}
-                    accessibilityValue={{ min: 0, max: 100, now: percent }}
-                >
-                    <Animated.View
-                        style={[
-                            styles.fill,
-                            other && styles.fillOther,
-                            { width: width.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
-                        ]}
-                    />
-                </View>
+                {split ? (
+                    <>
+                        <View
+                            style={styles.track}
+                            accessibilityRole="progressbar"
+                            accessibilityLabel={`${methodLabel(row.method)} share of takings`}
+                            accessibilityValue={{ min: 0, max: 100, now: percent }}
+                        >
+                            <Animated.View
+                                style={[
+                                    styles.fill,
+                                    other && styles.fillOther,
+                                    {
+                                        width: width.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: ['0%', '100%'],
+                                        }),
+                                    },
+                                ]}
+                            />
+                        </View>
 
-                <View style={[styles.shareAnchor, { start: `${percent}%` }]} pointerEvents="none">
-                    <Text variant="caption" weight="bold" tone="successText">
-                        {`${percent}%`}
-                    </Text>
-                    <View style={styles.caret} />
-                </View>
+                        <View style={[styles.shareAnchor, { start: `${percent}%` }]} pointerEvents="none">
+                            <Text variant="caption" weight="bold" tone="successText">
+                                {`${percent}%`}
+                            </Text>
+                            <View style={styles.caret} />
+                        </View>
+                    </>
+                ) : null}
             </View>
 
             {/* `MoneyValue` renders a bare Text when the currency is hidden, so
@@ -194,4 +231,5 @@ const styles = StyleSheet.create({
         borderTopColor: color.successText,
     },
     amount: { minWidth: 52, alignItems: 'flex-end' },
+    note: { paddingTop: space[3.5] },
 });

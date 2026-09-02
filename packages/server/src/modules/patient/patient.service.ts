@@ -16,6 +16,7 @@
  * on the phone, and the questions are answered at the desk.
  */
 import type { AppointmentStatus } from '@lustre/shared';
+import { ERROR_CODE } from '@lustre/shared';
 import { asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
@@ -27,8 +28,9 @@ import {
     visitProcedures,
     visits,
 } from '../../db/schema.ts';
-import { AppError } from '../../errors/AppError.ts';
+import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { normalizePhone } from '../../util/phone.ts';
+import { buildPatientRef } from '../../util/ref.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
@@ -98,6 +100,50 @@ export interface RecentPatients {
 /** Exported for callers that already hold the row — `migration.enter` writes one and returns it. */
 export function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
+}
+
+/** How many draws before a collision is treated as something other than bad luck. */
+const REF_ATTEMPTS = 5;
+
+/**
+ * The one way a patient row is written, so both registration paths get a `ref`
+ * and neither can forget one. Same shape as `insertWithRef` in
+ * `appointment.service.ts`: draw a code, insert, and re-draw only when *this*
+ * unique constraint is the one that fired.
+ *
+ * Every other unique violation is rethrown untouched. Narrowing on the
+ * constraint name matters — swallowing all of them would turn a genuine
+ * conflict into five silent retries and then a misleading error about refs.
+ */
+async function insertPatientWithRef(
+    executor: Executor,
+    values: Omit<typeof patients.$inferInsert, 'id' | 'ref'>,
+): Promise<PatientRow> {
+    for (let attempt = 0; attempt < REF_ATTEMPTS; attempt += 1) {
+        try {
+            const [row] = await executor
+                .insert(patients)
+                .values({ ...values, id: Bun.randomUUIDv7(), ref: buildPatientRef() })
+                .returning();
+
+            if (!row) throw AppError.internal('patient insert returned nothing');
+            return row;
+        } catch (err) {
+            const collided = pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION && isRefCollision(err);
+            if (!collided) throw err;
+        }
+    }
+
+    throw new AppError(ERROR_CODE.REF_GENERATION_FAILED, 'could not allocate a unique patient ref', 500);
+}
+
+function isRefCollision(err: unknown): boolean {
+    for (let depth = 0; depth < 5 && err && typeof err === 'object'; depth += 1) {
+        if ('constraint_name' in err && err.constraint_name === 'patients_ref_unique') return true;
+        if ('constraint' in err && err.constraint === 'patients_ref_unique') return true;
+        err = (err as { cause?: unknown }).cause;
+    }
+    return false;
 }
 
 function answersOf(row: PatientRow): Answers {
@@ -298,22 +344,17 @@ export const patientService = {
     async create(input: CreatePatientInput): Promise<Patient> {
         const custom = await customQuestionService.validateIntake(input.custom);
 
-        const [row] = await db
-            .insert(patients)
-            .values({
-                id: Bun.randomUUIDv7(),
-                name: input.name,
-                phone: normalizePhone(input.phone),
-                email: input.email ?? null,
-                birthDate: input.birthDate ?? null,
-                gender: input.gender ?? null,
-                custom,
-                notes: input.notes ?? null,
-                legacyRef: input.legacyRef ?? null,
-            })
-            .returning();
+        const row = await insertPatientWithRef(db, {
+            name: input.name,
+            phone: normalizePhone(input.phone),
+            email: input.email ?? null,
+            birthDate: input.birthDate ?? null,
+            gender: input.gender ?? null,
+            custom,
+            notes: input.notes ?? null,
+            legacyRef: input.legacyRef ?? null,
+        });
 
-        if (!row) throw AppError.internal('patient insert returned nothing');
         return toPatient(row);
     },
 
@@ -339,22 +380,15 @@ export const patientService = {
     },
 
     async createMinimal(input: MinimalPatientInput, executor: Executor = db): Promise<PatientRow> {
-        const [row] = await executor
-            .insert(patients)
-            .values({
-                id: Bun.randomUUIDv7(),
-                name: input.name,
-                phone: normalizePhone(input.phone),
-                email: input.email ?? null,
-                birthDate: input.birthDate ?? null,
-                gender: input.gender ?? null,
-                notes: input.notes ?? null,
-                legacyRef: input.legacyRef ?? null,
-            })
-            .returning();
-
-        if (!row) throw AppError.internal('patient insert returned nothing');
-        return row;
+        return insertPatientWithRef(executor, {
+            name: input.name,
+            phone: normalizePhone(input.phone),
+            email: input.email ?? null,
+            birthDate: input.birthDate ?? null,
+            gender: input.gender ?? null,
+            notes: input.notes ?? null,
+            legacyRef: input.legacyRef ?? null,
+        });
     },
 
     async requireExists(id: string): Promise<PatientRow> {

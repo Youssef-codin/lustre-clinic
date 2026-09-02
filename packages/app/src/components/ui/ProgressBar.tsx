@@ -1,3 +1,11 @@
+/**
+ * The track is `outline`, not `surface2`. `surface2` (#f0f0f3) on `canvas`
+ * (#f4f4f6) is four values apart and effectively invisible, and the empty bar
+ * is the case that matters: at `0 of 4` the track *is* the whole control, with
+ * no fill to infer it from, so a vanishing track takes the "four to go" signal
+ * with it. `outline` is what every other hairline on `canvas` already uses, and
+ * it holds on `surface` too.
+ */
 import { StyleSheet, View } from 'react-native';
 import { color, radius } from '../../theme';
 
@@ -51,7 +59,7 @@ export function ProgressBar({
 
 const styles = StyleSheet.create({
     track: { alignSelf: 'stretch', overflow: 'hidden', borderRadius: radius.full },
-    trackLight: { backgroundColor: color.surface2 },
+    trackLight: { backgroundColor: color.outline },
     trackDark: { backgroundColor: color.ink2 },
     fill: { height: '100%' },
 });

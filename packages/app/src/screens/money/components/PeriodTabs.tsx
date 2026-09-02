@@ -9,7 +9,7 @@
 // caller with a variant to choose.
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { color, radius, size, space, Text } from '../../../theme';
-import { PERIOD_LABEL, PERIODS, type Period } from '../_LocalMoneyApi';
+import { PERIOD_LABEL, PERIODS, type Period } from '../money';
 
 const PILL_HEIGHT = 40;
 

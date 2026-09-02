@@ -5,13 +5,21 @@
  * rather than leaving someone hunting for a delete that is not there.
  *
  * A branch is a card of its own rather than a row in a shared card, because the
- * design gives each three lines that belong together — name, address, and how
- * big and how old it is — and a divider between three-line rows reads as a
- * table of unrelated fields. Inactive branches keep the shape and lose the
- * fill: dashed and dimmed, still tappable, still editable.
+ * design gives each several lines that belong together and a divider between
+ * multi-line rows reads as a table of unrelated fields. Inactive branches keep
+ * the shape and lose the fill: dashed and dimmed, still tappable, still
+ * editable.
+ *
+ * The design's second line — a phone number, a patient count, the year it
+ * opened, the month it closed — is not drawn, and neither is the "you're here"
+ * tag. `branches` is `id, name, address, active` and nothing tracks which
+ * branch a phone is standing in, so every one of those would be a number the
+ * pane made up. They come back when the columns do.
  */
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { type RouterOutput, useTRPC } from '../../api';
 import {
     ActionBar,
     Button,
@@ -34,30 +42,24 @@ import { color, radius, space, Text } from '../../theme';
 import { InfoIcon, PlusIcon, PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
-import type { Branch } from './data/types';
+import { errorText } from './data/errors';
+
+type Branch = RouterOutput['branch']['list'][number];
 
 export function BranchesScreen({ onBack }: { onBack: () => void }) {
-    const branches = useQuery(
-        useCallback(
-            async () => ({
-                rows: await api.branch.list({ includeInactive: true }),
-                currentId: await api.branch.current(),
-            }),
-            [],
-        ),
-    );
+    const trpc = useTRPC();
+
+    const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: true }));
     const [editing, setEditing] = useState<Branch | 'new' | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
-    const active = branches.data?.rows.filter((b) => b.active) ?? [];
-    const inactive = branches.data?.rows.filter((b) => !b.active) ?? [];
+    const active = branches.data?.filter((b) => b.active) ?? [];
+    const inactive = branches.data?.filter((b) => !b.active) ?? [];
 
     // Settings are read once when the pane opens, so a branch added on the
     // doctor's phone is invisible here until something asks again. The editor
     // is a pane of its own, so a pull can never land under a half-typed draft.
-    const refreshControl = usePullToRefresh(branches.reload, branches.loading || branches.reloading);
+    const refreshControl = usePullToRefresh(branches.refetch, branches.isFetching);
 
     return (
         <>
@@ -82,13 +84,13 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
             >
-                {branches.loading ? <SkeletonRows count={3} /> : null}
+                {branches.isLoading ? <SkeletonRows count={3} /> : null}
 
                 {branches.error ? (
                     <ErrorState
-                        message={errorMessage(branches.error) ?? ''}
-                        onRetry={branches.reload}
-                        retrying={branches.reloading}
+                        message={errorText(branches.error)}
+                        onRetry={branches.refetch}
+                        retrying={branches.isFetching}
                     />
                 ) : null}
 
@@ -109,7 +111,6 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                                     <BranchCard
                                         key={branch.id}
                                         branch={branch}
-                                        here={branch.id === branches.data?.currentId}
                                         onPress={() => setEditing(branch)}
                                     />
                                 ))}
@@ -123,7 +124,6 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                                     <BranchCard
                                         key={branch.id}
                                         branch={branch}
-                                        here={false}
                                         onPress={() => setEditing(branch)}
                                     />
                                 ))}
@@ -145,7 +145,6 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                         onSaved={(message) => {
                             setEditing(null);
                             setToast(message);
-                            branches.reload();
                         }}
                     />
                 ) : null}
@@ -154,15 +153,11 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
     );
 }
 
-function BranchCard({ branch, here, onPress }: { branch: Branch; here: boolean; onPress: () => void }) {
-    const stats = branch.active
-        ? `${branch.patientCount} · since ${branch.openedYear}`
-        : `${branch.patientCount} · since ${branch.closedOn ?? '—'}`;
-
+function BranchCard({ branch, onPress }: { branch: Branch; onPress: () => void }) {
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${branch.name}. ${stats}`}
+            accessibilityLabel={branch.name}
             onPress={onPress}
             testID={`branch-${branch.id}`}
             style={({ pressed }) => [
@@ -176,11 +171,6 @@ function BranchCard({ branch, here, onPress }: { branch: Branch; here: boolean; 
                     <Text variant="headline" tone={branch.active ? 'ink' : 'muted'}>
                         {branch.name}
                     </Text>
-                    {here ? (
-                        <Tag tone="ink" variant="filled">
-                            {"YOU'RE HERE"}
-                        </Tag>
-                    ) : null}
                     {branch.active ? null : <Tag tone="muted">INACTIVE</Tag>}
                 </View>
 
@@ -189,10 +179,6 @@ function BranchCard({ branch, here, onPress }: { branch: Branch; here: boolean; 
                         {branch.address}
                     </Text>
                 ) : null}
-
-                <Text variant="caption" weight="medium" tone="muted" script="mono">
-                    {stats}
-                </Text>
             </View>
 
             <Chevron direction="forward" tone="muted" />
@@ -207,35 +193,48 @@ type BranchEditorProps = {
 };
 
 function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+    const onBranchWritten = () => queryClient.invalidateQueries(trpc.branch.pathFilter());
+
     const [name, setName] = useState(branch?.name ?? '');
     const [address, setAddress] = useState(branch?.address ?? '');
-    const [phone, setPhone] = useState(branch?.phone ?? '');
     const [submitted, setSubmitted] = useState(false);
     const [confirming, setConfirming] = useState(false);
 
-    const save = useMutation((input: { name: string; address: string; phone: string }) =>
-        branch ? api.branch.update({ id: branch.id, ...input }) : api.branch.create(input),
-    );
-
-    const setActive = useMutation((active: boolean) => api.branch.update({ id: branch?.id ?? '', active }));
+    const create = useMutation(trpc.branch.create.mutationOptions({ onSuccess: onBranchWritten }));
+    const update = useMutation(trpc.branch.update.mutationOptions({ onSuccess: onBranchWritten }));
 
     const nameError = submitted && name.trim() === '' ? 'A branch needs a name.' : undefined;
-    const busy = save.pending || setActive.pending;
+    const saving = create.isPending || (update.isPending && !confirming);
+    const busy = create.isPending || update.isPending;
+    const failure = create.error ?? update.error;
 
-    async function onSave() {
+    function onSave() {
         setSubmitted(true);
         if (name.trim() === '') return;
 
-        const saved = await save.run({ name, address, phone });
-        if (saved) onSaved(branch ? 'Branch saved' : 'Branch added');
+        const details = { name: name.trim(), address: address.trim() || null };
+
+        if (!branch) {
+            create.mutate(details, { onSuccess: () => onSaved('Branch added') });
+            return;
+        }
+        update.mutate({ id: branch.id, ...details }, { onSuccess: () => onSaved('Branch saved') });
     }
 
-    async function onToggleActive() {
+    function onToggleActive() {
         if (!branch) return;
 
-        const updated = await setActive.run(!branch.active);
-        setConfirming(false);
-        if (updated) onSaved(updated.active ? 'Branch reactivated' : 'Branch deactivated');
+        update.mutate(
+            { id: branch.id, active: !branch.active },
+            {
+                onSuccess: (updated) => {
+                    setConfirming(false);
+                    onSaved(updated.active ? 'Branch reactivated' : 'Branch deactivated');
+                },
+            },
+        );
     }
 
     return (
@@ -248,16 +247,16 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                 // button, and a Cancel beside Save is a second way out of a
                 // screen that already has one.
                 <ActionBar
-                    primaryLabel={busy ? 'Saving' : branch ? 'Save branch' : 'Create branch'}
+                    primaryLabel={saving ? 'Saving' : branch ? 'Save branch' : 'Create branch'}
                     onPrimary={onSave}
-                    primaryLoading={save.pending}
-                    primaryDisabled={setActive.pending}
+                    primaryLoading={saving}
+                    primaryDisabled={busy}
                 />
             }
         >
-            {save.error || setActive.error ? (
+            {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorMessage(save.error ?? setActive.error) ?? ''}
+                    {errorText(failure)}
                 </Callout>
             ) : null}
 
@@ -287,14 +286,6 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                         placeholder="Street, area"
                         testID="branch-address"
                     />
-                    <TextField
-                        label="Phone"
-                        value={phone}
-                        onChangeText={setPhone}
-                        placeholder="02 0000 0000"
-                        keyboardType="phone-pad"
-                        testID="branch-phone"
-                    />
                 </Card>
             </View>
 
@@ -307,11 +298,6 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                             <Dot tone={branch.active ? 'wa' : 'muted'} size={8} />
                             <Text variant="body" weight="semibold" style={styles.statusLabel}>
                                 {branch.active ? 'Active' : 'Inactive'}
-                            </Text>
-                            <Text variant="footnote" tone="muted" script="mono">
-                                {branch.active
-                                    ? `since ${branch.openedYear}`
-                                    : `since ${branch.closedOn ?? '—'}`}
                             </Text>
                         </View>
 
@@ -332,7 +318,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                                 />
                             }
                             onPress={() => setConfirming(true)}
-                            loading={setActive.pending}
+                            loading={update.isPending && confirming}
                             block
                         />
 
@@ -353,7 +339,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                 }
                 confirmLabel={branch?.active ? 'Deactivate' : 'Reactivate'}
                 destructive={branch?.active}
-                loading={setActive.pending}
+                loading={update.isPending && confirming}
                 onConfirm={onToggleActive}
                 onCancel={() => setConfirming(false)}
             />

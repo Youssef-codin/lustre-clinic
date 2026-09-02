@@ -8,39 +8,40 @@
  * the other side of the changeover moves the range by an hour, enough to drop
  * a late appointment off the end of its day. `dateKey` must never be
  * `toISOString`, which is UTC. Weekdays are 0 = Sunday … 6 = Saturday,
- * matching `Date#getDay` and `clinic_days.weekday`. `formatTime` is 24-hour so
- * the row and ruler line up in DM Mono's tabular figures; `clock12` returns the
- * meridiem separately because it is set at a different size. The weekday and
+ * matching `Date#getDay` and `clinic_days.weekday`.
+ *
+ * `clock12`/`time12` are what a row shows: they return the meridiem separately
+ * because it is set at a different size. `formatTime` is 24-hour and is now
+ * only for the two ends of a span — "09:00 – 09:30" on the detail sheet, the
+ * chair's window — where one meridiem per end doubles the width of a label
+ * nobody reads a time off. It used to be the row format too, "so the row and
+ * ruler line up in DM Mono's tabular figures"; the ruler went when the
+ * timeline became a list, and `AppointmentRow` was the last row still on it.
+ * A single time on screen is 12-hour. The weekday and
  * month names are English until the F4 localisation scaffold lands. The header
  * pill adds the weekday off today, because a bare date does not say whether
  * Thursday is the day she meant.
  */
 
-export const DAY_MINUTES = 24 * 60;
+// The calendar arithmetic and the 12-hour clock are `@lustre/shared/dates` —
+// they have no cluster in them and the settings panes want the same ones.
+// Re-exported here so the day cluster keeps one import for time.
+import type { Clock12 } from '@lustre/shared';
+import {
+    clock12,
+    DAY_MINUTES,
+    dateKey,
+    localOffsetMinutes,
+    offsetForDate,
+    parseKey,
+    todayKey,
+} from '@lustre/shared';
 
-export function localOffsetMinutes(now: Date = new Date()): number {
-    return -now.getTimezoneOffset();
-}
-
-export function offsetForDate(key: string): number {
-    return localOffsetMinutes(parseKey(key));
-}
+export type { Clock12 };
+export { clock12, DAY_MINUTES, dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey };
 
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
-}
-
-export function dateKey(date: Date): string {
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-export function todayKey(now: Date = new Date()): string {
-    return dateKey(now);
-}
-
-export function parseKey(key: string): Date {
-    const [year = 1970, month = 1, day = 1] = key.split('-').map(Number);
-    return new Date(year, month - 1, day);
 }
 
 export function addDays(key: string, days: number): string {
@@ -72,16 +73,7 @@ export function formatTime(iso: string): string {
     return minutesToClock(minutesOfDay(iso));
 }
 
-export function clock12(minutes: number): { time: string; meridiem: 'AM' | 'PM' } {
-    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
-    const hours = Math.floor(wrapped / 60);
-    return {
-        time: `${hours % 12 === 0 ? 12 : hours % 12}:${pad(wrapped % 60)}`,
-        meridiem: hours < 12 ? 'AM' : 'PM',
-    };
-}
-
-export function time12(iso: string): { time: string; meridiem: 'AM' | 'PM' } {
+export function time12(iso: string): Clock12 {
     return clock12(minutesOfDay(iso));
 }
 

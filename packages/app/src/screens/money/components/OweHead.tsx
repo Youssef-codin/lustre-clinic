@@ -12,7 +12,7 @@ import type { View as RNView } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { MenuAnchor } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
-import { MoneyValue } from '../_LocalMoneyValue';
+import { MoneyValue } from '../MoneyValue';
 import type { DebtorSort } from '../money';
 import { DEBTOR_SORT_LABEL } from '../money';
 import { CaretDownIcon } from './icons';

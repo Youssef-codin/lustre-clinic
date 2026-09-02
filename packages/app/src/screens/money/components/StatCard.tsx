@@ -4,7 +4,7 @@
 // draws and it is what keeps the two cards' figures on the same left edge.
 import { StyleSheet, View } from 'react-native';
 import { color, radius, space, Text } from '../../../theme';
-import { MoneyValue } from '../_LocalMoneyValue';
+import { MoneyValue } from '../MoneyValue';
 import { SkeletonBlock } from './LoadState';
 
 // Side by side inside the gutter these are about 195 wide, so the design's own

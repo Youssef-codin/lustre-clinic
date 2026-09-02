@@ -21,9 +21,29 @@
  *
  * In reorder mode the price is dropped rather than sat beside the arrows — a
  * tappable price next to small buttons reprises by accident.
+ *
+ * ## Making a category
+ *
+ * A row is a category because something names it as a parent, which used to
+ * mean no new one could ever be made: the Category picker only offered rows
+ * that already had a child, so nothing could receive its first one. The ghost
+ * "Category" button from `settings-procedures.html` is the way in, and it asks
+ * for the first subtype in the same breath — a category and the procedure under
+ * it are one write, `procedure.createCategory`, sent when the editor is saved.
+ *
+ * That is the answer to "what if you file nothing under it": you cannot make an
+ * empty one. An empty category has no way to be a category — with no children
+ * it is a root with a price, which `procedure.list` would happily offer on a
+ * visit — so rather than write one and hope, nothing is written until there is
+ * a subtype to write with it, and then both go in one transaction. A category that loses its last visible subtype
+ * still draws here, as a heading with its "Add to" button and nothing under it.
  */
-import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { type RouterOutput, useTRPC } from '../../api';
+import { MoneyValue } from '../../components/domain';
+import { poundsToPiastres, sanitisePounds } from '../../components/domain/money';
 import {
     ActionBar,
     AddButton,
@@ -40,39 +60,53 @@ import {
     ReorderControls,
     SectionLabel,
     Select,
+    Sheet,
     Switch,
     Tag,
     TextField,
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { color, size, space, Text } from '../../theme';
-import { _LocalMoneyValue, poundsToPiastres, sanitisePounds } from './components/_LocalMoneyValue';
-import { EditIcon, HideIcon } from './components/icons';
+import { color, radius, size, space, Text } from '../../theme';
+
+import { CategoryIcon, EditIcon, HideIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { api } from './data/_LocalApi';
-import { errorMessage, useMutation, useQuery } from './data/hooks';
-import type { Procedure, ProcedureNode } from './data/types';
+import { errorText } from './data/errors';
+
+export type ProcedureNode = RouterOutput['procedure']['tree'][number];
+export type Procedure = ProcedureNode['children'][number];
 
 export function ProceduresScreen({ onBack }: { onBack: () => void }) {
-    const tree = useQuery(useCallback(() => api.procedure.tree({ includeInactive: true }), []));
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
     const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
     const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
+    // A category being made: its name, held until the first subtype under it is
+    // saved, because the two are written together.
+    const [namingCategory, setNamingCategory] = useState(false);
+    const [newCategory, setNewCategory] = useState<string | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
-    const reorder = useMutation((ids: string[]) => api.procedure.reorder(ids));
+    const reorder = useMutation(
+        trpc.procedure.reorder.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.procedure.pathFilter()),
+        }),
+    );
 
-    async function move(siblings: readonly { id: string }[], index: number, delta: number) {
+    // One write for the whole group, so a dropped connection leaves the order
+    // it had rather than half of the new one.
+    function move(siblings: readonly { id: string }[], index: number, delta: number) {
         const next = [...siblings];
         const moved = next[index];
         const target = next[index + delta];
         if (!moved || !target) return;
         next[index] = target;
         next[index + delta] = moved;
-        await reorder.run(next.map((row) => row.id));
-        tree.reload();
+        reorder.mutate({ ids: next.map((row) => row.id) });
     }
 
     // The tree is fetched whole so parenthood — and therefore which rows are
@@ -81,9 +115,14 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     // Only the rendering drops them.
     const all = tree.data ?? [];
 
+    function nextSortOrder(parentId: string | null): number {
+        if (parentId === null) return all.length;
+        return all.find((node) => node.id === parentId)?.children.length ?? 0;
+    }
+
     const nodes = all
-        .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }))
-        .filter((node) => node.active && (node.selectable || node.children.length > 0));
+        .filter((node) => node.active)
+        .map((node) => ({ ...node, children: node.children.filter((child) => child.active) }));
 
     const empty = nodes.length === 0;
 
@@ -91,8 +130,8 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     // would replace, and a price list that reshuffles under a finger is worse
     // than a stale one.
     const refreshControl = usePullToRefresh(() => {
-        if (!reordering) tree.reload();
-    }, tree.loading || tree.reloading);
+        if (!reordering) void tree.refetch();
+    }, tree.isFetching);
 
     return (
         <>
@@ -114,19 +153,19 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
             >
-                {tree.loading ? <SkeletonRows count={4} trailing /> : null}
+                {tree.isLoading ? <SkeletonRows count={4} trailing /> : null}
 
                 {tree.error ? (
                     <ErrorState
-                        message={errorMessage(tree.error) ?? ''}
-                        onRetry={tree.reload}
-                        retrying={tree.reloading}
+                        message={errorText(tree.error)}
+                        onRetry={tree.refetch}
+                        retrying={tree.isFetching}
                     />
                 ) : null}
 
                 {reorder.error ? (
                     <Callout tone="warning" title="Order not saved">
-                        {errorMessage(reorder.error) ?? ''}
+                        {errorText(reorder.error)}
                     </Callout>
                 ) : null}
 
@@ -146,7 +185,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                             <ProcedureRow
                                 procedure={node}
                                 reordering={reordering}
-                                reorderDisabled={reorder.pending}
+                                reorderDisabled={reorder.isPending}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
                                 onPress={() => setEditing(node)}
@@ -189,7 +228,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                         <ProcedureRow
                                             procedure={child}
                                             reordering={reordering}
-                                            reorderDisabled={reorder.pending}
+                                            reorderDisabled={reorder.isPending}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
                                             onPress={() => setEditing(child)}
@@ -201,7 +240,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
 
                                 {reordering ? null : (
                                     <>
-                                        <CardDivider />
+                                        {node.children.length > 0 ? <CardDivider /> : null}
                                         <AddButton
                                             variant="footer"
                                             label={`Add to ${node.name}`}
@@ -215,7 +254,27 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                 )}
 
                 {tree.data && !empty && !reordering ? (
-                    <AddButton label="Add a procedure" onPress={() => setEditing('new')} />
+                    <View style={styles.addRow}>
+                        <View style={styles.addProcedure}>
+                            <AddButton
+                                label="Add a procedure"
+                                onPress={() => setEditing('new')}
+                                testID="procedure-add"
+                            />
+                        </View>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Add a category"
+                            onPress={() => setNamingCategory(true)}
+                            testID="category-add"
+                            style={({ pressed }) => [styles.addCategory, pressed && styles.pressed]}
+                        >
+                            <CategoryIcon />
+                            <Text variant="callout" weight="medium" tone="muted">
+                                Category
+                            </Text>
+                        </Pressable>
+                    </View>
                 ) : null}
 
                 {tree.data && !empty ? (
@@ -224,28 +283,95 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         and each has its own price.
                     </Text>
                 ) : null}
+
+                {namingCategory ? (
+                    <CategorySheet
+                        onClose={() => setNamingCategory(false)}
+                        onNamed={(name) => {
+                            setNamingCategory(false);
+                            setNewCategory(name);
+                        }}
+                    />
+                ) : null}
             </Pane>
 
-            <PushView visible={editing !== null || addingTo !== null}>
-                {editing !== null || addingTo !== null ? (
+            <PushView visible={editing !== null || addingTo !== null || newCategory !== null}>
+                {editing !== null || addingTo !== null || newCategory !== null ? (
                     <ProcedureEditor
                         procedure={editing !== null && editing !== 'new' ? editing : null}
                         parent={addingTo}
+                        newCategory={newCategory}
                         categories={all.filter((node) => !node.selectable)}
+                        nextSortOrder={nextSortOrder}
                         onClose={() => {
                             setEditing(null);
                             setAddingTo(null);
+                            setNewCategory(null);
                         }}
                         onSaved={(message) => {
                             setEditing(null);
                             setAddingTo(null);
+                            setNewCategory(null);
                             setToast(message);
-                            tree.reload();
                         }}
                     />
                 ) : null}
             </PushView>
         </>
+    );
+}
+
+/**
+ * `catSheet` from the mockup, minus its Arabic name field: `procedure_types`
+ * has one `name` column, and giving the catalogue a second one is a migration
+ * of its own (the same one the patient questions are waiting on). Deferred by
+ * the user's decision, so this asks in English and says so nowhere, because a
+ * disabled field nobody can fill is worse than a field that is not there.
+ *
+ * Naming is where the sheet stops. Nothing is written until the editor behind
+ * it saves the first subtype — see the note at the top of the file.
+ */
+function CategorySheet({ onClose, onNamed }: { onClose: () => void; onNamed: (name: string) => void }) {
+    const [name, setName] = useState('');
+    const [submitted, setSubmitted] = useState(false);
+
+    const error = submitted && name.trim() === '' ? 'A category needs a name.' : undefined;
+
+    function onNext() {
+        setSubmitted(true);
+        if (name.trim() === '') return;
+        onNamed(name.trim());
+    }
+
+    return (
+        <Sheet
+            visible
+            onClose={onClose}
+            title="New category"
+            subtitle="A category groups procedures. It has no price of its own and can't be picked on a visit."
+            testID="category-sheet"
+            footer={
+                <View style={styles.sheetActions}>
+                    <View style={styles.sheetCancel}>
+                        <Button label="Cancel" variant="ghost" onPress={onClose} block />
+                    </View>
+                    <View style={styles.sheetConfirm}>
+                        <Button label="Next" onPress={onNext} block testID="category-next" />
+                    </View>
+                </View>
+            }
+        >
+            <TextField
+                value={name}
+                onChangeText={setName}
+                placeholder="Crowns"
+                accessibilityLabel="Category name"
+                autoCapitalize="words"
+                error={error}
+                hint="The next screen asks for the first procedure under it."
+                testID="category-name"
+            />
+        </Sheet>
     );
 }
 
@@ -310,7 +436,7 @@ function ProcedureRow({
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
             {body}
-            <_LocalMoneyValue piastres={procedure.defaultPrice} />
+            <MoneyValue piastres={procedure.defaultPrice} />
             <Chevron direction="forward" tone="muted" />
         </Pressable>
     );
@@ -319,14 +445,30 @@ function ProcedureRow({
 type ProcedureEditorProps = {
     procedure: Procedure | null;
     parent: ProcedureNode | null;
+    /** The name of a category being made with this procedure as its first subtype. */
+    newCategory: string | null;
     categories: ProcedureNode[];
+    /** Where a new row lands in its group: after everything already in it. */
+    nextSortOrder: (parentId: string | null) => number;
     onClose: () => void;
     onSaved: (message: string) => void;
 };
 
 const NO_CATEGORY = 'none';
 
-function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: ProcedureEditorProps) {
+function ProcedureEditor({
+    procedure,
+    parent,
+    newCategory,
+    categories,
+    nextSortOrder,
+    onClose,
+    onSaved,
+}: ProcedureEditorProps) {
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+    const onProcedureWritten = () => queryClient.invalidateQueries(trpc.procedure.pathFilter());
+
     const [name, setName] = useState(procedure?.name ?? '');
     const [price, setPrice] = useState(procedure ? String(Math.round(procedure.defaultPrice / 100)) : '');
     const [parentId, setParentId] = useState<string>(procedure?.parentId ?? parent?.id ?? NO_CATEGORY);
@@ -337,63 +479,102 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
     const [confirming, setConfirming] = useState(false);
 
     const isCategory = categories.some((category) => category.id === procedure?.id);
+    /** The category is fixed when it is being made here, or when adding under one. */
+    const fixedParent = newCategory ?? parent?.name ?? null;
 
-    const save = useMutation(async () => {
-        const input = {
-            parentId: parentId === NO_CATEGORY ? null : parentId,
-            name,
+    const create = useMutation(trpc.procedure.create.mutationOptions({ onSuccess: onProcedureWritten }));
+    const createCategory = useMutation(
+        trpc.procedure.createCategory.mutationOptions({ onSuccess: onProcedureWritten }),
+    );
+    const update = useMutation(trpc.procedure.update.mutationOptions({ onSuccess: onProcedureWritten }));
+
+    const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
+    const saving = create.isPending || createCategory.isPending || (update.isPending && !confirming);
+    const busy = create.isPending || createCategory.isPending || update.isPending;
+    const failure = create.error ?? createCategory.error ?? update.error;
+
+    function onSave() {
+        setSubmitted(true);
+        if (name.trim() === '') return;
+
+        const chosenParent = parentId === NO_CATEGORY ? null : parentId;
+        const details = {
+            parentId: chosenParent,
+            name: name.trim(),
             defaultPrice: poundsToPiastres(price),
             hasQuantity,
             isToothSpecific: toothSpecific,
             isCheckup,
         };
-        return procedure ? api.procedure.update({ id: procedure.id, ...input }) : api.procedure.create(input);
-    });
 
-    const setActive = useMutation((active: boolean) =>
-        api.procedure.update({ id: procedure?.id ?? '', active }),
-    );
+        if (procedure) {
+            update.mutate({ id: procedure.id, ...details }, { onSuccess: () => onSaved('Procedure saved') });
+            return;
+        }
 
-    const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
-    const busy = save.pending || setActive.pending;
+        // The category and this subtype are one write, because a category with
+        // nothing under it is a priceable root — see the note at the top of the
+        // file. Two calls would leave one behind whenever the second failed.
+        if (newCategory !== null) {
+            createCategory.mutate(
+                {
+                    name: newCategory,
+                    sortOrder: nextSortOrder(null),
+                    first: {
+                        name: details.name,
+                        defaultPrice: details.defaultPrice,
+                        hasQuantity: details.hasQuantity,
+                        isToothSpecific: details.isToothSpecific,
+                        isCheckup: details.isCheckup,
+                    },
+                },
+                { onSuccess: () => onSaved(`${newCategory} added`) },
+            );
+            return;
+        }
 
-    async function onSave() {
-        setSubmitted(true);
-        if (name.trim() === '') return;
-        const saved = await save.run(undefined);
-        if (saved) onSaved(procedure ? 'Procedure saved' : 'Procedure added');
+        create.mutate(
+            { ...details, sortOrder: nextSortOrder(chosenParent) },
+            { onSuccess: () => onSaved('Procedure added') },
+        );
     }
 
     // One-way: `active` is still the column, because the server and every
     // history query already read it. Only the app's language and the way out
     // have changed.
-    async function onHide() {
+    function onHide() {
         if (!procedure) return;
-        const updated = await setActive.run(false);
-        setConfirming(false);
-        if (updated) onSaved('Procedure hidden');
+        update.mutate(
+            { id: procedure.id, active: false },
+            {
+                onSuccess: () => {
+                    setConfirming(false);
+                    onSaved('Procedure hidden');
+                },
+            },
+        );
     }
 
     return (
         <Pane
             title={procedure ? 'Edit procedure' : 'New procedure'}
-            subtitle={parent && !procedure ? `Under ${parent.name}` : undefined}
+            subtitle={!procedure && fixedParent ? `Under ${fixedParent}` : undefined}
             onBack={busy ? () => {} : onClose}
             footer={
                 // Save alone, as the mockup draws it: the pane has a back
                 // button, and a Cancel beside Save on a screen reached by a row
                 // tap is a second way to do what backing out already does.
                 <ActionBar
-                    primaryLabel={save.pending ? 'Saving' : 'Save'}
+                    primaryLabel={saving ? 'Saving' : 'Save'}
                     onPrimary={onSave}
-                    primaryLoading={save.pending}
-                    primaryDisabled={setActive.pending}
+                    primaryLoading={saving}
+                    primaryDisabled={busy}
                 />
             }
         >
-            {save.error || setActive.error ? (
+            {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorMessage(save.error ?? setActive.error) ?? ''}
+                    {errorText(failure)}
                 </Callout>
             ) : null}
 
@@ -425,6 +606,10 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                     <Callout tone="note">
                         This one has subtypes under it, so it is a heading. The price and the rules belong to
                         each subtype.
+                    </Callout>
+                ) : newCategory !== null ? (
+                    <Callout tone="note">
+                        {`Saving this makes “${newCategory}” a category with this as its first subtype. A category has no price of its own.`}
                     </Callout>
                 ) : (
                     <Select
@@ -480,7 +665,7 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                         variant="danger"
                         icon={<HideIcon size={15} stroke={color.danger} width={2.2} />}
                         onPress={() => setConfirming(true)}
-                        loading={setActive.pending}
+                        loading={update.isPending && confirming}
                         block
                     />
                     <Text variant="caption" tone="muted" style={styles.dangerHint}>
@@ -497,7 +682,7 @@ function ProcedureEditor({ procedure, parent, categories, onClose, onSaved }: Pr
                 body="It stops appearing when adding work to a visit, and comes off this screen for good — you won't be able to bring it back from here. Nothing is deleted: past visits keep it and keep what they charged."
                 confirmLabel="Hide"
                 destructive
-                loading={setActive.pending}
+                loading={update.isPending && confirming}
                 onConfirm={onHide}
                 onCancel={() => setConfirming(false)}
             />
@@ -530,6 +715,22 @@ function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
 
 const styles = StyleSheet.create({
     category: { gap: space[2] },
+    addRow: { flexDirection: 'row', alignItems: 'stretch', gap: space[2.5] },
+    addProcedure: { flex: 1 },
+    // The mockup's ghost twin of `AddButton`: same shape, muted rather than
+    // accented, sized to its own label. `ui/AddButton` draws one weight only.
+    addCategory: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: space[2],
+        minHeight: size.row,
+        paddingHorizontal: space[3.5],
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        borderColor: color.outline,
+    },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -544,6 +745,9 @@ const styles = StyleSheet.create({
     note: { paddingHorizontal: space[1] },
     dangerHint: { textAlign: 'center' },
     form: { gap: space[4] },
+    sheetActions: { flexDirection: 'row', gap: space[2] },
+    sheetCancel: { flex: 1 },
+    sheetConfirm: { flex: 1.4 },
     flagRow: {
         flexDirection: 'row',
         alignItems: 'center',

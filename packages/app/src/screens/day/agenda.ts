@@ -30,9 +30,22 @@ export interface DaySplit {
     upcoming: Appointment[];
 }
 
-export function splitDay(appointments: readonly Appointment[], activeId: string | null): DaySplit {
+/**
+ * `fold` is what "before this" means: the fold is relative to now, so only
+ * today has one. On any other date every row is settled, and folding them all
+ * away left the day view drawing nothing at all — the fold is only rendered on
+ * today, so the rows went behind a section that was never on screen while the
+ * tab pill went on counting them.
+ */
+export function splitDay(
+    appointments: readonly Appointment[],
+    activeId: string | null,
+    fold = true,
+): DaySplit {
     const byTime = [...appointments].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
     const rest = activeId === null ? byTime : byTime.filter((row) => row.id !== activeId);
+
+    if (!fold) return { past: [], upcoming: rest };
 
     return {
         past: rest.filter(isSettled),

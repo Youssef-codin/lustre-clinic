@@ -55,7 +55,7 @@ import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
 import { draftFor, type PatientDraft } from './patientDraft';
-import { todayKey } from './time';
+import { relativeDayLabel, todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
@@ -82,9 +82,11 @@ export type DayScreenProps = {
      * Open a patient's record. The shell owns the route because the record
      * lives on the Patients tab, and the tab bar has to move with it — and it
      * carries `said` for the same reason: a toast raised here would draw inside
-     * a pane the shell is about to hide.
+     * a pane the shell is about to hide. `backLabel` names where the record was
+     * opened from, which is not always the day: a tap in the Reminders tab has
+     * to come back to Reminders, not to the day behind it.
      */
-    onOpenRecord?: (patientId: string, said?: string) => void;
+    onOpenRecord?: (patientId: string, said?: string, backLabel?: string) => void;
     /** A booking pushed in from another cluster — the patient record's two openers. */
     open?: OpenBookingRequest;
     /**
@@ -256,7 +258,10 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
     // patient at the desk holds it until they have paid.
     const active = desk ?? chair;
 
-    const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null);
+    // Only today folds: "before this" is relative to now, and off today every
+    // row is settled, so folding put the whole day behind a section this screen
+    // draws on today alone — an empty body under a tab still counting the rows.
+    const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null, isToday);
 
     // What the chair's overrun and any walk-ins mean for everyone still to be
     // seen. Nothing is written — `startsAt` stays the time the patient was told
@@ -387,8 +392,10 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
                         onChange={setTab}
                         segments={[
                             {
+                                // The day being shown, not today: the pill sat
+                                // on "Today" while the screen was on 18 Aug.
                                 value: 'day',
-                                label: `Today · ${appointments.length}`,
+                                label: `${relativeDayLabel(dateKey)} · ${appointments.length}`,
                                 icon: (selected) => (
                                     <ClockIcon size={15} stroke={selected ? color.ink : color.ink2} />
                                 ),
@@ -437,7 +444,13 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
 
             <View style={styles.body}>
                 {tab === 'reminders' ? (
-                    <Reminders query={reminders} refreshControl={refreshControl} />
+                    <Reminders
+                        query={reminders}
+                        refreshControl={refreshControl}
+                        onOpenRecord={
+                            onOpenRecord && ((patientId) => onOpenRecord(patientId, undefined, 'Reminders'))
+                        }
+                    />
                 ) : day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (

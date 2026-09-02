@@ -56,6 +56,15 @@ export const listCustomQuestionInput = z
     })
     .default({ includeInactive: false });
 
+/**
+ * The whole new order, applied as one write. A question's position is its
+ * index in the list — see `customQuestionService.reorder`.
+ */
+export const reorderCustomQuestionsInput = z.object({
+    ids: z.array(z.uuid()).min(1).max(500),
+});
+
 export type CreateCustomQuestionInput = z.infer<typeof createCustomQuestionInput>;
 export type UpdateCustomQuestionInput = z.infer<typeof updateCustomQuestionInput>;
 export type ListCustomQuestionInput = z.infer<typeof listCustomQuestionInput>;
+export type ReorderCustomQuestionsInput = z.infer<typeof reorderCustomQuestionsInput>;

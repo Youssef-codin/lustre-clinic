@@ -16,6 +16,36 @@ deleting them would let the same mistake happen again.
 
 # Data model
 
+## Two refs, and the patient's is the only one in the UI
+
+`appointments.ref` is `DDMMYY-XXXX`, scoped to a day because an appointment
+happens on one. `patients.ref` is `XXXX` alone — four characters from the same
+alphabet, no date, because a patient is not an event.
+
+The patient ref exists because the clinic's paper book is **one page per
+patient**, and that number goes at the top of the page. That is the whole
+requirement, and it is what settles the format: four characters is what someone
+writes by hand without resenting it, and the alphabet already drops `0/O` and
+`1/I/L` so it survives being written and read back. 31⁴ is 923,521 codes — at
+ten thousand patients a draw collides about once in ninety, which the UNIQUE
+constraint and a retry absorb. Sequential (`P-0041`) was the alternative and
+was not taken: it is no easier to write and it tells anyone holding the page how
+many patients the clinic has.
+
+So the appointment ref came off the record's history rows and out of the payment
+confirmation. It is not gone — it is still on the day view's detail sheet and is
+still what a reminder quotes down the phone (`REMINDER_PLACEHOLDERS`), both of
+which are a ref being *said*, not written on a file. It is simply not an
+identifier the desk copies anywhere.
+
+`legacy_ref` stays and is a third, different thing: the *old* system's number,
+free text, `NULL` for anyone registered since the migration. A record can carry
+both, and during the changeover most will — one is ours and always present, one
+is theirs and only on patients who predate us. The `LEGACY` badge still says a
+record came across; the old number itself is still not drawn on the header,
+which was already the call when the phone was the only number on that line and
+is more clearly right now there is a ref beside it.
+
 ## An age is stored as 1 January
 
 `patient-edit.html`'s basics row is `Age · sex` and holds a whole number.
@@ -113,15 +143,55 @@ A real navigator (SPEC §18 F3) gives both of these for free and both are writte
 to be deleted when one lands: every request is already the shape of a route's
 params, and `goHome` is `popToTop`.
 
-## Record payment opens the balances, not a payment form
+## A payment is taken against a patient, and the server allocates it
 
-The record's outstanding strip knows a patient-level total that can span several
-unsettled visits, and `visit.recordPayment` takes one `visitId`. Rather than
-spread a payment across the oldest debts — a second, invisible rule about money
-— the button lands on that patient's balances in the money cluster, which is the
-list the total is made of, and the visit is chosen there. That is what the Money
-tab already does from its own debtor rows; the record joins it instead of
-growing a second way to take a payment.
+Money is handed over by a person, not by a visit. The desk knows what was paid
+and who paid it; which of their unsettled visits it belongs against is
+arithmetic, and arithmetic is the server's.
+
+So `balance.settle` takes `{ patientId, amount, method }` and fills the
+patient's unsettled visits **oldest debt first**, in one transaction, returning
+the per-visit split. Record payment on the patient's record opens a sheet in
+place — two fields, how much and how — and the desk never leaves the patient
+they are looking at.
+
+This reverses the entry that stood here, which had the button push into the
+money cluster and land on a list of that patient's visits so one could be
+picked. That was a fair reading of a real constraint — `visit.recordPayment`
+took one `visitId` — but the constraint was the thing to fix. Asking the person
+holding the cash to work out that 6,000 covers this visit and 150 of the next
+one is asking them to do by hand what the server does exactly, and to get it
+wrong in a way nothing would catch.
+
+Two things that fell out of it, both wanted:
+
+- **`PatientBalanceScreen` and `VisitPaymentsScreen` are gone**, and with them
+  the money cluster's routes. Tapping a debtor opens that patient's record. Per
+  visit money did not go with them: the record's history rows carry what was
+  charged and what is still owed, and opening one reaches `VisitViewScreen`'s
+  payment tab.
+- **Record payment stopped being a cross-cluster request.** `onBook` and
+  `onWalkIn` still are, and the mechanism in `shell/routes.ts` stays for them.
+
+What is deliberately *not* here: a credit balance. Overpayment is refused at the
+patient level rather than parked, because §10 derives every balance from charges
+and payments, and money that belongs to no visit would have to be stored.
+
+### The confirmation says what came in and what is left, and names no visits
+
+It read *"EGP 6,000 — settled 060826-5NCC, part-paid 120826-57UQ"*, on the
+reasoning that the desk posts to the paper file **per visit** and the ref is how
+paper and app are matched.
+
+That premise was wrong. The clinic's paper book is one page per patient
+(confirmed 26 Aug 2026), so the desk posts one line against one page and those
+refs pointed at pages that do not exist. It now reads *"EGP 6,000 recorded — EGP
+3,550 still owed"*, or *"paid in full"* when it clears the balance — closing a
+page is a different mark from writing a figure on it.
+
+The allocation is unaffected. Balances are derived per visit (§10) and the
+oldest-first split is unchanged; `balance.settle` still returns it, because a
+receipt and an audit both need it. It is simply bookkeeping nobody copies out.
 
 ## Book and Walk-in are one screen with two openings
 
@@ -186,19 +256,17 @@ prefers the server schedule (`settings.schedule`, `clinic_days`) and falls back
 to hardcoded defaults when the clinic has never configured one, so an
 unconfigured clinic does not render seven closed days.
 
-## Data entry runs on the real client while its cluster runs on fixtures
+## The settings cluster localizes failures in one place
 
-Odd on sight, deliberate. Every other settings pane calls `data/_LocalApi`; the
-data entry pane calls `../../../api` directly. It has to — it writes real
-patients into the real register, and a morning of typing into a store that does
-not survive a reload is a morning thrown away.
+`data/errors.ts` holds one sentence per `ERROR_CODE`, and a pane that can say
+something better for a code passes it in. Data entry is the reason the override
+exists: during a migration session, "something went wrong" is the one thing the
+desk must not be told, because what it needs to know is that the row is still on
+screen and nothing was lost.
 
-It also carries its own `errorText` rather than using `data/hooks`'
-`errorMessage`, which would flatten a real offline failure into "Something went
-wrong" — the one thing it must not say during a migration session, since the
-desk needs to know the row is still on screen.
-
-Both halves go away when `_LocalApi` is retired.
+This replaced two error mappers — the cluster's and the data entry pane's own —
+which existed because that pane ran on the real client while everything around
+it ran on `data/_LocalApi`. Both are gone with the stand-in.
 
 ---
 
@@ -322,11 +390,44 @@ action (merge, deactivate, export) gives the menu something to be.
   answer type locked once a question exists. The delete that orphans answers was
   removed on purpose; the mockup's "answers are kept but hidden" sheet describes
   deactivation in delete's words.
+- **The branch card drops its second line.** The design gives each branch a
+  phone number, a patient count, the year it opened and the month it closed, and
+  tags the one the phone is standing in. `branches` is `id, name, address,
+  active`, and nothing tracks which branch a phone is in. Every one of those
+  would have been a number the pane made up, which is the bug the cluster was
+  just taken off fixtures to fix. The identity card names the clinic for the
+  same reason. They come back when the columns do — see the tasks split out of
+  *Ten Settings panes run on fixtures*.
 - **Working hours is a row in the CLINIC group** though `settings.html`'s index
   (GENERAL / CLINIC / ABOUT) has no slot for it. The alternative was deleting a
   working screen over an omission in a design file that never mentions opening
   hours at all. `glyph="hours"` is the one icon without mockup path data behind
   it. Delete the row and the import if the omission was intentional.
+
+## Making a category writes two rows, or none
+
+`settings-procedures.html`'s ghost "Category" button opens a sheet that names a
+category and adds it to the tree on its own. It cannot work that way here: a row
+is a category because something else names it as a parent, so a category with
+nothing under it is just a root with a price — and `procedure.list` would offer
+it on a visit.
+
+So the sheet names the category and the editor behind it asks for the first
+subtype. Both rows are written by one call — `procedure.createCategory`, in one
+transaction — when that editor saves; backing out writes nothing. Two client
+calls would have left a childless root priced 0 behind whenever the second
+failed, which is the very thing this is avoiding. An empty category therefore cannot exist, which is this branch's answer
+to the open question on the task ("what happens if you later file nothing under
+it").
+
+The alternative was a column — `is_category`, or a nullable price — which is a
+migration on the shared database for a button, and forecloses nothing if it is
+wanted later.
+
+The other half of the same rule: a category whose only visible subtype is hidden
+still draws, as a heading with its "Add to" button and nothing under it. It used
+to vanish from the list while remaining unselectable, which left a row nothing
+on this screen could reach.
 
 ## Bilingual labels: one rule, taking the locale as an argument
 
@@ -338,8 +439,9 @@ different one against the same rows.
 
 Still single-column: `procedure_types.name`, `branches.name`,
 `settings.clinic_name`. `settings-procedures.html` draws the pair for procedures
-and categories, so that pane is the next to want it. Same migration shape, and
-the rule is already written.
+and categories — the new category sheet asks in English only for exactly this
+reason — so that pane is the next to want it. Same migration shape, and the rule
+is already written.
 
 **The answer is not bilingual and is not meant to become so:** it is stored once,
 in whichever language it was given.
