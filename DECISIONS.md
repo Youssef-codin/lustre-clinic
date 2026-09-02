@@ -16,6 +16,36 @@ deleting them would let the same mistake happen again.
 
 # Data model
 
+## Two refs, and the patient's is the only one in the UI
+
+`appointments.ref` is `DDMMYY-XXXX`, scoped to a day because an appointment
+happens on one. `patients.ref` is `XXXX` alone — four characters from the same
+alphabet, no date, because a patient is not an event.
+
+The patient ref exists because the clinic's paper book is **one page per
+patient**, and that number goes at the top of the page. That is the whole
+requirement, and it is what settles the format: four characters is what someone
+writes by hand without resenting it, and the alphabet already drops `0/O` and
+`1/I/L` so it survives being written and read back. 31⁴ is 923,521 codes — at
+ten thousand patients a draw collides about once in ninety, which the UNIQUE
+constraint and a retry absorb. Sequential (`P-0041`) was the alternative and
+was not taken: it is no easier to write and it tells anyone holding the page how
+many patients the clinic has.
+
+So the appointment ref came off the record's history rows and out of the payment
+confirmation. It is not gone — it is still on the day view's detail sheet and is
+still what a reminder quotes down the phone (`REMINDER_PLACEHOLDERS`), both of
+which are a ref being *said*, not written on a file. It is simply not an
+identifier the desk copies anywhere.
+
+`legacy_ref` stays and is a third, different thing: the *old* system's number,
+free text, `NULL` for anyone registered since the migration. A record can carry
+both, and during the changeover most will — one is ours and always present, one
+is theirs and only on patients who predate us. The `LEGACY` badge still says a
+record came across; the old number itself is still not drawn on the header,
+which was already the call when the phone was the only number on that line and
+is more clearly right now there is a ref beside it.
+
 ## An age is stored as 1 January
 
 `patient-edit.html`'s basics row is `Age · sex` and holds a whole number.
@@ -91,6 +121,90 @@ replaced an entire Users pane with a confirm sheet on the settings index.
 
 # Client architecture
 
+## Crossing clusters is the shell's job, and it moves requests, not routes
+
+Each cluster owns its own stack, so none of them can push a screen into another
+one — which is why the patient record drew Book, Walk-in and Record payment and
+let all three toast. The fix is in `shell/routes.ts`: the ask goes up to
+`AppShell` and back down as a *request* carrying what the destination needs plus
+a `seq`, and the destination cluster decides which of its screens that means.
+`seq` is what makes one ask distinguishable from the last, so the same patient
+can be booked twice; a cluster reads it during render, not in an effect, so the
+screen is up in the same commit as the tab switch.
+
+Going home — tapping the tab you are already on — runs the same wire backwards
+and for the same reason. The shell cannot pop a route it does not own, so it
+bumps a counter per tab and each cluster resets itself, deciding for itself what
+home is. The Patients tab also scrolls its list to the top, because home there
+is the search field and the register is longer than a screen; the other three
+only pop.
+
+A real navigator (SPEC §18 F3) gives both of these for free and both are written
+to be deleted when one lands: every request is already the shape of a route's
+params, and `goHome` is `popToTop`.
+
+## A payment is taken against a patient, and the server allocates it
+
+Money is handed over by a person, not by a visit. The desk knows what was paid
+and who paid it; which of their unsettled visits it belongs against is
+arithmetic, and arithmetic is the server's.
+
+So `balance.settle` takes `{ patientId, amount, method }` and fills the
+patient's unsettled visits **oldest debt first**, in one transaction, returning
+the per-visit split. Record payment on the patient's record opens a sheet in
+place — two fields, how much and how — and the desk never leaves the patient
+they are looking at.
+
+This reverses the entry that stood here, which had the button push into the
+money cluster and land on a list of that patient's visits so one could be
+picked. That was a fair reading of a real constraint — `visit.recordPayment`
+took one `visitId` — but the constraint was the thing to fix. Asking the person
+holding the cash to work out that 6,000 covers this visit and 150 of the next
+one is asking them to do by hand what the server does exactly, and to get it
+wrong in a way nothing would catch.
+
+Two things that fell out of it, both wanted:
+
+- **`PatientBalanceScreen` and `VisitPaymentsScreen` are gone**, and with them
+  the money cluster's routes. Tapping a debtor opens that patient's record. Per
+  visit money did not go with them: the record's history rows carry what was
+  charged and what is still owed, and opening one reaches `VisitViewScreen`'s
+  payment tab.
+- **Record payment stopped being a cross-cluster request.** `onBook` and
+  `onWalkIn` still are, and the mechanism in `shell/routes.ts` stays for them.
+
+What is deliberately *not* here: a credit balance. Overpayment is refused at the
+patient level rather than parked, because §10 derives every balance from charges
+and payments, and money that belongs to no visit would have to be stored.
+
+### The confirmation says what came in and what is left, and names no visits
+
+It read *"EGP 6,000 — settled 060826-5NCC, part-paid 120826-57UQ"*, on the
+reasoning that the desk posts to the paper file **per visit** and the ref is how
+paper and app are matched.
+
+That premise was wrong. The clinic's paper book is one page per patient
+(confirmed 26 Aug 2026), so the desk posts one line against one page and those
+refs pointed at pages that do not exist. It now reads *"EGP 6,000 recorded — EGP
+3,550 still owed"*, or *"paid in full"* when it clears the balance — closing a
+page is a different mark from writing a figure on it.
+
+The allocation is unaffected. Balances are derived per visit (§10) and the
+oldest-first split is unchanged; `balance.settle` still returns it, because a
+receipt and an audit both need it. It is simply bookkeeping nobody copies out.
+
+## Book and Walk-in are one screen with two openings
+
+`BookingScreen` already made the walk-in the "now" answer to *when*, so the
+record's two buttons are not two flows: both push that screen for the patient
+they are on, and differ only in the answer it opens on. What they skip is
+`BookPatientSheet`, whose only question — who is this for — the record has
+already answered.
+
+They are passed only on the secretary's phone. The doctor's day view has no
+booking on it to reach, so on his the record keeps the screen's own fallback,
+which names where the flow lives rather than failing silently.
+
 ## One branch or all of them — deliberately unsettled
 
 The day view queries every branch (`appointment.byDate`'s `branchId` is optional
@@ -118,6 +232,46 @@ drawn on the timeline — it is where there is room — but a walk-in starts at
 `now` and cannot be given the four o'clock the tap meant, and the patient picker
 a real booking needs belongs to the Patients cluster. Creation on this screen is
 the FAB, which opens the walk-in sheet (§7).
+
+## The empty day's ring illustrates; it is not a second FAB
+
+Same rule as above, applied to the other thing on the empty day that looked
+pressable. `DayEmpty` passed `EmptyState` an `icon` of `<Text variant="title3">+</Text>`,
+and `EmptyState` renders `icon` inside a plain `View` — the ring is 52px at
+`radius.full`, which is `BookFab` exactly, holding the same glyph. So the one
+screen whose whole subject is "there is nothing here yet" drew the FAB twice and
+wired up one of them.
+
+The bug report proposed giving the ring a press handler and thought that the
+likely answer. It isn't, and the reason is the FAB the report does not mention:
+
+- **Desk, future day** — the ring would become a *third* target for an action
+  already offered by the FAB and by the `Book someone in` CTA below it.
+- **Doctor, future day** — `DoctorDayScreen` passes no `onBook` and carries no
+  FAB, because booking is the desk's job. There is no handler to give it.
+- **Either screen, past day** — nothing to book. There is no handler to give it.
+
+A press handler fixes one of four states, and only the state where the action
+was already reachable twice. So the ring stops being drawn as the control
+instead: `empty.ts` returns a muted `calendar` for a day that has not happened
+yet, and `none` — no ring at all, matching `ClosedDay` — for a past day, which
+is a fact rather than an offer.
+
+**Audited before changing the shared component.** `EmptyState` has nine callers;
+`DayStates` is the only one that has ever passed `icon`. Every other caller takes
+the default muted `+`, which is correct for them: no other screen has a FAB for
+it to be mistaken for. `EmptyState` therefore gained one thing only — `icon={null}`
+suppresses the ring — which is unreachable from any existing caller. Its
+pressability was left alone.
+
+The third state the fix exposed: the future-day body read *"Book someone in for
+later, or start a walk-in who is at the desk now"* on the doctor's screen too,
+where neither is possible. `emptyDay` now takes `canBook` and tells the doctor
+where bookings come from instead.
+
+**Not in scope, still true:** `GalleryScreen` renders an `EmptyState` with an
+`actionLabel` and no `onAction`. That is the dev gallery drawing a specimen, not
+a screen offering an action.
 
 ## `packages/app/tsconfig.json` carries `allowImportingTsExtensions`
 

@@ -13,23 +13,20 @@
 //
 // ## Age is stored as a date of birth
 //
-// The design's basics row is `Age · sex` and holds a whole number. The server
-// has no age column — `patients.birth_date` is the fact and `age` is derived
-// from it at read time — so the number on screen is converted on the way out:
-// an age of 34 becomes `1 January (this year − 34)`, which reads back as 34 for
-// the whole of this year and as 35 next year. The patient does age, which is
-// the point; what is lost is the day they age *on*, which is what a clinic that
-// only ever asked "how old are you?" never knew either.
-//
-// The lossy half is guarded rather than accepted: `birthDate` is only ever sent
-// when the age on screen differs from the age the record came with, so a
+// The conversion itself is `domain/patientDraft` — it is the app's one lossy
+// rule and three clusters were holding their own copy of it. What stays here is
+// the guard, because it is about *this* screen's patch: `birthDate` is only ever
+// sent when the age on screen differs from the age the record came with, so a
 // patient whose real date of birth is on file (booked in through the day
 // cluster, which asks for the date) never has it flattened to 1 January by an
-// editor that was opened for their phone number. See BLOCKED.md.
+// editor that was opened for their phone number. See `updateInputOf`.
 
+import { ageError, birthDateOf, emailError, orNull, phoneError } from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import type { Answers, CreatePatientInput, CustomQuestion, Patient, UpdatePatientInput } from './data/types';
+
+export { ageDigits, birthDateOf, FEMALE, MALE } from '../../components/domain/patientDraft';
 
 export type PatientForm = {
     name: string;
@@ -42,19 +39,6 @@ export type PatientForm = {
     /** One entry per editable question, keyed by `custom_questions.key`. */
     answers: Draft;
 };
-
-/** Stored lowercase; the design's toggle is the two halves, and `''` is the way back out of a mis-tap. */
-export const FEMALE = 'female';
-export const MALE = 'male';
-
-/** Nobody has been alive longer than this, and a typo like `340` should not reach the server. */
-const OLDEST = 129;
-
-/** Deliberately loose — the server's is stricter. This one only catches the obvious, while the patient is still at the desk. */
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/** A number is short enough to be a mis-tap rather than a phone number; the server refuses under 5 too. */
-const SHORTEST_PHONE = 5;
 
 export function emptyForm(questions: CustomQuestion[]): PatientForm {
     return { name: '', phone: '', email: '', age: '', gender: '', answers: blankAnswers(questions) };
@@ -81,26 +65,6 @@ function blankAnswers(questions: CustomQuestion[]): Draft {
     return answers;
 }
 
-export function ageDigits(text: string): string {
-    return text.replace(/\D/g, '').slice(0, 3);
-}
-
-/** `''` for a field the desk left alone; the record says the question was not answered rather than storing blank. */
-function orNull(value: string): string | null {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-}
-
-/**
- * 1 January of the year that makes the patient this old today. See the note at
- * the top of the file — the year is what the desk was told, the day is not.
- */
-export function birthDateOf(age: string, today: Date = new Date()): string | null {
-    const years = Number(age);
-    if (age.trim() === '' || !Number.isInteger(years) || years < 0 || years > OLDEST) return null;
-    return `${today.getFullYear() - years}-01-01`;
-}
-
 export type BasicsField = 'name' | 'phone' | 'email' | 'age';
 
 /**
@@ -124,13 +88,14 @@ export function blankBasics(form: PatientForm): BasicsField[] {
 export function malformedBasics(form: PatientForm): Partial<Record<BasicsField, string>> {
     const found: Partial<Record<BasicsField, string>> = {};
 
-    const phone = form.phone.trim();
-    if (phone.length > 0 && phone.length < SHORTEST_PHONE) found.phone = 'That is too short to be a number.';
+    const phone = phoneError(form.phone);
+    if (phone) found.phone = phone;
 
-    const email = form.email.trim();
-    if (email.length > 0 && !EMAIL.test(email)) found.email = 'That address is missing something.';
+    const email = emailError(form.email);
+    if (email) found.email = email;
 
-    if (form.age.trim() !== '' && birthDateOf(form.age) === null) found.age = 'That is not an age.';
+    const age = ageError(form.age);
+    if (age) found.age = age;
 
     return found;
 }

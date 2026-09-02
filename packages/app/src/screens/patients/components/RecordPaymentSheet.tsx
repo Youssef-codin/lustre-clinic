@@ -1,50 +1,62 @@
-// `visit.recordPayment` — a post-checkout payment against a balance. §7.6:
-// overpayment does not exist — the entered amount is clamped to the amount due
-// and the clamp announced. §7.12: the field takes whole pounds only, and the
-// piastre clamp is repeated on submit because the field's own clamp rounds
-// against a pound figure and can round upward past the balance. The clamp is a
-// courtesy, not an invariant: the server takes any positive amount (BLOCKED.md
-// #7). The notice lives inside the sheet because `ui/Sheet` is a native Modal
-// and a screen-level toast would render beneath it; the sheet is not
-// dismissable mid-write because the write crosses Tailscale and a closed sheet
-// would leave the outcome unknowable.
+// The app's only payment entry point. Two questions — how much, and how — and
+// the server allocates the money across the patient's unsettled visits
+// oldest-first (`balance.settle`). Nothing here names a visit, and nothing here
+// does arithmetic on a balance beyond turning typed pounds into piastres: §10's
+// rule is that balances are derived, and the split this sheet reads back is the
+// server's, not a local guess at what it will be.
+//
+// It was `visitId`-shaped until the allocation landed, which is why the desk had
+// to pick a visit off a list before it could take money. That list is gone.
+//
+// Overpayment is refused rather than parked, because a credit balance is not a
+// concept the model has. The entry caps at the amount due and names the real
+// total when it does — "They owe 9,550" is the sentence the desk needs, not
+// "invalid amount". The cap is against piastres, never the rounded pound figure:
+// a 120.50 balance displays as a due of 121, and 121 pounds is more than is owed.
+//
+// The notice lives inside the sheet because `ui/Sheet` is a native Modal and a
+// screen-level toast renders beneath it. The sheet refuses to dismiss mid-write:
+// the write crosses Tailscale, and a sheet closed while it is in flight leaves
+// the outcome unknowable to the person who took the money.
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { MoneyValue } from '../../../components/domain';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
 import { space, Text } from '../../../theme';
-import type { RecordPaymentInput } from '../_LocalMoneyApi';
-import { MoneyValue } from '../_LocalMoneyValue';
-import { methodLabel } from '../format';
-import { clampToBalance, formatEgp, isWholePounds, toEgp } from '../money';
+import type { SettleInput } from '../data/types';
+import { clampToOutstanding, formatMoney, isWholePounds, methodLabel, toPounds } from './money';
 
 export type RecordPaymentSheetProps = {
     visible: boolean;
     onClose: () => void;
-    balance: number;
-    visitId: string;
+    patientId: string;
+    /** What the patient owes across every unsettled visit, in piastres. */
+    outstanding: number;
     isPending: boolean;
+    /** Localized from `ERROR_CODE`, never parsed from the server's message (§4). */
     error: string | null;
-    onSubmit: (input: RecordPaymentInput) => void;
+    onSubmit: (input: SettleInput) => void;
 };
 
 export function RecordPaymentSheet({
     visible,
     onClose,
-    balance,
-    visitId,
+    patientId,
+    outstanding,
     isPending,
     error,
     onSubmit,
 }: RecordPaymentSheetProps) {
-    const dueEgp = toEgp(balance);
+    const duePounds = toPounds(outstanding);
 
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState<PaymentMethod>('cash');
     const [note, setNote] = useState('');
-
     const [notice, setNotice] = useState<string | null>(null);
 
+    // Opening is what resets it, not closing: a sheet that failed keeps what was
+    // typed on screen while the failure is being read.
     useEffect(() => {
         if (visible) {
             setAmount('');
@@ -62,9 +74,9 @@ export function RecordPaymentSheet({
 
         const entered = text === '' ? 0 : Number(text);
 
-        if (entered > dueEgp) {
-            setAmount(String(dueEgp));
-            setNotice(`That is more than the amount due. Capped at ${formatEgp(balance)}.`);
+        if (entered > duePounds) {
+            setAmount(String(duePounds));
+            setNotice(`That is more than they owe. They owe ${formatMoney(outstanding)}.`);
             return;
         }
 
@@ -72,16 +84,16 @@ export function RecordPaymentSheet({
         setAmount(text);
     }
 
-    const enteredEgp = amount === '' ? 0 : Number(amount);
+    const enteredPounds = amount === '' ? 0 : Number(amount);
     const noteMissing = method === 'other' && note.trim() === '';
-    const canSubmit = enteredEgp > 0 && !noteMissing;
+    const canSubmit = enteredPounds > 0 && !noteMissing;
 
     function submit() {
         if (!canSubmit) return;
 
         onSubmit({
-            visitId,
-            amount: clampToBalance(enteredEgp, balance),
+            patientId,
+            amount: clampToOutstanding(enteredPounds, outstanding),
             method,
             methodNote: method === 'other' ? note.trim() : null,
         });
@@ -93,23 +105,25 @@ export function RecordPaymentSheet({
             onClose={onClose}
             title="Record a payment"
             dismissable={!isPending}
-            testID="money-record-payment"
+            testID="record-payment-sheet"
             footer={
+                // `ui/Button` swallows a repeat press for 500ms, which on this
+                // screen is the difference between one payment and two.
                 <Button
                     label="Record payment"
                     onPress={submit}
                     loading={isPending}
                     disabled={!canSubmit}
                     block
-                    testID="money-record-payment-submit"
+                    testID="record-payment-submit"
                 />
             }
         >
             <View style={styles.due}>
                 <Text variant="subhead" tone="muted">
-                    Amount due
+                    Outstanding
                 </Text>
-                <MoneyValue amount={balance} variant="amount" currencyVariant="caption" tone="due" />
+                <MoneyValue piastres={outstanding} variant="amount" tone="due" weight="bold" />
             </View>
 
             <NumericField
@@ -117,10 +131,14 @@ export function RecordPaymentSheet({
                 variant="display"
                 prefix="EGP"
                 placeholder="0"
+                // No decimal key: the column is integer piastres and piastres
+                // are never entered.
+                keyboardType="number-pad"
                 value={amount}
                 onChangeText={changeAmount}
-                hint="Whole pounds. More than the amount due is not accepted."
+                hint="Whole pounds. More than they owe is not accepted."
                 editable={!isPending}
+                testID="record-payment-amount"
             />
 
             {notice ? (
@@ -134,17 +152,19 @@ export function RecordPaymentSheet({
             ) : null}
 
             <View style={styles.quick}>
+                {/* Full is "settle everything", which is now the common case —
+                    it clears the whole balance rather than one visit's share. */}
                 <Chip
                     label="Full"
-                    selected={enteredEgp === dueEgp && dueEgp > 0}
-                    onPress={() => changeAmount(String(dueEgp))}
+                    selected={enteredPounds === duePounds && duePounds > 0}
+                    onPress={() => changeAmount(String(duePounds))}
                     disabled={isPending}
                     grow
                 />
                 <Chip
                     label="Half"
-                    selected={enteredEgp > 0 && enteredEgp === Math.floor(dueEgp / 2)}
-                    onPress={() => changeAmount(String(Math.floor(dueEgp / 2)))}
+                    selected={enteredPounds > 0 && enteredPounds === Math.floor(duePounds / 2)}
+                    onPress={() => changeAmount(String(Math.floor(duePounds / 2)))}
                     disabled={isPending}
                     grow
                 />
@@ -158,7 +178,7 @@ export function RecordPaymentSheet({
                         selected={option === method}
                         onPress={() => setMethod(option)}
                         disabled={isPending}
-                        testID={`money-method-${option}`}
+                        testID={`record-payment-method-${option}`}
                     />
                 ))}
             </View>

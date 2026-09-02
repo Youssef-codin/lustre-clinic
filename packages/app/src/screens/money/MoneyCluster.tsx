@@ -1,85 +1,42 @@
-// Money → patient balances → payment history, three panes on `ui/PushView`
-// because there is no navigator yet (BLOCKED.md #4); each screen takes its ids
-// and `onBack` as props, so they drop onto a real stack unchanged. `version` is
-// the cluster's cache invalidation — a payment three panes deep changes the
-// dashboard's figures, and the honest fix is to ask the server again. The visit
-// route carries `visitRef`/`startsAt` because `visit.byId` returns neither
-// (BLOCKED.md #14).
-import { useState } from 'react';
+// The Money tab, which is one screen. It was three panes on `ui/PushView` —
+// dashboard → a patient's balances → one visit's payment history — and the
+// middle two existed for a single reason: `visit.recordPayment` took one
+// `visitId`, so before a payment could be taken someone had to walk down to a
+// visit and pick it.
+//
+// `balance.settle` takes a payment against a *patient* and allocates it across
+// their unsettled visits oldest-first, so nothing has to be picked. Tapping a
+// debtor opens that patient's record, where the money is taken and where the
+// per-visit history already lives — the record's rows carry the ref and what is
+// still owed on each, and `VisitPage` opens the payments on any of them.
+//
+// So there is no route left here to hold. The cluster is a wrapper around
+// `MoneyScreen` plus the two signals the shell sends every cluster, and it stays
+// as a component rather than collapsing into `MoneyScreen` because `goHome` is
+// the tab's business and not the dashboard's. It goes when a real navigator
+// lands (SPEC §18 F3).
 import { StyleSheet, View } from 'react-native';
-import { PushView } from '../../components/ui';
 import { color } from '../../theme';
 import { MoneyScreen } from './MoneyScreen';
-import { PatientBalanceScreen } from './PatientBalanceScreen';
-import { VisitPaymentsScreen } from './VisitPaymentsScreen';
 
-type Route =
-    | { name: 'dashboard' }
-    | { name: 'patient'; patientId: string; patientName: string }
-    | {
-          name: 'visit';
-          visitId: string;
-          visitRef: string;
-          startsAt: string;
-          patientId: string;
-          patientName: string;
-      };
+export type MoneyClusterProps = {
+    /** Bumped when the Money tab is tapped while it is already up. Home is the dashboard. */
+    goHome?: number;
+    /**
+     * A debtor row's destination: that patient's record, on the Patients tab.
+     * The shell owns the route — a cluster cannot push into another one's stack
+     * — and `AppShell.openRecord` is the same one the doctor's day view uses.
+     */
+    onOpenRecord?: (patientId: string) => void;
+};
 
-export function MoneyCluster() {
-    const [route, setRoute] = useState<Route>({ name: 'dashboard' });
-    const [version, setVersion] = useState(0);
-
-    const patient = route.name === 'dashboard' ? null : route;
-
+export function MoneyCluster({ goHome = 0, onOpenRecord }: MoneyClusterProps = {}) {
     return (
         <View style={styles.root}>
-            <MoneyScreen
-                version={version}
-                onOpenPatient={(patientId, patientName) =>
-                    setRoute({ name: 'patient', patientId, patientName })
-                }
-            />
-
-            <PushView visible={patient !== null}>
-                {patient ? (
-                    <PatientBalanceScreen
-                        patientId={patient.patientId}
-                        patientName={patient.patientName}
-                        version={version}
-                        onBack={() => setRoute({ name: 'dashboard' })}
-                        onOpenVisit={(visit) =>
-                            setRoute({
-                                name: 'visit',
-                                visitId: visit.visitId,
-                                visitRef: visit.ref,
-                                startsAt: visit.startsAt,
-                                patientId: patient.patientId,
-                                patientName: patient.patientName,
-                            })
-                        }
-                    />
-                ) : null}
-            </PushView>
-
-            <PushView visible={route.name === 'visit'}>
-                {route.name === 'visit' ? (
-                    <VisitPaymentsScreen
-                        visitId={route.visitId}
-                        visitRef={route.visitRef}
-                        startsAt={route.startsAt}
-                        patientName={route.patientName}
-                        version={version}
-                        onBack={() =>
-                            setRoute({
-                                name: 'patient',
-                                patientId: route.patientId,
-                                patientName: route.patientName,
-                            })
-                        }
-                        onPaymentRecorded={() => setVersion((value) => value + 1)}
-                    />
-                ) : null}
-            </PushView>
+            {/* `goHome` reaches the dashboard rather than being handled here:
+                home for this tab is the dashboard scrolled to the top, and the
+                scroll position is the one thing only that screen knows. */}
+            <MoneyScreen goHome={goHome} onOpenRecord={onOpenRecord} />
         </View>
     );
 }

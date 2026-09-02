@@ -4,21 +4,23 @@
  * Everything about it is bent toward one motion repeated a few hundred times:
  * read a row off another screen, type it, commit it, get an empty form back.
  * So the form never navigates — a save clears the fields and puts the caret
- * back in the name, and the pane stays exactly where it was. The count above
+ * back at the top of them, and the pane stays exactly where it was. The count above
  * the form is the only thing that moves, which is the point of it: hours of
  * this with nothing changing on screen is hours of not knowing whether it is
  * working.
  *
- * Keyboard-first, which is why the fields are raw `TextInput`s in a ruled card
- * rather than `ui/TextField`. Two reasons, and the first is the deciding one:
- * `TextField` is not a `forwardRef`, so nothing can move the caret between
- * fields or back to the top after a save, and a form the desk has to reach up
- * and tap into between every row is the whole problem. The second is the
- * rhythm — `patient-edit.html` draws exactly this card of hairline-ruled rows
- * for the same four facts, and `BasicsCard` is where that layout is settled.
+ * Keyboard-first, on `ui/TextField` and `ui/NumericField`. They forward a ref
+ * now, which is the one thing this screen could not do without: the caret has to
+ * move between fields and back to the top after a save, and a form the desk has
+ * to reach up and tap into between every row is the whole problem. `ui/Field`'s
+ * `layout="inline"` is the rhythm `patient-edit.html` draws for the same four
+ * facts — label on the start edge, the answer against it — which is why the
+ * card no longer rules its own rows: the underlined control is the rule.
  *
- * The name field takes the return key as `next`; the last field takes it as
- * `done` and commits. Nothing has to be tapped to enter a patient.
+ * The first field takes the return key as `next`; the last takes it as `done`
+ * and commits. Nothing has to be tapped to enter a patient. The order itself is
+ * `ENTRY_ORDER`, in `entryForm.ts`, because `bun test` has no renderer and the
+ * caret is the feature.
  *
  * ## Duplicates
  *
@@ -42,27 +44,28 @@
  * none of them is this. Built from the tokens and from the card `patient-edit`
  * settles, and recorded in DECISIONS.md rather than passed off as drawn.
  */
+import { offsetForDate, todayKey } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, type TextInput, View } from 'react-native';
 import { trpcClient, useTRPC } from '../../../api';
+import { formatMoney } from '../../../components/domain';
 import {
     ActionBar,
     Callout,
     Card,
-    CardDivider,
-    Placeholder,
+    Field,
+    NumericField,
     SectionLabel,
     Select,
+    TextField,
     Toast,
 } from '../../../components/ui';
-import { border, color, font, radius, space, Text, type } from '../../../theme';
-import { formatDate, offsetForDate, todayKey } from '../../day/time';
-import { formatEgp } from '../../money/money';
+import { border, color, radius, space, Text } from '../../../theme';
 import { Pane } from '../components/Pane';
 import { ErrorState, SkeletonRows } from '../components/QueryStates';
 import { errorText } from '../data/errors';
-import type { Cutoff, EntryForm, Session } from './entryForm';
+import type { CaretField, Cutoff, EntryForm, Session } from './entryForm';
 import {
     ageDigits,
     balanceDigits,
@@ -78,8 +81,11 @@ import {
     emptyForm,
     enterInputOf,
     FEMALE,
+    FIRST_FIELD,
+    focusField,
     MALE,
     malformedFields,
+    nextField,
     phoneDigits,
     recorded,
 } from './entryForm';
@@ -132,6 +138,21 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
     const phone = useRef<TextInput>(null);
     const age = useRef<TextInput>(null);
     const balance = useRef<TextInput>(null);
+
+    // Read at the moment the caret moves rather than at render, so the first
+    // Return after a mount lands on a field that is actually attached.
+    function goTo(field: CaretField | null) {
+        focusField(
+            {
+                legacyRef: legacyRef.current,
+                name: name.current,
+                phone: phone.current,
+                age: age.current,
+                balance: balance.current,
+            },
+            field,
+        );
+    }
 
     // The lookup is per number, and a number is retyped faster than Tailscale
     // answers — so a late reply for a number that has since changed is dropped
@@ -198,8 +219,8 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
                 setToast(`${input.name} entered`);
 
                 // Straight back to the top of an empty form. This is the whole
-                // reason the fields are raw inputs.
-                legacyRef.current?.focus();
+                // reason the `ui/` fields had to forward a ref.
+                goTo(FIRST_FIELD);
             },
         });
     }
@@ -266,147 +287,121 @@ export function DataEntryScreen({ onBack }: { onBack: () => void }) {
                     ) : (
                         <CutoffSummary
                             branch={branchOptions.find((b) => b.value === branchId)?.label}
-                            date={dateIso}
+                            date={dateIso === null ? null : cutoffDisplay(dateDigits)}
                             onOpen={() => setCutoffOpen(true)}
                         />
                     )}
 
                     <SectionLabel inset={false}>PATIENT</SectionLabel>
 
-                    <Card>
+                    <Card padded style={styles.entry}>
                         {/* First, because it is the number on the front of the
                             file she is holding — she reads it before she reads
                             the name. Optional: a file with no number on it is
                             still a patient. */}
-                        <Row label="Old ref">
-                            <TextInput
-                                ref={legacyRef}
-                                accessibilityLabel="The old system's reference"
-                                value={form.legacyRef}
-                                onChangeText={(text) => change({ legacyRef: text })}
-                                onSubmitEditing={() => name.current?.focus()}
-                                returnKeyType="next"
-                                submitBehavior="submit"
-                                autoCapitalize="characters"
-                                autoCorrect={false}
-                                style={[styles.value, styles.mono]}
-                                testID="entry-legacy-ref"
-                            />
-                            <Placeholder
-                                text="As written on the file"
-                                visible={form.legacyRef === ''}
-                                variant="callout"
-                            />
-                        </Row>
+                        <TextField
+                            ref={legacyRef}
+                            label="Old ref"
+                            layout="inline"
+                            inline
+                            accessibilityLabel="The old system's reference"
+                            value={form.legacyRef}
+                            onChangeText={(text) => change({ legacyRef: text })}
+                            onSubmitEditing={() => goTo(nextField('legacyRef'))}
+                            returnKeyType="next"
+                            submitBehavior="submit"
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            placeholder="As written on the file"
+                            testID="entry-legacy-ref"
+                        />
 
-                        <CardDivider />
+                        <TextField
+                            ref={name}
+                            label="Full name"
+                            layout="inline"
+                            inline
+                            due={blank.includes('name')}
+                            accessibilityLabel="Full name"
+                            value={form.name}
+                            onChangeText={(text) => change({ name: text })}
+                            onSubmitEditing={() => goTo(nextField('name'))}
+                            returnKeyType="next"
+                            submitBehavior="submit"
+                            autoCapitalize="words"
+                            autoCorrect={false}
+                            placeholder="As it is on the old system"
+                            testID="entry-name"
+                        />
 
-                        <Row label="Full name" owed={blank.includes('name')}>
-                            <TextInput
-                                ref={name}
-                                accessibilityLabel="Full name"
-                                value={form.name}
-                                onChangeText={(text) => change({ name: text })}
-                                onSubmitEditing={() => phone.current?.focus()}
-                                returnKeyType="next"
-                                submitBehavior="submit"
-                                autoCapitalize="words"
-                                autoCorrect={false}
-                                style={[styles.value, styles.sans]}
-                                testID="entry-name"
-                            />
-                            <Placeholder
-                                text="As it is on the old system"
-                                visible={form.name === ''}
-                                variant="callout"
-                            />
-                        </Row>
-
-                        <CardDivider />
-
-                        <Row
+                        <TextField
+                            ref={phone}
                             label="Phone"
-                            owed={blank.includes('phone') || malformed.phone !== undefined}
+                            layout="inline"
+                            inline
+                            due={blank.includes('phone')}
                             error={malformed.phone}
-                        >
-                            <TextInput
-                                ref={phone}
-                                accessibilityLabel="Phone"
-                                value={form.phone}
-                                onChangeText={changePhone}
-                                onSubmitEditing={() => age.current?.focus()}
-                                returnKeyType="next"
-                                submitBehavior="submit"
-                                keyboardType="phone-pad"
-                                style={[styles.value, styles.mono]}
-                                testID="entry-phone"
-                            />
-                            <Placeholder text="01xx xxx xxxx" visible={form.phone === ''} variant="callout" />
-                        </Row>
+                            accessibilityLabel="Phone"
+                            value={form.phone}
+                            onChangeText={changePhone}
+                            onSubmitEditing={() => goTo(nextField('phone'))}
+                            returnKeyType="next"
+                            submitBehavior="submit"
+                            keyboardType="phone-pad"
+                            placeholder="01xx xxx xxxx"
+                            testID="entry-phone"
+                        />
 
-                        <CardDivider />
-
-                        <Row
-                            label="Age · sex"
-                            owed={malformed.age !== undefined}
-                            error={malformed.age}
-                            align="center"
-                        >
+                        {/* Both on one line, because age and sex are the two
+                            things read off the file in one breath. The label is
+                            the row's, so the age field carries none of its own. */}
+                        <Field label="Age · sex" layout="inline" error={malformed.age}>
                             <View style={styles.ageSex}>
                                 <View style={styles.age}>
-                                    <TextInput
+                                    <NumericField
                                         ref={age}
+                                        variant="inline"
+                                        size="body"
                                         accessibilityLabel="Age"
                                         value={form.age}
                                         onChangeText={(text) => change({ age: ageDigits(text) })}
-                                        onSubmitEditing={() => balance.current?.focus()}
+                                        onSubmitEditing={() => goTo(nextField('age'))}
                                         returnKeyType="next"
                                         submitBehavior="submit"
                                         keyboardType="number-pad"
-                                        style={[styles.value, styles.mono]}
+                                        placeholder="—"
                                         testID="entry-age"
                                     />
-                                    <Placeholder text="—" visible={form.age === ''} variant="callout" />
                                 </View>
 
                                 <SexToggle value={form.gender} onChange={(gender) => change({ gender })} />
                             </View>
-                        </Row>
-
-                        <CardDivider />
+                        </Field>
 
                         {/* The last field, so the return key commits the row —
-                            the desk never has to reach for the button. */}
-                        <Row
+                            the desk never has to reach for the button.
+
+                            `number-pad`, not the field's default `decimal-pad`:
+                            `balanceDigits` strips a separator, so `12.50` typed
+                            here would be read as 1250 pounds. A keypad with no
+                            decimal key is what stops that being typed at all. */}
+                        <NumericField
+                            ref={balance}
                             label="Owed"
-                            owed={malformed.balance !== undefined}
+                            layout="inline"
+                            variant="inline"
+                            size="amount"
+                            prefix="EGP"
                             error={malformed.balance}
-                            align="center"
-                        >
-                            <View style={styles.owed}>
-                                <Text variant="footnote" tone="muted" script="mono">
-                                    EGP
-                                </Text>
-                                <View style={styles.amount}>
-                                    <TextInput
-                                        ref={balance}
-                                        accessibilityLabel="Owed at the cutoff, in pounds"
-                                        value={form.balance}
-                                        onChangeText={(text) => change({ balance: balanceDigits(text) })}
-                                        onSubmitEditing={commit}
-                                        returnKeyType="done"
-                                        keyboardType="number-pad"
-                                        style={[styles.value, styles.mono]}
-                                        testID="entry-balance"
-                                    />
-                                    <Placeholder
-                                        text="Nothing owed"
-                                        visible={form.balance === ''}
-                                        variant="callout"
-                                    />
-                                </View>
-                            </View>
-                        </Row>
+                            accessibilityLabel="Owed at the cutoff, in pounds"
+                            value={form.balance}
+                            onChangeText={(text) => change({ balance: balanceDigits(text) })}
+                            onSubmitEditing={commit}
+                            returnKeyType="done"
+                            keyboardType="number-pad"
+                            placeholder="Nothing owed"
+                            testID="entry-balance"
+                        />
                     </Card>
 
                     <DuplicateWarning
@@ -460,7 +455,7 @@ function Tally({ session, total }: { session: Session; total?: number }) {
             <View style={styles.tallySide}>
                 {session.carried > 0 ? (
                     <Text variant="caption" tone="muted">
-                        {`${session.carried} with a balance · ${formatEgp(session.carriedTotal)}`}
+                        {`${session.carried} with a balance · ${formatMoney(session.carriedTotal)}`}
                     </Text>
                 ) : null}
                 {total !== undefined ? (
@@ -507,27 +502,18 @@ function CutoffCard({
                     testID="entry-branch"
                 />
 
-                <View>
-                    <Text variant="footnote" tone="muted" style={styles.fieldLabel}>
-                        Cutoff date
-                    </Text>
-                    <View style={[styles.dateBox, error ? styles.dateBoxError : null]}>
-                        <TextInput
-                            accessibilityLabel="Cutoff date"
-                            value={cutoffDisplay(digits)}
-                            onChangeText={onDigits}
-                            keyboardType="number-pad"
-                            style={[styles.value, styles.mono]}
-                            testID="entry-cutoff"
-                        />
-                        <Placeholder text="DD / MM / YYYY" visible={digits === ''} variant="callout" />
-                    </View>
-                    {error ? (
-                        <Text variant="caption" tone="danger" style={styles.fieldError}>
-                            {error}
-                        </Text>
-                    ) : null}
-                </View>
+                <NumericField
+                    label="Cutoff date"
+                    variant="end"
+                    size="body"
+                    error={error}
+                    accessibilityLabel="Cutoff date"
+                    value={cutoffDisplay(digits)}
+                    onChangeText={onDigits}
+                    keyboardType="number-pad"
+                    placeholder="DD / MM / YYYY"
+                    testID="entry-cutoff"
+                />
 
                 <Text variant="caption" tone="muted">
                     The day the old system stopped being the truth. Balances are dated here, and nothing about
@@ -556,6 +542,7 @@ function CutoffSummary({
     onOpen,
 }: {
     branch?: string;
+    /** The cutoff as the field above shows it, or null while it is not a date yet. */
     date: string | null;
     onOpen: () => void;
 }) {
@@ -568,9 +555,7 @@ function CutoffSummary({
             testID="entry-cutoff-summary"
         >
             <Text variant="caption" tone="muted">
-                {branch && date
-                    ? `Balances as of ${formatDate(date)} · ${branch}`
-                    : 'No cutoff set — balances off'}
+                {branch && date ? `Balances as of ${date} · ${branch}` : 'No cutoff set — balances off'}
             </Text>
             <Text variant="caption" weight="semibold" tone="accent">
                 Change
@@ -624,38 +609,6 @@ function DuplicateWarning({
     );
 }
 
-/** The ruled row `patient-edit.html` draws, and `BasicsCard` settles. */
-function Row({
-    label,
-    owed = false,
-    error,
-    align = 'flex-start',
-    children,
-}: {
-    label: string;
-    owed?: boolean;
-    error?: string;
-    align?: 'center' | 'flex-start';
-    children: React.ReactNode;
-}) {
-    return (
-        <View style={styles.row}>
-            <View style={[styles.line, align === 'center' && styles.lineCentred]}>
-                <Text variant="footnote" tone={owed ? 'due' : 'muted'} style={styles.label}>
-                    {label}
-                </Text>
-                <View style={styles.field}>{children}</View>
-            </View>
-
-            {error ? (
-                <Text variant="caption" tone="danger" style={styles.error}>
-                    {error}
-                </Text>
-            ) : null}
-        </View>
-    );
-}
-
 /** `BasicsCard`'s toggle, and its third state: nobody recorded a sex. */
 function SexToggle({ value, onChange }: { value: string; onChange: (value: string) => void }) {
     return (
@@ -687,8 +640,6 @@ function Half({ label, selected, onPress }: { label: string; selected: boolean; 
     );
 }
 
-const LABEL_WIDTH = 78;
-
 const styles = StyleSheet.create({
     group: { gap: space[2] },
     cutoff: { gap: space[4] },
@@ -702,35 +653,9 @@ const styles = StyleSheet.create({
     tallyMain: { flexDirection: 'row', alignItems: 'baseline', gap: space[2] },
     tallySide: { alignItems: 'flex-end', gap: space[0.5] },
 
-    row: { paddingHorizontal: space[3.5], paddingVertical: space[3] },
-    line: { flexDirection: 'row', gap: space[3] },
-    lineCentred: { alignItems: 'center' },
-    label: { width: LABEL_WIDTH, flexGrow: 0, flexShrink: 0, paddingTop: space[0.5] },
-    field: { flex: 1, justifyContent: 'center' },
-    error: { paddingTop: space[1], marginStart: LABEL_WIDTH + space[3] },
-
-    // `padding: 0` and a set line height: RN's default input padding is
-    // platform-specific and would make the rows different heights.
-    value: { ...type.callout, color: color.ink, padding: 0, minHeight: type.callout.lineHeight },
-    sans: { fontFamily: font.sans.semibold },
-    mono: { fontFamily: font.mono.medium },
-
+    entry: { gap: space[1] },
     ageSex: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
     age: { minWidth: 34, justifyContent: 'center' },
-    owed: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-    amount: { flex: 1, justifyContent: 'center' },
-
-    fieldLabel: { paddingBottom: space[1.5] },
-    fieldError: { paddingTop: space[1] },
-    dateBox: {
-        paddingHorizontal: space[3],
-        paddingVertical: space[2.5],
-        borderRadius: radius.md,
-        borderWidth: border.hair,
-        borderColor: color.outline,
-        backgroundColor: color.surface,
-    },
-    dateBoxError: { borderColor: color.danger },
 
     done: { alignSelf: 'flex-start' },
 

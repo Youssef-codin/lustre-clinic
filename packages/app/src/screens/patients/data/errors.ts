@@ -14,6 +14,15 @@ const TEXT: Record<string, string> = {
     CUSTOM_QUESTION_REQUIRED: 'A required question was left blank.',
     CONFLICT: 'Someone else changed this record. Reopen it and try again.',
     INTERNAL: 'The clinic server could not answer. Try again in a moment.',
+    // The payment codes. `PAYMENT_EXCEEDS_BALANCE` is deliberately vague about
+    // the figure here — the sheet says it with the real total in it, which this
+    // function has no way to know. It only ever shows if the two disagree, which
+    // means the balance moved on the other phone between opening and submitting.
+    PAYMENT_EXCEEDS_BALANCE: 'That is more than this patient owes. Reopen the record and try again.',
+    NOTHING_OUTSTANDING: 'This patient owes nothing.',
+    PAYMENT_NOTE_REQUIRED: 'Say what the payment was.',
+    INVALID_AMOUNT: 'That amount is not valid.',
+    DB_UNAVAILABLE: 'The clinic server could not answer. Try again in a moment.',
 };
 
 const OFFLINE = 'Could not reach the clinic server. Check the connection and try again.';

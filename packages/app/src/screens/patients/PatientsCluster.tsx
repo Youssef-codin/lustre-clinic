@@ -13,6 +13,12 @@
 // record after it has been backed out of, and `backLabel` says where back goes
 // in the caller's words.
 //
+// The traffic runs the other way too: the record's Book and Walk-in both land
+// in a cluster this one cannot reach, so they are handed back up to the shell
+// with the patient and nothing else. `goHome` comes down the same wire — the
+// shell cannot pop a route it does not own, so it says only that the tab was
+// tapped and this decides that home is the list.
+//
 // The editor is reachable from both screens and returns to whichever asked for
 // it, which is the one thing a two-route union could not express: `from` is the
 // route Cancel goes back to. Saving does not go back — registering someone lands
@@ -21,7 +27,9 @@
 // rather than showing what it was holding before the write.
 import { useState } from 'react';
 import { PushView } from '../../components/ui';
+import type { PatientTarget } from '../../shell/routes';
 import { VisitPage } from '../day';
+import { useInvalidatePatients } from './data/hooks';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
 import { PatientRecordScreen } from './PatientRecordScreen';
@@ -40,13 +48,48 @@ export type OpenRecordRequest = {
 
 export type PatientsClusterProps = {
     open?: OpenRecordRequest;
+    /**
+     * Bumped by the shell when the Patients tab is tapped while it is already
+     * up. Home here is the list with its search field, which is the one thing
+     * the shell could not decide for itself.
+     */
+    goHome?: number;
+    /**
+     * The record's two openers, which both land in the day cluster. The shell
+     * owns those routes (`shell/routes.ts`); this passes the patient up and
+     * nothing more. Absent leaves the record screen's own fallback in place,
+     * which names where the flow lives rather than failing silently.
+     *
+     * Record payment used to be a third. It is not a cross-cluster request any
+     * more — the sheet opens on the record itself, because the server allocates
+     * a patient-level payment and there is no longer a visit to go and pick.
+     */
+    onBook?: (patient: PatientTarget) => void;
+    onWalkIn?: (patient: PatientTarget) => void;
 };
 
-export function PatientsCluster({ open }: PatientsClusterProps) {
+export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
     const [route, setRoute] = useState<Route>({ name: 'list' });
     const [seen, setSeen] = useState(0);
-    /** Bumped by a save, so the record behind the editor remounts onto fresh data. */
+    const [seenHome, setSeenHome] = useState(goHome);
+    /** The editor, mid-write. A tab tap must not take the screen out from under it. */
+    const [saving, setSaving] = useState(false);
+    /**
+     * Bumped by a save, so the record behind the editor remounts onto fresh data.
+     *
+     * The remount alone is no longer enough to make it fresh: the cluster reads
+     * through a real query cache now, and a new mount re-attaches to whatever is
+     * cached rather than going back to the server. So a bump drops the cache
+     * with it — `reread` is the two together, and nothing may bump `read` on its
+     * own.
+     */
     const [read, setRead] = useState(0);
+    const invalidate = useInvalidatePatients();
+
+    const reread = () => {
+        invalidate();
+        setRead((n) => n + 1);
+    };
     // A visit opened off a history row. It is a page over the record rather
     // than a fourth route, because backing out of it returns to the row you
     // tapped with the record's scroll where you left it. `VisitPage` is the day
@@ -62,6 +105,16 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
         setRoute({ name: 'record', patientId: open.patientId, backLabel: open.backLabel });
     }
 
+    // The tap is spent either way: a save in flight swallows it rather than
+    // queueing it, the same way the editor drops Cancel instead of greying it.
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        if (!saving) {
+            setRoute({ name: 'list' });
+            setVisitOpen(false);
+        }
+    }
+
     if (route.name === 'edit') {
         const back = route.from;
         return (
@@ -75,8 +128,9 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
                             : { name: 'list' },
                     )
                 }
+                onSavingChange={setSaving}
                 onSaved={(patientId) => {
-                    setRead((n) => n + 1);
+                    reread();
                     setRoute({ name: 'record', patientId });
                 }}
             />
@@ -92,6 +146,8 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
                     backLabel={route.backLabel}
                     onBack={() => setRoute({ name: 'list' })}
                     onEdit={() => setRoute({ name: 'edit', patientId: route.patientId, from: 'record' })}
+                    onBook={onBook}
+                    onWalkIn={onWalkIn}
                     onOpenVisit={(entry) => {
                         if (!entry.visitId) return;
                         setVisit({ appointmentId: entry.appointmentId, visitId: entry.visitId });
@@ -107,8 +163,11 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
                             visitId={visit.visitId}
                             onClose={() => setVisitOpen(false)}
                             // The record's totals move with the visit, so it is
-                            // re-read rather than left showing what it held.
-                            onChanged={() => setRead((n) => n + 1)}
+                            // re-read rather than left showing what it held. The
+                            // write happened in the day cluster, over the raw
+                            // tRPC client, so nothing has touched this cluster's
+                            // cache — `reread` is what makes the remount real.
+                            onChanged={reread}
                         />
                     ) : null}
                 </PushView>
@@ -118,6 +177,7 @@ export function PatientsCluster({ open }: PatientsClusterProps) {
 
     return (
         <PatientListScreen
+            goHome={goHome}
             onOpen={(patientId) => setRoute({ name: 'record', patientId })}
             onNewPatient={() => setRoute({ name: 'edit', from: 'list' })}
         />

@@ -48,6 +48,7 @@ const EXPECTED = [
     'balance.outstanding',
     'balance.byPatient',
     'balance.summary',
+    'balance.takings',
     'reminder.pending',
     'reminder.markSent',
     'reminder.markSkipped',

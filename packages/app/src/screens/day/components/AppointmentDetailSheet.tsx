@@ -12,6 +12,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { MoneyValue, StatusPill } from '../../../components/domain';
 import { Button, Callout, CardDivider, Sheet, Tag } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import {
@@ -24,8 +25,6 @@ import {
 } from '../data';
 import { describeError } from '../errors';
 import { formatSpan, minutesOfDay } from '../time';
-import { _LocalMoneyValue } from './_LocalMoneyValue';
-import { _LocalStatusPill } from './_LocalStatusPill';
 
 export type AppointmentDetailSheetProps = {
     visible: boolean;
@@ -124,7 +123,7 @@ export function AppointmentDetailSheet({
             }
         >
             <View style={styles.headline}>
-                <_LocalStatusPill status={appointment.status} withDot />
+                <StatusPill status={appointment.status} withDot />
                 {appointment.channel === 'walk_in' ? <Tag tone="muted">WALK-IN</Tag> : null}
                 <Text variant="footnote" script="mono" weight="medium" tone="muted">
                     {appointment.ref}
@@ -374,20 +373,20 @@ function VisitPanel({
                 <Text variant="subhead" tone="muted">
                     Charged
                 </Text>
-                <_LocalMoneyValue piastres={visit.chargedTotal} />
+                <MoneyValue piastres={visit.chargedTotal} />
             </View>
             <View style={styles.money}>
                 <Text variant="subhead" tone="muted">
                     Paid
                 </Text>
-                <_LocalMoneyValue piastres={visit.paidTotal} tone="success" />
+                <MoneyValue piastres={visit.paidTotal} tone="success" />
             </View>
             {visit.balance > 0 ? (
                 <View style={styles.money}>
                     <Text variant="subhead" tone="muted">
                         Outstanding
                     </Text>
-                    <_LocalMoneyValue piastres={visit.balance} tone="due" />
+                    <MoneyValue piastres={visit.balance} tone="due" />
                 </View>
             ) : null}
         </View>

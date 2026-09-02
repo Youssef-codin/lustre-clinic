@@ -10,13 +10,13 @@
 import type { AppointmentStatus } from '@lustre/shared';
 import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { statusLabel, statusTone } from '../../../components/domain';
 import { Button, Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
 import { type DayDelay, isProjected, ON_TIME, projectedStart } from '../delay';
 import { clock12, minutesOfDay, time12 } from '../time';
-import { statusLabel } from './_LocalStatusPill';
 import {
     ArrowBackIcon,
     ArrowForwardIcon,
@@ -264,6 +264,12 @@ export function UpNext({
 }: UpNextProps) {
     if (appointments.length === 0) return null;
 
+    // Off today this is the whole day rather than what is left of it, so the
+    // rows are history: nobody checks in to a Tuesday that has been and gone,
+    // and swiping one to no-show writes to a day nobody is working. The row
+    // says where it ended up instead.
+    const live = relativeToNow;
+
     return (
         <View style={[styles.section, styles.upNext]}>
             <View style={styles.sectionLabel}>
@@ -279,20 +285,29 @@ export function UpNext({
                     appointment={appointment}
                     procedure={procedureLabel(appointment)}
                     onPress={() => onSelect(appointment)}
-                    inChair={appointment.id === chairId}
+                    dim={!live}
+                    inChair={live && appointment.id === chairId}
                     projectedMinutes={
                         isProjected(appointment, delay)
                             ? projectedStart(appointment, delay, nowMinutes)
                             : null
                     }
-                    onNoShow={appointment.status === 'booked' ? () => onNoShow(appointment) : undefined}
+                    onNoShow={
+                        live && appointment.status === 'booked' ? () => onNoShow(appointment) : undefined
+                    }
                     trailing={
-                        <CheckInControl
-                            appointment={appointment}
-                            loading={checkingInId === appointment.id}
-                            inChair={appointment.id === chairId}
-                            onCheckIn={onCheckIn}
-                        />
+                        live ? (
+                            <CheckInControl
+                                appointment={appointment}
+                                loading={checkingInId === appointment.id}
+                                inChair={appointment.id === chairId}
+                                onCheckIn={onCheckIn}
+                            />
+                        ) : (
+                            <Text variant="footnote" weight="semibold" tone={statusTone(appointment.status)}>
+                                {statusLabel(appointment.status)}
+                            </Text>
+                        )
                     }
                 />
             ))}

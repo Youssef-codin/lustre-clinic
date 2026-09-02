@@ -95,20 +95,32 @@ The state is fed by real traffic, not a poller: every request through the link
 reports whether the server answered. A 4xx or a 5xx still counts as online — the
 connection is fine and the failure belongs to the procedure.
 
+The one thing that is not a request is the `/ws` socket closing. That is the
+earliest evidence the clinic PC has gone, and waiting for the next query to time
+out instead is what used to leave a live-looking screen up for the seconds in
+between — so `live.ts` reports it through `noteLinkDropped`, which probes and
+lets the probe decide. Only while the app is in front: Android closes the socket
+when the phone is pocketed.
+
 ## Where the server is
 
 `app.json` → `extra.server`:
 
 ```json
-"extra": { "server": { "lan": "http://192.168.1.20:3000", "tailscale": "http://clinic-pc.tailnet.ts.net:3000" } }
+"extra": { "server": { "lan": null, "tailscale": null } }
 ```
 
-That is the one place to change the address, and it is what a dev machine edits.
-`lan` is the clinic's static address (the server PC is outside the router's DHCP
-pool for exactly this reason), which makes it a *default* and not a fact: it is
-right for the clinic it was written for and wrong for the next one. It is
-therefore probed on boot rather than trusted, and setup appears only when it
-does not answer — see `shell/serverStore.ts`.
+That is the one place to change the address, and it is what a dev machine edits
+— put your machine's LAN address in `lan` and leave it out of the commit.
+
+Both ship as `null`. A `lan` value would be the clinic's static address (the
+server PC is outside the router's DHCP pool for exactly this reason), which
+makes it a *default* and not a fact: right for the clinic it was written for and
+wrong for the next one. So a default that is present is probed on boot rather
+than trusted, and setup appears only when it does not answer — see
+`shell/serverStore.ts`. A default that is absent, which is what ships, needs no
+probe: setup opens on empty fields and asks, instead of reporting that an
+address nobody chose failed to answer.
 
 At runtime, setup (F1) calls `setServerAddresses({ lan, tailscale })`, which is
 §14's "both addresses are configured during onboarding". This module holds no

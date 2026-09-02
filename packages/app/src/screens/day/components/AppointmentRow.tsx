@@ -1,16 +1,15 @@
 /**
  * The list form of an appointment — for the places a timeline makes no sense
  * (a closed day, the calendar's day summary). §5 lists `domain/AppointmentRow`
- * under the day views only, so it stays in the cluster rather than being a
- * `_Local` awaiting promotion.
+ * under the day views only, so it stays in the cluster rather than moving to
+ * `domain/`.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { TimeValue } from '../../../components/domain';
+import { StatusPill, TimeValue } from '../../../components/domain';
 import { Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { formatClock12, minutesOfDay } from '../time';
-import { _LocalStatusPill } from './_LocalStatusPill';
 
 export type AppointmentRowProps = {
     appointment: Appointment;
@@ -51,7 +50,7 @@ export function AppointmentRow({ appointment, onPress, projectedMinutes = null }
                     <Text variant="subhead" tone="muted">
                         {appointment.durationMinutes} min
                     </Text>
-                    <_LocalStatusPill status={appointment.status} />
+                    <StatusPill status={appointment.status} />
                 </View>
             </View>
 
@@ -75,7 +74,10 @@ const styles = StyleSheet.create({
     past: { opacity: 0.72 },
     pressed: { backgroundColor: color.surface2 },
     // Wider than the 24-hour column it replaces: the meridiem rides beside the
-    // figure, and every row has one.
+    // figure, and every row has one. It must never wrap — 56px fitted "12:0"
+    // and broke the last digit onto its own line, so the column jumped between
+    // one shape and the other down the list. `TimeValue` lays the figure and
+    // meridiem out itself; this only reserves the width.
     time: { width: 80, flexShrink: 0 },
     body: { flex: 1, gap: space[1] },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },

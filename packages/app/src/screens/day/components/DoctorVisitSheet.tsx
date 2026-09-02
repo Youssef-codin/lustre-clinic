@@ -23,13 +23,12 @@
  * visit snapshots the catalogue on the day, §7), and pricing is the desk's.
  */
 import { StyleSheet, View } from 'react-native';
-import { TimeValue } from '../../../components/domain';
+import { StatusPill, TimeValue, ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
 import { Button, Sheet } from '../../../components/ui';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Appointment, AppointmentProcedure } from '../data';
 import { toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatSpan, minutesOfDay, relativeDayLabel } from '../time';
-import { _LocalStatusPill } from './_LocalStatusPill';
 
 export type DoctorVisitSheetProps = {
     visible: boolean;
@@ -86,26 +85,14 @@ export function DoctorVisitSheet({ visible, appointment, onClose, onOpenRecord }
                             {groups.map((group, index) => (
                                 <View
                                     key={group.tooth ?? 'none'}
-                                    style={[styles.group, index > 0 && styles.groupDivided]}
+                                    style={index > 0 ? styles.groupDivided : undefined}
                                 >
-                                    <View style={[styles.badge, !group.tooth && styles.badgeNone]}>
-                                        <Text
-                                            variant="footnote"
-                                            weight="bold"
-                                            tone={group.tooth ? 'ink' : 'muted'}
-                                        >
-                                            {group.tooth ?? '—'}
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.groupBody}>
-                                        {group.items.map((item) => (
-                                            <PlanLine key={item.id} procedure={item} />
-                                        ))}
-                                        <Text variant="footnote" tone="muted">
-                                            {toothPosition(group.tooth)}
-                                        </Text>
-                                    </View>
+                                    <ToothGroupCard
+                                        variant="row"
+                                        tooth={group.tooth}
+                                        position={toothPosition(group.tooth)}
+                                        lines={group.items.map(planLine)}
+                                    />
                                 </View>
                             ))}
                         </View>
@@ -157,7 +144,7 @@ function Identity({ appointment }: { appointment: Appointment }) {
                     {slotLabel(appointment)}
                 </Text>
                 <View style={styles.status}>
-                    <_LocalStatusPill status={appointment.status} withDot />
+                    <StatusPill status={appointment.status} withDot />
                 </View>
             </View>
         </View>
@@ -165,23 +152,16 @@ function Identity({ appointment }: { appointment: Appointment }) {
 }
 
 /**
- * The quantity rides on the name rather than in a column of its own: it is 1 on
- * nearly every line, and a column that is almost always "1" costs more width
- * than it explains.
+ * One planned procedure as a `ToothGroupCard` line. The quantity is folded into
+ * the name rather than given a column of its own — it is almost always one, and
+ * a column that reads `1` down every row is a column about nothing.
  */
-function PlanLine({ procedure }: { procedure: AppointmentProcedure }) {
-    return (
-        <View style={styles.line}>
-            <Text variant="body" weight="semibold">
-                {procedure.quantity > 1 ? `${procedure.name} × ${procedure.quantity}` : procedure.name}
-            </Text>
-            {procedure.note ? (
-                <Text variant="caption" tone="muted">
-                    {procedure.note}
-                </Text>
-            ) : null}
-        </View>
-    );
+function planLine(procedure: AppointmentProcedure): ToothGroupLine {
+    return {
+        id: procedure.id,
+        name: procedure.quantity > 1 ? `${procedure.name} × ${procedure.quantity}` : procedure.name,
+        detail: procedure.note,
+    };
 }
 
 /** `Today · 11:35 AM – 12:35 PM`. */
@@ -220,28 +200,7 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
         overflow: 'hidden',
     },
-    group: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: space[3],
-        paddingHorizontal: space[3.5],
-        paddingVertical: space[3],
-    },
     groupDivided: { borderTopWidth: border.hair, borderTopColor: color.hair },
-    badge: {
-        minWidth: 46,
-        height: 32,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: space[1.5],
-        borderRadius: radius.sm,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface2,
-    },
-    badgeNone: { backgroundColor: color.surface, borderStyle: 'dashed' },
-    groupBody: { flex: 1, gap: space[0.5], paddingTop: space[0.5] },
-    line: { gap: space[0.5] },
 
     note: {
         gap: space[1.5],

@@ -20,10 +20,17 @@
  * `react-native`, and this module and `chair.ts` are both imported by
  * `day.test.ts`, which runs under Bun with no Metro.
  *
+ * The calendar arithmetic does stay in `@lustre/shared` — it has no cluster in
+ * it and the settings panes want the same functions. The clock does not: a
+ * meridiem is presentation and it localizes, and `packages/shared` is for
+ * contracts.
+ *
  * What is left here is transport, not display: `clockToMinutes` reads the
  * 24-hour `HH:MM` the server sends, and nothing in this cluster writes one back
  * — the schedule is edited in settings, which has its own `timeFromMinutes`.
  */
+import { dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey } from '@lustre/shared';
+
 export type { Clock12 } from '../../components/domain/clock';
 export {
     clock12,
@@ -35,29 +42,10 @@ export {
     time12,
 } from '../../components/domain/clock';
 
-export function localOffsetMinutes(now: Date = new Date()): number {
-    return -now.getTimezoneOffset();
-}
-
-export function offsetForDate(key: string): number {
-    return localOffsetMinutes(parseKey(key));
-}
+export { dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey };
 
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
-}
-
-export function dateKey(date: Date): string {
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-export function todayKey(now: Date = new Date()): string {
-    return dateKey(now);
-}
-
-export function parseKey(key: string): Date {
-    const [year = 1970, month = 1, day = 1] = key.split('-').map(Number);
-    return new Date(year, month - 1, day);
 }
 
 export function addDays(key: string, days: number): string {

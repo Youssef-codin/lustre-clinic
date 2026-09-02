@@ -20,6 +20,12 @@ export type PickedProcedure = {
     name: string;
     variant: string | null;
     price: number;
+    /**
+     * Whether the line still owes a tooth. The general sheet offers the whole
+     * catalogue, so the caller cannot tell from the pick alone, and §5 refuses
+     * a tooth-specific line without one.
+     */
+    needsTooth: boolean;
 };
 
 export type ProcedureSheetProps = {
@@ -53,7 +59,11 @@ export function ProcedureSheet({
             visible={visible}
             onClose={onClose}
             title={tooth ? `Add to ${tooth}` : 'Add a procedure'}
-            subtitle="Tap a category to choose a variant — most are picked directly."
+            subtitle={
+                tooth
+                    ? 'Tap a category to choose a variant — most are picked directly.'
+                    : 'Tap a category to choose a variant. Anything done to a tooth will ask which one.'
+            }
             testID="procedure-sheet"
         >
             {loading ? (
@@ -72,10 +82,13 @@ export function ProcedureSheet({
                     The clinic has no procedures set up yet. Settings → Procedures.
                 </Text>
             ) : offered.length === 0 ? (
+                // Only reachable with a tooth. Without one the sheet offers the
+                // whole catalogue, so an empty list there is an empty
+                // catalogue — which the branch above has already said.
                 <Text variant="subhead" tone="muted">
-                    {tooth
-                        ? `Nothing in the catalogue is done to a single tooth, so there is nothing to add to ${tooth}.`
-                        : 'Every procedure in the catalogue is done to a tooth. Pick one first.'}
+                    {`Nothing in the catalogue is done to a single tooth, so there is nothing to add to ${
+                        tooth ?? 'a tooth'
+                    }.`}
                 </Text>
             ) : (
                 <View style={styles.list}>
@@ -94,6 +107,7 @@ export function ProcedureSheet({
                                             name: category.name,
                                             variant: null,
                                             price: category.defaultPrice,
+                                            needsTooth: tooth === null && category.isToothSpecific,
                                         })
                                     }
                                 />
@@ -127,6 +141,7 @@ export function ProcedureSheet({
                                                         name: category.name,
                                                         variant: child.name,
                                                         price: child.defaultPrice,
+                                                        needsTooth: tooth === null && child.isToothSpecific,
                                                     })
                                                 }
                                                 style={({ pressed }) => [

@@ -3,10 +3,17 @@
  * the date stamp, what was done and how it went, and the money with a line under
  * it saying what the amount means.
  *
- * The row leads with the work, not the reference: a record is read to answer
- * "what did we do last time", and `160826-7M69` answers nothing a person asks.
- * The ref is a desk artefact for the paper book and the WhatsApp round trip, so
- * it is not on the row at all.
+ * The row leads with the work: a record is read to answer "what did we do last
+ * time", and `160826-7M69` answers nothing a person asks out loud.
+ *
+ * The appointment ref used to ride beside the status pill, on the reasoning that
+ * this is the screen someone is on with the paper file open and the ref was what
+ * matched one to the other. That was wrong about the paper: the book is one page
+ * per patient, so there is nothing per visit to match and the ref pointed at a
+ * page that does not exist. The patient's own ref is on the header instead,
+ * once. The appointment ref is still in the payload, still on the day view's
+ * detail sheet, and still what a reminder quotes down the phone — it just is not
+ * an identifier the desk writes anywhere.
  *
  * Full-bleed on the page's own colour with a hairline under it, not a card. The
  * design draws a ledger: rows running edge to edge in one continuous tone,
@@ -22,9 +29,9 @@
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { MoneyValue } from '../../../components/domain';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
-import { _LocalMoneyValue } from './_LocalMoneyValue';
 
 export type HistoryRowProps = {
     entry: PatientHistoryEntry;
@@ -95,21 +102,23 @@ export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
                     <Work procedures={entry.procedures} />
                 )}
 
-                <View style={[styles.pill, PILL[status.tone]]}>
-                    <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />
-                    <Text variant="tag" weight="bold" tone={status.tone === 'ink' ? 'ink' : status.tone}>
-                        {status.label}
-                    </Text>
+                <View style={styles.meta}>
+                    <View style={[styles.pill, PILL[status.tone]]}>
+                        <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />
+                        <Text variant="tag" weight="bold" tone={status.tone === 'ink' ? 'ink' : status.tone}>
+                            {status.label}
+                        </Text>
+                    </View>
                 </View>
             </View>
 
             <View style={styles.amounts}>
                 {came ? (
-                    <_LocalMoneyValue
-                        amount={entry.chargedTotal}
+                    <MoneyValue
+                        piastres={entry.chargedTotal}
                         variant="callout"
                         weight="bold"
-                        symbol={false}
+                        showCurrency={false}
                         tone={due ? 'due' : 'ink'}
                     />
                 ) : null}
@@ -170,7 +179,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
     if (entry.balance > 0) {
         return (
             <View style={styles.meaning}>
-                <_LocalMoneyValue amount={entry.balance} variant="caption" tone="due" />
+                <MoneyValue piastres={entry.balance} variant="caption" tone="due" showCurrency={false} />
                 <Text variant="caption" tone="due">
                     due
                 </Text>
@@ -220,6 +229,9 @@ const styles = StyleSheet.create({
     },
     stamp: { width: 30, alignItems: 'center' },
     body: { flex: 1, alignItems: 'flex-start', gap: space[1] },
+    // Wraps, so a long procedure name pushing the pill wide drops the ref to its
+    // own line rather than squeezing it — a half-shown ref is worse than none.
+    meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2] },
     pill: {
         flexDirection: 'row',
         alignItems: 'center',

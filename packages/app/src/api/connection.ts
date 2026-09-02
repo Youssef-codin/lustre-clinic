@@ -157,6 +157,24 @@ export async function reprobe(): Promise<boolean> {
     }
 }
 
+/**
+ * The `/ws` socket dropped (`live.ts`). Nothing else notices the clinic PC
+ * going off until somebody makes a request, which is what left the shell on a
+ * live-looking screen until whichever query she happened to run next timed out.
+ * The socket is the app's earliest evidence and it is checked rather than
+ * believed: this probes, and only the probe decides — a server that came back
+ * within its own reconnect never reaches the disconnected route at all.
+ *
+ * Ignored unless the app is in front. Android closes the socket when the phone
+ * is pocketed, and marking that offline would have her come back to a dead end
+ * she never hit; the foreground watch below re-probes on the way in anyway.
+ */
+export function noteLinkDropped(): void {
+    if (AppState.currentState !== 'active') return;
+    if (state.status === 'probing') return;
+    void reprobe();
+}
+
 let appStateSub: NativeEventSubscription | null = null;
 
 function startForegroundWatch(): void {

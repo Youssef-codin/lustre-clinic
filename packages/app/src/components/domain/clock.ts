@@ -17,8 +17,10 @@
  * the digits along with it.
  *
  * Storage and transport are unchanged — `TIME` and `timestamptz` as before.
- * This is formatting only; `minutesToClock` in the day cluster is still the
- * 24-hour `HH:MM` the server reads and writes.
+ * This is formatting only. The 24-hour `HH:MM` the server reads and writes is
+ * still handled at the edges: `clockToMinutes` in the day cluster parses it in,
+ * `timeFromMinutes` in `settings/data/reminders` writes it back out. Neither
+ * string reaches a screen.
  */
 import type { Locale } from '@lustre/shared';
 

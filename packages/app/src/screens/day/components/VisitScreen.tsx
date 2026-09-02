@@ -106,8 +106,16 @@ export type VisitScreenProps = {
     onSentToDesk?: (message: string) => void;
 };
 
-/** Which question is open: the tooth, the catalogue, or neither. */
-type Asking = null | { step: 'tooth' } | { step: 'procedure'; tooth: Tooth | null };
+/**
+ * Which question is open: the tooth, the catalogue, or neither — plus the tooth
+ * asked the other way round, after a pick from the general sheet that turned
+ * out to need one.
+ */
+type Asking =
+    | null
+    | { step: 'tooth' }
+    | { step: 'procedure'; tooth: Tooth | null }
+    | { step: 'toothFor'; picked: PickedProcedure };
 
 function seed(appointment: Appointment, visit: Visit | undefined): DraftLine[] {
     if (visit) {
@@ -223,6 +231,20 @@ export function VisitScreen({
         }
         setAsking(null);
         setTimeout(() => setAsking({ step: 'procedure', tooth }), duration.sheet);
+    }
+
+    /**
+     * The general sheet offers the whole catalogue, so a pick can arrive owing
+     * a tooth. Ask for it before the line exists rather than after — a line
+     * with no tooth is one §5 refuses at confirm, with the visit already priced.
+     */
+    function pick(tooth: Tooth | null, picked: PickedProcedure) {
+        if (tooth === null && picked.needsTooth) {
+            setAsking(null);
+            setTimeout(() => setAsking({ step: 'toothFor', picked }), duration.sheet);
+            return;
+        }
+        add(tooth, picked);
     }
 
     function add(tooth: Tooth | null, picked: PickedProcedure) {
@@ -611,15 +633,26 @@ export function VisitScreen({
             </View>
 
             <ToothSheet
-                visible={asking?.step === 'tooth'}
+                visible={asking?.step === 'tooth' || asking?.step === 'toothFor'}
+                // The variant is what was tapped; the category alone reads as
+                // "Surgical is done to a tooth", which names nothing.
+                required={
+                    asking?.step === 'toothFor' ? (asking.picked.variant ?? asking.picked.name) : undefined
+                }
                 onClose={() => setAsking(null)}
-                onPick={(tooth) => askProcedure(tooth, true)}
+                onPick={(tooth) => {
+                    if (asking?.step === 'toothFor') {
+                        add(tooth, asking.picked);
+                        return;
+                    }
+                    askProcedure(tooth, true);
+                }}
             />
 
             <ProcedureSheet
                 visible={asking?.step === 'procedure'}
                 onClose={() => setAsking(null)}
-                onPick={(picked) => add(asking?.step === 'procedure' ? asking.tooth : null, picked)}
+                onPick={(picked) => pick(asking?.step === 'procedure' ? asking.tooth : null, picked)}
                 categories={catalogue.data ?? []}
                 loading={catalogue.status === 'loading'}
                 error={catalogue.status === 'error' ? catalogue.error : null}

@@ -7,11 +7,21 @@
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { procedureLabel, splitDay } from './agenda';
-import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
+import {
+    dayLabel,
+    firstFreeSlot,
+    fortnightSlots,
+    type Slot,
+    slotIsFree,
+    slotsFor,
+    withNextVisit,
+    workingDaysIn,
+} from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment, ProcedureCategory } from './data/types';
 import { dayDelay, delayLabel, delayReason, isProjected, ON_TIME, projectedStart } from './delay';
+import { emptyDay } from './empty';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatAmount, formatMoney, poundsEntry } from './money';
@@ -46,6 +56,7 @@ import {
     isoAt,
     minutesOfDay,
     relativeDayLabel,
+    todayKey,
 } from './time';
 
 const FRIDAY = '2026-08-07';
@@ -93,6 +104,20 @@ describe('the agenda', () => {
 
         expect(past.map((row) => row.id)).toEqual(['done', 'missed']);
         expect(upcoming.map((row) => row.id)).toEqual(['stale', 'later']);
+    });
+
+    // The fold is relative to now, so only today has one. A past day is every
+    // row settled, and folding them all away drew nothing at all under a tab
+    // pill that went on counting them.
+    it('folds nothing off today, and still puts the day in order', () => {
+        const { past, upcoming } = splitDay(
+            [at('later', '13:00', 'done'), at('done', '09:30', 'done'), at('missed', '10:00', 'no_show')],
+            null,
+            false,
+        );
+
+        expect(past).toEqual([]);
+        expect(upcoming.map((row) => row.id)).toEqual(['done', 'missed', 'later']);
     });
 
     it('does not draw the patient in the chair twice', () => {
@@ -325,6 +350,21 @@ describe('the month', () => {
         expect(loads.get(SATURDAY)?.busiest).toBe('maadi');
     });
 
+    it('still counts a day that has been worked through', () => {
+        // Checkout frees the slot for rebooking, but the day was still full —
+        // so the bar has to survive it. Counting only the live statuses left
+        // every past month drawing empty once its days had been worked.
+        const loads = loadsFrom(
+            [SATURDAY],
+            [[at('a', 'maadi', 'done'), at('b', 'maadi', 'awaiting_payment'), at('c', 'maadi', 'no_show')]],
+            undefined,
+            'maadi',
+        );
+
+        expect(loads.get(SATURDAY)?.count).toBe(2);
+        expect(loads.get(SATURDAY)?.busiest).toBe('maadi');
+    });
+
     it('leaves a closed day at no load rather than dividing by nothing', () => {
         const loads = loadsFrom([FRIDAY], [[at('a', 'maadi')]], undefined, 'maadi');
         expect(loads.get(FRIDAY)?.fill).toBe(0);
@@ -349,11 +389,40 @@ describe('errors', () => {
     });
 });
 
+describe('an empty day', () => {
+    it('offers the booking the desk can actually make', () => {
+        const desk = emptyDay(false, true);
+        expect(desk.actionLabel).toBe('Book someone in');
+        expect(desk.glyph).toBe('calendar');
+    });
+
+    it('offers the doctor nothing, and does not tell them to book', () => {
+        const doctor = emptyDay(false, false);
+        expect(doctor.actionLabel).toBeUndefined();
+        expect(doctor.body).not.toContain('Book someone in');
+        expect(doctor.body).not.toContain('walk-in');
+    });
+
+    it('states a past day rather than inviting one, and drops the ring with the offer', () => {
+        const past = emptyDay(true, true);
+        expect(past.title).toBe('Nothing happened this day');
+        expect(past.actionLabel).toBeUndefined();
+        expect(past.glyph).toBe('none');
+    });
+
+    // A past day is a fact whoever booked it can no longer change, so it reads
+    // the same to the desk and to the doctor.
+    it('says the same thing about a past day to both screens', () => {
+        expect(emptyDay(true, false)).toEqual(emptyDay(true, true));
+    });
+});
+
 describe('money', () => {
     it('formats piastres as whole pounds, grouped', () => {
         expect(formatMoney(260_000)).toBe('EGP 2,600');
-        expect(formatMoney(260_000, 'trail')).toBe('2,600 EGP');
         expect(formatMoney(0)).toBe('EGP 0');
+        // §7.13 — the symbol trails in Arabic, and it is the Arabic symbol that trails.
+        expect(formatMoney(260_000, { language: 'ar' })).toBe('2,600 ج.م');
     });
 
     it('takes what has already been paid off the amount due', () => {
@@ -695,6 +764,105 @@ describe('booking slots', () => {
     });
 });
 
+/**
+ * The fortnight both booking flows offer — the full page and the book-next
+ * sheet — so a day is only ever offered by one rule, and the sheet cannot come
+ * to disagree with the page about which Thursday is still free.
+ */
+describe('the fortnight a booking is offered', () => {
+    const SCHEDULE = [{ weekday: 1, branchId: 'b', opensAt: '10:00', closesAt: '12:00' }];
+    const MONDAY = '2026-08-10';
+    const NEXT_MONDAY = '2026-08-17';
+
+    const booked = (day: string, minutes: number, branchId: string): Appointment =>
+        ({
+            id: `${day}:${minutes}`,
+            startsAt: isoAt(day, minutes),
+            durationMinutes: 30,
+            status: 'booked' as AppointmentStatus,
+            branchId,
+        }) as Appointment;
+
+    const fortnight = (fetched: readonly (readonly Appointment[])[] | undefined) =>
+        fortnightSlots({
+            days: [MONDAY, NEXT_MONDAY],
+            fetched,
+            schedule: SCHEDULE,
+            branchId: 'b',
+            durationMinutes: 30,
+            today: MONDAY,
+            nowMinutes: 0,
+        });
+
+    it('offers only the days the branch actually works', () => {
+        expect(workingDaysIn(MONDAY, 14, SCHEDULE, 'b')).toEqual([MONDAY, NEXT_MONDAY]);
+        expect(workingDaysIn(MONDAY, 14, SCHEDULE, 'other')).toEqual([]);
+    });
+
+    // `slotsFor([])` says every hour is free, so a day still being read must not
+    // be treated as an empty one — that is how a grid offers a slot someone else
+    // is already in.
+    it('offers nothing at all until the rows are in hand', () => {
+        const pending = fortnight(undefined);
+
+        expect(pending.openDays).toEqual([]);
+        expect(pending.slotsByDay.size).toBe(0);
+    });
+
+    it('takes a day off the strip once its last time has gone', () => {
+        const full = [600, 630, 660, 690].map((minutes) => booked(MONDAY, minutes, 'b'));
+        const { openDays, slotsByDay } = fortnight([full, []]);
+
+        expect(openDays).toEqual([NEXT_MONDAY]);
+        expect(slotsByDay.get(MONDAY)?.every((slot) => slot.state === 'taken')).toBe(true);
+        expect(slotsByDay.get(NEXT_MONDAY)?.every((slot) => slot.state === 'free')).toBe(true);
+    });
+
+    it('leaves a time free when the booking on it belongs to another branch', () => {
+        const { openDays, slotsByDay } = fortnight([[booked(MONDAY, 600, 'maadi')], []]);
+
+        expect(openDays).toEqual([MONDAY, NEXT_MONDAY]);
+        expect(slotsByDay.get(MONDAY)?.[0]?.state).toBe('free');
+    });
+});
+
+/**
+ * The line the day view raises after a check-in that also booked the return.
+ * The check-in half is what the desk acts on; the appointment half is what the
+ * patient will repeat at the door, so neither may be dropped for the other.
+ */
+describe('book-next after a check-in', () => {
+    it('adds the next visit to whatever was already being said', () => {
+        expect(withNextVisit('Checked in · in the chair', todayKey(), 900)).toBe(
+            'Checked in · in the chair — next visit today at 3:00 pm',
+        );
+        expect(withNextVisit('Sara is waiting, 2 ahead', addDays(todayKey(), 1), 630)).toBe(
+            'Sara is waiting, 2 ahead — next visit tomorrow at 10:30 am',
+        );
+    });
+
+    // A date far enough out to be named rather than described keeps its capital,
+    // because it is read as a date and not as part of the sentence.
+    it('names a day the week after next rather than describing it', () => {
+        const said = withNextVisit('Checked in', addDays(todayKey(), 9), 720);
+
+        expect(said).not.toContain('next visit today');
+        expect(said).toContain(dayLabel(addDays(todayKey(), 9)));
+        expect(said.endsWith('at 12:00 pm')).toBe(true);
+    });
+
+    // The sheet has no earlier step to send anyone back to: the grid is directly
+    // under the message, and has already been re-read by the time it is drawn.
+    it('tells the sheet the times under it have been reloaded, not to go back', () => {
+        const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
+        const sheet = describeError(overlap, 'book-next');
+
+        expect(sheet.title).toBe('That slot is taken');
+        expect(sheet.body).toContain('reloaded');
+        expect(sheet.body).not.toContain('Go back');
+    });
+});
+
 describe('the procedure plan', () => {
     const line = (id: string, tooth: Tooth | null, price: number): PlannedProcedure => ({
         id,
@@ -981,18 +1149,23 @@ describe('what the catalogue offers', () => {
             })),
         }) as ProcedureCategory;
 
-    // The server refuses both pairings, so a plan that can be built here but
-    // not booked is a dead end found at the confirm step with a patient waiting.
+    // A tooth was named, so mouth-level work cannot go on it — the server
+    // refuses that pairing, and a plan built here but not bookable is a dead end
+    // found at the confirm step with a patient waiting.
     it('offers only tooth work once a tooth is chosen', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], true);
 
         expect(offered.map((row) => row.id)).toEqual(['extraction']);
     });
 
-    it('offers only mouth work when no tooth is assigned', () => {
+    // The other direction is not symmetric: without a tooth the sheet is the
+    // whole catalogue, and the tooth is asked for after the pick. Mirroring the
+    // strict match here is what hid every uncategorised tooth-specific
+    // procedure behind a button that just said "Add procedure".
+    it('offers the whole catalogue when no tooth is assigned', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], false);
 
-        expect(offered.map((row) => row.id)).toEqual(['scaling']);
+        expect(offered.map((row) => row.id)).toEqual(['extraction', 'scaling']);
     });
 
     it('keeps a heading only for the variants that fit', () => {
@@ -1007,9 +1180,20 @@ describe('what the catalogue offers', () => {
         expect(offered[0]?.children.map((child) => child.id)).toEqual(['class-i']);
     });
 
-    it('drops a heading whose every variant is the wrong kind', () => {
-        const filling = category('filling', false, [{ id: 'class-i', isToothSpecific: true }]);
+    it('drops a heading whose every variant is mouth work once a tooth is chosen', () => {
+        const filling = category('filling', false, [{ id: 'whitening', isToothSpecific: false }]);
 
-        expect(offeredFor([filling], false)).toEqual([]);
+        expect(offeredFor([filling], true)).toEqual([]);
+    });
+
+    it('keeps every variant of a heading when no tooth is assigned', () => {
+        const filling = category('filling', false, [
+            { id: 'class-i', isToothSpecific: true },
+            { id: 'whitening', isToothSpecific: false },
+        ]);
+
+        const offered = offeredFor([filling], false);
+
+        expect(offered[0]?.children.map((child) => child.id)).toEqual(['class-i', 'whitening']);
     });
 });

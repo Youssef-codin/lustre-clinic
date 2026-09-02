@@ -21,12 +21,12 @@
  * refusal lands above that button in the words of what was being attempted
  * (§4/§14) — never a toast that slides away while the patient is standing there.
  */
-import { PIASTRES_PER_POUND } from '@lustre/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { type Slot, slotIsFree, slotsFor } from '../booking';
+import { dayLabel, fortnightSlots, slotIsFree, timeLabel, workingDaysIn } from '../booking';
 import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
@@ -35,8 +35,6 @@ import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '
 import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import {
     addDays,
-    clock12,
-    formatDate,
     isoAt,
     localOffsetMinutes,
     monthShort,
@@ -54,6 +52,13 @@ export type BookingScreenProps = {
     /** Answered by `BookPatientSheet`, or handed straight in by a screen that
      * already has the patient — the patient record books this way. */
     patient: PatientDraft;
+    /**
+     * Which answer to "when" the page opens on. Set by a caller that has already
+     * asked the question — the record's Walk-in means now and its Book means a
+     * day to be chosen. Left off, the day on screen decides, which is what the
+     * FAB wants.
+     */
+    timing?: Timing;
     branchId: string | null;
     branches: readonly Branch[];
     schedule: readonly ClinicDay[] | undefined;
@@ -81,6 +86,7 @@ const STEPS: { key: Step; label: string }[] = [
 
 export function BookingScreen({
     patient,
+    timing: asked,
     branchId,
     branches,
     schedule,
@@ -96,7 +102,7 @@ export function BookingScreen({
     const [index, setIndex] = useState(0);
     const [plan, setPlan] = useState<PlannedProcedure[]>([]);
     const [timing, setTiming] = useState<Timing>(
-        !isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later',
+        asked ?? (!isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later'),
     );
     const [date, setDate] = useState(dateKey < today ? today : dateKey);
     const [slotMinutes, setSlotMinutes] = useState<number | null>(null);
@@ -134,10 +140,7 @@ export function BookingScreen({
     // batches over `httpBatchLink` — and the day being booked reads its times
     // out of the same answer, so the grid and the Book button cannot disagree.
     const workingDays = useMemo(
-        () =>
-            Array.from({ length: STRIP_DAYS }, (_, index) => addDays(today, index)).filter(
-                (key) => !isClosed(key, schedule, branch),
-            ),
+        () => workingDaysIn(today, STRIP_DAYS, schedule, branch),
         [today, schedule, branch],
     );
 
@@ -147,41 +150,27 @@ export function BookingScreen({
         { enabled: scheduled && workingDays.length > 0 },
     );
 
-    // A day that has not answered yet has no taken times *to* know about, and
-    // `slotsFor([])` says every hour is free — which is how the grid came to
-    // offer a slot someone else is already in. `enabled: false` leaves the query
-    // at `success` with no data, and a key change clears data a frame before the
-    // fetch starts, so neither status alone is the question: the question is
-    // whether the rows are in hand. Until they are, nothing is offered.
     const fetched = fortnight.data;
 
-    const slotsByDay = useMemo(() => {
-        const byDay = new Map<string, Slot[]>();
-        if (!fetched) return byDay;
-
-        workingDays.forEach((key, index) => {
-            byDay.set(
-                key,
-                slotsFor({
-                    dateKey: key,
-                    schedule,
-                    appointments: (fetched[index] ?? []).filter((row) => row.branchId === branch),
-                    branchId: branch,
-                    durationMinutes: duration,
-                    nowMinutes: key === today ? nowMinutes : null,
-                }),
-            );
-        });
-
-        return byDay;
-    }, [fetched, workingDays, schedule, branch, duration, today, nowMinutes]);
-
-    // Only the days that can actually take a visit this long. Asking for 45
-    // minutes on a full Thursday should take Thursday off the strip, not leave
-    // it there to be tapped and found empty.
-    const openDays = useMemo(
-        () => workingDays.filter((key) => (slotsByDay.get(key) ?? []).some((slot) => slot.state === 'free')),
-        [workingDays, slotsByDay],
+    // `enabled: false` leaves the query at `success` with no data, and a key
+    // change clears data a frame before the fetch starts, so neither status
+    // alone is the question: the question is whether the rows are in hand.
+    // `fortnightSlots` answers nothing until they are — and only the days that
+    // can actually take a visit this long come back as open, so asking for 45
+    // minutes on a full Thursday takes Thursday off the strip rather than
+    // leaving it there to be tapped and found empty.
+    const { slotsByDay, openDays } = useMemo(
+        () =>
+            fortnightSlots({
+                days: workingDays,
+                fetched,
+                schedule,
+                branchId: branch,
+                durationMinutes: duration,
+                today,
+                nowMinutes,
+            }),
+        [fetched, workingDays, schedule, branch, duration, today, nowMinutes],
     );
 
     const slots = slotsByDay.get(date) ?? [];
@@ -521,61 +510,30 @@ export function BookingScreen({
                             ) : (
                                 <View style={styles.groups}>
                                     {groupByTooth(plan).map((group) => (
-                                        <View key={group.tooth ?? 'none'} style={styles.group}>
-                                            <View style={styles.groupHead}>
-                                                <View
-                                                    style={[styles.badge, !group.tooth && styles.badgeNone]}
-                                                >
-                                                    <Text
-                                                        variant="caption"
-                                                        script="sans"
+                                        <ToothGroupCard
+                                            key={group.tooth ?? 'none'}
+                                            tooth={group.tooth}
+                                            position={toothPosition(group.tooth)}
+                                            subtotal={
+                                                <MoneyValue
+                                                    piastres={group.subtotal}
+                                                    variant="headline"
+                                                    weight="bold"
+                                                />
+                                            }
+                                            lines={group.items.map((item) => ({
+                                                id: item.id,
+                                                name: item.name,
+                                                detail: item.variant,
+                                                money: (
+                                                    <MoneyValue
+                                                        piastres={item.price}
+                                                        variant="body"
                                                         weight="bold"
-                                                        tone={group.tooth ? 'ink' : 'muted'}
-                                                    >
-                                                        {group.tooth ?? '—'}
-                                                    </Text>
-                                                </View>
-
-                                                <Text
-                                                    variant="subhead"
-                                                    tone="muted"
-                                                    numberOfLines={1}
-                                                    style={styles.grow}
-                                                >
-                                                    {toothPosition(group.tooth)}
-                                                </Text>
-
-                                                <Text variant="headline" weight="bold">
-                                                    {formatMoney(group.subtotal)}
-                                                </Text>
-                                            </View>
-
-                                            {group.items.map((item) => (
-                                                <View key={item.id} style={styles.line}>
-                                                    <View style={styles.grow}>
-                                                        <Text
-                                                            variant="body"
-                                                            weight="semibold"
-                                                            numberOfLines={1}
-                                                        >
-                                                            {item.name}
-                                                        </Text>
-                                                        {item.variant ? (
-                                                            <Text variant="caption" tone="muted">
-                                                                {item.variant}
-                                                            </Text>
-                                                        ) : null}
-                                                    </View>
-
-                                                    <Text variant="caption" tone="muted">
-                                                        EGP
-                                                    </Text>
-                                                    <Text variant="body" weight="bold">
-                                                        {Math.round(item.price / PIASTRES_PER_POUND)}
-                                                    </Text>
-                                                </View>
-                                            ))}
-                                        </View>
+                                                    />
+                                                ),
+                                            }))}
+                                        />
                                     ))}
 
                                     <View style={styles.total}>
@@ -732,16 +690,6 @@ function nextWorkingDay(
 }
 
 /** "today"/"tomorrow" read as words in a sentence; a date keeps its capitals. */
-function dayLabel(key: string): string {
-    const label = relativeDayLabel(key);
-    return label === formatDate(key) ? label : label.toLowerCase();
-}
-
-function timeLabel(minutes: number): string {
-    const { time, meridiem } = clock12(minutes);
-    return `${time} ${meridiem.toLowerCase()}`;
-}
-
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
 
@@ -840,42 +788,6 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     groups: { gap: space[3] },
-    group: {
-        borderRadius: radius.xl,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-        overflow: 'hidden',
-    },
-    groupHead: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        minHeight: 54,
-        paddingHorizontal: space[3],
-    },
-    badge: {
-        minWidth: 46,
-        height: 37,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: space[1.5],
-        borderRadius: radius.md,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-    },
-    badgeNone: { borderStyle: 'dashed' },
-    line: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2],
-        paddingStart: space[3.5],
-        paddingEnd: space[3.5],
-        paddingVertical: space[2.5],
-        borderTopWidth: border.hair,
-        borderTopColor: color.hair,
-    },
     total: {
         flexDirection: 'row',
         alignItems: 'center',

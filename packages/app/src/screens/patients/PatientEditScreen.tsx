@@ -24,18 +24,17 @@
 // stays above it without being translated.
 import { resolveLabel } from '@lustre/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Callout, EmptyState } from '../../components/ui';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Button, Callout, EmptyState, ProgressBar, SkeletonRows } from '../../components/ui';
 import { useLocale } from '../../shell/localeStore';
 import { border, color, radius, size, space, Text } from '../../theme';
-import { SkeletonRows } from './components/_LocalSkeleton';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
 import { CloseIcon } from './components/icons';
-import { useMutation, useQuery } from './data/_LocalQuery';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
+import { useMutation, useQuery } from './data/hooks';
 import type { CustomQuestion, PatientDetail } from './data/types';
 import type { PatientForm } from './patientForm';
 import {
@@ -56,18 +55,25 @@ export type PatientEditScreenProps = {
     /** Absent = registering someone new. Present = correcting the record it names. */
     patientId?: string;
     onCancel: () => void;
+    /**
+     * A save is open. Cancel goes missing while one is, and the cluster above
+     * holds the same line against a tab tap asking it to go home — leaving mid
+     * write is the one thing this screen never does.
+     */
+    onSavingChange?: (saving: boolean) => void;
     /** The patient that now exists, or the one that was just corrected. */
     onSaved: (patientId: string) => void;
 };
 
-export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditScreenProps) {
+export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
     const creating = patientId === undefined;
 
-    const questions = useQuery(() => patientsApi.listQuestions(), []);
+    const questions = useQuery(['questions'], () => patientsApi.listQuestions());
     const record = useQuery(
+        ['byId', patientId],
         (): Promise<PatientDetail | undefined> =>
-            patientId ? patientsApi.byId(patientId) : Promise.resolve(undefined),
-        [patientId],
+            patientId === undefined ? Promise.resolve(undefined) : patientsApi.byId(patientId),
+        { enabled: patientId !== undefined },
     );
 
     const create = useMutation(patientsApi.create);
@@ -144,7 +150,9 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
         if (creating) {
             const input = createInputOf(form, editable);
             if (input === null) return;
+            onSavingChange?.(true);
             const saved = await create.mutate(input);
+            onSavingChange?.(false);
             if (!saved) return;
             onSaved(saved.id);
             return;
@@ -159,7 +167,9 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
             return;
         }
 
+        onSavingChange?.(true);
         const saved = await update.mutate(patch);
+        onSavingChange?.(false);
         if (!saved) return;
         onSaved(patientId);
     };
@@ -172,7 +182,7 @@ export function PatientEditScreen({ patientId, onCancel, onSaved }: PatientEditS
             />
 
             {loading && !form ? (
-                <SkeletonRows count={5} gutter={size.gutter} />
+                <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : failed && !form ? (
                 <EmptyState
                     title={creating ? 'Could not open the form' : 'Could not open this record'}
@@ -314,7 +324,7 @@ function Questions({
     if (loading) {
         return (
             <View style={styles.section}>
-                <SkeletonRows count={3} gutter={0} />
+                <SkeletonRows count={3} gutter={0} ruled />
             </View>
         );
     }
@@ -354,9 +364,9 @@ function Questions({
                 </Text>
             </View>
 
-            <Progress
+            <ProgressBar
                 value={total === 0 ? 0 : answered / total}
-                label={`${answered} of ${total} questions answered`}
+                accessibilityLabel={`${answered} of ${total} questions answered`}
             />
 
             <View style={styles.questions}>
@@ -388,38 +398,18 @@ function Questions({
 }
 
 /**
- * The questionnaire's progress. Drawn here rather than with `ui/ProgressBar`
- * for one reason: its light track is `surface2` (#f0f0f3), which on this
- * screen's `canvas` (#f4f4f6) is a four-value difference and vanishes. An empty
- * bar has to be visible — at `0 of 4` the track *is* the whole control, and the
- * design draws it a clear step darker than the page. See BLOCKED.md.
- */
-function Progress({ value, label }: { value: number; label: string }) {
-    const width = `${Math.round(Math.min(Math.max(value, 0), 1) * 100)}%` as const;
-
-    return (
-        <View
-            accessibilityRole="progressbar"
-            accessibilityLabel={label}
-            accessibilityValue={{ now: Math.round(value * 100), min: 0, max: 100 }}
-            style={styles.track}
-        >
-            <View style={[styles.fill, { width }]} />
-        </View>
-    );
-}
-
-/**
  * The design's footer: the page's own ground, a hairline above it, and one
  * full-width button. `ui/ActionBar` is the same shape on a white bar with a
- * pill button; this screen draws neither.
+ * pill button; this screen draws neither, which is why the bar is still local
+ * and the button inside it is `size="md"` — `lg` is the pill.
  *
- * The button is local for the same reason the bar is — `ui/Button` renders
- * `disabled` as `opacity: 0.32` over its `ink` fill, which turns a white label
- * into grey-on-grey and makes `3 required left` the least readable thing on
- * screen, exactly when it is the thing the desk needs to read. The design says
- * it plainly: a pale fill and dark type, inert but legible. The press lock is
- * `Button`'s, kept because a double-tapped Save registers two patients.
+ * The button itself was local too, on the grounds that `ui/Button` faded a
+ * disabled `primary` to `opacity: 0.32` and took `3 required left` — the
+ * sentence that says how to bring Save back — down with the fill. That was true
+ * and was fixed in PR #33: `disabled` is now two colours, `surface2` under
+ * `muted`, which is the pale fill and dark type the design asks for. `loading`
+ * and the 500ms press lock came with it, and a double-tapped Save registering
+ * two patients is exactly what the lock is for.
  */
 function SaveBar({
     label,
@@ -432,37 +422,18 @@ function SaveBar({
     pending: boolean;
     onPress: () => void;
 }) {
-    const lockedUntil = useRef(0);
-    const inert = disabled || pending;
-
-    function press() {
-        if (inert) return;
-        const now = Date.now();
-        if (now < lockedUntil.current) return;
-        lockedUntil.current = now + 500;
-        onPress();
-    }
-
     return (
         <View style={styles.saveBar}>
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                accessibilityState={{ disabled: inert, busy: pending }}
-                disabled={inert}
-                onPress={press}
-                style={({ pressed }) => [
-                    styles.save,
-                    inert ? styles.saveOff : styles.saveOn,
-                    pressed && styles.pressed,
-                ]}
+            <Button
+                label={pending ? 'Saving…' : label}
+                onPress={onPress}
+                size="md"
+                loading={pending}
+                disabled={disabled}
+                block
+                style={styles.save}
                 testID="patient-save"
-            >
-                {pending ? <ActivityIndicator size="small" color={color.muted} /> : null}
-                <Text variant="callout" weight="semibold" tone={inert ? 'muted' : 'inverse'}>
-                    {pending ? 'Saving…' : label}
-                </Text>
-            </Pressable>
+            />
         </View>
     );
 }
@@ -508,10 +479,6 @@ const styles = StyleSheet.create({
     questions: { paddingTop: space[1] },
     footnote: { paddingTop: space[3] },
 
-    // A clear step darker than the page, so an empty bar still reads as a bar.
-    track: { height: 3, borderRadius: radius.full, backgroundColor: color.outline, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: radius.full, backgroundColor: color.accent },
-
     // No `size.nav` clearance and no home-indicator padding: `AppShell` draws
     // the tab bar in flow *below* this, so the bar already carries the bottom
     // inset and anything added here is dead grey between the two.
@@ -522,17 +489,8 @@ const styles = StyleSheet.create({
         borderTopColor: color.line,
         backgroundColor: color.canvas,
     },
-    save: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: space[2],
-        alignSelf: 'stretch',
-        // Taller than `ui/Button`'s `md`: the design draws 15px of padding around
-        // the label, and this is the one thing the screen exists to commit.
-        minHeight: size.control,
-        borderRadius: radius.lg,
-    },
-    saveOn: { backgroundColor: color.ink },
-    saveOff: { backgroundColor: color.surface2 },
+    // Taller than `md`'s `size.row`: the design draws 15px of padding around the
+    // label, and this is the one thing the screen exists to commit. The radius
+    // is `md`'s own — `lg` would make it a pill, which this footer is not.
+    save: { minHeight: size.control },
 });

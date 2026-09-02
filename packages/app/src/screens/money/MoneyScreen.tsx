@@ -6,25 +6,18 @@
 // The debtor list is deliberately not period-filtered — an outstanding balance
 // is standing, not period-scoped, and a list that emptied on "Today" would read
 // as nobody owing anything. Search is client-side because `balance.outstanding`
-// takes no argument (BLOCKED.md #6), and the total beside "Who owe" is the
-// report's own total: it is hidden while searching rather than recomputed over
-// the filtered rows, because a figure that shrank as you typed would read as
-// the clinic being owed less than it is.
-import { useMemo, useRef, useState } from 'react';
+// takes no argument, and the total beside "Who owe" is the report's own total:
+// it is hidden while searching rather than recomputed over the filtered rows,
+// because a figure that shrank as you typed would read as the clinic being owed
+// less than it is.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
-import { Animated, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
 import { DropdownMenu, IconButton, ScreenHeader, usePullToRefresh } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
-import {
-    type PatientBalance,
-    PERIOD_LABEL,
-    type Period,
-    useBalanceSummary,
-    useOutstanding,
-    useTakings,
-} from './_LocalMoneyApi';
+import { todayKey } from '../day/time';
 import { DebtorRow } from './components/DebtorRow';
 import { DockedSearch, SEARCH_HEIGHT } from './components/DockedSearch';
 import { HeroCollectionCard } from './components/HeroCollectionCard';
@@ -34,25 +27,48 @@ import { OweHead } from './components/OweHead';
 import { PeriodTabs } from './components/PeriodTabs';
 import { StatCard, StatCardSkeleton } from './components/StatCard';
 import { TakingsCard } from './components/TakingsCard';
+import { type PatientBalance, useBalanceSummary, useOutstanding, useTakings } from './data';
 import { dueLabel, statsPeriodLabel, takingsLabel } from './format';
-import { DEBTOR_SORT_LABEL, DEBTOR_SORTS, type DebtorSort, sortDebtors } from './money';
+import {
+    DEBTOR_SORT_LABEL,
+    DEBTOR_SORTS,
+    type DebtorSort,
+    PERIOD_LABEL,
+    type Period,
+    periodRange,
+    sortDebtors,
+} from './money';
 
 const HEADER_BUTTON = 40;
 
 export type MoneyScreenProps = {
-    version: number;
-    onOpenPatient: (patientId: string, name: string) => void;
+    /**
+     * Bumped when the Money tab is tapped while it is already up. This screen is
+     * the whole tab now, so home is the top of it rather than a pane to pop —
+     * and the scroll offset is the one thing nothing above here can reach.
+     */
+    goHome?: number;
+    /**
+     * Tapping a debtor. It opens that patient's *record*, which is where a
+     * payment is taken and where the per-visit history lives; the shell owns the
+     * route because it crosses into the Patients tab. Only the id travels — the
+     * record reads the patient for itself.
+     */
+    onOpenRecord?: (patientId: string) => void;
 };
 
-export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
+export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<DebtorSort>('balance');
     const [sortAnchor, setSortAnchor] = useState<MenuAnchor | null>(null);
 
-    const summary = useBalanceSummary(period, version);
-    const takings = useTakings(period, version);
-    const outstanding = useOutstanding(version);
+    const [today, rereadToday] = useToday();
+    const range = useMemo(() => periodRange(period, today), [period, today]);
+
+    const summary = useBalanceSummary(range);
+    const takings = useTakings(range);
+    const outstanding = useOutstanding();
 
     const periodLabel = PERIOD_LABEL[period];
     const searching = search.trim() !== '';
@@ -75,12 +91,28 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
     const dock = useSearchDock();
     const hero = useHeroHeight();
 
+    // An effect because scrolling is imperative and there is nothing to derive —
+    // the same shape `PatientListScreen` uses for the same signal. Skipped on
+    // mount: a dashboard that has just been mounted is already at the top.
+    // Home used to mean popping the two panes over this screen; they are gone,
+    // so the top of the dashboard is all that is left of it.
+    const scroller = useRef<ScrollView>(null);
+    const shown = useRef(goHome);
+    useEffect(() => {
+        if (shown.current === goHome) return;
+        shown.current = goHome;
+        scroller.current?.scrollTo({ y: 0, animated: true });
+    }, [goHome]);
+
     // The dashboard's three figures, for the period on screen — a pull does not
     // touch the other periods or the panes pushed over this one, which read
     // themselves when they open. The debtor search is client-side, so a refresh
     // while searching re-reads the same list and re-filters it.
     const refreshControl = usePullToRefresh(
         () => {
+            // Before the refetches, not after: a pull at 00:05 has to ask for
+            // the new day, not re-send yesterday's range.
+            rereadToday();
             summary.refetch();
             takings.refetch();
             outstanding.refetch();
@@ -91,6 +123,7 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
     return (
         <View style={styles.screen} onLayout={dock.onScreenLayout}>
             <Animated.ScrollView
+                ref={scroller}
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={refreshControl}
@@ -206,7 +239,7 @@ export function MoneyScreen({ version, onOpenPatient }: MoneyScreenProps) {
                                 shownOf={outstanding.data.patients.length}
                                 sort={sort}
                                 searching={searching}
-                                onOpenPatient={onOpenPatient}
+                                onOpenRecord={onOpenRecord}
                             />
                         ) : null}
                     </LoadState>
@@ -242,13 +275,13 @@ function DebtorList({
     shownOf,
     sort,
     searching,
-    onOpenPatient,
+    onOpenRecord,
 }: {
     debtors: PatientBalance[];
     shownOf: number;
     sort: DebtorSort;
     searching: boolean;
-    onOpenPatient: (patientId: string, name: string) => void;
+    onOpenRecord?: (patientId: string) => void;
 }) {
     // Two different facts, so two different sentences: a search that matched
     // nothing is not a clinic that is owed nothing.
@@ -279,7 +312,7 @@ function DebtorList({
                         key={patient.patientId}
                         patient={patient}
                         index={index}
-                        onPress={() => onOpenPatient(patient.patientId, patient.name)}
+                        onPress={() => onOpenRecord?.(patient.patientId)}
                     />
                 ))}
             </View>
@@ -293,6 +326,34 @@ function DebtorList({
 
 function plural(count: number, noun: string): string {
     return `${count} ${count === 1 ? noun : `${noun}s`}`;
+}
+
+// Which local day the period pills are measured from.
+//
+// `shell/AppShell` mounts a tab once and then hides it rather than unmounting
+// it, so this screen can sit untouched for days. A day captured at first render
+// would have the phone asking for yesterday under "Today" the next morning, and
+// because the stale day is part of the query key, a pull would re-send the same
+// range and re-confirm the wrong figures — there is no way out of it from the
+// screen. So the day is re-read when the app comes back to the foreground, and
+// again on every pull.
+//
+// Cheap to be liberal about: TanStack hashes an unchanged key identically, so a
+// re-read on the same day is not a refetch. `AppState` is a subscription, which
+// is what `useEffect` is actually for.
+function useToday(): [string, () => void] {
+    const [today, setToday] = useState(todayKey);
+
+    const reread = useCallback(() => setToday(todayKey()), []);
+
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (state) => {
+            if (state === 'active') reread();
+        });
+        return () => subscription.remove();
+    }, [reread]);
+
+    return [today, reread];
 }
 
 // The search pill is an overlay, so its position has to be driven from here:

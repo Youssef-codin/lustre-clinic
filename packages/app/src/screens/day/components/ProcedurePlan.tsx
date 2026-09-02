@@ -16,13 +16,14 @@
  * pounds in, integer piastres held (§7.12).
  */
 
-import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
+import type { Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { Chevron, duration } from '../../../components/ui';
+import { MoneyValue, ToothGroupCard } from '../../../components/domain';
+import { poundsToPiastres, toPounds } from '../../../components/domain/money';
+import { duration } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { ProcedureCategory, RequestError } from '../data';
-import { formatMoney } from '../money';
 import { groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
@@ -37,8 +38,16 @@ export type ProcedurePlanProps = {
     onRetry: () => void;
 };
 
-/** Which question is open: the tooth, the catalogue, or neither. */
-type Asking = null | { step: 'tooth' } | { step: 'procedure'; tooth: Tooth | null };
+/**
+ * Which question is open: the tooth, the catalogue, or neither — plus the tooth
+ * asked the other way round, after a pick from the general sheet that turned
+ * out to need one.
+ */
+type Asking =
+    | null
+    | { step: 'tooth' }
+    | { step: 'procedure'; tooth: Tooth | null }
+    | { step: 'toothFor'; picked: PickedProcedure };
 
 export function ProcedurePlan({ value, onChange, categories, loading, error, onRetry }: ProcedurePlanProps) {
     const [asking, setAsking] = useState<Asking>(null);
@@ -61,6 +70,20 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
         setTimeout(() => setAsking({ step: 'procedure', tooth }), duration.sheet);
     }
 
+    /**
+     * The general sheet offers the whole catalogue, so a pick can arrive owing
+     * a tooth. Ask for it before the line exists rather than after — a line
+     * with no tooth is one §5 refuses at confirm, with the plan already built.
+     */
+    function pick(tooth: Tooth | null, picked: PickedProcedure) {
+        if (tooth === null && picked.needsTooth) {
+            setAsking(null);
+            setTimeout(() => setAsking({ step: 'toothFor', picked }), duration.sheet);
+            return;
+        }
+        add(tooth, picked);
+    }
+
     function add(tooth: Tooth | null, picked: PickedProcedure) {
         onChange([
             ...value,
@@ -81,8 +104,8 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
     }
 
     function reprice(id: string, entry: string) {
-        const pounds = Number(entry.replace(/[^\d]/g, '')) || 0;
-        onChange(value.map((row) => (row.id === id ? { ...row, price: pounds * PIASTRES_PER_POUND } : row)));
+        const price = poundsToPiastres(entry);
+        onChange(value.map((row) => (row.id === id ? { ...row, price } : row)));
     }
 
     function toggle(key: string) {
@@ -127,102 +150,73 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                         const open = !collapsed.includes(key);
 
                         return (
-                            <View key={key} style={styles.group}>
-                                <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityState={{ expanded: open }}
-                                    accessibilityLabel={`${toothPosition(group.tooth)}, ${group.items.length} procedures`}
-                                    onPress={() => toggle(key)}
-                                    style={({ pressed }) => [styles.groupHead, pressed && styles.pressed]}
-                                >
-                                    <View style={[styles.badge, !group.tooth && styles.badgeNone]}>
-                                        <Text
-                                            variant="caption"
-                                            script="sans"
-                                            weight="bold"
-                                            tone={group.tooth ? 'ink' : 'muted'}
-                                        >
-                                            {group.tooth ?? '—'}
-                                        </Text>
-                                    </View>
-
-                                    <Text
+                            <ToothGroupCard
+                                key={key}
+                                tooth={group.tooth}
+                                position={toothPosition(group.tooth)}
+                                expanded={open}
+                                onToggle={() => toggle(key)}
+                                subtotal={
+                                    <MoneyValue
+                                        piastres={group.subtotal}
                                         variant="subhead"
-                                        tone="muted"
-                                        numberOfLines={1}
-                                        style={styles.grow}
-                                    >
-                                        {toothPosition(group.tooth)}
-                                    </Text>
-
-                                    <Text variant="subhead" weight="semibold">
-                                        {formatMoney(group.subtotal)}
-                                    </Text>
-
-                                    <Chevron direction={open ? 'up' : 'down'} size={9} tone="muted" />
-                                </Pressable>
-
-                                {open ? (
-                                    <View>
-                                        {group.items.map((item) => (
-                                            <View key={item.id} style={styles.line}>
-                                                <View style={styles.grow}>
-                                                    <Text variant="body" weight="medium" numberOfLines={1}>
-                                                        {item.name}
-                                                    </Text>
-                                                    {item.variant ? (
-                                                        <Text variant="caption" tone="muted">
-                                                            {item.variant}
-                                                        </Text>
-                                                    ) : null}
-                                                </View>
-
-                                                <Text variant="caption" tone="muted">
-                                                    EGP
-                                                </Text>
-                                                <TextInput
-                                                    value={String(
-                                                        Math.round(item.price / PIASTRES_PER_POUND),
-                                                    )}
-                                                    onChangeText={(entry) => reprice(item.id, entry)}
-                                                    keyboardType="number-pad"
-                                                    accessibilityLabel={`Price for ${item.name}`}
-                                                    style={styles.price}
-                                                />
-
-                                                <Pressable
-                                                    accessibilityRole="button"
-                                                    accessibilityLabel={`Remove ${item.name}`}
-                                                    hitSlop={8}
-                                                    onPress={() => remove(item.id)}
-                                                    style={({ pressed }) => [
-                                                        styles.kill,
-                                                        pressed && styles.killPressed,
-                                                    ]}
-                                                >
-                                                    <XIcon size={14} stroke={color.muted} />
-                                                </Pressable>
-                                            </View>
-                                        ))}
-
-                                        {group.tooth ? (
-                                            <Pressable
-                                                accessibilityRole="button"
-                                                onPress={() => askProcedure(group.tooth, false)}
-                                                style={({ pressed }) => [
-                                                    styles.groupAdd,
-                                                    pressed && styles.pressed,
-                                                ]}
-                                            >
-                                                <PlusIcon size={13} stroke={color.ink2} />
-                                                <Text variant="caption" weight="semibold" tone="ink2">
-                                                    Add to {group.tooth}
-                                                </Text>
-                                            </Pressable>
-                                        ) : null}
-                                    </View>
-                                ) : null}
-                            </View>
+                                        weight="semibold"
+                                    />
+                                }
+                                lines={group.items.map((item) => ({
+                                    id: item.id,
+                                    name: item.name,
+                                    detail: item.variant,
+                                    // A field, not a figure: this is the plan being
+                                    // priced, and the price is what the doctor is
+                                    // here to change.
+                                    money: (
+                                        <>
+                                            <Text variant="caption" tone="muted">
+                                                EGP
+                                            </Text>
+                                            <TextInput
+                                                value={String(toPounds(item.price))}
+                                                onChangeText={(entry) => reprice(item.id, entry)}
+                                                keyboardType="number-pad"
+                                                accessibilityLabel={`Price for ${item.name}`}
+                                                style={styles.price}
+                                            />
+                                        </>
+                                    ),
+                                    trailing: (
+                                        <Pressable
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Remove ${item.name}`}
+                                            hitSlop={8}
+                                            onPress={() => remove(item.id)}
+                                            style={({ pressed }) => [
+                                                styles.kill,
+                                                pressed && styles.killPressed,
+                                            ]}
+                                        >
+                                            <XIcon size={14} stroke={color.muted} />
+                                        </Pressable>
+                                    ),
+                                }))}
+                                footer={
+                                    group.tooth ? (
+                                        <Pressable
+                                            accessibilityRole="button"
+                                            onPress={() => askProcedure(group.tooth, false)}
+                                            style={({ pressed }) => [
+                                                styles.groupAdd,
+                                                pressed && styles.pressed,
+                                            ]}
+                                        >
+                                            <PlusIcon size={13} stroke={color.ink2} />
+                                            <Text variant="caption" weight="semibold" tone="ink2">
+                                                Add to {group.tooth}
+                                            </Text>
+                                        </Pressable>
+                                    ) : null
+                                }
+                            />
                         );
                     })}
 
@@ -244,23 +238,32 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                         <Text variant="subhead" tone="muted">
                             Estimated total
                         </Text>
-                        <Text variant="title3" weight="semibold">
-                            {formatMoney(total)}
-                        </Text>
+                        <MoneyValue piastres={total} variant="title3" weight="semibold" />
                     </View>
                 </View>
             )}
 
             <ToothSheet
-                visible={asking?.step === 'tooth'}
+                visible={asking?.step === 'tooth' || asking?.step === 'toothFor'}
+                // The variant is what was tapped; the category alone reads as
+                // "Surgical is done to a tooth", which names nothing.
+                required={
+                    asking?.step === 'toothFor' ? (asking.picked.variant ?? asking.picked.name) : undefined
+                }
                 onClose={() => setAsking(null)}
-                onPick={(tooth) => askProcedure(tooth, true)}
+                onPick={(tooth) => {
+                    if (asking?.step === 'toothFor') {
+                        add(tooth, asking.picked);
+                        return;
+                    }
+                    askProcedure(tooth, true);
+                }}
             />
 
             <ProcedureSheet
                 visible={asking?.step === 'procedure'}
                 onClose={() => setAsking(null)}
-                onPick={(picked) => add(asking?.step === 'procedure' ? asking.tooth : null, picked)}
+                onPick={(picked) => pick(asking?.step === 'procedure' ? asking.tooth : null, picked)}
                 categories={categories}
                 loading={loading}
                 error={error}
@@ -299,43 +302,6 @@ const styles = StyleSheet.create({
     emptyBody: { textAlign: 'center' },
 
     groups: { gap: space[3] },
-    group: {
-        borderRadius: radius.xl,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-        overflow: 'hidden',
-    },
-    groupHead: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        minHeight: 54,
-        paddingHorizontal: space[3],
-    },
-    badge: {
-        minWidth: 46,
-        height: 37,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: space[1.5],
-        borderRadius: radius.md,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-    },
-    badgeNone: { borderStyle: 'dashed' },
-
-    line: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2],
-        paddingStart: space[3.5],
-        paddingEnd: space[2.5],
-        paddingVertical: space[2],
-        borderTopWidth: border.hair,
-        borderTopColor: color.hair,
-    },
     price: {
         minWidth: 62,
         paddingVertical: space[1],

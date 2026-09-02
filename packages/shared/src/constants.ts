@@ -4,19 +4,35 @@
  * structural, or are the seeded default for a row.
  */
 
-// --- appointment ref (§5) ---------------------------------------------------
+// --- refs (§5) --------------------------------------------------------------
 
 /**
- * Alphabet for the random part of `appointments.ref`. Excludes `0`/`O` and
- * `1`/`I`/`L` so a ref read aloud or off a screen is unambiguous.
+ * Alphabet for the random part of every ref. Excludes `0`/`O` and `1`/`I`/`L`
+ * so a ref read aloud, read off a screen, or **written onto a paper file** is
+ * unambiguous — the last of those is why patients have one at all.
  */
 export const REF_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
 
-/** Length of the random suffix. `ref` is `DDMMYY-XXXX`, day first. */
+/** Length of the random part. Shared by both refs below. */
 export const REF_RANDOM_LENGTH = 4;
 
-/** Stored uppercase, matched case-insensitively. */
+/** `appointments.ref` is `DDMMYY-XXXX`, day first. Stored uppercase, matched case-insensitively. */
 export const REF_PATTERN = /^\d{6}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/i;
+
+/**
+ * `patients.ref` is the random part alone — `W5F5`, four characters, no date.
+ *
+ * The date prefix is what makes an appointment ref scoped to a day, and a
+ * patient is not an event: they are registered once and the number goes at the
+ * top of their page in the paper book for good. Four characters is what someone
+ * writes at the top of a page without resenting it, and 31⁴ is 923,521 of them
+ * — a clinic that has seen ten thousand patients still collides on about one
+ * insert in ninety, which the UNIQUE constraint and a retry absorb.
+ *
+ * Deliberately shaped so it cannot be mistaken for an appointment ref: one has
+ * a date and a hyphen, the other does not.
+ */
+export const PATIENT_REF_PATTERN = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/i;
 
 // --- money (§9) -------------------------------------------------------------
 

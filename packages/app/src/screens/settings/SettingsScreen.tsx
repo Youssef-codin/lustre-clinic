@@ -58,11 +58,24 @@ const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' }
 export type SettingsScreenProps = {
     role?: ClientRole;
     onChangeRole?: (role: ClientRole) => void;
+    /**
+     * Bumped when the fourth tab is tapped while it is already up. Home is the
+     * index; the panes above it are all reads and settings already written, so
+     * there is nothing in flight to protect.
+     */
+    goHome?: number;
 };
 
-export function SettingsScreen({ role: roleProp, onChangeRole }: SettingsScreenProps) {
+export function SettingsScreen({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
     const [route, setRoute] = useState<Route>('index');
     const [switching, setSwitching] = useState(false);
+    const [seenHome, setSeenHome] = useState(goHome);
+
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        setRoute('index');
+        setSwitching(false);
+    }
 
     const [localRole, setLocalRole] = useState<ClientRole>('doctor');
     const role = roleProp ?? localRole;

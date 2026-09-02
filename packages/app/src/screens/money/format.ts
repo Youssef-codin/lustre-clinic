@@ -1,11 +1,9 @@
 // Dates and error copy for the money cluster. Money itself is not formatted
-// here — `_LocalMoneyValue` is the only place (§7.12). `visa` is labelled
+// here — `MoneyValue` is the only place (§7.12). `visa` is labelled
 // "Card" because that is what the desk calls it; the stored value is untouched.
 // The client switches on `ERROR_CODE` and never parses the server's message,
 // and this one map is where a localisation scaffold will land.
-import { ERROR_CODE, type ErrorCode, type PaymentMethod } from '@lustre/shared';
-
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const;
+import { ERROR_CODE, type ErrorCode, PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 
 const MONTHS_LONG = [
     'January',
@@ -23,26 +21,6 @@ const MONTHS_LONG = [
 ] as const;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-export function dayStamp(iso: string): { day: string; month: string } {
-    const date = new Date(iso);
-    return {
-        day: String(date.getDate()).padStart(2, '0'),
-        month: MONTHS[date.getMonth()] ?? '',
-    };
-}
-
-export function longDate(iso: string): string {
-    const date = new Date(iso);
-    return `${date.getDate()} ${MONTHS_LONG[date.getMonth()] ?? ''} ${date.getFullYear()}`;
-}
-
-export function longDateTime(iso: string): string {
-    const date = new Date(iso);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${longDate(iso)}, ${hours}:${minutes}`;
-}
 
 export function outstandingAge(iso: string, now: Date = new Date()): string {
     const days = Math.floor((now.getTime() - new Date(iso).getTime()) / MS_PER_DAY);
@@ -82,9 +60,19 @@ export function dueLabel(periodLabel: string): string {
     return `Due ${periodLabel.toLowerCase()}`;
 }
 
-export function methodLabel(method: PaymentMethod, note?: string | null): string {
-    if (method === 'other' && note?.trim()) return note.trim();
-    return METHOD_LABEL[method];
+/**
+ * `visit.byId` types a payment's method as `string`, not the enum — the column
+ * is a real Postgres enum and the widening is in `visit.service.ts`'s own
+ * `VisitPayment`. Narrowing here keeps it out of every call site; a value that
+ * is not a method at all can only mean the enum has grown, and labelling it
+ * "Other" is a better answer than a blank row.
+ */
+export function paymentMethodOf(method: string): PaymentMethod {
+    return (PAYMENT_METHODS as readonly string[]).includes(method) ? (method as PaymentMethod) : 'other';
+}
+
+export function methodLabel(method: string): string {
+    return METHOD_LABEL[paymentMethodOf(method)];
 }
 
 const ERROR_MESSAGE: Partial<Record<ErrorCode, string>> = {

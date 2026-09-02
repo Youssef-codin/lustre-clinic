@@ -12,7 +12,7 @@
  */
 import { useRef } from 'react';
 import { serverAddresses, useConnection } from '../../../api';
-import { formatStamp } from '../../../components/domain';
+import { formatClock12, formatStamp } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
 
 export type ConnectionKind = 'wifi' | 'remote' | 'offline';
@@ -70,8 +70,14 @@ export function useConnectionView(): ConnectionView {
         pulse: PULSE[kind],
         serverName: 'Clinic server',
         serverAddress: (kind === 'remote' ? tailscale : lan) ?? lan ?? tailscale ?? '—',
-        stamp: lastOnlineAt === null ? undefined : `Last checked ${formatStamp(lastOnlineAt)}`,
+        stamp: lastOnlineAt === null ? undefined : `Last checked ${wallClock(lastOnlineAt)}`,
         probing: status === 'probing',
         reprobe: () => void retry(),
     };
+}
+
+/** The probe stamp: a wall-clock timestamp on the same 12-hour clock the panes use. */
+function wallClock(at: number): string {
+    const date = new Date(at);
+    return formatClock12(date.getHours() * 60 + date.getMinutes());
 }

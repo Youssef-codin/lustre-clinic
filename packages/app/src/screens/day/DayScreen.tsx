@@ -24,11 +24,13 @@ import {
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
+import { withNextVisit } from './booking';
 import { type Standing, splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { BookFab } from './components/BookFab';
 import { BookingScreen } from './components/BookingScreen';
+import { BookNextSheet } from './components/BookNextSheet';
 import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ClosedDay } from './components/ClosedDay';
@@ -44,6 +46,8 @@ import {
     type Appointment,
     api,
     checkInTimes,
+    type EmbeddedPatient,
+    type Patient,
     useLocalMutation,
     useLocalQuery,
     type Visit,
@@ -53,11 +57,25 @@ import { dayDelay, delayLabel, delayReason } from './delay';
 import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
-import type { PatientDraft } from './patientDraft';
-import { todayKey } from './time';
+import { draftFor, type PatientDraft } from './patientDraft';
+import { relativeDayLabel, todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
+
+/**
+ * A booking asked for from outside this cluster — the patient record's Book and
+ * Walk-in, routed here by the shell because a cluster cannot push into another
+ * one's stack. It skips `BookPatientSheet`, whose only question is already
+ * answered, and opens `BookingScreen` on the patient it names. `timing` is the
+ * difference between the two buttons: a walk-in is the "now" answer to when.
+ * `seq` makes each ask distinct, so the same patient can be booked twice.
+ */
+export type OpenBookingRequest = {
+    patient: Patient;
+    timing: 'now' | 'later';
+    seq: number;
+};
 
 export type DayScreenProps = {
     /** The booking page covers the day pane; the shell lights the Patients tab
@@ -67,12 +85,22 @@ export type DayScreenProps = {
      * Open a patient's record. The shell owns the route because the record
      * lives on the Patients tab, and the tab bar has to move with it — and it
      * carries `said` for the same reason: a toast raised here would draw inside
-     * a pane the shell is about to hide.
+     * a pane the shell is about to hide. `backLabel` names where the record was
+     * opened from, which is not always the day: a tap in the Reminders tab has
+     * to come back to Reminders, not to the day behind it.
      */
-    onOpenRecord?: (patientId: string, said?: string) => void;
+    onOpenRecord?: (patientId: string, said?: string, backLabel?: string) => void;
+    /** A booking pushed in from another cluster — the patient record's two openers. */
+    open?: OpenBookingRequest;
+    /**
+     * Bumped by the shell when the Day tab is tapped while it is already up.
+     * Home is the schedule: whatever is pushed over it closes, and the date and
+     * branch stay where they were — they are what the desk chose, not a route.
+     */
+    goHome?: number;
 };
 
-export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}) {
+export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
@@ -82,8 +110,15 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
     // the day (`PushView`), so the day keeps its date, branch and scroll and
     // the tab bar stays where it is. The draft outlives the page's exit
     // animation — clearing it on Back would unmount the pane mid-slide.
-    const [page, setPage] = useState<{ patient: PatientDraft; seq: number } | null>(null);
+    const [page, setPage] = useState<{
+        patient: PatientDraft;
+        /** Set only when the booking was asked for from outside, which says which button it was. */
+        timing?: 'now' | 'later';
+        seq: number;
+    } | null>(null);
     const [pageOpen, setPageOpen] = useState(false);
+    const [seenOpen, setSeenOpen] = useState(0);
+    const [seenHome, setSeenHome] = useState(goHome);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
         open: false,
@@ -114,7 +149,45 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
         seq: number;
     } | null>(null);
     const [visitOpen, setVisitOpen] = useState(false);
+    // The book-next offer, raised by a check-in and by nothing else. `seated` is
+    // captured when it opens rather than read when it closes: it describes the
+    // queue at the moment the patient came through the door, and the refetch
+    // underneath the sheet will have moved on by the time anything is booked.
+    const [bookNext, setBookNext] = useState<{
+        patient: EmbeddedPatient;
+        seated: string;
+        seq: number;
+    } | null>(null);
+    const [bookNextOpen, setBookNextOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    // Both derived during render rather than in an effect, so the page is on
+    // screen in the same commit as the tab switch and the pane never paints the
+    // schedule for a frame first.
+    if (open && open.seq !== seenOpen) {
+        setSeenOpen(open.seq);
+        setBooking((current) => ({ ...current, open: false }));
+        setPage((current) => ({
+            patient: draftFor(open.patient),
+            timing: open.timing,
+            seq: (current?.seq ?? 0) + 1,
+        }));
+        setPageOpen(true);
+    }
+
+    // Everything pushed over the schedule comes down. The shell drops the
+    // booking highlight itself — it is what raised it — so nothing is reported
+    // back up from inside a render.
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        setTab('day');
+        setPageOpen(false);
+        setVisitOpen(false);
+        setBookNextOpen(false);
+        setBooking((current) => ({ ...current, open: false }));
+        setCalendar((current) => ({ ...current, open: false }));
+        setSelected((current) => ({ ...current, open: false }));
+    }
 
     const nowMinutes = useNowMinutes();
 
@@ -199,7 +272,10 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
     // patient at the desk holds it until they have paid.
     const active = desk ?? chair;
 
-    const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null);
+    // Only today folds: "before this" is relative to now, and off today every
+    // row is settled, so folding put the whole day behind a section this screen
+    // draws on today alone — an empty body under a tab still counting the rows.
+    const { past, upcoming } = splitDay(appointments, isToday ? (card?.id ?? null) : null, isToday);
 
     // What the chair's overrun and any walk-ins mean for everyone still to be
     // seen. Nothing is written — `startsAt` stays the time the patient was told
@@ -294,6 +370,23 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
     }
 
     /**
+     * Where a check-in ends up: the patient's record, with what just happened
+     * raised by the shell, because a toast raised here would draw inside a pane
+     * the shell is about to hide. It is two lines, not one — the record already
+     * has the patient's name as the largest thing on it, and the day view, which
+     * has no record to open, has to say who it is talking about.
+     */
+    function landOnRecord(patient: EmbeddedPatient, onRecord: string, onDay: string) {
+        setBookNextOpen(false);
+
+        if (onOpenRecord) {
+            onOpenRecord(patient.id, onRecord);
+            return;
+        }
+        setToast(onDay);
+    }
+
+    /**
      * Nothing is written here. The arrival screen opens on what the booking
      * planned and its Confirm is what checks the patient in — so a tap that
      * turns out to be the wrong row costs nothing, and the day never shows
@@ -330,8 +423,10 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
                         onChange={setTab}
                         segments={[
                             {
+                                // The day being shown, not today: the pill sat
+                                // on "Today" while the screen was on 18 Aug.
                                 value: 'day',
-                                label: `Today · ${appointments.length}`,
+                                label: `${relativeDayLabel(dateKey)} · ${appointments.length}`,
                                 icon: (selected) => (
                                     <ClockIcon size={15} stroke={selected ? color.ink : color.ink2} />
                                 ),
@@ -380,7 +475,13 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
 
             <View style={styles.body}>
                 {tab === 'reminders' ? (
-                    <Reminders query={reminders} refreshControl={refreshControl} />
+                    <Reminders
+                        query={reminders}
+                        refreshControl={refreshControl}
+                        onOpenRecord={
+                            onOpenRecord && ((patientId) => onOpenRecord(patientId, undefined, 'Reminders'))
+                        }
+                    />
                 ) : day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
@@ -482,6 +583,7 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
                     <BookingScreen
                         key={`booking:${page.seq}`}
                         patient={page.patient}
+                        timing={page.timing}
                         branchId={branch}
                         branches={branches.data ?? []}
                         schedule={schedule.data}
@@ -515,6 +617,39 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
                     openVisit(appointment, loaded);
                 }}
             />
+
+            {/* Keyed per check-in, so the next patient never inherits the day
+                and time half-picked for the last one. */}
+            {bookNext ? (
+                <BookNextSheet
+                    key={`book-next:${bookNext.seq}`}
+                    visible={bookNextOpen}
+                    patientId={bookNext.patient.id}
+                    patientName={bookNext.patient.name}
+                    branchId={branch}
+                    branchName={branches.data?.find((row) => row.id === branch)?.name ?? null}
+                    schedule={schedule.data}
+                    durationMinutes={settings.data?.defaultDuration ?? 30}
+                    nowMinutes={nowMinutes}
+                    onDismiss={() =>
+                        landOnRecord(
+                            bookNext.patient,
+                            `Checked in · ${bookNext.seated}`,
+                            `${bookNext.patient.name} is ${bookNext.seated}`,
+                        )
+                    }
+                    onBooked={({ dateKey: booked, minutes }) => {
+                        // The next visit can be later the same day, so the
+                        // schedule behind the sheet is stale either way.
+                        day.refetch();
+                        landOnRecord(
+                            bookNext.patient,
+                            withNextVisit(`Checked in · ${bookNext.seated}`, booked, minutes),
+                            withNextVisit(`${bookNext.patient.name} is ${bookNext.seated}`, booked, minutes),
+                        );
+                    }}
+                />
+            ) : null}
 
             {/* Nested rather than swapped, so each page slides over the one
                 before it and Back slides it away with that one still behind,
@@ -561,20 +696,19 @@ export function DayScreen({ onBookingChange, onOpenRecord }: DayScreenProps = {}
                                     if (visit.origin === 'arrival') {
                                         setVisitOpen(false);
                                         day.refetch();
-                                        // The patient is through the door and
-                                        // their record is what comes next:
-                                        // history, balance, what to ask them.
-                                        // The shell raises the toast, because
-                                        // one raised here would draw inside a
-                                        // pane it is about to hide.
-                                        if (onOpenRecord) {
-                                            onOpenRecord(
-                                                visit.appointment.patient.id,
-                                                `Checked in · ${seated()}`,
-                                            );
-                                            return;
-                                        }
-                                        setToast(`${visit.appointment.patient.name} is ${seated()}`);
+                                        // The record still comes next — history,
+                                        // balance, what to ask them — but the
+                                        // one moment the patient is standing
+                                        // there is the moment to offer them a
+                                        // return. The sheet is offered, never
+                                        // imposed: dismissing it lands exactly
+                                        // where confirming an arrival always did.
+                                        setBookNext((current) => ({
+                                            patient: visit.appointment.patient,
+                                            seated: seated(),
+                                            seq: (current?.seq ?? 0) + 1,
+                                        }));
+                                        setBookNextOpen(true);
                                         return;
                                     }
                                     // Same for a patient still in the queue:

@@ -130,6 +130,15 @@ export const api = {
     markReminderSkipped: (id: string): Promise<unknown> =>
         wrap(() => trpcClient.reminder.markSkipped.mutate({ id })),
 
+    /**
+     * Quiet today's nudge without touching the list. Not the same as skipping:
+     * the reminders stay pending and still have to go out — this only says the
+     * desk has been told enough for one day. Per calendar day, so tomorrow's
+     * nudge arms on its own.
+     */
+    dismissRemindersToday: (date: string): Promise<unknown> =>
+        wrap(() => trpcClient.reminder.dismissToday.mutate({ date })),
+
     searchPatients: (q: string): Promise<Patient[]> =>
         wrap(() => trpcClient.patient.search.query({ q, limit: 8 })),
 

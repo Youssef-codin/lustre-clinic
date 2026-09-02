@@ -8,7 +8,7 @@
 // deleted, so its answers survive (§7.8); `age` and `balance` are derived,
 // never stored; `UpdatePatientInput.custom` is a partial patch — only the keys
 // sent are validated, a blank clears, and keys left out keep what is stored.
-import type { AppointmentStatus } from '@lustre/shared';
+import type { AppointmentStatus, PaymentMethod } from '@lustre/shared';
 
 export type QuestionKind = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
@@ -38,6 +38,8 @@ export interface QuestionnaireGap {
 
 export interface Patient {
     id: string;
+    /** This clinic's number for the patient — what goes on the top of their paper page (§5). */
+    ref: string;
     name: string;
     phone: string;
     email: string | null;
@@ -90,6 +92,43 @@ export interface PatientDetail {
 export interface PatientBalance {
     patientId: string;
     balance: number;
+}
+
+/**
+ * Taking a payment. It names a patient and never a visit: the server spreads it
+ * across their unsettled visits oldest-first, which is what the desk means by
+ * paying off a balance. `amount` is integer piastres and must be positive.
+ */
+export interface SettleInput {
+    patientId: string;
+    amount: number;
+    method: PaymentMethod;
+    methodNote?: string | null;
+}
+
+/** One visit's share of a payment. Absent means the money never reached it. */
+export interface SettledVisit {
+    visitId: string;
+    ref: string;
+    startsAt: string;
+    outstandingBefore: number;
+    amount: number;
+    outstandingAfter: number;
+    settled: boolean;
+}
+
+/**
+ * What the payment did, per visit. The desk writes on the paper file per visit
+ * and the ref is how the two are matched (§5), so the confirmation names the
+ * split rather than just dismissing.
+ */
+export interface SettleReport {
+    patientId: string;
+    amount: number;
+    method: PaymentMethod;
+    outstandingBefore: number;
+    outstandingAfter: number;
+    visits: SettledVisit[];
 }
 
 /**
