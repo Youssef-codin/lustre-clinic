@@ -1,0 +1,86 @@
+/**
+ * `clock.ts` is the only place a time becomes text, so it is the one piece of
+ * the display decision that can be held to a test — the rendering around it
+ * needs a device, and this worktree has none.
+ */
+import { describe, expect, it } from 'bun:test';
+import { clock12, formatClock12, formatSpan, formatStamp, formatTime12, minutesOfDay, time12 } from './clock';
+
+describe('12-hour clock', () => {
+    it('turns the hour over at noon and midnight rather than showing 0 or 13', () => {
+        expect(clock12(0)).toEqual({ time: '12:00', meridiem: 'AM' });
+        expect(clock12(12 * 60)).toEqual({ time: '12:00', meridiem: 'PM' });
+        expect(clock12(13 * 60)).toEqual({ time: '1:00', meridiem: 'PM' });
+        expect(clock12(23 * 60 + 59)).toEqual({ time: '11:59', meridiem: 'PM' });
+    });
+
+    it('pads the minute and never the hour', () => {
+        expect(clock12(9 * 60 + 5)).toEqual({ time: '9:05', meridiem: 'AM' });
+        expect(clock12(14 * 60 + 15)).toEqual({ time: '2:15', meridiem: 'PM' });
+    });
+
+    it('wraps rather than running past midnight', () => {
+        // A visit that overruns is `start + duration`, which can land past the
+        // day's end; it reads as the next morning, not as 25:30.
+        expect(clock12(24 * 60)).toEqual({ time: '12:00', meridiem: 'AM' });
+        expect(clock12(25 * 60 + 30)).toEqual({ time: '1:30', meridiem: 'AM' });
+        expect(clock12(-30)).toEqual({ time: '11:30', meridiem: 'PM' });
+    });
+
+    it('is never 24-hour, at any minute of the day', () => {
+        for (let minutes = 0; minutes < 24 * 60; minutes += 1) {
+            const hour = Number(clock12(minutes).time.split(':')[0]);
+            expect(hour).toBeGreaterThanOrEqual(1);
+            expect(hour).toBeLessThanOrEqual(12);
+        }
+    });
+});
+
+describe('the meridiem localizes and the digits do not', () => {
+    it('marks Arabic with ص and م', () => {
+        expect(clock12(9 * 60, 'ar')).toEqual({ time: '9:00', meridiem: 'ص' });
+        expect(clock12(18 * 60, 'ar')).toEqual({ time: '6:00', meridiem: 'م' });
+    });
+
+    it('keeps Latin numerals in Arabic (§7.11 — DM Mono has no Arabic-Indic)', () => {
+        for (const minutes of [0, 7 * 60 + 45, 12 * 60, 22 * 60 + 30]) {
+            expect(clock12(minutes, 'ar').time).toBe(clock12(minutes, 'en').time);
+        }
+    });
+
+    it('defaults to English when no locale is passed', () => {
+        expect(clock12(18 * 60).meridiem).toBe('PM');
+    });
+});
+
+describe('the one-string forms', () => {
+    it('joins the figure and the marker', () => {
+        expect(formatClock12(18 * 60)).toBe('6:00 PM');
+        expect(formatClock12(18 * 60, 'ar')).toBe('6:00 م');
+    });
+
+    it('keeps the meridiem on both ends of a span', () => {
+        expect(formatSpan(10 * 60, 18 * 60)).toBe('10:00 AM – 6:00 PM');
+        // 10–6 is ambiguous without it; a clinic could plausibly mean either.
+        expect(formatSpan(10 * 60, 11 * 60)).toBe('10:00 AM – 11:00 AM');
+        expect(formatSpan(10 * 60, 18 * 60, 'ar')).toBe('10:00 ص – 6:00 م');
+    });
+});
+
+describe('off a timestamp', () => {
+    // Local time throughout — the clinic has one timezone and the server is
+    // told which local day it means, so these read the local fields.
+    const at = new Date(2026, 5, 12, 14, 15);
+
+    it('reads the local wall clock', () => {
+        expect(formatStamp(at.getTime())).toBe('2:15 PM');
+        expect(formatStamp(at.getTime(), 'ar')).toBe('2:15 م');
+    });
+
+    it('agrees with the ISO forms', () => {
+        const iso = at.toISOString();
+        expect(minutesOfDay(iso)).toBe(14 * 60 + 15);
+        expect(time12(iso)).toEqual({ time: '2:15', meridiem: 'PM' });
+        expect(formatTime12(iso)).toBe('2:15 PM');
+    });
+});

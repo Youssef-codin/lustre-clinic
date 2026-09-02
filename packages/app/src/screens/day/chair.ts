@@ -15,7 +15,7 @@
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import type { Appointment } from './data/types';
-import { dateKey, formatTime, minutesOfDay, minutesToClock } from './time';
+import { dateKey, formatSpan, minutesOfDay } from './time';
 
 const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>([
     'done',
@@ -171,7 +171,7 @@ export function slotProgress(
         value: duration > 0 ? elapsed / duration : 0,
         over: over > 0,
         label: over > 0 ? overLabel(over) : `${Math.max(elapsed, 0)} / ${duration} min`,
-        window: `${formatTime(appointment.startsAt)} – ${minutesToClock(ends)}`,
+        window: formatSpan(minutesOfDay(appointment.startsAt), ends),
     };
 }
 

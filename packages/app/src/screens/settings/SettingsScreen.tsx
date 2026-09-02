@@ -16,7 +16,7 @@ import Constants from 'expo-constants';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
-import { BrandMark } from '../../components/domain';
+import { BrandMark, formatClock12 } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel } from '../../components/ui';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
@@ -26,7 +26,6 @@ import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
-import { formatClock12 } from './components/_LocalClock';
 import { IdentityCard } from './components/IdentityCard';
 import { DataEntryIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';

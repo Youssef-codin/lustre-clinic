@@ -12,8 +12,8 @@
  */
 import { useRef } from 'react';
 import { serverAddresses, useConnection } from '../../../api';
+import { formatStamp } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
-import { formatStamp } from '../components/_LocalClock';
 
 export type ConnectionKind = 'wifi' | 'remote' | 'offline';
 

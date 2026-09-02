@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTRPC } from '../../api';
+import { formatClock12 } from '../../components/domain';
 import {
     Callout,
     Card,
@@ -31,7 +32,6 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { color, radius, space, Text } from '../../theme';
-import { formatClock12 } from './components/_LocalClock';
 import { PlusIcon, WhatsAppIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';

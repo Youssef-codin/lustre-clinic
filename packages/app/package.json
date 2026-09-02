@@ -25,6 +25,7 @@
         "@expo/vector-icons": "^15.1.1",
         "@lustre/shared": "workspace:*",
         "@react-native-async-storage/async-storage": "2.2.0",
+        "@react-native-community/datetimepicker": "9.1.0",
         "@tanstack/react-query": "^5.101.4",
         "@trpc/client": "11.18.0",
         "@trpc/server": "11.18.0",

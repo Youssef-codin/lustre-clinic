@@ -45,7 +45,6 @@ import {
     formatLongDate,
     isoAt,
     minutesOfDay,
-    minutesToClock,
     relativeDayLabel,
 } from './time';
 
@@ -383,16 +382,14 @@ describe('dates', () => {
         expect(relativeDayLabel(addDays(today, -1), today)).toBe('Yesterday');
     });
 
-    it('round-trips a clock through minutes', () => {
+    it('reads the 24-hour clock the server sends', () => {
         expect(clockToMinutes('09:05')).toBe(545);
-        expect(minutesToClock(545)).toBe('09:05');
     });
 
-    it('splits the twelve-hour clock from its meridiem, and never says 0:15', () => {
-        expect(clock12(11 * 60 + 35)).toEqual({ time: '11:35', meridiem: 'AM' });
+    // Formatting itself is `domain/clock`'s, and tested there. What this holds
+    // is that the cluster still reaches it through `./time`.
+    it('re-exports the twelve-hour clock', () => {
         expect(clock12(13 * 60)).toEqual({ time: '1:00', meridiem: 'PM' });
-        expect(clock12(0)).toEqual({ time: '12:00', meridiem: 'AM' });
-        expect(clock12(12 * 60)).toEqual({ time: '12:00', meridiem: 'PM' });
     });
 
     it('names the weekday in the header pill only when the day is not today', () => {

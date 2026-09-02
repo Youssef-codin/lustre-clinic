@@ -5,10 +5,11 @@
  * `_Local` awaiting promotion.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import { TimeValue } from '../../../components/domain';
 import { Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
-import { formatTime, minutesOfDay, minutesToClock } from '../time';
+import { formatClock12, minutesOfDay } from '../time';
 import { _LocalStatusPill } from './_LocalStatusPill';
 
 export type AppointmentRowProps = {
@@ -27,20 +28,20 @@ export function AppointmentRow({ appointment, onPress, projectedMinutes = null }
     const booked = minutesOfDay(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > booked;
     // The day has moved; the row shows where it moved to, not where it started —
-    // in the same 24-hour clock the booked time uses, so the column keeps one
-    // shape whether or not the day is late.
-    const shownTime = slipped ? minutesToClock(projectedMinutes) : formatTime(appointment.startsAt);
+    // on the same clock the booked time uses, so the column keeps one shape
+    // whether or not the day is late.
+    const shownMinutes = slipped ? projectedMinutes : booked;
 
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${formatTime(appointment.startsAt)}, ${appointment.patient.name}`}
+            accessibilityLabel={`${formatClock12(booked)}, ${appointment.patient.name}`}
             onPress={onPress}
             style={({ pressed }) => [styles.row, past && styles.past, pressed && styles.pressed]}
         >
-            <Text variant="amount" weight="medium" tone={slipped ? 'due' : 'ink'} style={styles.time}>
-                {shownTime}
-            </Text>
+            <View style={styles.time}>
+                <TimeValue minutes={shownMinutes} weight="medium" tone={slipped ? 'due' : 'ink'} />
+            </View>
 
             <View style={styles.body}>
                 <Text variant="headline" weight="semibold" numberOfLines={1}>
@@ -73,7 +74,9 @@ const styles = StyleSheet.create({
     },
     past: { opacity: 0.72 },
     pressed: { backgroundColor: color.surface2 },
-    time: { width: 56 },
+    // Wider than the 24-hour column it replaces: the meridiem rides beside the
+    // figure, and every row has one.
+    time: { width: 80, flexShrink: 0 },
     body: { flex: 1, gap: space[1] },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
 });

@@ -8,15 +8,32 @@
  * the other side of the changeover moves the range by an hour, enough to drop
  * a late appointment off the end of its day. `dateKey` must never be
  * `toISOString`, which is UTC. Weekdays are 0 = Sunday … 6 = Saturday,
- * matching `Date#getDay` and `clinic_days.weekday`. `formatTime` is 24-hour so
- * the row and ruler line up in DM Mono's tabular figures; `clock12` returns the
- * meridiem separately because it is set at a different size. The weekday and
- * month names are English until the F4 localisation scaffold lands. The header
- * pill adds the weekday off today, because a bare date does not say whether
- * Thursday is the day she meant.
+ * matching `Date#getDay` and `clinic_days.weekday`. The weekday and month names
+ * are English until the F4 localisation scaffold lands. The header pill adds
+ * the weekday off today, because a bare date does not say whether Thursday is
+ * the day she meant.
+ *
+ * Clock times are not formatted here. They come from `domain/clock`, the one
+ * place in the app that turns a time into text, and are re-exported so this
+ * stays the day cluster's single time import. That file is reached directly
+ * rather than through the `domain` barrel because the barrel pulls in
+ * `react-native`, and this module and `chair.ts` are both imported by
+ * `day.test.ts`, which runs under Bun with no Metro.
+ *
+ * What is left here is transport, not display: `clockToMinutes` reads the
+ * 24-hour `HH:MM` the server sends, and nothing in this cluster writes one back
+ * — the schedule is edited in settings, which has its own `timeFromMinutes`.
  */
-
-export const DAY_MINUTES = 24 * 60;
+export type { Clock12 } from '../../components/domain/clock';
+export {
+    clock12,
+    DAY_MINUTES,
+    formatClock12,
+    formatSpan,
+    formatTime12,
+    minutesOfDay,
+    time12,
+} from '../../components/domain/clock';
 
 export function localOffsetMinutes(now: Date = new Date()): number {
     return -now.getTimezoneOffset();
@@ -53,36 +70,9 @@ export function weekdayOf(key: string): number {
     return parseKey(key).getDay();
 }
 
-export function minutesOfDay(iso: string): number {
-    const date = new Date(iso);
-    return date.getHours() * 60 + date.getMinutes();
-}
-
-export function minutesToClock(minutes: number): string {
-    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
-    return `${pad(Math.floor(wrapped / 60))}:${pad(wrapped % 60)}`;
-}
-
 export function clockToMinutes(clock: string): number {
     const [hours = 0, minutes = 0] = clock.split(':').map(Number);
     return hours * 60 + minutes;
-}
-
-export function formatTime(iso: string): string {
-    return minutesToClock(minutesOfDay(iso));
-}
-
-export function clock12(minutes: number): { time: string; meridiem: 'AM' | 'PM' } {
-    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
-    const hours = Math.floor(wrapped / 60);
-    return {
-        time: `${hours % 12 === 0 ? 12 : hours % 12}:${pad(wrapped % 60)}`,
-        meridiem: hours < 12 ? 'AM' : 'PM',
-    };
-}
-
-export function time12(iso: string): { time: string; meridiem: 'AM' | 'PM' } {
-    return clock12(minutesOfDay(iso));
 }
 
 export function isoAt(key: string, minutes: number): string {
