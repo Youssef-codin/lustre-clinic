@@ -5,7 +5,7 @@
 export { asRequestError, RequestError } from './client';
 export type { BookedProcedure, PatientRef } from './day';
 export { amend, api, arrive, checkInTimes, rememberVisit, visitForAppointment } from './day';
-export type { MutationResult, QueryResult, QueryStatus } from './hooks';
+export type { MutationHandlers, MutationResult, QueryResult, QueryStatus } from './hooks';
 export { useLocalMutation, useLocalQuery } from './hooks';
 export type {
     Appointment,

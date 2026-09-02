@@ -26,7 +26,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { type Slot, slotIsFree, slotsFor } from '../booking';
+import { dayLabel, fortnightSlots, slotIsFree, timeLabel, workingDaysIn } from '../booking';
 import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
@@ -35,8 +35,6 @@ import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '
 import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import {
     addDays,
-    clock12,
-    formatDate,
     isoAt,
     localOffsetMinutes,
     monthShort,
@@ -142,10 +140,7 @@ export function BookingScreen({
     // batches over `httpBatchLink` — and the day being booked reads its times
     // out of the same answer, so the grid and the Book button cannot disagree.
     const workingDays = useMemo(
-        () =>
-            Array.from({ length: STRIP_DAYS }, (_, index) => addDays(today, index)).filter(
-                (key) => !isClosed(key, schedule, branch),
-            ),
+        () => workingDaysIn(today, STRIP_DAYS, schedule, branch),
         [today, schedule, branch],
     );
 
@@ -155,41 +150,27 @@ export function BookingScreen({
         { enabled: scheduled && workingDays.length > 0 },
     );
 
-    // A day that has not answered yet has no taken times *to* know about, and
-    // `slotsFor([])` says every hour is free — which is how the grid came to
-    // offer a slot someone else is already in. `enabled: false` leaves the query
-    // at `success` with no data, and a key change clears data a frame before the
-    // fetch starts, so neither status alone is the question: the question is
-    // whether the rows are in hand. Until they are, nothing is offered.
     const fetched = fortnight.data;
 
-    const slotsByDay = useMemo(() => {
-        const byDay = new Map<string, Slot[]>();
-        if (!fetched) return byDay;
-
-        workingDays.forEach((key, index) => {
-            byDay.set(
-                key,
-                slotsFor({
-                    dateKey: key,
-                    schedule,
-                    appointments: (fetched[index] ?? []).filter((row) => row.branchId === branch),
-                    branchId: branch,
-                    durationMinutes: duration,
-                    nowMinutes: key === today ? nowMinutes : null,
-                }),
-            );
-        });
-
-        return byDay;
-    }, [fetched, workingDays, schedule, branch, duration, today, nowMinutes]);
-
-    // Only the days that can actually take a visit this long. Asking for 45
-    // minutes on a full Thursday should take Thursday off the strip, not leave
-    // it there to be tapped and found empty.
-    const openDays = useMemo(
-        () => workingDays.filter((key) => (slotsByDay.get(key) ?? []).some((slot) => slot.state === 'free')),
-        [workingDays, slotsByDay],
+    // `enabled: false` leaves the query at `success` with no data, and a key
+    // change clears data a frame before the fetch starts, so neither status
+    // alone is the question: the question is whether the rows are in hand.
+    // `fortnightSlots` answers nothing until they are — and only the days that
+    // can actually take a visit this long come back as open, so asking for 45
+    // minutes on a full Thursday takes Thursday off the strip rather than
+    // leaving it there to be tapped and found empty.
+    const { slotsByDay, openDays } = useMemo(
+        () =>
+            fortnightSlots({
+                days: workingDays,
+                fetched,
+                schedule,
+                branchId: branch,
+                durationMinutes: duration,
+                today,
+                nowMinutes,
+            }),
+        [fetched, workingDays, schedule, branch, duration, today, nowMinutes],
     );
 
     const slots = slotsByDay.get(date) ?? [];
@@ -709,16 +690,6 @@ function nextWorkingDay(
 }
 
 /** "today"/"tomorrow" read as words in a sentence; a date keeps its capitals. */
-function dayLabel(key: string): string {
-    const label = relativeDayLabel(key);
-    return label === formatDate(key) ? label : label.toLowerCase();
-}
-
-function timeLabel(minutes: number): string {
-    const { time, meridiem } = clock12(minutes);
-    return `${time} ${meridiem.toLowerCase()}`;
-}
-
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
 

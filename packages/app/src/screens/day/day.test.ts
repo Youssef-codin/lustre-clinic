@@ -7,7 +7,16 @@
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { procedureLabel, splitDay } from './agenda';
-import { firstFreeSlot, type Slot, slotIsFree, slotsFor } from './booking';
+import {
+    dayLabel,
+    firstFreeSlot,
+    fortnightSlots,
+    type Slot,
+    slotIsFree,
+    slotsFor,
+    withNextVisit,
+    workingDaysIn,
+} from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair';
 import { RequestError } from './data/client';
 import type { Appointment, ProcedureCategory } from './data/types';
@@ -48,6 +57,7 @@ import {
     minutesOfDay,
     minutesToClock,
     relativeDayLabel,
+    todayKey,
 } from './time';
 
 const FRIDAY = '2026-08-07';
@@ -754,6 +764,105 @@ describe('booking slots', () => {
         expect(slotIsFree(slots, 600)).toBe(true);
         expect(slotIsFree(slots, 630)).toBe(false);
         expect(slotIsFree(slots, null)).toBe(false);
+    });
+});
+
+/**
+ * The fortnight both booking flows offer — the full page and the book-next
+ * sheet — so a day is only ever offered by one rule, and the sheet cannot come
+ * to disagree with the page about which Thursday is still free.
+ */
+describe('the fortnight a booking is offered', () => {
+    const SCHEDULE = [{ weekday: 1, branchId: 'b', opensAt: '10:00', closesAt: '12:00' }];
+    const MONDAY = '2026-08-10';
+    const NEXT_MONDAY = '2026-08-17';
+
+    const booked = (day: string, minutes: number, branchId: string): Appointment =>
+        ({
+            id: `${day}:${minutes}`,
+            startsAt: isoAt(day, minutes),
+            durationMinutes: 30,
+            status: 'booked' as AppointmentStatus,
+            branchId,
+        }) as Appointment;
+
+    const fortnight = (fetched: readonly (readonly Appointment[])[] | undefined) =>
+        fortnightSlots({
+            days: [MONDAY, NEXT_MONDAY],
+            fetched,
+            schedule: SCHEDULE,
+            branchId: 'b',
+            durationMinutes: 30,
+            today: MONDAY,
+            nowMinutes: 0,
+        });
+
+    it('offers only the days the branch actually works', () => {
+        expect(workingDaysIn(MONDAY, 14, SCHEDULE, 'b')).toEqual([MONDAY, NEXT_MONDAY]);
+        expect(workingDaysIn(MONDAY, 14, SCHEDULE, 'other')).toEqual([]);
+    });
+
+    // `slotsFor([])` says every hour is free, so a day still being read must not
+    // be treated as an empty one — that is how a grid offers a slot someone else
+    // is already in.
+    it('offers nothing at all until the rows are in hand', () => {
+        const pending = fortnight(undefined);
+
+        expect(pending.openDays).toEqual([]);
+        expect(pending.slotsByDay.size).toBe(0);
+    });
+
+    it('takes a day off the strip once its last time has gone', () => {
+        const full = [600, 630, 660, 690].map((minutes) => booked(MONDAY, minutes, 'b'));
+        const { openDays, slotsByDay } = fortnight([full, []]);
+
+        expect(openDays).toEqual([NEXT_MONDAY]);
+        expect(slotsByDay.get(MONDAY)?.every((slot) => slot.state === 'taken')).toBe(true);
+        expect(slotsByDay.get(NEXT_MONDAY)?.every((slot) => slot.state === 'free')).toBe(true);
+    });
+
+    it('leaves a time free when the booking on it belongs to another branch', () => {
+        const { openDays, slotsByDay } = fortnight([[booked(MONDAY, 600, 'maadi')], []]);
+
+        expect(openDays).toEqual([MONDAY, NEXT_MONDAY]);
+        expect(slotsByDay.get(MONDAY)?.[0]?.state).toBe('free');
+    });
+});
+
+/**
+ * The line the day view raises after a check-in that also booked the return.
+ * The check-in half is what the desk acts on; the appointment half is what the
+ * patient will repeat at the door, so neither may be dropped for the other.
+ */
+describe('book-next after a check-in', () => {
+    it('adds the next visit to whatever was already being said', () => {
+        expect(withNextVisit('Checked in · in the chair', todayKey(), 900)).toBe(
+            'Checked in · in the chair — next visit today at 3:00 pm',
+        );
+        expect(withNextVisit('Sara is waiting, 2 ahead', addDays(todayKey(), 1), 630)).toBe(
+            'Sara is waiting, 2 ahead — next visit tomorrow at 10:30 am',
+        );
+    });
+
+    // A date far enough out to be named rather than described keeps its capital,
+    // because it is read as a date and not as part of the sentence.
+    it('names a day the week after next rather than describing it', () => {
+        const said = withNextVisit('Checked in', addDays(todayKey(), 9), 720);
+
+        expect(said).not.toContain('next visit today');
+        expect(said).toContain(dayLabel(addDays(todayKey(), 9)));
+        expect(said.endsWith('at 12:00 pm')).toBe(true);
+    });
+
+    // The sheet has no earlier step to send anyone back to: the grid is directly
+    // under the message, and has already been re-read by the time it is drawn.
+    it('tells the sheet the times under it have been reloaded, not to go back', () => {
+        const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
+        const sheet = describeError(overlap, 'book-next');
+
+        expect(sheet.title).toBe('That slot is taken');
+        expect(sheet.body).toContain('reloaded');
+        expect(sheet.body).not.toContain('Go back');
     });
 });
 
