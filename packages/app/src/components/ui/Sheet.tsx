@@ -1,6 +1,8 @@
 /**
- * Bottom sheet — `translateY(102%)` to 0 over `.24–.32s cubic-bezier(.32,.72,0,1)`,
- * r26 top corners, 38×4 grab handle (Component Inventory §4.3).
+ * Bottom sheet — slides up to 0 over `.24–.32s cubic-bezier(.32,.72,0,1)`, r26 top
+ * corners, 38×4 grab handle (Component Inventory §4.3). The design writes the ride
+ * as `translateY(102%)`; see `ride` below for why it is a fixed distance here
+ * instead, and why a real percentage cannot be used.
  *
  * Keyboard handling: iOS gets `KeyboardAvoidingView` padding; Android is left to
  * `softwareKeyboardLayoutMode: resize` in app.json, which already shrinks the
@@ -67,30 +69,20 @@ export function Sheet({
     const window = useWindowDimensions();
 
     /**
-     * How far the sheet rides in, and `0` until this open has been measured.
-     *
-     * The distance is the sheet's own height, which arrives from the `onLayout`
-     * of the very view being animated — so it is taken once, before the ride
-     * starts, and then left alone for the duration. Feeding a fresh height into
-     * the interpolation mid-ride replaces its `outputRange` underneath the
-     * running animation and the sheet jumps onto the new curve: that is the pop,
-     * and it is worst on a sheet whose content resizes just after it opens, like
-     * the calendar's day summary resolving from "Counting the month…".
-     *
-     * Until it is measured the sheet parks a whole window down, which is
-     * off-screen for anything `maxHeightRatio` allows, so the frame it waits
-     * shows nothing. It resets on close so the next open measures its own
-     * content rather than riding the last one's height.
+     * Mirrors `mounted` so the effect below can read it without listing it as a
+     * dependency. Anything in that list restarts the ride: React re-runs the
+     * effect, the cleanup stops the animation part-way, and a fresh one starts
+     * from wherever it stopped with the full duration ahead of it again. On the
+     * way down that reads as the sheet halting half-way and then carrying on.
      */
-    const [travel, setTravel] = useState(0);
-    const riding = useRef(false);
+    const onScreen = useRef(visible);
 
     useEffect(() => {
-        if (visible) setMounted(true);
-        if (!visible && !mounted) return;
-        if (visible && travel === 0) return;
-
-        riding.current = true;
+        if (visible) {
+            setMounted(true);
+            onScreen.current = true;
+        }
+        if (!visible && !onScreen.current) return;
 
         const animation = Animated.timing(progress, {
             toValue: visible ? 1 : 0,
@@ -99,28 +91,14 @@ export function Sheet({
             useNativeDriver: true,
         });
         animation.start(({ finished }) => {
-            if (!finished) return;
-
-            riding.current = false;
-            if (!visible) {
+            if (finished && !visible) {
+                onScreen.current = false;
                 setMounted(false);
-                setTravel(0);
             }
         });
 
         return () => animation.stop();
-    }, [visible, mounted, progress, reducedMotion, travel]);
-
-    /**
-     * Taken only at rest. Mid-ride it is the pop; once the ride is over,
-     * adopting a resize keeps the exit dropping the sheet its full height.
-     */
-    function measureSheet(height: number) {
-        if (riding.current) return;
-
-        const next = Math.round(height * 1.02);
-        if (next !== travel) setTravel(next);
-    }
+    }, [visible, progress, reducedMotion]);
 
     function requestClose() {
         if (!dismissable) return;
@@ -162,9 +140,6 @@ export function Sheet({
         }).start();
     }
 
-    if (!mounted) return null;
-
-    const rideFrom = travel > 0 ? travel : window.height;
     const availableHeight = window.height - (Platform.OS === 'ios' ? keyboard : 0);
 
     /**
@@ -177,6 +152,31 @@ export function Sheet({
      */
     const floor = space[6] + insets.bottom;
     const bodyCap = availableHeight * maxHeightRatio - head - foot - floor;
+
+    /**
+     * How far the sheet rides, and deliberately not its own height.
+     *
+     * Its height comes from the `onLayout` of the very view being animated, and
+     * every way of using that is a trap. Read it once and you read it too early:
+     * the first layout is the chrome alone, so the sheet travelled a fifth of
+     * itself — a nudge on the way in, and on the way out it stopped short and
+     * sat there until the unmount cut it, which is the halt half-way down. Wait
+     * for a later layout and there may not be one. Keep reading it and a resize
+     * rewrites the interpolation's `outputRange` mid-flight, which is the jump.
+     *
+     * So the distance is the tallest a sheet is allowed to be. It is known
+     * before anything is measured, it cannot be moved by the content, and it is
+     * always at least the sheet's height, so the sheet always starts off-screen.
+     * The cost is that a short sheet starts further down than it needs to — but
+     * the ease-out spends that early, so it is on screen and settling for the
+     * part of the ride anyone watches.
+     *
+     * (`window.height` rather than `availableHeight`: the keyboard must not be
+     * able to change this while the sheet is moving.)
+     */
+    const ride = Math.round(window.height * maxHeightRatio);
+
+    if (!mounted) return null;
 
     return (
         <Modal
@@ -196,7 +196,6 @@ export function Sheet({
                     pointerEvents="box-none"
                 >
                     <Animated.View
-                        onLayout={(event) => measureSheet(event.nativeEvent.layout.height)}
                         style={[
                             styles.sheet,
                             { maxHeight: availableHeight * maxHeightRatio, paddingBottom: floor },
@@ -205,7 +204,7 @@ export function Sheet({
                                     {
                                         translateY: progress.interpolate({
                                             inputRange: [0, 1],
-                                            outputRange: [rideFrom, 0],
+                                            outputRange: [ride, 0],
                                         }),
                                     },
                                 ],
