@@ -78,7 +78,11 @@ export function Sheet({
      */
     const [footHeight, setFootHeight] = useState(0);
 
-    /** The design's own duration, rather than the library's default spring. */
+    /**
+     * The library's own curve, `Easing.out(Easing.exp)`, at the design's
+     * duration. Overriding the easing as well is what the rewrite was meant to
+     * stop doing.
+     */
     const timing = useBottomSheetTimingConfigs({ duration: duration.sheet });
 
     /**
@@ -95,15 +99,28 @@ export function Sheet({
     const closing = useRef(false);
     /** What the parent last asked for, readable from the dismiss callback. */
     const asked = useRef(visible);
+    /**
+     * Whether this sheet has ever been presented.
+     *
+     * Almost every sheet mounts closed and opens later, and dismissing one that
+     * was never presented leaves the library ignoring the `present()` that comes
+     * after it — the sheet then never opens again, with no error and not even a
+     * backdrop. Only the calendar escaped it, because it is remounted per open
+     * and so mounts already visible.
+     */
+    const presented = useRef(false);
 
     useEffect(() => {
         asked.current = visible;
 
         if (visible) {
             closing.current = false;
+            presented.current = true;
             sheet.current?.present();
             return;
         }
+
+        if (!presented.current) return;
 
         // A close the user started is already running; asking again mid-flight
         // restarts it.
@@ -202,7 +219,11 @@ export function Sheet({
             ref={sheet}
             animationConfigs={timing}
             enableDynamicSizing
-            maxDynamicContentSize={window.height * maxHeightRatio}
+            // The cap is on the *content*; the handle and footer are added on
+            // top of it. `topInset` is what actually stops a tall sheet from
+            // reaching the status bar.
+            maxDynamicContentSize={window.height * maxHeightRatio - floor}
+            topInset={insets.top}
             enablePanDownToClose={dismissable}
             enableOverDrag={false}
             handleComponent={renderHandle}
@@ -216,7 +237,6 @@ export function Sheet({
         >
             <BottomSheetScrollView
                 testID={testID}
-                style={styles.scroll}
                 contentContainerStyle={[
                     styles.scrollContent,
                     { paddingBottom: footer ? footHeight + space[4] : floor },
@@ -240,7 +260,6 @@ const styles = StyleSheet.create({
     handleRow: { alignItems: 'center', paddingTop: space[2.5], paddingBottom: space[1] },
     handle: { width: 38, height: 4, borderRadius: radius.full, backgroundColor: color.line },
     header: { paddingHorizontal: size.gutter, paddingTop: space[2], paddingBottom: space[3], gap: space[1] },
-    scroll: { flexGrow: 0 },
     scrollContent: { paddingHorizontal: size.gutter, gap: space[3] },
     footer: {
         paddingHorizontal: size.gutter,
