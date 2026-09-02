@@ -16,7 +16,15 @@ export interface ErrorMessage {
     body?: string;
 }
 
-export type ErrorContext = 'walk-in' | 'booking' | 'move' | 'check-in' | 'check-out' | 'day' | 'generic';
+export type ErrorContext =
+    | 'walk-in'
+    | 'booking'
+    | 'book-next'
+    | 'move'
+    | 'check-in'
+    | 'check-out'
+    | 'day'
+    | 'generic';
 
 export function describeError(error: RequestError, context: ErrorContext = 'generic'): ErrorMessage {
     if (error.offline) {
@@ -35,7 +43,11 @@ export function describeError(error: RequestError, context: ErrorContext = 'gene
                         ? 'Someone is already booked for that time. Give this walk-in a shorter visit, or finish the patient in the chair first.'
                         : context === 'booking'
                           ? 'That time was taken while this was being filled in. Go back and pick another one — the times have been reloaded.'
-                          : 'Someone is already booked for that time. Pick another time, or shorten the appointment.',
+                          : // The book-next sheet has no step to go back to: the
+                            // grid is under the message, already re-read.
+                            context === 'book-next'
+                            ? 'That time went while this was open. The times above have been reloaded — pick another one.'
+                            : 'Someone is already booked for that time. Pick another time, or shorten the appointment.',
             };
 
         case ERROR_CODE.INVALID_DURATION:
