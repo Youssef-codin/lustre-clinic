@@ -233,6 +233,46 @@ drawn on the timeline — it is where there is room — but a walk-in starts at
 a real booking needs belongs to the Patients cluster. Creation on this screen is
 the FAB, which opens the walk-in sheet (§7).
 
+## The empty day's ring illustrates; it is not a second FAB
+
+Same rule as above, applied to the other thing on the empty day that looked
+pressable. `DayEmpty` passed `EmptyState` an `icon` of `<Text variant="title3">+</Text>`,
+and `EmptyState` renders `icon` inside a plain `View` — the ring is 52px at
+`radius.full`, which is `BookFab` exactly, holding the same glyph. So the one
+screen whose whole subject is "there is nothing here yet" drew the FAB twice and
+wired up one of them.
+
+The bug report proposed giving the ring a press handler and thought that the
+likely answer. It isn't, and the reason is the FAB the report does not mention:
+
+- **Desk, future day** — the ring would become a *third* target for an action
+  already offered by the FAB and by the `Book someone in` CTA below it.
+- **Doctor, future day** — `DoctorDayScreen` passes no `onBook` and carries no
+  FAB, because booking is the desk's job. There is no handler to give it.
+- **Either screen, past day** — nothing to book. There is no handler to give it.
+
+A press handler fixes one of four states, and only the state where the action
+was already reachable twice. So the ring stops being drawn as the control
+instead: `empty.ts` returns a muted `calendar` for a day that has not happened
+yet, and `none` — no ring at all, matching `ClosedDay` — for a past day, which
+is a fact rather than an offer.
+
+**Audited before changing the shared component.** `EmptyState` has nine callers;
+`DayStates` is the only one that has ever passed `icon`. Every other caller takes
+the default muted `+`, which is correct for them: no other screen has a FAB for
+it to be mistaken for. `EmptyState` therefore gained one thing only — `icon={null}`
+suppresses the ring — which is unreachable from any existing caller. Its
+pressability was left alone.
+
+The third state the fix exposed: the future-day body read *"Book someone in for
+later, or start a walk-in who is at the desk now"* on the doctor's screen too,
+where neither is possible. `emptyDay` now takes `canBook` and tells the doctor
+where bookings come from instead.
+
+**Not in scope, still true:** `GalleryScreen` renders an `EmptyState` with an
+`actionLabel` and no `onAction`. That is the dev gallery drawing a specimen, not
+a screen offering an action.
+
 ## `packages/app/tsconfig.json` carries `allowImportingTsExtensions`
 
 **A shared file edited from a screens cluster**, against §10, on purpose.
