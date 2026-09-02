@@ -63,6 +63,10 @@ export function Sheet({
     const [foot, setFoot] = useState(0);
     const body = useRef(new Animated.Value(0)).current;
     const bodyMeasured = useRef(0);
+    /** What the scroll content last asked for, before any cap is applied. */
+    const wanted = useRef(0);
+    /** True while the sheet is sliding, so the body snaps instead of easing. */
+    const riding = useRef(false);
     const keyboard = useKeyboardHeight();
     const reducedMotion = useReducedMotion();
     const insets = useSafeAreaInsets();
@@ -84,6 +88,8 @@ export function Sheet({
         }
         if (!visible && !onScreen.current) return;
 
+        riding.current = true;
+
         const animation = Animated.timing(progress, {
             toValue: visible ? 1 : 0,
             duration: reducedMotion ? 0 : duration.sheet,
@@ -91,13 +97,17 @@ export function Sheet({
             useNativeDriver: true,
         });
         animation.start(({ finished }) => {
+            riding.current = false;
             if (finished && !visible) {
                 onScreen.current = false;
                 setMounted(false);
             }
         });
 
-        return () => animation.stop();
+        return () => {
+            riding.current = false;
+            animation.stop();
+        };
     }, [visible, progress, reducedMotion]);
 
     function requestClose() {
@@ -120,14 +130,17 @@ export function Sheet({
      * everything that is not scrolling, and `maxHeight` repeats it in layout so
      * a keyboard opening under a tall sheet cannot push the body past the frame.
      */
-    function measureBody(content: number, cap: number) {
-        const next = Math.min(Math.round(content), Math.max(0, Math.round(cap)));
+    function fitBody(cap: number) {
+        const next = Math.min(wanted.current, Math.max(0, Math.round(cap)));
         if (next === bodyMeasured.current) return;
 
         const first = bodyMeasured.current === 0;
         bodyMeasured.current = next;
 
-        if (first || reducedMotion) {
+        // Snapped while the sheet is still flying in: easing the height at the
+        // same time puts a second animation on the same edge, and the two
+        // together read as the sheet rising past where it lands.
+        if (first || riding.current || reducedMotion) {
             body.setValue(next);
             return;
         }
@@ -138,6 +151,23 @@ export function Sheet({
             easing: easing.sheet,
             useNativeDriver: false,
         }).start();
+    }
+
+    /**
+     * The cap is only right once the chrome has been measured. `head` and `foot`
+     * come from their own `onLayout`s, so on the first pass they are still 0 and
+     * the cap is too generous by exactly their height — 810 against a true 659
+     * on the booking sheet, measured. Commit against that and a body taller than
+     * the real cap renders too tall, then shrinks the moment the chrome lands.
+     *
+     * So the content is recorded but not committed until the chrome is known,
+     * and `fitBody` runs again below when it arrives.
+     */
+    function measureBody(content: number, cap: number) {
+        wanted.current = Math.round(content);
+        if (head === 0) return;
+
+        fitBody(cap);
     }
 
     const availableHeight = window.height - (Platform.OS === 'ios' ? keyboard : 0);
@@ -175,6 +205,13 @@ export function Sheet({
      * able to change this while the sheet is moving.)
      */
     const ride = Math.round(window.height * maxHeightRatio);
+
+    // The commit `measureBody` held back, now that the chrome has been measured
+    // and the cap is the real one.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: fitBody closes over this render's values; the cap is the input that matters.
+    useEffect(() => {
+        if (wanted.current > 0) fitBody(bodyCap);
+    }, [bodyCap]);
 
     if (!mounted) return null;
 
