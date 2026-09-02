@@ -457,7 +457,13 @@ export const visitService = {
     },
 };
 
-async function insertPayment(
+/**
+ * The one place a `payments` row is written. Exported because `balance.settle`
+ * allocates a patient-level payment across several visits and each slice is an
+ * ordinary payment row — sharing this is what keeps the two check-violation
+ * cases mapping to the same `ERROR_CODE` from both entry points.
+ */
+export async function insertPayment(
     executor: Executor,
     visitId: string,
     amount: number,

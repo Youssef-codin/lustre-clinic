@@ -19,17 +19,10 @@
  * `isPending` — no data yet, which is the question a skeleton is asking.
  */
 import type { ErrorCode } from '@lustre/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { errorCodeOf, useTRPC } from '../../../api';
 import type { DateRange } from '../money';
-import type {
-    BalanceSummary,
-    OutstandingReport,
-    RecordPaymentInput,
-    TakingsReport,
-    VisitBalance,
-    VisitDetail,
-} from './types';
+import type { BalanceSummary, OutstandingReport, TakingsReport } from './types';
 
 export type QueryResult<T> = {
     data: T | undefined;
@@ -72,49 +65,12 @@ export function useTakings(range: DateRange): QueryResult<TakingsReport> {
     return shape(useQuery(trpc.balance.takings.queryOptions(range)));
 }
 
-export function useVisitsByPatient(patientId: string): QueryResult<VisitBalance[]> {
-    const trpc = useTRPC();
-    return shape(useQuery(trpc.balance.byPatient.queryOptions({ patientId })));
-}
-
-export function useVisit(visitId: string): QueryResult<VisitDetail> {
-    const trpc = useTRPC();
-    return shape(useQuery(trpc.visit.byId.queryOptions({ id: visitId })));
-}
-
-export type RecordPaymentResult = {
-    mutate: (input: RecordPaymentInput, handlers?: { onSuccess?: () => void }) => void;
-    isPending: boolean;
-    error: ErrorCode | null;
-    reset: () => void;
-};
-
 /**
- * The one write this cluster makes. Never retried (§14): a silent retry after a
- * timeout takes the money twice, and `queryClient` already sets `retry: false`
- * on mutations.
- *
- * A payment changes every figure on the dashboard, not just this visit's, so
- * both paths are invalidated rather than patched — §10's rule that no balance
- * is ever recomputed on the client is the whole reason this cluster exists.
+ * There is no write here any more. `visit.recordPayment` against a visit the
+ * desk had to pick was this cluster's one mutation; the payment is taken on the
+ * patient's record now, through `balance.settle`. The dashboard still moves when
+ * one lands — the server broadcasts `visit:updated` per allocated visit and
+ * `api/live.ts` invalidates the `balance` path on every phone, this one
+ * included, which is the same freshness path a payment taken on the other phone
+ * has always used.
  */
-export function useRecordPayment(): RecordPaymentResult {
-    const trpc = useTRPC();
-    const queryClient = useQueryClient();
-
-    const mutation = useMutation(
-        trpc.visit.recordPayment.mutationOptions({
-            onSuccess: () => {
-                void queryClient.invalidateQueries(trpc.balance.pathFilter());
-                void queryClient.invalidateQueries(trpc.visit.pathFilter());
-            },
-        }),
-    );
-
-    return {
-        mutate: (input, handlers) => mutation.mutate(input, { onSuccess: handlers?.onSuccess }),
-        isPending: mutation.isPending,
-        error: mutation.error ? errorCodeOf(mutation.error) : null,
-        reset: mutation.reset,
-    };
-}

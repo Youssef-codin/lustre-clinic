@@ -24,20 +24,21 @@ export type TextFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColo
     required?: boolean;
     hint?: string;
     error?: string;
+    due?: boolean;
     /** The underlined control rather than the boxed one. `layout` is the separate question of where the label sits. */
     inline?: boolean;
     layout?: FieldLayout;
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-    { label, required, hint, error, inline = false, layout, placeholder, ...input },
+    { label, required, hint, error, due, inline = false, layout, placeholder, ...input },
     ref,
 ) {
     const [focused, setFocused] = useState(false);
     const arabic = containsArabic(input.value || placeholder || '');
 
     return (
-        <Field label={label} required={required} hint={hint} error={error} layout={layout}>
+        <Field label={label} required={required} hint={hint} error={error} due={due} layout={layout}>
             <View
                 style={[
                     styles.box,

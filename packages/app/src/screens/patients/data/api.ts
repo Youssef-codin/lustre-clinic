@@ -23,6 +23,8 @@ import type {
     PatientBalance,
     PatientDetail,
     RecentPatients,
+    SettleInput,
+    SettleReport,
     UpdatePatientInput,
 } from './types';
 
@@ -97,5 +99,19 @@ export const patientsApi = {
 
     update(input: UpdatePatientInput): Promise<Patient> {
         return wrap(() => trpcClient.patient.update.mutate(input));
+    },
+
+    /**
+     * The app's one payment entry point. The money goes against the patient and
+     * the server allocates it across their unsettled visits oldest-first, so
+     * nothing here names a visit and nothing here does arithmetic on a balance
+     * (§10). What comes back is the split, which the sheet reads out.
+     *
+     * Never retried: a silent retry after a Tailscale timeout takes the money
+     * twice. `useMutation` in `./hooks` refuses an overlapping call rather
+     * than queueing it, which is the other half of the same guarantee.
+     */
+    settle(input: SettleInput): Promise<SettleReport> {
+        return wrap(() => trpcClient.balance.settle.mutate(input));
     },
 };

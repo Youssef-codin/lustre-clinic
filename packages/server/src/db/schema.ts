@@ -94,6 +94,12 @@ export const patients = pgTable(
     'patients',
     {
         id: uuid('id').primaryKey(),
+        // This clinic's own number for the patient, generated once and written
+        // at the top of their page in the paper book (§5). `legacy_ref` below is
+        // the *old* system's number and is a different fact: one is ours and
+        // always present, the other is theirs and only on patients who predate
+        // the migration.
+        ref: text('ref').notNull().unique(),
         name: text('name').notNull(),
         phone: text('phone').notNull(),
         email: text('email'),

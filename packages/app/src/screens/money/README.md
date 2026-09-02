@@ -1,15 +1,22 @@
 # `screens/money`
 
-The Money cluster: the dashboard, outstanding balances by patient, and payment
-history. Built against the frozen [`ui/`](../../components/ui/README.md) and
+The Money tab: one dashboard of what the clinic charged, collected and is owed.
+Built against the frozen [`ui/`](../../components/ui/README.md) and
 [`theme/`](../../theme/README.md), per Component Inventory §9 and §10.
 
 ```
-MoneyCluster            three panes on ui/PushView — there is no navigator yet
-├── MoneyScreen         money-dashboard-v2.html: hero, stats, takings, debtors
-├── PatientBalanceScreen  that patient's unpaid visits (Spec §10)
-└── VisitPaymentsScreen   payment history + the one write this cluster makes
+MoneyCluster            goHome + the debtor row's route out; no routes of its own
+└── MoneyScreen         money-dashboard-v2.html: hero, stats, takings, debtors
 ```
+
+**This cluster reads and never writes.** It was three panes — dashboard → a
+patient's unpaid visits → one visit's payment history — and the middle two
+existed only because `visit.recordPayment` took a `visitId`, so a visit had to
+be picked before money could be taken. `balance.settle` allocates a
+patient-level payment across their unsettled visits oldest-first, so nothing
+has to be picked and both panes are gone. Tapping a debtor opens that patient's
+**record**, which is where the payment sheet lives and where per-visit history
+already was. See `DECISIONS.md`, *A payment is taken against a patient*.
 
 ## The dashboard, against the design
 
@@ -100,22 +107,22 @@ one visit's payments — and the screens render what they were given.
 
 Concretely, and deliberately:
 
-- The patient screen's total is read back out of `balance.outstanding`, not
-  summed from the visit rows it is showing. Two figures for the same thing
-  cannot then drift apart.
 - The dashboard's debtor total is the report's `total`, and it is **hidden while
   searching** rather than recomputed over the filtered rows. A total that shrank
   as you typed would read as the clinic being owed less than it is.
-- After a payment, nothing patches a balance locally. `useRecordPayment`
-  invalidates the whole `balance` and `visit` paths on success and the server is
-  asked again — a payment three panes deep moves the dashboard behind it.
-- The only arithmetic on money in the cluster is the overpayment clamp, in
-  [`money.ts`](./money.ts), and it is tested.
-
-Ratios are not amounts, so the collection rate and the takings percentages are
-computed on screen. Neither is ever displayed as money. Sorting the debtor list
-is the same kind of exception: `sortDebtors` compares two balances the server
-derived and never adds one up.
+- Each debtor row's amount is the standing balance `balance.outstanding`
+  derived. The row never adds anything up.
+- After a payment — taken on the patient's record, not here — nothing patches a
+  balance locally. The server broadcasts `visit:updated` per allocated visit and
+  [`api/live.ts`](../../api/live.ts) invalidates the `balance` path, so this
+  dashboard is re-read from the server whichever phone took the money. That was
+  already the path a payment on the *other* phone used; there is no longer a
+  local special case beside it.
+- **There is no arithmetic on money left in this cluster.** The overpayment
+  clamp moved to the patients cluster with the sheet. What remains is ratios —
+  the collection rate and the takings percentages, neither of which is ever
+  displayed as money — and `sortDebtors`, which compares two balances the server
+  derived.
 
 Two figures on the dashboard are the standing ones, not the period's: the
 "Total due" card and the total beside "Who owe" both read `balance.outstanding`,
@@ -134,7 +141,7 @@ formats money itself.
 | Compact (`142.6k`) | the hero and the stat cards **only**. Full amounts everywhere else. |
 | Currency | `EGP 2,600` in English, `2,600 ج.م` in Arabic (§7.13). |
 | Numerals | Latin in both languages (§7.11). Instrument Sans by default — the money designs' own face; `face="mono"` opts a genuine amount column into DM Mono. |
-| Overpayment | does not exist (§7.6). Clamped to the amount due, and the clamp is announced. |
+| Overpayment | does not exist (§7.6), and nothing on these screens can cause one — the entry lives with the sheet on the patient's record, and `balance.settle` refuses one outright. |
 
 `MoneyValue` renders the figure and the currency as two `Text`s — they carry
 different sizes and often different opacities, and `ج.م` has no coverage in DM
@@ -157,18 +164,17 @@ gap. Every list and every card here has all three renderings, through
   refresh but is still on screen looks current, and a stale figure someone acts
   on is the worst outcome available on these screens. Copy comes from
   `ERROR_CODE`, never from the server's message (§4, §14).
-- **empty** — "Nothing is outstanding", "Every visit is settled", "No patient
-  matches that" — three different sentences, because they are three different
-  facts.
+- **empty** — "No outstanding patients" and "No patients found" — two different
+  sentences, because they are two different facts: a clinic that is owed nothing
+  is not a search that matched nothing.
 
 The dashboard's three queries are independent, so a takings card that failed
 does not take the hero down with it.
 
-Every mutation has a pending state. There is one mutation — `visit.recordPayment`
-— and its button carries `loading`, the sheet refuses to dismiss mid-write, and
-the fields are disabled while it is in flight. `ui/Button` also swallows a repeat
-press for 500ms, which on this screen is the difference between one payment and
-two.
+There is no mutation here to have a pending state. The one write the app makes
+about money is `balance.settle`, on the patient's record — its pending, failure
+and double-tap handling live with the sheet, in
+[`screens/patients`](../patients/README.md).
 
 ## Where the data comes from
 
@@ -201,14 +207,15 @@ them.
   drawn in Instrument Sans. Folding them together means widening the shared
   component and re-deciding the face for the day view and the patient rows at
   the same time — a call for whoever owns `components/domain`.
-- **The overpayment clamp is client-side only.** The server takes any positive
-  amount up to `MAX_AMOUNT_PIASTRES`.
 - **`balance.outstanding` takes no argument**, so the debtor search filters the
   report client-side.
-- **`visit.byId` joins neither the appointment nor the patient**, so the visit
-  reference, its date and the patient's name are threaded in from the
-  `balance.byPatient` row the screen was opened through. It also returns the
-  payment rows unordered, so the history is sorted newest-first on the screen.
+- **`balance.byPatient` has no caller on the wire.** Deleting
+  `PatientBalanceScreen` took its only one. The procedure is kept deliberately:
+  it is the read that pairs with `balance.settle` — the same query the
+  allocation runs — and the sheet can only report a split *after* the money is
+  taken. A desk that wants to see where a payment will land before pressing the
+  button needs exactly this. If that never gets built, delete it rather than
+  leaving it here indefinitely.
 - **`--discount` is left out**: it has no rule saying when it applies.
 
 ## Seeing it
@@ -219,11 +226,12 @@ loading and failure states are what an unreachable clinic actually produces.
 
 ## Verified
 
-`bun test` — 580 pass. [`money.test.ts`](./money.test.ts) covers everything the
-client still decides: the piastre conversion, the compact form, the currency
-position, the whole-pounds guard, the overpayment clamp, the collection rate on
-a period that collects more than it charges, the period pills as date ranges,
-and the payment-method narrowing. The derived balances moved to
+`bun test` — 656 pass. [`money.test.ts`](./money.test.ts) covers everything the
+client still decides here: the piastre conversion, the compact form, the
+currency position, the collection rate on a period that collects more than it
+charges, the period pills as date ranges, and the payment-method narrowing. The
+whole-pounds guard and the overpayment clamp went to the patients cluster with
+the sheet and are covered in `patients.test.ts`. The derived balances live in
 [`tests/balance.test.ts`](../../../../server/tests/balance.test.ts) and
 `modules.test.ts`, where they run against real Postgres — asserting a mirrored
 copy of that arithmetic only proved the copy agreed with itself. There is no
@@ -240,9 +248,12 @@ DATABASE_URL=postgres://lustre:lustre@localhost:5432/lustre_<name>_test bun test
 raw-colour and physical-direction checks.
 
 **Not seen on a device since the rewiring** — the emulator belongs to another
-worktree. What that leaves unverified: the icon swap's optical sizes, the "Open
-patient record" button against the mockup, and the search pill no longer
-rendering under a pushed pane. The layout itself was seen before, on the Android
+worktree. What that leaves unverified: the icon swap's optical sizes, and a
+debtor row landing on the patient's record with the tab bar following it.
+
+The pill-over-a-pushed-pane observation is **closed, not fixed**: there is no
+pushed pane in this cluster any more, so `searchVisible` is gone rather than
+defended. The layout itself was seen before, on the Android
 emulator (`lustre_note`, API 36) — every period, the sort menu, the search
 filter and its empty state, and the pill docking and settling over repeated
 cycles in both directions. Never seen on a physical device: `shadow.hero` and

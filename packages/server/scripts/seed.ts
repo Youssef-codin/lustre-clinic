@@ -53,7 +53,7 @@ import {
     visits,
 } from '../src/db/schema.ts';
 import { logger } from '../src/logger.ts';
-import { buildRef } from '../src/util/ref.ts';
+import { buildPatientRef, buildRef } from '../src/util/ref.ts';
 
 const CLINIC_OFFSET_MINUTES = 180;
 
@@ -240,6 +240,19 @@ const questions = [
     },
 ];
 
+// Seeded refs are drawn the same way the service draws them, and deduped
+// against what has already been handed out — the seed inserts in one statement,
+// so the UNIQUE constraint would take the whole batch down rather than letting a
+// retry sort it out.
+const usedPatientRefs = new Set<string>();
+
+function seedPatientRef(): string {
+    let ref = buildPatientRef();
+    while (usedPatientRefs.has(ref)) ref = buildPatientRef();
+    usedPatientRefs.add(ref);
+    return ref;
+}
+
 const patient = (
     name: string,
     phone: string,
@@ -253,6 +266,7 @@ const patient = (
     }> = {},
 ) => ({
     id: id(),
+    ref: seedPatientRef(),
     name,
     phone,
     email: extra.email ?? null,

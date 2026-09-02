@@ -5,8 +5,6 @@
 // and this one map is where a localisation scaffold will land.
 import { ERROR_CODE, type ErrorCode, PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] as const;
-
 const MONTHS_LONG = [
     'January',
     'February',
@@ -23,26 +21,6 @@ const MONTHS_LONG = [
 ] as const;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-export function dayStamp(iso: string): { day: string; month: string } {
-    const date = new Date(iso);
-    return {
-        day: String(date.getDate()).padStart(2, '0'),
-        month: MONTHS[date.getMonth()] ?? '',
-    };
-}
-
-export function longDate(iso: string): string {
-    const date = new Date(iso);
-    return `${date.getDate()} ${MONTHS_LONG[date.getMonth()] ?? ''} ${date.getFullYear()}`;
-}
-
-export function longDateTime(iso: string): string {
-    const date = new Date(iso);
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${longDate(iso)}, ${hours}:${minutes}`;
-}
 
 export function outstandingAge(iso: string, now: Date = new Date()): string {
     const days = Math.floor((now.getTime() - new Date(iso).getTime()) / MS_PER_DAY);
@@ -93,10 +71,8 @@ export function paymentMethodOf(method: string): PaymentMethod {
     return (PAYMENT_METHODS as readonly string[]).includes(method) ? (method as PaymentMethod) : 'other';
 }
 
-export function methodLabel(method: string, note?: string | null): string {
-    const resolved = paymentMethodOf(method);
-    if (resolved === 'other' && note?.trim()) return note.trim();
-    return METHOD_LABEL[resolved];
+export function methodLabel(method: string): string {
+    return METHOD_LABEL[paymentMethodOf(method)];
 }
 
 const ERROR_MESSAGE: Partial<Record<ErrorCode, string>> = {

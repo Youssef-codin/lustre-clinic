@@ -30,6 +30,7 @@
 // (§7.8).
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { MoneyValue } from '../../components/domain';
 import {
     Banner,
     Button,
@@ -38,20 +39,28 @@ import {
     EmptyState,
     RefreshView,
     SegmentedControl,
+    SkeletonRows,
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
-import { _LocalMoneyValue } from './components/_LocalMoneyValue';
-import { SkeletonRows } from './components/_LocalSkeleton';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
 import { EditIcon } from './components/icons';
+import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
-import { useQuery } from './data/_LocalQuery';
+import { RecordPaymentSheet } from './components/RecordPaymentSheet';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
-import type { Answers, CustomQuestion, Patient, PatientHistoryEntry, QuestionnaireGap } from './data/types';
+import { useMutation, useQuery } from './data/hooks';
+import type {
+    Answers,
+    CustomQuestion,
+    Patient,
+    PatientHistoryEntry,
+    QuestionnaireGap,
+    SettleInput,
+} from './data/types';
 
 export type PatientRecordScreenProps = {
     patientId: string;
@@ -67,8 +76,6 @@ export type PatientRecordScreenProps = {
      */
     onBook?: (patient: Patient) => void;
     onWalkIn?: (patient: Patient) => void;
-    /** Settling the balance is the money cluster's screen; the strip's button appears only if given a way there. */
-    onRecordPayment?: (patient: Patient) => void;
     /** A history row that became a visit — the cluster above opens it. */
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 };
@@ -82,14 +89,15 @@ export function PatientRecordScreen({
     onEdit,
     onBook,
     onWalkIn,
-    onRecordPayment,
     onOpenVisit,
 }: PatientRecordScreenProps) {
     const [tab, setTab] = useState<Tab>('visits');
     const [toast, setToast] = useState<string | null>(null);
+    const [payingOpen, setPayingOpen] = useState(false);
 
-    const record = useQuery(() => patientsApi.byId(patientId), [patientId]);
-    const questions = useQuery(() => patientsApi.listQuestions(), []);
+    const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
+    const questions = useQuery(['questions'], () => patientsApi.listQuestions());
+    const settle = useMutation(patientsApi.settle);
 
     const patient = record.data?.patient;
     const history = record.data?.history ?? [];
@@ -106,6 +114,25 @@ export function PatientRecordScreen({
     const outstanding = history.reduce((total, entry) => total + Math.max(entry.balance, 0), 0);
     const visits = history.filter((entry) => entry.visitId !== null).length;
 
+    /**
+     * The one write that takes money. The strip's total and the visit history
+     * both move with it and both come off `patient.byId`, so one refetch is the
+     * whole refresh — nothing is patched locally (§10). Everything on the
+     * TanStack side (the money dashboard, the day view) is invalidated by the
+     * `visit:updated` the server broadcasts per allocated visit.
+     *
+     * A failure leaves the sheet open with the amount still typed: the desk is
+     * holding the cash, and clearing the field would make them count it again.
+     */
+    async function recordPayment(input: SettleInput) {
+        const report = await settle.mutate(input);
+        if (!report) return;
+
+        setPayingOpen(false);
+        record.refetch();
+        setToast(paymentReceipt(report));
+    }
+
     return (
         <View style={styles.screen}>
             <RecordBar onBack={onBack} backLabel={backLabel} onEdit={edit} />
@@ -115,7 +142,7 @@ export function PatientRecordScreen({
             )}
 
             {record.loading && !record.data ? (
-                <SkeletonRows count={5} gutter={size.gutter} />
+                <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : record.error && !record.data ? (
                 <RefreshView refreshControl={refreshControl}>
                     <EmptyState
@@ -145,9 +172,10 @@ export function PatientRecordScreen({
 
                         <Outstanding
                             amount={outstanding}
-                            patient={patient}
-                            onRecordPayment={onRecordPayment}
-                            onUnavailable={setToast}
+                            onRecordPayment={() => {
+                                settle.reset();
+                                setPayingOpen(true);
+                            }}
                         />
 
                         <View style={styles.tabs}>
@@ -172,6 +200,21 @@ export function PatientRecordScreen({
                         />
                     )}
                 </ScrollView>
+            ) : null}
+
+            {/* A child of the screen root, not the scroll content: `ui/Sheet` is
+                a native Modal, and the toast that follows it has to be able to
+                render above the same stack. */}
+            {patient && outstanding > 0 ? (
+                <RecordPaymentSheet
+                    visible={payingOpen}
+                    onClose={() => setPayingOpen(false)}
+                    patientId={patient.id}
+                    outstanding={outstanding}
+                    isPending={settle.pending}
+                    error={settle.error ? errorText(settle.error) : null}
+                    onSubmit={(input) => void recordPayment(input)}
+                />
             ) : null}
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
@@ -285,27 +328,19 @@ function segments(visits: number) {
  * What this patient owes across every visit, and the way to settle it. A
  * hairline row rather than a filled panel: the amount carries the colour, and a
  * tinted block would make a standing balance read as something going wrong.
- * Absent at zero — a record with nothing outstanding should not carry a line
- * about money at all.
  *
- * `onRecordPayment` is optional because taking a payment is the money cluster's
- * screen and the shell is what reaches it; without it the button says where the
- * flow lives rather than going missing. The number here is the patient's whole
- * outstanding and can span several unsettled visits, while a payment is taken
- * against one — so the handler opens the visits this total is made of and the
- * visit is chosen there, which is what the Money tab already does.
+ * **Absent at zero, which is also what puts the sheet out of reach.** A record
+ * with nothing outstanding should not carry a line about money at all, and there
+ * is no other way to the payment sheet — so a patient who owes nothing cannot be
+ * settled from the client either, which is the rule `balance.settle` enforces on
+ * its own side.
+ *
+ * The number is the patient's whole outstanding and can span several unsettled
+ * visits. That used to be the reason this button left the cluster: a payment was
+ * taken against one visit, so someone had to pick one. The server allocates now,
+ * so the sheet opens here and the desk stays on the patient they are looking at.
  */
-function Outstanding({
-    amount,
-    patient,
-    onRecordPayment,
-    onUnavailable,
-}: {
-    amount: number;
-    patient: Patient;
-    onRecordPayment?: (patient: Patient) => void;
-    onUnavailable: (message: string) => void;
-}) {
+function Outstanding({ amount, onRecordPayment }: { amount: number; onRecordPayment: () => void }) {
     if (amount <= 0) return null;
 
     return (
@@ -314,16 +349,8 @@ function Outstanding({
             <Text variant="subhead" tone="muted" style={styles.stripLabel}>
                 Outstanding
             </Text>
-            <_LocalMoneyValue amount={amount} tone="due" variant="headline" weight="bold" />
-            <Pill
-                label="Record payment"
-                onPress={
-                    onRecordPayment
-                        ? () => onRecordPayment(patient)
-                        : () => onUnavailable('Payments are taken from the Money tab for now.')
-                }
-                testID="record-payment"
-            />
+            <MoneyValue piastres={amount} tone="due" variant="headline" weight="bold" showCurrency={false} />
+            <Pill label="Record payment" onPress={onRecordPayment} testID="record-payment" />
         </View>
     );
 }
@@ -385,7 +412,7 @@ function History({
                     desk — the clause is left off rather than reading `EGP 0`. */}
                 {paid > 0 ? (
                     <View style={styles.summaryPaid}>
-                        <_LocalMoneyValue amount={paid} variant="footnote" tone="muted" />
+                        <MoneyValue piastres={paid} variant="footnote" tone="muted" showCurrency={false} />
                         <Text variant="footnote" tone="muted">
                             paid
                         </Text>
@@ -478,7 +505,7 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
             )}
 
             {questions.loading && !questions.data ? (
-                <SkeletonRows count={3} gutter={space[4]} />
+                <SkeletonRows count={3} gutter={space[4]} ruled />
             ) : questions.error && !questions.data ? (
                 <EmptyState
                     title="Could not load the clinic's questions"

@@ -12,7 +12,7 @@
 // less than it is.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
-import { Animated, AppState, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
 import { DropdownMenu, IconButton, ScreenHeader, usePullToRefresh } from '../../components/ui';
@@ -42,12 +42,22 @@ import {
 const HEADER_BUTTON = 40;
 
 export type MoneyScreenProps = {
-    /** False while a pane is pushed over this screen — see `MoneyCluster`. */
-    searchVisible?: boolean;
-    onOpenPatient: (patientId: string, name: string) => void;
+    /**
+     * Bumped when the Money tab is tapped while it is already up. This screen is
+     * the whole tab now, so home is the top of it rather than a pane to pop —
+     * and the scroll offset is the one thing nothing above here can reach.
+     */
+    goHome?: number;
+    /**
+     * Tapping a debtor. It opens that patient's *record*, which is where a
+     * payment is taken and where the per-visit history lives; the shell owns the
+     * route because it crosses into the Patients tab. Only the id travels — the
+     * record reads the patient for itself.
+     */
+    onOpenRecord?: (patientId: string) => void;
 };
 
-export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreenProps) {
+export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<DebtorSort>('balance');
@@ -81,6 +91,19 @@ export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreen
     const dock = useSearchDock();
     const hero = useHeroHeight();
 
+    // An effect because scrolling is imperative and there is nothing to derive —
+    // the same shape `PatientListScreen` uses for the same signal. Skipped on
+    // mount: a dashboard that has just been mounted is already at the top.
+    // Home used to mean popping the two panes over this screen; they are gone,
+    // so the top of the dashboard is all that is left of it.
+    const scroller = useRef<ScrollView>(null);
+    const shown = useRef(goHome);
+    useEffect(() => {
+        if (shown.current === goHome) return;
+        shown.current = goHome;
+        scroller.current?.scrollTo({ y: 0, animated: true });
+    }, [goHome]);
+
     // The dashboard's three figures, for the period on screen — a pull does not
     // touch the other periods or the panes pushed over this one, which read
     // themselves when they open. The debtor search is client-side, so a refresh
@@ -100,6 +123,7 @@ export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreen
     return (
         <View style={styles.screen} onLayout={dock.onScreenLayout}>
             <Animated.ScrollView
+                ref={scroller}
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={refreshControl}
@@ -215,14 +239,14 @@ export function MoneyScreen({ searchVisible = true, onOpenPatient }: MoneyScreen
                                 shownOf={outstanding.data.patients.length}
                                 sort={sort}
                                 searching={searching}
-                                onOpenPatient={onOpenPatient}
+                                onOpenRecord={onOpenRecord}
                             />
                         ) : null}
                     </LoadState>
                 </View>
             </Animated.ScrollView>
 
-            {dock.ready && searchVisible ? (
+            {dock.ready ? (
                 <DockedSearch
                     value={search}
                     onChangeText={setSearch}
@@ -251,13 +275,13 @@ function DebtorList({
     shownOf,
     sort,
     searching,
-    onOpenPatient,
+    onOpenRecord,
 }: {
     debtors: PatientBalance[];
     shownOf: number;
     sort: DebtorSort;
     searching: boolean;
-    onOpenPatient: (patientId: string, name: string) => void;
+    onOpenRecord?: (patientId: string) => void;
 }) {
     // Two different facts, so two different sentences: a search that matched
     // nothing is not a clinic that is owed nothing.
@@ -288,7 +312,7 @@ function DebtorList({
                         key={patient.patientId}
                         patient={patient}
                         index={index}
-                        onPress={() => onOpenPatient(patient.patientId, patient.name)}
+                        onPress={() => onOpenRecord?.(patient.patientId)}
                     />
                 ))}
             </View>

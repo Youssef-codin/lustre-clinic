@@ -49,6 +49,14 @@ export const ERROR_CODE = {
     INVALID_AMOUNT: 'INVALID_AMOUNT',
     /** `method` is `other` but `methodNote` was not supplied (§5). */
     PAYMENT_NOTE_REQUIRED: 'PAYMENT_NOTE_REQUIRED',
+    /**
+     * A patient-level payment was larger than what the patient owes. A credit
+     * balance is not a concept the model has — §10 derives every balance from
+     * charges and payments — so the money is refused rather than parked.
+     */
+    PAYMENT_EXCEEDS_BALANCE: 'PAYMENT_EXCEEDS_BALANCE',
+    /** A payment was allocated against a patient with nothing outstanding. */
+    NOTHING_OUTSTANDING: 'NOTHING_OUTSTANDING',
 
     // --- patients -----------------------------------------------------------
     /** The phone number could not be normalized to E.164. */

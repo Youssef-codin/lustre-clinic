@@ -10,13 +10,13 @@
 import type { AppointmentStatus } from '@lustre/shared';
 import { useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import { statusLabel, statusTone } from '../../../components/domain';
 import { Button, Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
 import { type DayDelay, isProjected, ON_TIME, projectedStart } from '../delay';
 import { clock12, minutesOfDay, time12 } from '../time';
-import { statusLabel, statusTone } from './_LocalStatusPill';
 import {
     ArrowBackIcon,
     ArrowForwardIcon,

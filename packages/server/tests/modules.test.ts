@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, PATIENT_REF_PATTERN } from '@lustre/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
@@ -14,7 +14,7 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
 import { setProceduresInput } from '../src/modules/visit/visit.schema.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
-import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
+import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 import {
     CHECKUP_PRICE,
     checkedInVisit,
@@ -834,6 +834,81 @@ describe('customQuestion', () => {
 });
 
 describe('patient', () => {
+    /**
+     * Every patient carries this clinic's own number, generated once. It is what
+     * goes at the top of their page in the paper book (one page per patient), so
+     * a record without one cannot be filed — which is why the column is NOT NULL
+     * rather than something a screen fills in later.
+     */
+    test('gives every registration a ref, whichever path made it', async () => {
+        const registered = await patientService.create({
+            name: 'Nadia Hassan',
+            phone: '01012345678',
+            custom: {},
+        });
+        // What booking uses when the patient is not on file yet.
+        const booked = await patientService.createMinimal({
+            name: 'Walk In',
+            phone: '01098765432',
+        });
+
+        expect(registered.ref).toMatch(PATIENT_REF_PATTERN);
+        expect(booked.ref).toMatch(PATIENT_REF_PATTERN);
+        expect(registered.ref).not.toBe(booked.ref);
+    });
+
+    test('keeps the old system’s number beside its own, and they are different facts', async () => {
+        const migrated = await patientService.create({
+            name: 'Carried Over',
+            phone: '01011112222',
+            legacyRef: '4417',
+            custom: {},
+        });
+        const fresh = await patientService.create({
+            name: 'Registered Here',
+            phone: '01033334444',
+            custom: {},
+        });
+
+        expect(migrated.legacyRef).toBe('4417');
+        expect(migrated.ref).not.toBe('4417');
+        // A patient registered since the cutoff never had an old number, and a
+        // blank says that rather than inventing one.
+        expect(fresh.legacyRef).toBeNull();
+        expect(fresh.ref).toMatch(PATIENT_REF_PATTERN);
+    });
+
+    // The constraint is what makes the generator's retry meaningful, so it is
+    // worth asserting rather than assumed. Awaited inside a try rather than
+    // through `.rejects`: a postgres.js query is lazy and only runs when it is
+    // actually awaited, so `expect(query).rejects` hangs instead of failing.
+    test('refuses two patients with the same ref', async () => {
+        const first = await patientService.create({ name: 'First', phone: '01011110000', custom: {} });
+
+        let refused = false;
+        try {
+            await sql`INSERT INTO patients (id, ref, name, phone, custom)
+                      VALUES (${uuid()}, ${first.ref}, 'Second', '+201022220000', '{}'::jsonb)`;
+        } catch {
+            refused = true;
+        }
+
+        expect(refused).toBe(true);
+    });
+
+    test('a ref survives an update that touches everything else', async () => {
+        const created = await patientService.create({ name: 'Before', phone: '01055556666', custom: {} });
+
+        const updated = await patientService.update({
+            id: created.id,
+            name: 'After',
+            phone: '01077778888',
+            gender: 'female',
+        });
+
+        expect(updated.ref).toBe(created.ref);
+    });
+
     test('normalizes the phone on write and derives age on read', async () => {
         const created = await patientService.create({
             name: 'Nadia Hassan',

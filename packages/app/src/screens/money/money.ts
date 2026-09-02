@@ -1,17 +1,16 @@
-// Money arithmetic, formatting and period ranges for the cluster, in a module
-// with no React Native import so it is testable under `bun test`. §7.12:
-// integer piastres end
+// Money formatting and period ranges for the cluster, in a module with no React
+// Native import so it is testable under `bun test`. §7.12: integer piastres end
 // to end, formatted at the edge in `MoneyValue` only. `toEgp` rounds rather
 // than truncates so a figure carrying piastres reads as the nearer pound, never
 // less than is owed. Grouping is written out rather than taken from `Intl`,
 // which Hermes ships in varying completeness and which would group by device
-// locale where §7.11 wants one grouping in both languages. The overpayment
-// clamp runs against piastres, not the rounded pound figure — a 120.50 balance
-// rounds to a due of 121 pounds and taking 121 would overcharge by 50 piastres.
-// The payment field accepts whole pounds only (`ui/NumericField` hardcodes
-// `decimal-pad` and `ui/` is frozen): stripping a separator would read `12.50`
-// as `1250`, a hundredfold overcharge. The collection rate clamps to 0–1
-// because a day settling old debt can collect more than it charged.
+// locale where §7.11 wants one grouping in both languages. The collection rate
+// clamps to 0–1 because a day settling old debt can collect more than it
+// charged.
+//
+// The payment-entry rules that lived here — the whole-pounds guard and the
+// overpayment clamp — went to `screens/patients/components/money.ts` with the
+// sheet. Nothing on the dashboard takes money.
 import { addDays, offsetForDate, weekdayOf } from '../day/time';
 
 const PIASTRES_PER_EGP = 100;
@@ -64,15 +63,6 @@ export function formatEgp(piastres: number, options: FormatOptions = {}): string
 
 export function currencyOf(locale: MoneyLocale): string {
     return locale === 'ar' ? 'ج.م' : 'EGP';
-}
-
-export function clampToBalance(enteredEgp: number, balance: number): number {
-    if (!Number.isFinite(enteredEgp) || enteredEgp <= 0) return 0;
-    return Math.max(0, Math.min(Math.trunc(enteredEgp) * PIASTRES_PER_EGP, balance));
-}
-
-export function isWholePounds(text: string): boolean {
-    return /^[0-9]*$/.test(text);
 }
 
 export function collectionRate(charged: number, collected: number): number {

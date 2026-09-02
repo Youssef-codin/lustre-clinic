@@ -11,7 +11,15 @@
  * force on the date in question, not the one in force now.
  *
  * `dateKey` must never be `toISOString`, which is UTC.
+ *
+ * `clock12` is here for the same reason `offsetForDate` is: the day view and the
+ * settings panes both put a time on screen, and a second copy of the wrap-around
+ * and the midnight/noon cases is how the two drift. It returns the meridiem
+ * separately because the two are set at different sizes. English until the F4
+ * localization scaffold lands.
  */
+
+export const DAY_MINUTES = 24 * 60;
 
 export function localOffsetMinutes(now: Date = new Date()): number {
     return -now.getTimezoneOffset();
@@ -38,6 +46,28 @@ export function offsetForDate(key: string): number {
 export function daysInMonth(year: number, month: number): number {
     const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
     return [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+}
+
+export interface Clock12 {
+    time: string;
+    meridiem: 'AM' | 'PM';
+}
+
+/** Minutes past local midnight as a 12-hour clock. Midnight is 12 AM and noon is 12 PM. */
+export function clock12(minutes: number): Clock12 {
+    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
+    const hours = Math.floor(wrapped / 60);
+
+    return {
+        time: `${hours % 12 === 0 ? 12 : hours % 12}:${pad(wrapped % 60)}`,
+        meridiem: hours < 12 ? 'AM' : 'PM',
+    };
+}
+
+/** "6:00 PM" — the one-string form, for a label rather than a tabular column. */
+export function formatClock12(minutes: number): string {
+    const { time, meridiem } = clock12(minutes);
+    return `${time} ${meridiem}`;
 }
 
 function pad(value: number): string {

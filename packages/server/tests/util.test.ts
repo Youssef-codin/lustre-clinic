@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { REF_PATTERN } from '@lustre/shared';
+import { PATIENT_REF_PATTERN, REF_PATTERN } from '@lustre/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { computeTotal } from '../src/util/money.ts';
 import { normalizePhone, toWhatsAppNumber } from '../src/util/phone.ts';
-import { buildRef } from '../src/util/ref.ts';
+import { buildPatientRef, buildRef } from '../src/util/ref.ts';
 import { ageFromBirthDate, dayRange, refDatePart } from '../src/util/time.ts';
 
 /** The pure rules of §5, §9 and §11, away from the database. */
@@ -111,5 +111,39 @@ describe('ref', () => {
             const suffix = buildRef(new Date()).split('-')[1] ?? '';
             expect(suffix).not.toMatch(/[01OIL]/);
         }
+    });
+});
+
+/**
+ * A patient's ref is the random part with no date on the front. It is written at
+ * the top of a page in the paper book, which is one page per patient — so it has
+ * to be short enough to write and unambiguous enough to write *correctly*.
+ */
+describe('patient ref', () => {
+    test('is four characters and carries no date', () => {
+        const ref = buildPatientRef();
+        expect(ref).toMatch(PATIENT_REF_PATTERN);
+        expect(ref).toHaveLength(4);
+        expect(ref).not.toContain('-');
+    });
+
+    test('cannot be mistaken for an appointment ref', () => {
+        expect(buildPatientRef()).not.toMatch(REF_PATTERN);
+        expect(buildRef(new Date())).not.toMatch(PATIENT_REF_PATTERN);
+    });
+
+    test('excludes the characters that get miswritten by hand', () => {
+        for (let i = 0; i < 200; i += 1) {
+            expect(buildPatientRef()).not.toMatch(/[01OIL]/);
+        }
+    });
+
+    // Not a uniqueness guarantee — that is the UNIQUE constraint's job — but a
+    // generator that returned the same code twice in a hundred draws would make
+    // the retry the normal path rather than the exception.
+    test('draws from the whole space rather than repeating', () => {
+        const drawn = new Set<string>();
+        for (let i = 0; i < 100; i += 1) drawn.add(buildPatientRef());
+        expect(drawn.size).toBeGreaterThan(95);
     });
 });

@@ -1,5 +1,5 @@
 import { publicProcedure, router } from '../../trpc/init.ts';
-import { balanceSummaryInput, balanceTakingsInput, byPatientInput } from './balance.schema.ts';
+import { balanceSummaryInput, balanceTakingsInput, byPatientInput, settleInput } from './balance.schema.ts';
 import { balanceService } from './balance.service.ts';
 
 export const balanceRouter = router({
@@ -8,6 +8,9 @@ export const balanceRouter = router({
     byPatient: publicProcedure
         .input(byPatientInput)
         .query(({ input }) => balanceService.byPatient(input.patientId)),
+
+    /** The app's one payment entry point: money against a patient, not a visit. */
+    settle: publicProcedure.input(settleInput).mutation(({ input }) => balanceService.settle(input)),
 
     summary: publicProcedure.input(balanceSummaryInput).query(({ input }) => balanceService.summary(input)),
 
