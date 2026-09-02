@@ -1,5 +1,7 @@
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
 import { AppShell, SetupScreen, useServerSetup } from './src/shell';
@@ -22,15 +24,24 @@ export default function App() {
     const { ready, showSetup } = useServerSetup();
     if (!fontsLoaded || !ready) return <View style={styles.screen} />;
 
+    // `GestureHandlerRootView` and `BottomSheetModalProvider` are the two things
+    // `ui/Sheet` needs above it: the first for the drag, the second because every
+    // sheet is a modal presented into a portal here rather than mounted where it
+    // is written. Both sit outside `SafeAreaProvider` so a sheet can draw over
+    // the whole window, including the tab bar.
     return (
-        <SafeAreaProvider>
-            <ApiProvider>
-                <SafeAreaView style={styles.screen} edges={['top']}>
-                    {showSetup ? <SetupScreen /> : <AppShell />}
-                    <StatusBar style="dark" />
-                </SafeAreaView>
-            </ApiProvider>
-        </SafeAreaProvider>
+        <GestureHandlerRootView style={styles.screen}>
+            <SafeAreaProvider>
+                <BottomSheetModalProvider>
+                    <ApiProvider>
+                        <SafeAreaView style={styles.screen} edges={['top']}>
+                            {showSetup ? <SetupScreen /> : <AppShell />}
+                            <StatusBar style="dark" />
+                        </SafeAreaView>
+                    </ApiProvider>
+                </BottomSheetModalProvider>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
     );
 }
 

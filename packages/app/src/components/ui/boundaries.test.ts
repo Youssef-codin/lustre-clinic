@@ -11,6 +11,11 @@
 // cannot couple a primitive to a domain type. `Sheet` needs the bottom inset to
 // keep its own edge clear of the system navigation bar, the way
 // `useKeyboardHeight` already covers the other edge.
+//
+// `@gorhom/bottom-sheet` is here on the same footing: it is the mechanics under
+// `Sheet` — measurement, gesture and position — and knows nothing about Lustre.
+// The look stays ours, drawn from the theme. A primitive built on it still
+// cannot reach a domain type, which is the invariant this file exists to hold.
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { Glob } from 'bun';
@@ -22,6 +27,7 @@ const ALLOWED = [
     /^react\/.+/,
     /^react-native$/,
     /^react-native-safe-area-context$/,
+    /^@gorhom\/bottom-sheet$/,
     /^\.\.\/\.\.\/theme$/,
     /^\.\/[\w.-]+$/,
 ];
