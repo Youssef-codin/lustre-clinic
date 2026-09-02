@@ -12,6 +12,7 @@ import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair
 import { RequestError } from './data/client';
 import type { Appointment, ProcedureCategory } from './data/types';
 import { dayDelay, delayLabel, delayReason, isProjected, ON_TIME, projectedStart } from './delay';
+import { emptyDay } from './empty';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatAmount, formatMoney, poundsEntry } from './money';
@@ -361,6 +362,34 @@ describe('errors', () => {
     it('names the clinic server when the request never arrived', () => {
         const offline = new RequestError(ERROR_CODE.INTERNAL, 'fetch failed', { offline: true });
         expect(describeError(offline, 'check-in').body).toContain('Nothing was saved');
+    });
+});
+
+describe('an empty day', () => {
+    it('offers the booking the desk can actually make', () => {
+        const desk = emptyDay(false, true);
+        expect(desk.actionLabel).toBe('Book someone in');
+        expect(desk.glyph).toBe('calendar');
+    });
+
+    it('offers the doctor nothing, and does not tell them to book', () => {
+        const doctor = emptyDay(false, false);
+        expect(doctor.actionLabel).toBeUndefined();
+        expect(doctor.body).not.toContain('Book someone in');
+        expect(doctor.body).not.toContain('walk-in');
+    });
+
+    it('states a past day rather than inviting one, and drops the ring with the offer', () => {
+        const past = emptyDay(true, true);
+        expect(past.title).toBe('Nothing happened this day');
+        expect(past.actionLabel).toBeUndefined();
+        expect(past.glyph).toBe('none');
+    });
+
+    // A past day is a fact whoever booked it can no longer change, so it reads
+    // the same to the desk and to the doctor.
+    it('says the same thing about a past day to both screens', () => {
+        expect(emptyDay(true, false)).toEqual(emptyDay(true, true));
     });
 });
 

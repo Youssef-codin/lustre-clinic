@@ -6,9 +6,22 @@ import { Button } from './Button';
 export type EmptyStateProps = {
     title: string;
     body?: string;
+    /**
+     * Glyph inside the ring or tile. Omit it for the default `+` — the empty
+     * state is an invitation and the screen has no other round `+` to be
+     * confused with. Pass `null` for a state that is a statement rather than an
+     * offer: the ring goes with it, because a ring drawn around nothing to press
+     * is the affordance without the action.
+     */
     icon?: ReactNode;
     actionLabel?: string;
     onAction?: () => void;
+    /**
+     * `ring` — a circle and a pill CTA, for a screen that is empty *right now*
+     * `panel` — a dashed panel and a full-width CTA, for a list that is empty
+     *   because nothing has been set up yet
+     * `line` — one muted sentence, for an empty section inside a full screen
+     */
     weight?: 'ring' | 'panel' | 'line';
 };
 
@@ -24,16 +37,20 @@ export function EmptyState({ title, body, icon, actionLabel, onAction, weight = 
     }
 
     const panel = weight === 'panel';
+    const glyph =
+        icon === undefined ? (
+            <Text variant="title3" tone="muted">
+                {'+'}
+            </Text>
+        ) : (
+            icon
+        );
 
     return (
         <View style={[styles.state, panel && styles.panel]}>
-            <View style={[styles.glyph, panel ? styles.tile : styles.ring]}>
-                {icon ?? (
-                    <Text variant="title3" tone="muted">
-                        {'+'}
-                    </Text>
-                )}
-            </View>
+            {glyph === null ? null : (
+                <View style={[styles.glyph, panel ? styles.tile : styles.ring]}>{glyph}</View>
+            )}
 
             <Text variant="headline">{title}</Text>
             {body ? (
