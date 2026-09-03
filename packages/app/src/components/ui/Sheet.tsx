@@ -1,35 +1,42 @@
 /**
- * Bottom sheet — `translateY(102%)` to 0 over `.24–.32s cubic-bezier(.32,.72,0,1)`,
- * r26 top corners, 38×4 grab handle (Component Inventory §4.3).
+ * Bottom sheet — r26 top corners, 38×4 grab handle (Component Inventory §4.3),
+ * now over `@gorhom/bottom-sheet`.
  *
- * Keyboard handling: iOS gets `KeyboardAvoidingView` padding; Android is left to
- * `softwareKeyboardLayoutMode: resize` in app.json, which already shrinks the
- * window under the modal — adding padding there as well would double it. The
- * scroll cap is the window minus the keyboard, and `keyboardShouldPersistTaps="handled"`
- * keeps the first tap from being swallowed by the keyboard close. The sheet
- * stays mounted through the exit so it animates out; `requestClose` routes every
- * close path (including Android's hardware back, which `Modal` sends here via
- * `onRequestClose`) and refuses all of them while `dismissable` is false, so a
- * write in flight cannot be cancelled into an unknown state.
+ * The geometry used to be ours: a translate measured from the sheet's own
+ * `onLayout` and a body height eased against a cap assembled from three more
+ * measurements. Every one of those measurements is of a view that is mid-flight
+ * or mid-layout, and the ordering between them is not guaranteed — which is
+ * where the pop, the stall and the overshoot all came from, each a different
+ * symptom of the same circularity. The library measures handle, content and
+ * footer itself and drives the position on the UI thread, so none of it is a
+ * race any more.
+ *
+ * The props are unchanged, deliberately: nine sheets and another worktree build
+ * on this file, and none of them should have to know it was rewritten.
+ *
+ * The split maps onto the library's own: `handleComponent` is the grab handle
+ * and the title block, `footerComponent` is the pinned footer, and the children
+ * are the scrolling middle. That is what keeps the sizing out of our hands —
+ * each piece is measured separately by the sheet rather than us trying to
+ * subtract them from each other.
+ *
+ * Everything visible is still ours: the handle, the title, the backdrop's
+ * colour and the surface all come from the theme, so the library supplies the
+ * mechanics and none of the look.
  */
-import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import {
-    Animated,
-    Keyboard,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    useWindowDimensions,
-    View,
-} from 'react-native';
+    BottomSheetBackdrop,
+    BottomSheetModal,
+    BottomSheetScrollView,
+    useBottomSheetTimingConfigs,
+} from '@gorhom/bottom-sheet';
+import type { ReactNode } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
-import { duration, easing } from './motion';
-import { Scrim } from './Scrim';
-import { useKeyboardHeight } from './useKeyboardHeight';
-import { useReducedMotion } from './useReducedMotion';
+import { duration } from './motion';
 
 export type SheetProps = {
     visible: boolean;
@@ -54,177 +61,211 @@ export function Sheet({
     dismissable = true,
     testID,
 }: SheetProps) {
-    const progress = useRef(new Animated.Value(0)).current;
-    const [mounted, setMounted] = useState(visible);
-    const [sheetHeight, setSheetHeight] = useState(0);
-    const [head, setHead] = useState(0);
-    const [foot, setFoot] = useState(0);
-    const body = useRef(new Animated.Value(0)).current;
-    const bodyMeasured = useRef(0);
-    const keyboard = useKeyboardHeight();
-    const reducedMotion = useReducedMotion();
+    const sheet = useRef<BottomSheetModal>(null);
+    const insets = useSafeAreaInsets();
     const window = useWindowDimensions();
 
-    useEffect(() => {
-        if (visible) setMounted(true);
-
-        const animation = Animated.timing(progress, {
-            toValue: visible ? 1 : 0,
-            duration: reducedMotion ? 0 : duration.sheet,
-            easing: easing.sheet,
-            useNativeDriver: true,
-        });
-        animation.start(({ finished }) => {
-            if (finished && !visible) setMounted(false);
-        });
-
-        return () => animation.stop();
-    }, [visible, progress, reducedMotion]);
-
-    function requestClose() {
-        if (!dismissable) return;
-
-        Keyboard.dismiss();
-        onClose();
-    }
+    /**
+     * The library's own curve, `Easing.out(Easing.exp)`, at the design's
+     * duration. Overriding the easing as well is what the rewrite was meant to
+     * stop doing.
+     */
+    const timing = useBottomSheetTimingConfigs({ duration: duration.sheet });
 
     /**
-     * A sheet whose content changes size — a step that swaps a search box for a
-     * form — used to jump: its height is its content's, and the top edge moved a
-     * screen's worth between two frames. So the scrolling part is given a height
-     * of its own and eased to the next one, which is what makes the sheet ride
-     * up and down instead of teleporting.
-     *
-     * `onContentSizeChange` is the measurement, and the reason this works where
-     * measuring a clipped child does not: a scroll view reports what its content
-     * wants, not what it was allowed. The cap is the sheet's own maximum less
-     * everything that is not scrolling, and `maxHeight` repeats it in layout so
-     * a keyboard opening under a tall sheet cannot push the body past the frame.
+     * The system navigation bar is the same class of problem as the keyboard and
+     * was not being subtracted anywhere: on a three-button phone it is ~48dp of
+     * the sheet's own bottom edge, which ate the footer's primary action and
+     * sliced the last row of any sheet without one. A gesture bar asks for 24dp,
+     * which `space[6]` already happened to cover — which is why this only ever
+     * showed on a phone. The tab bar at the same edge reads the inset the same way.
      */
-    function measureBody(content: number, cap: number) {
-        const next = Math.min(Math.round(content), Math.max(0, Math.round(cap)));
-        if (next === bodyMeasured.current) return;
+    const floor = space[6] + insets.bottom;
 
-        const first = bodyMeasured.current === 0;
-        bodyMeasured.current = next;
+    /**
+     * The tallest the content column may be, and the same figure the sheet is
+     * told to cap itself at. Stating it on the column too is what lets the
+     * scroll shrink: `flexShrink` needs a definite bound to shrink against, and
+     * without one the footer is laid out past the cap and clipped away.
+     */
+    const maxContent = window.height * maxHeightRatio - floor;
 
-        if (first || reducedMotion) {
-            body.setValue(next);
+    /** True once a close is under way, so the two paths cannot re-enter. */
+    const closing = useRef(false);
+    /** What the parent last asked for, readable from the dismiss callback. */
+    const asked = useRef(visible);
+    /**
+     * Whether this sheet has ever been presented.
+     *
+     * Almost every sheet mounts closed and opens later, and dismissing one that
+     * was never presented leaves the library ignoring the `present()` that comes
+     * after it — the sheet then never opens again, with no error and not even a
+     * backdrop. Only the calendar escaped it, because it is remounted per open
+     * and so mounts already visible.
+     */
+    const presented = useRef(false);
+
+    useEffect(() => {
+        asked.current = visible;
+
+        if (visible) {
+            closing.current = false;
+            presented.current = true;
+            sheet.current?.present();
             return;
         }
 
-        Animated.timing(body, {
-            toValue: next,
-            duration: duration.fade,
-            easing: easing.sheet,
-            useNativeDriver: false,
-        }).start();
-    }
+        if (!presented.current) return;
 
-    if (!mounted) return null;
+        // A close the user started is already running; asking again mid-flight
+        // restarts it.
+        if (closing.current) return;
 
-    const travel = sheetHeight > 0 ? sheetHeight * 1.02 : window.height;
-    const availableHeight = window.height - (Platform.OS === 'ios' ? keyboard : 0);
-    const bodyCap = availableHeight * maxHeightRatio - head - foot - space[6];
+        closing.current = true;
+        sheet.current?.dismiss();
+    }, [visible]);
+
+    /**
+     * Every sheet swallows the hardware back while it is up, which is what
+     * `Modal`'s `onRequestClose` used to do. Without it the event runs past the
+     * sheet to the activity and backs out of the app altogether — measured, the
+     * sheet closed and the launcher came up behind it.
+     *
+     * A sheet that refuses to close refuses back too: it is still swallowed, it
+     * just does not close anything. A write in flight cannot be cancelled into
+     * an unknown state.
+     */
+    useEffect(() => {
+        if (!visible) return;
+
+        const guard = BackHandler.addEventListener('hardwareBackPress', () => {
+            if (dismissable) onClose();
+            return true;
+        });
+        return () => guard.remove();
+    }, [visible, dismissable, onClose]);
+
+    /**
+     * Fires once the sheet has finished leaving, whoever started it — so the
+     * parent is only told about the closes it did not start, a drag or a tap on
+     * the backdrop. Telling it about its own would fire `onClose` twice for one
+     * close, and not every caller can take that: some advance a flow or clear a
+     * form there rather than just setting a flag.
+     */
+    const handleDismiss = useCallback(() => {
+        closing.current = true;
+        Keyboard.dismiss();
+        if (asked.current) onClose();
+    }, [onClose]);
+
+    const renderBackdrop = useCallback(
+        (props: BottomSheetBackdropProps) => (
+            <BottomSheetBackdrop
+                {...props}
+                appearsOnIndex={0}
+                disappearsOnIndex={-1}
+                opacity={1}
+                pressBehavior={dismissable ? 'close' : 'none'}
+                style={[props.style, styles.backdrop]}
+            />
+        ),
+        [dismissable],
+    );
+
+    const renderHandle = useCallback(
+        () => (
+            <View>
+                <View style={styles.handleRow}>
+                    <View style={styles.handle} />
+                </View>
+
+                {title ? (
+                    <View style={styles.header}>
+                        <Text variant="title3">{title}</Text>
+                        {subtitle ? (
+                            <Text variant="subhead" tone="muted">
+                                {subtitle}
+                            </Text>
+                        ) : null}
+                    </View>
+                ) : null}
+            </View>
+        ),
+        [title, subtitle],
+    );
 
     return (
-        <Modal
-            visible
-            transparent
-            animationType="none"
-            onRequestClose={requestClose}
-            statusBarTranslucent={false}
-            testID={testID}
+        <BottomSheetModal
+            ref={sheet}
+            animationConfigs={timing}
+            enableDynamicSizing
+            // The cap is on the *content*; the handle and footer are added on
+            // top of it. `topInset` is what actually stops a tall sheet from
+            // reaching the status bar.
+            maxDynamicContentSize={maxContent}
+            topInset={insets.top}
+            enablePanDownToClose={dismissable}
+            enableOverDrag={false}
+            handleComponent={renderHandle}
+            backdropComponent={renderBackdrop}
+            backgroundStyle={styles.sheet}
+            onDismiss={handleDismiss}
+            keyboardBehavior="interactive"
+            keyboardBlurBehavior="restore"
+            android_keyboardInputMode="adjustResize"
         >
-            <View style={styles.root}>
-                <Scrim opacity={progress} onPress={requestClose} />
+            {/*
+             * The footer is ordinary content, not `footerComponent`.
+             *
+             * The library's footer is deliberately pinned to the bottom of the
+             * container: it counter-translates by `containerHeight - position`,
+             * so as the sheet rises the footer slides down inside it by very
+             * nearly the same amount and stays put on screen. That is the
+             * button arriving first and the sheet catching up behind it. Here
+             * the footer belongs to the sheet, so it goes in the column and
+             * rides the one transform with everything else.
+             *
+             * It goes inside the scroll rather than beside it because that is
+             * the only place the sheet measures. A sibling column has no
+             * definite height for the scroll to shrink against, so the footer
+             * was laid out past the cap and clipped away entirely — the sheet
+             * came up with no button at all. The cost is that on a sheet tall
+             * enough to scroll, the action scrolls with the content.
+             */}
+            <BottomSheetScrollView
+                testID={testID}
+                contentContainerStyle={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="interactive"
+            >
+                {children}
 
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    style={styles.avoider}
-                    pointerEvents="box-none"
-                >
-                    <Animated.View
-                        onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
-                        style={[
-                            styles.sheet,
-                            { maxHeight: availableHeight * maxHeightRatio },
-                            {
-                                transform: [
-                                    {
-                                        translateY: progress.interpolate({
-                                            inputRange: [0, 1],
-                                            outputRange: [travel, 0],
-                                        }),
-                                    },
-                                ],
-                            },
-                        ]}
-                    >
-                        <View onLayout={(event) => setHead(event.nativeEvent.layout.height)}>
-                            <View style={styles.handleRow}>
-                                <View style={styles.handle} />
-                            </View>
-
-                            {title ? (
-                                <View style={styles.header}>
-                                    <Text variant="title3">{title}</Text>
-                                    {subtitle ? (
-                                        <Text variant="subhead" tone="muted">
-                                            {subtitle}
-                                        </Text>
-                                    ) : null}
-                                </View>
-                            ) : null}
-                        </View>
-
-                        <Animated.View style={{ height: body, maxHeight: Math.max(0, bodyCap) }}>
-                            <ScrollView
-                                style={styles.scroll}
-                                contentContainerStyle={styles.scrollContent}
-                                onContentSizeChange={(_width, height) => measureBody(height, bodyCap)}
-                                keyboardShouldPersistTaps="handled"
-                                keyboardDismissMode="interactive"
-                                alwaysBounceVertical={false}
-                            >
-                                {children}
-                            </ScrollView>
-                        </Animated.View>
-
-                        {footer ? (
-                            <View
-                                onLayout={(event) => setFoot(event.nativeEvent.layout.height)}
-                                style={styles.footer}
-                            >
-                                {footer}
-                            </View>
-                        ) : null}
-                    </Animated.View>
-                </KeyboardAvoidingView>
-            </View>
-        </Modal>
+                {footer ? <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View> : null}
+            </BottomSheetScrollView>
+        </BottomSheetModal>
     );
 }
 
 const styles = StyleSheet.create({
-    root: { flex: 1, justifyContent: 'flex-end' },
-    avoider: { justifyContent: 'flex-end' },
+    backdrop: { backgroundColor: color.scrim },
     sheet: {
         backgroundColor: color.surface,
         borderTopStartRadius: radius.sheet,
         borderTopEndRadius: radius.sheet,
-        paddingBottom: space[6],
     },
     handleRow: { alignItems: 'center', paddingTop: space[2.5], paddingBottom: space[1] },
     handle: { width: 38, height: 4, borderRadius: radius.full, backgroundColor: color.line },
     header: { paddingHorizontal: size.gutter, paddingTop: space[2], paddingBottom: space[3], gap: space[1] },
-    scroll: { flexGrow: 0 },
-    scrollContent: { paddingHorizontal: size.gutter, paddingBottom: space[4], gap: space[3] },
+    scrollContent: { paddingHorizontal: size.gutter, gap: space[3] },
     footer: {
+        // Bleeds back out of the scroll's gutter so the rule above the action
+        // still spans the sheet edge to edge.
+        marginHorizontal: -size.gutter,
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
         borderTopWidth: 1,
         borderTopColor: color.hair,
         gap: space[2],
+        backgroundColor: color.surface,
     },
 });
