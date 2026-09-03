@@ -14,11 +14,24 @@ export type { BottomTabBarProps, TabKey } from './BottomTabBar';
 export { BottomTabBar } from './BottomTabBar';
 export type { BrandMarkProps } from './BrandMark';
 export { BrandMark } from './BrandMark';
+export type { Clock12 } from './clock';
+export {
+    clock12,
+    DAY_MINUTES,
+    formatClock12,
+    formatSpan,
+    formatStamp,
+    formatTime12,
+    minutesOfDay,
+    time12,
+} from './clock';
 export type { MoneyValueProps } from './MoneyValue';
 export { formatAmount, formatMoney, MoneyValue } from './MoneyValue';
 export type { PatientRowProps, PatientSummary } from './PatientRow';
 export { PatientRow } from './PatientRow';
 export type { StatusPillProps, StatusTone } from './StatusPill';
 export { StatusPill, statusLabel, statusTone } from './StatusPill';
+export type { TimeValueProps } from './TimeValue';
+export { TimeValue } from './TimeValue';
 export type { ToothGroupCardProps, ToothGroupLine } from './ToothGroupCard';
 export { ToothGroupCard } from './ToothGroupCard';

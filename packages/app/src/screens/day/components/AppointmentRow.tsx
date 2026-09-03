@@ -5,11 +5,11 @@
  * `domain/`.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { StatusPill } from '../../../components/domain';
+import { StatusPill, TimeValue } from '../../../components/domain';
 import { Chevron } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
-import { clock12, minutesOfDay, time12 } from '../time';
+import { formatClock12, minutesOfDay } from '../time';
 
 export type AppointmentRowProps = {
     appointment: Appointment;
@@ -26,26 +26,20 @@ export function AppointmentRow({ appointment, onPress, projectedMinutes = null }
     const past = appointment.status === 'done' || appointment.status === 'cancelled';
     const booked = minutesOfDay(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > booked;
-    const { time, meridiem } = time12(appointment.startsAt);
     // The day has moved; the row shows where it moved to, not where it started —
-    // on the same 12-hour clock as the booked time, so a late day does not put
-    // two clocks in one column.
-    const shown = slipped ? clock12(projectedMinutes) : { time, meridiem };
+    // on the same clock the booked time uses, so the column keeps one shape
+    // whether or not the day is late.
+    const shownMinutes = slipped ? projectedMinutes : booked;
 
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${time} ${meridiem}, ${appointment.patient.name}`}
+            accessibilityLabel={`${formatClock12(booked)}, ${appointment.patient.name}`}
             onPress={onPress}
             style={({ pressed }) => [styles.row, past && styles.past, pressed && styles.pressed]}
         >
-            <View style={styles.clock}>
-                <Text variant="amount" weight="medium" tone={slipped ? 'due' : 'ink'} numberOfLines={1}>
-                    {shown.time}
-                </Text>
-                <Text variant="tag" tone={slipped ? 'due' : 'muted'}>
-                    {shown.meridiem}
-                </Text>
+            <View style={styles.time}>
+                <TimeValue minutes={shownMinutes} weight="medium" tone={slipped ? 'due' : 'ink'} />
             </View>
 
             <View style={styles.body}>
@@ -79,15 +73,12 @@ const styles = StyleSheet.create({
     },
     past: { opacity: 0.72 },
     pressed: { backgroundColor: color.surface2 },
-    // Never wraps: 56px fitted "12:0" and broke the last digit onto its own
-    // line, so the column jumped between one shape and the other down the list.
-    clock: {
-        width: 74,
-        flexShrink: 0,
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        gap: space[0.5],
-    },
+    // Wider than the 24-hour column it replaces: the meridiem rides beside the
+    // figure, and every row has one. It must never wrap — 56px fitted "12:0"
+    // and broke the last digit onto its own line, so the column jumped between
+    // one shape and the other down the list. `TimeValue` lays the figure and
+    // meridiem out itself; this only reserves the width.
+    time: { width: 80, flexShrink: 0 },
     body: { flex: 1, gap: space[1] },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
 });

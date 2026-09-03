@@ -4,7 +4,7 @@ Components that know what a patient, an appointment and a balance are.
 Component Inventory §2 and §5.
 
 ```tsx
-import { MoneyValue, PatientRow, StatusPill } from '../components/domain';
+import { MoneyValue, PatientRow, StatusPill, TimeValue } from '../components/domain';
 ```
 
 `ui/` is the design system and knows nothing about Lustre; the moment a component
@@ -56,6 +56,38 @@ amount itself**: no `/ 100`, no `toLocaleString`, no `EGP` string literal.
 
 The arithmetic behind both lives in [`money.ts`](./money.ts), which imports no
 `react-native` — see the bottom of this file.
+
+## `TimeValue` and `clock.ts`
+
+Every clock time in the app, and **the only place a time is formatted**. All
+times are 12-hour with a meridiem; there is no 24-hour display anywhere.
+
+```tsx
+<TimeValue minutes={14 * 60 + 15} />                       // 2:15 PM
+<TimeValue minutes={booked} variant="headline" tone="inverse" />
+```
+
+- Digits are Latin in both languages (§7.11), same reason as money: DM Mono has
+  no Arabic-Indic coverage and the day view's columns are tabular.
+- The meridiem does localize — `ص`/`م` in Arabic, which is what an Egyptian
+  reader expects. It is a second `Text` so it can carry the Naskh face without
+  dragging the digits off the mono one, exactly as `MoneyValue` handles `ج.م`.
+- `minutes` is minutes from midnight. An ISO string goes through `minutesOfDay`.
+
+The strings live in `clock.ts`, which imports no `react-native` on purpose — it
+is the one piece of this directory that `bun test` can reach, and the day
+cluster's `time.ts` and `chair.ts` re-export from it without pulling Metro into
+a test run. `clock12` and `time12` return the figure and the meridiem
+separately, for callers that set them at different sizes; `formatClock12`,
+`formatTime12`, `formatStamp` and `formatSpan` are the one-string forms for a
+label, a toast or an accessibility string. Those are the whole list. **No screen
+formats a time itself**: no `padStart`, no `:` template, no `HH:MM`.
+
+24-hour `HH:MM` strings are transport only — what the server sends, parsed by
+the day cluster's `clockToMinutes`, and what `settings`' `timeFromMinutes`
+writes back. They never reach a screen. The app has no 24-hour formatter at all
+any more; `@lustre/shared/dates` briefly carried a second `clock12` and no
+longer does.
 
 ## `PatientRow`
 
@@ -194,7 +226,10 @@ than render tests. The *components* here are covered by the same two scanners (n
 raw colours, no physical directions) and by nothing else. A render test needs a
 test renderer first; it is worth doing before the money screens land.
 
-`patientDraft` is the exception in both directions: it imports no `react-native`,
-so `patientDraft.test.ts` runs on Bun like any other logic module. The three
-cluster suites cover their own submission shapes on top of it; that file covers
-the rules themselves at their edges.
+`patientDraft` and `clock.ts` are the exceptions, both for the same reason: they
+import no `react-native`, so `patientDraft.test.ts` and `clock.test.ts` run on
+Bun like any other logic module. The three cluster suites cover their own
+submission shapes on top of `patientDraft`; that file covers the rules
+themselves at their edges. `clock.ts`'s renderer, `TimeValue`, is in the same
+position as every other component here — unverified until there is a device or
+a test renderer.

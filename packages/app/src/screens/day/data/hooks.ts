@@ -80,8 +80,18 @@ export function useLocalQuery<T>(
     return { data, status, error, refreshing, refetch };
 }
 
+/**
+ * `onError` runs in addition to the held `error`, never instead of it: the
+ * failure still lands on screen, and this is only for the recovery that has to
+ * happen with it — re-reading the times a refused booking has just proved stale.
+ */
+export interface MutationHandlers<T> {
+    onSuccess?: (result: T) => void;
+    onError?: (error: RequestError) => void;
+}
+
 export interface MutationResult<I, T> {
-    mutate: (input: I, handlers?: { onSuccess?: (result: T) => void }) => void;
+    mutate: (input: I, handlers?: MutationHandlers<T>) => void;
     pending: boolean;
     error: RequestError | null;
     reset: () => void;
@@ -103,7 +113,7 @@ export function useLocalMutation<I, T>(run: (input: I) => Promise<T>): MutationR
         };
     }, []);
 
-    const mutate = useCallback((input: I, handlers?: { onSuccess?: (result: T) => void }) => {
+    const mutate = useCallback((input: I, handlers?: MutationHandlers<T>) => {
         if (inFlight.current) return;
         inFlight.current = true;
         setPending(true);
@@ -114,7 +124,10 @@ export function useLocalMutation<I, T>(run: (input: I) => Promise<T>): MutationR
                 const result = await runRef.current(input);
                 if (mounted.current) handlers?.onSuccess?.(result);
             } catch (err) {
-                if (mounted.current) setError(asRequestError(err));
+                if (!mounted.current) return;
+                const failure = asRequestError(err);
+                setError(failure);
+                handlers?.onError?.(failure);
             } finally {
                 inFlight.current = false;
                 if (mounted.current) setPending(false);

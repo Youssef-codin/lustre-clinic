@@ -23,12 +23,12 @@
  * visit snapshots the catalogue on the day, §7), and pricing is the desk's.
  */
 import { StyleSheet, View } from 'react-native';
-import { StatusPill, ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
+import { StatusPill, TimeValue, ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
 import { Button, Sheet } from '../../../components/ui';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Appointment, AppointmentProcedure } from '../data';
 import { toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatTime, minutesOfDay, minutesToClock, relativeDayLabel } from '../time';
+import { dateKey, formatSpan, minutesOfDay, relativeDayLabel } from '../time';
 
 export type DoctorVisitSheetProps = {
     visible: boolean;
@@ -125,9 +125,12 @@ function Identity({ appointment }: { appointment: Appointment }) {
     return (
         <View style={styles.identity}>
             <View style={styles.tile}>
-                <Text variant="headline" script="mono" weight="semibold" tone="inverse">
-                    {formatTime(appointment.startsAt)}
-                </Text>
+                <TimeValue
+                    minutes={minutesOfDay(appointment.startsAt)}
+                    variant="headline"
+                    weight="semibold"
+                    tone="inverse"
+                />
                 <Text variant="tag" tone="inverse" style={styles.tileSub}>
                     {`${appointment.durationMinutes} MIN`}
                 </Text>
@@ -149,11 +152,6 @@ function Identity({ appointment }: { appointment: Appointment }) {
 }
 
 /**
- * The quantity rides on the name rather than in a column of its own: it is 1 on
- * nearly every line, and a column that is almost always "1" costs more width
- * than it explains.
- */
-/**
  * One planned procedure as a `ToothGroupCard` line. The quantity is folded into
  * the name rather than given a column of its own — it is almost always one, and
  * a column that reads `1` down every row is a column about nothing.
@@ -166,11 +164,11 @@ function planLine(procedure: AppointmentProcedure): ToothGroupLine {
     };
 }
 
-/** `Today · 11:35 – 12:35`. */
+/** `Today · 11:35 AM – 12:35 PM`. */
 function slotLabel(appointment: Appointment): string {
     const start = new Date(appointment.startsAt);
-    const end = minutesOfDay(appointment.startsAt) + appointment.durationMinutes;
-    return `${relativeDayLabel(dateKey(start))} · ${formatTime(appointment.startsAt)} – ${minutesToClock(end)}`;
+    const from = minutesOfDay(appointment.startsAt);
+    return `${relativeDayLabel(dateKey(start))} · ${formatSpan(from, from + appointment.durationMinutes)}`;
 }
 
 const styles = StyleSheet.create({

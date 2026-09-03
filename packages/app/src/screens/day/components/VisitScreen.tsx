@@ -30,7 +30,7 @@ import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, 
 import { describeError } from '../errors';
 import { formatAmount, formatMoney, poundsEntry } from '../money';
 import { checkupToAdd, toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime, todayKey } from '../time';
+import { dateKey, formatLongDate, formatTime12, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
@@ -387,7 +387,7 @@ export function VisitScreen({
                         {appointment.patient.name}
                     </Text>
                     <Text variant="subhead" tone="muted">
-                        {`${formatLongDate(day)} · ${formatTime(appointment.startsAt)}`}
+                        {`${formatLongDate(day)} · ${formatTime12(appointment.startsAt)}`}
                     </Text>
                     <View style={styles.chipRow}>
                         <VisitStatusChip state={visitState(where, visit?.completedAt != null)} />

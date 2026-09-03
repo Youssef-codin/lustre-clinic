@@ -233,6 +233,46 @@ drawn on the timeline — it is where there is room — but a walk-in starts at
 a real booking needs belongs to the Patients cluster. Creation on this screen is
 the FAB, which opens the walk-in sheet (§7).
 
+## The empty day's ring illustrates; it is not a second FAB
+
+Same rule as above, applied to the other thing on the empty day that looked
+pressable. `DayEmpty` passed `EmptyState` an `icon` of `<Text variant="title3">+</Text>`,
+and `EmptyState` renders `icon` inside a plain `View` — the ring is 52px at
+`radius.full`, which is `BookFab` exactly, holding the same glyph. So the one
+screen whose whole subject is "there is nothing here yet" drew the FAB twice and
+wired up one of them.
+
+The bug report proposed giving the ring a press handler and thought that the
+likely answer. It isn't, and the reason is the FAB the report does not mention:
+
+- **Desk, future day** — the ring would become a *third* target for an action
+  already offered by the FAB and by the `Book someone in` CTA below it.
+- **Doctor, future day** — `DoctorDayScreen` passes no `onBook` and carries no
+  FAB, because booking is the desk's job. There is no handler to give it.
+- **Either screen, past day** — nothing to book. There is no handler to give it.
+
+A press handler fixes one of four states, and only the state where the action
+was already reachable twice. So the ring stops being drawn as the control
+instead: `empty.ts` returns a muted `calendar` for a day that has not happened
+yet, and `none` — no ring at all, matching `ClosedDay` — for a past day, which
+is a fact rather than an offer.
+
+**Audited before changing the shared component.** `EmptyState` has nine callers;
+`DayStates` is the only one that has ever passed `icon`. Every other caller takes
+the default muted `+`, which is correct for them: no other screen has a FAB for
+it to be mistaken for. `EmptyState` therefore gained one thing only — `icon={null}`
+suppresses the ring — which is unreachable from any existing caller. Its
+pressability was left alone.
+
+The third state the fix exposed: the future-day body read *"Book someone in for
+later, or start a walk-in who is at the desk now"* on the doctor's screen too,
+where neither is possible. `emptyDay` now takes `canBook` and tells the doctor
+where bookings come from instead.
+
+**Not in scope, still true:** `GalleryScreen` renders an `EmptyState` with an
+`actionLabel` and no `onAction`. That is the dev gallery drawing a specimen, not
+a screen offering an action.
+
 ## `packages/app/tsconfig.json` carries `allowImportingTsExtensions`
 
 **A shared file edited from a screens cluster**, against §10, on purpose.
@@ -548,12 +588,59 @@ rail — and the server answers newest-first, so it was not invented.
 Needs a designed screen showing what a group band looks like, and
 `patient.recent` growing an `order`.
 
-## There is no time field in `ui/`
+## Every time in the app is 12-hour, and the device does not get a vote
 
-Working hours uses a `ui/Select` of half-hour slots from 07:00 to 22:00. Plain,
-obvious, and it cannot produce a value the server would reject. A real
-`ui/TimeField` — or a platform picker — would be better if a clinic ever opens
-at 09:45.
+All clock times display as 12-hour with a meridiem. There is no 24-hour anywhere
+in the UI. Formatting happens in one place — `domain/clock`, the way money
+happens in `domain/MoneyValue` — because the per-screen alternative drifts back
+the moment someone adds a screen, which is exactly how the day cluster and the
+settings cluster ended up with two copies of the same eight lines.
+
+24-hour `HH:MM` survives as *transport* and nothing else: it is what the server
+sends and what `settings`' `timeFromMinutes` writes back. It never reaches a
+screen. Storage is unchanged — `TIME` and `timestamptz` as before.
+
+The meridiem localizes and the digits do not. `ص`/`م` in Arabic, because that is
+what an Egyptian reader expects; Latin numerals in both languages per §7.11,
+because DM Mono has no Arabic-Indic coverage and the day view's columns are
+tabular. That split is why `clock12` hands back the figure and the marker
+separately — the marker has to reach the Naskh face without taking the digits
+with it, the same problem `ج.م` has in `MoneyValue`.
+
+## The native time picker, forced to 12-hour
+
+Working hours used a `ui/Select` of hardcoded half-hour slots in a full-height
+sheet: no selected state, no confirm, and a clinic opening at 09:45 could not
+say so. It is now the Android platform picker (`DateTimePickerAndroid`), which
+opens on the current value, marks it, has OK and Cancel, sizes itself and counts
+in minutes. Settings is the lowest-traffic screen in the app and these hours
+change roughly never, which is the argument against hand-building a wheel for
+it.
+
+**The catch, and the resolution.** A native picker follows the *device's*
+12/24-hour setting, which would have put a 24-hour clock inside the one control
+that edits a time while every other surface showed 12-hour — the decision above
+losing in the place it is most visible. Android takes an explicit
+`is24Hour: false`, so the app's decision wins and the device's is ignored. That
+override is what makes the native picker compatible with "no 24-hour anywhere"
+rather than an exception to it, and it is not optional.
+
+This does not generalise to iOS, whose spinner cannot be forced off the device
+setting. The app has no iOS build — `scripts/` is adb and gradle throughout — so
+the conflict is not live. If iOS is ever built, it has to be settled before the
+picker is reused there.
+
+**Still open:** the picker draws its *own* AM/PM from the OS locale, which the
+app cannot override. On an English-locale device showing an Arabic layout, the
+dialog says PM where the row behind it says م. Nothing to do about it short of
+abandoning the native picker.
+
+The `ui/TimeField` this entry used to ask for still does not exist. The control
+lives in the settings cluster instead, because `ui/boundaries.test.ts` lets a
+primitive import only react, react-native, the theme and its siblings, and the
+picker is a native module outside that list. Promoting it means widening that
+allowlist — a bigger call than one screen's picker, and one caller does not
+justify it.
 
 ---
 

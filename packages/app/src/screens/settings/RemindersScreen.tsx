@@ -16,11 +16,11 @@
  * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
  * the server accepts.
  */
-import { formatClock12 } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTRPC } from '../../api';
+import { formatClock12 } from '../../components/domain';
 import {
     Callout,
     Card,

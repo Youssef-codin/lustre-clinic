@@ -29,9 +29,9 @@
  * `hours.ts` and the timeline use.
  */
 import type { Appointment, ClinicDay } from './data/types';
-import { hoursFor } from './hours';
+import { hoursFor, isClosed } from './hours';
 import { holdsSlot } from './month';
-import { minutesOfDay } from './time';
+import { addDays, clock12, formatDate, minutesOfDay, relativeDayLabel } from './time';
 
 /** No grid finer than this, however short the visit — five-minute chips are a wall. */
 export const MIN_SLOT_STEP = 5;
@@ -102,4 +102,97 @@ export function firstFreeSlot(slots: readonly Slot[]): number | null {
 export function slotIsFree(slots: readonly Slot[], minutes: number | null): boolean {
     if (minutes === null) return false;
     return slots.some((slot) => slot.minutes === minutes && slot.state === 'free');
+}
+
+/** The days ahead the branch actually works, starting today. */
+export function workingDaysIn(
+    today: string,
+    days: number,
+    schedule: readonly ClinicDay[] | undefined,
+    branchId: string | null,
+): string[] {
+    return Array.from({ length: days }, (_, index) => addDays(today, index)).filter(
+        (key) => !isClosed(key, schedule, branchId),
+    );
+}
+
+export interface Fortnight {
+    slotsByDay: Map<string, Slot[]>;
+    /** Only the days with room left for a visit this long — what a strip may offer. */
+    openDays: string[];
+}
+
+export interface FortnightInput {
+    /** The working days, in order. `fetched` is indexed against this. */
+    days: readonly string[];
+    /** One day's rows per entry of `days`, or undefined while the read is in flight. */
+    fetched: readonly (readonly Appointment[])[] | undefined;
+    schedule: readonly ClinicDay[] | undefined;
+    branchId: string | null;
+    durationMinutes: number;
+    today: string;
+    nowMinutes: number;
+}
+
+/**
+ * A fortnight of days resolved to the times each still has free. A day that has
+ * not answered yet has no taken times *to* know about, and `slotsFor([])` says
+ * every hour is free — which is how a grid comes to offer a slot someone else is
+ * already in. So until the rows are in hand nothing is offered at all, and
+ * `openDays` is empty rather than everything.
+ */
+export function fortnightSlots({
+    days,
+    fetched,
+    schedule,
+    branchId,
+    durationMinutes,
+    today,
+    nowMinutes,
+}: FortnightInput): Fortnight {
+    const slotsByDay = new Map<string, Slot[]>();
+    if (!fetched) return { slotsByDay, openDays: [] };
+
+    days.forEach((key, index) => {
+        slotsByDay.set(
+            key,
+            slotsFor({
+                dateKey: key,
+                schedule,
+                appointments: (fetched[index] ?? []).filter((row) => row.branchId === branchId),
+                branchId,
+                durationMinutes,
+                nowMinutes: key === today ? nowMinutes : null,
+            }),
+        );
+    });
+
+    return {
+        slotsByDay,
+        openDays: days.filter((key) => (slotsByDay.get(key) ?? []).some((slot) => slot.state === 'free')),
+    };
+}
+
+/**
+ * A day as it is said out loud mid-sentence — "tomorrow at 3:00 pm". A date far
+ * enough out to be named rather than described keeps its capital.
+ */
+export function dayLabel(key: string): string {
+    const label = relativeDayLabel(key);
+    return label === formatDate(key) ? label : label.toLowerCase();
+}
+
+export function timeLabel(minutes: number): string {
+    const { time, meridiem } = clock12(minutes);
+    return `${time} ${meridiem.toLowerCase()}`;
+}
+
+/**
+ * What was already being said about a patient, with the appointment they were
+ * just given added to it. Both halves are needed after a check-in that booked
+ * the next visit: where they are standing now is what the desk acts on, and the
+ * time they have just been promised is what they will repeat at the door.
+ */
+export function withNextVisit(said: string, dateKey: string, minutes: number): string {
+    return `${said} — next visit ${dayLabel(dateKey)} at ${timeLabel(minutes)}`;
 }

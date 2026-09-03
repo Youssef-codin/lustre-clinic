@@ -8,37 +8,41 @@
  * the other side of the changeover moves the range by an hour, enough to drop
  * a late appointment off the end of its day. `dateKey` must never be
  * `toISOString`, which is UTC. Weekdays are 0 = Sunday … 6 = Saturday,
- * matching `Date#getDay` and `clinic_days.weekday`.
+ * matching `Date#getDay` and `clinic_days.weekday`. The weekday and month names
+ * are English until the F4 localisation scaffold lands. The header pill adds
+ * the weekday off today, because a bare date does not say whether Thursday is
+ * the day she meant.
  *
- * `clock12`/`time12` are what a row shows: they return the meridiem separately
- * because it is set at a different size. `formatTime` is 24-hour and is now
- * only for the two ends of a span — "09:00 – 09:30" on the detail sheet, the
- * chair's window — where one meridiem per end doubles the width of a label
- * nobody reads a time off. It used to be the row format too, "so the row and
- * ruler line up in DM Mono's tabular figures"; the ruler went when the
- * timeline became a list, and `AppointmentRow` was the last row still on it.
- * A single time on screen is 12-hour. The weekday and
- * month names are English until the F4 localisation scaffold lands. The header
- * pill adds the weekday off today, because a bare date does not say whether
- * Thursday is the day she meant.
+ * Clock times are not formatted here. They come from `domain/clock`, the one
+ * place in the app that turns a time into text, and are re-exported so this
+ * stays the day cluster's single time import. That file is reached directly
+ * rather than through the `domain` barrel because the barrel pulls in
+ * `react-native`, and this module and `chair.ts` are both imported by
+ * `day.test.ts`, which runs under Bun with no Metro.
+ *
+ * The calendar arithmetic does stay in `@lustre/shared` — it has no cluster in
+ * it and the settings panes want the same functions. The clock does not: a
+ * meridiem is presentation and it localizes, and `packages/shared` is for
+ * contracts.
+ *
+ * What is left here is transport, not display: `clockToMinutes` reads the
+ * 24-hour `HH:MM` the server sends, and nothing in this cluster writes one back
+ * — the schedule is edited in settings, which has its own `timeFromMinutes`.
  */
+import { dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey } from '@lustre/shared';
 
-// The calendar arithmetic and the 12-hour clock are `@lustre/shared/dates` —
-// they have no cluster in them and the settings panes want the same ones.
-// Re-exported here so the day cluster keeps one import for time.
-import type { Clock12 } from '@lustre/shared';
-import {
+export type { Clock12 } from '../../components/domain/clock';
+export {
     clock12,
     DAY_MINUTES,
-    dateKey,
-    localOffsetMinutes,
-    offsetForDate,
-    parseKey,
-    todayKey,
-} from '@lustre/shared';
+    formatClock12,
+    formatSpan,
+    formatTime12,
+    minutesOfDay,
+    time12,
+} from '../../components/domain/clock';
 
-export type { Clock12 };
-export { clock12, DAY_MINUTES, dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey };
+export { dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey };
 
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
@@ -54,27 +58,9 @@ export function weekdayOf(key: string): number {
     return parseKey(key).getDay();
 }
 
-export function minutesOfDay(iso: string): number {
-    const date = new Date(iso);
-    return date.getHours() * 60 + date.getMinutes();
-}
-
-export function minutesToClock(minutes: number): string {
-    const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
-    return `${pad(Math.floor(wrapped / 60))}:${pad(wrapped % 60)}`;
-}
-
 export function clockToMinutes(clock: string): number {
     const [hours = 0, minutes = 0] = clock.split(':').map(Number);
     return hours * 60 + minutes;
-}
-
-export function formatTime(iso: string): string {
-    return minutesToClock(minutesOfDay(iso));
-}
-
-export function time12(iso: string): Clock12 {
-    return clock12(minutesOfDay(iso));
 }
 
 export function isoAt(key: string, minutes: number): string {

@@ -21,7 +21,7 @@ import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment, Visit, VisitPayment } from '../data';
 import { formatAmount, formatMoney } from '../money';
 import { toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime } from '../time';
+import { dateKey, formatLongDate, formatTime12 } from '../time';
 import { VisitStatusChip } from './VisitStatusChip';
 
 export type VisitViewScreenProps = {
@@ -90,7 +90,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                         {appointment.patient.name}
                     </Text>
                     <Text variant="subhead" tone="muted">
-                        {`${formatLongDate(day)} · ${formatTime(appointment.startsAt)}`}
+                        {`${formatLongDate(day)} · ${formatTime12(appointment.startsAt)}`}
                     </Text>
                     <View style={styles.chipRow}>
                         <VisitStatusChip state={visit.completedAt ? 'finished' : 'unpaid'} />

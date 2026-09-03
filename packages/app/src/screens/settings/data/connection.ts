@@ -10,9 +10,9 @@
  * the card on every re-probe — the spinner on the button is what says the app
  * is working. Only a settled answer changes the words.
  */
-import { formatClock12 } from '@lustre/shared';
 import { useRef } from 'react';
 import { serverAddresses, useConnection } from '../../../api';
+import { formatClock12, formatStamp } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
 
 export type ConnectionKind = 'wifi' | 'remote' | 'offline';
