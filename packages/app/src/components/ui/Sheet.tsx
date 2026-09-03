@@ -33,7 +33,7 @@ import {
     useBottomSheetTimingConfigs,
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
@@ -65,18 +65,6 @@ export function Sheet({
     const sheet = useRef<BottomSheetModal>(null);
     const insets = useSafeAreaInsets();
     const window = useWindowDimensions();
-
-    /**
-     * The footer's height, so the scroll can end above it.
-     *
-     * `BottomSheetFooter` is positioned over the content rather than beside it,
-     * so without this the last thing in the sheet sits underneath the footer —
-     * the calendar's day summary disappeared behind "Go to this day". This is a
-     * measurement, which everything else in this file was rewritten to avoid,
-     * but it is an inert one: it feeds padding, not geometry, so a frame at the
-     * wrong value costs a moment of the last row being low, not a jump.
-     */
-    const [footHeight, setFootHeight] = useState(0);
 
     /**
      * The library's own curve, `Easing.out(Easing.exp)`, at the design's
@@ -203,12 +191,7 @@ export function Sheet({
         (props: BottomSheetFooterProps) =>
             footer ? (
                 <BottomSheetFooter {...props} bottomInset={0}>
-                    <View
-                        onLayout={(event) => setFootHeight(event.nativeEvent.layout.height)}
-                        style={[styles.footer, { paddingBottom: floor }]}
-                    >
-                        {footer}
-                    </View>
+                    <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View>
                 </BottomSheetFooter>
             ) : null,
         [footer, floor],
@@ -237,10 +220,14 @@ export function Sheet({
         >
             <BottomSheetScrollView
                 testID={testID}
-                contentContainerStyle={[
-                    styles.scrollContent,
-                    { paddingBottom: footer ? footHeight + space[4] : floor },
-                ]}
+                // The library holds the footer's height as an animated value and
+                // keeps the scroll clear of it on the UI thread. Measuring it
+                // ourselves and padding by it changed the content's height, which
+                // moved the snap point the sheet was already travelling to — so
+                // it re-aimed mid-open and arrived in two visible steps, with the
+                // footer's button shifting under the second one.
+                enableFooterMarginAdjustment={Boolean(footer)}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: footer ? space[4] : floor }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
             >
