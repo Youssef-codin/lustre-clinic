@@ -24,10 +24,9 @@
  * colour and the surface all come from the theme, so the library supplies the
  * mechanics and none of the look.
  */
-import type { BottomSheetBackdropProps, BottomSheetFooterProps } from '@gorhom/bottom-sheet';
+import type { BottomSheetBackdropProps } from '@gorhom/bottom-sheet';
 import {
     BottomSheetBackdrop,
-    BottomSheetFooter,
     BottomSheetModal,
     BottomSheetScrollView,
     useBottomSheetTimingConfigs,
@@ -82,6 +81,14 @@ export function Sheet({
      * showed on a phone. The tab bar at the same edge reads the inset the same way.
      */
     const floor = space[6] + insets.bottom;
+
+    /**
+     * The tallest the content column may be, and the same figure the sheet is
+     * told to cap itself at. Stating it on the column too is what lets the
+     * scroll shrink: `flexShrink` needs a definite bound to shrink against, and
+     * without one the footer is laid out past the cap and clipped away.
+     */
+    const maxContent = window.height * maxHeightRatio - floor;
 
     /** True once a close is under way, so the two paths cannot re-enter. */
     const closing = useRef(false);
@@ -187,16 +194,6 @@ export function Sheet({
         [title, subtitle],
     );
 
-    const renderFooter = useCallback(
-        (props: BottomSheetFooterProps) =>
-            footer ? (
-                <BottomSheetFooter {...props} bottomInset={0}>
-                    <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View>
-                </BottomSheetFooter>
-            ) : null,
-        [footer, floor],
-    );
-
     return (
         <BottomSheetModal
             ref={sheet}
@@ -205,33 +202,45 @@ export function Sheet({
             // The cap is on the *content*; the handle and footer are added on
             // top of it. `topInset` is what actually stops a tall sheet from
             // reaching the status bar.
-            maxDynamicContentSize={window.height * maxHeightRatio - floor}
+            maxDynamicContentSize={maxContent}
             topInset={insets.top}
             enablePanDownToClose={dismissable}
             enableOverDrag={false}
             handleComponent={renderHandle}
             backdropComponent={renderBackdrop}
-            footerComponent={renderFooter}
             backgroundStyle={styles.sheet}
             onDismiss={handleDismiss}
             keyboardBehavior="interactive"
             keyboardBlurBehavior="restore"
             android_keyboardInputMode="adjustResize"
         >
+            {/*
+             * The footer is ordinary content, not `footerComponent`.
+             *
+             * The library's footer is deliberately pinned to the bottom of the
+             * container: it counter-translates by `containerHeight - position`,
+             * so as the sheet rises the footer slides down inside it by very
+             * nearly the same amount and stays put on screen. That is the
+             * button arriving first and the sheet catching up behind it. Here
+             * the footer belongs to the sheet, so it goes in the column and
+             * rides the one transform with everything else.
+             *
+             * It goes inside the scroll rather than beside it because that is
+             * the only place the sheet measures. A sibling column has no
+             * definite height for the scroll to shrink against, so the footer
+             * was laid out past the cap and clipped away entirely — the sheet
+             * came up with no button at all. The cost is that on a sheet tall
+             * enough to scroll, the action scrolls with the content.
+             */}
             <BottomSheetScrollView
                 testID={testID}
-                // The library holds the footer's height as an animated value and
-                // keeps the scroll clear of it on the UI thread. Measuring it
-                // ourselves and padding by it changed the content's height, which
-                // moved the snap point the sheet was already travelling to — so
-                // it re-aimed mid-open and arrived in two visible steps, with the
-                // footer's button shifting under the second one.
-                enableFooterMarginAdjustment={Boolean(footer)}
-                contentContainerStyle={[styles.scrollContent, { paddingBottom: footer ? space[4] : floor }]}
+                contentContainerStyle={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="interactive"
             >
                 {children}
+
+                {footer ? <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View> : null}
             </BottomSheetScrollView>
         </BottomSheetModal>
     );
@@ -249,6 +258,9 @@ const styles = StyleSheet.create({
     header: { paddingHorizontal: size.gutter, paddingTop: space[2], paddingBottom: space[3], gap: space[1] },
     scrollContent: { paddingHorizontal: size.gutter, gap: space[3] },
     footer: {
+        // Bleeds back out of the scroll's gutter so the rule above the action
+        // still spans the sheet edge to edge.
+        marginHorizontal: -size.gutter,
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
         borderTopWidth: 1,
