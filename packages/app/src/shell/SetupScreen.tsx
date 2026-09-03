@@ -7,11 +7,12 @@ import { color, radius, space, Text } from '../theme';
 import { noAnswer, type ServerCandidate, toBase } from './address';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
-// First run (SPEC §18 F1), and the fallback rather than the front door: the
-// clinic PC holds a static address that `app.json` ships as the default, which
-// `shell/serverStore.ts` probes on boot, so a phone at the clinic it was built
-// for never sees this screen. What is left for it is the clinic that moved its
-// server, the second clinic running the same build, and the typo — someone
+// First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
+// the first launch of a shipped build lands here and someone types where the
+// clinic PC is. A build that does carry a default — a dev machine's, or a
+// clinic that baked its own in — has it probed on boot by
+// `shell/serverStore.ts` and skips this screen when it answers. The rest of
+// the traffic here is the clinic that moved its server and the typo: someone
 // standing in front of the phone, correcting an address that did not answer.
 //
 // Both sides are collected because §14 resolves them in order: the LAN address
