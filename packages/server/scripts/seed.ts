@@ -1118,6 +1118,25 @@ await db.transaction(async (tx) => {
         });
 });
 
+// Which day the fixtures actually landed on, and where. Everything here is
+// relative to the moment the seed runs, so a database seeded yesterday has an
+// empty today — and because a booking's branch is whichever one is open that
+// weekday (`branchOpenOn`), today's work moves between Nasr City and Maadi as
+// the week turns. Both of those read as "the app is broken" from the day view,
+// so the seed says out loud what it just made.
+const todayStart = todayLocalMidnight.getTime();
+const todayRows = appointmentRows.filter((row) => {
+    const startsAt = (row.startsAt as Date).getTime();
+    return startsAt >= todayStart && startsAt < todayStart + 86_400_000;
+});
+const openTodayId = branchOpenOn(at(0, '12:00'))?.id;
+const openToday =
+    openTodayId === undefined
+        ? 'closed today'
+        : openTodayId === secondBranch.id
+          ? secondBranch.name
+          : mainBranch.name;
+
 logger.info(
     {
         branches: 3,
@@ -1126,8 +1145,19 @@ logger.info(
         visits: visitRows.length,
         payments: paymentRows.length,
         reminders: reminderRows.length,
+        // Shifted back into clinic-local before formatting: local midnight is
+        // 21:00 UTC the day before, so a bare toISOString names the wrong day.
+        today: new Date(todayStart + CLINIC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10),
+        todayBranch: openToday,
+        todayAppointments: todayRows.length,
     },
     'seeded',
 );
+
+if (todayRows.length === 0) {
+    logger.warn(
+        'nothing is booked today — the clinic is closed on this weekday, so the day view will be empty until you move to an open one',
+    );
+}
 
 await sql.end();
