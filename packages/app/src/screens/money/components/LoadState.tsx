@@ -4,6 +4,7 @@
 // moved is worse than a screen that says it is broken.
 import type { ErrorCode } from '@lustre/shared';
 import type { ReactNode } from 'react';
+// biome-ignore lint/style/noRestrictedImports: drives the skeleton's `Animated.loop` imperatively, and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Button, Card, PULSE, useReducedMotion } from '../../../components/ui';

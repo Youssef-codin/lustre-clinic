@@ -23,7 +23,7 @@
 // `adjustResize`, so the window shrinks around the keyboard and the footer
 // stays above it without being translated.
 import { resolveLabel } from '@lustre/shared';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Callout, EmptyState, ProgressBar, SkeletonRows } from '../../components/ui';
 import { useLocale } from '../../shell/localeStore';
@@ -95,15 +95,11 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     }, [creating, questions.data, record.data, editable]);
 
     // Seeded once and then left alone: this is a draft the desk is typing into,
-    // and a re-read landing underneath it would take back what they wrote.
+    // and a re-read landing underneath it would take back what they wrote. The
+    // null is what says "not seeded yet" — nothing ever sets it back, so the
+    // condition cannot fire twice.
     const [form, setForm] = useState<PatientForm | null>(null);
-    const seeded = useRef(false);
-
-    useEffect(() => {
-        if (seeded.current || initial === null) return;
-        seeded.current = true;
-        setForm(initial);
-    }, [initial]);
+    if (form === null && initial !== null) setForm(initial);
 
     const loading = questions.loading || record.loading;
     const failed = questions.error ?? record.error;

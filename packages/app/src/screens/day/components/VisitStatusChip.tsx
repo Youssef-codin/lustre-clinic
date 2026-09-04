@@ -12,6 +12,7 @@
  * rather than hiding it, because the state is the point and the pulse is
  * decoration.
  */
+// biome-ignore lint/style/noRestrictedImports: drives the chair dot's `Animated.loop` imperatively, and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { PULSE, useReducedMotion } from '../../../components/ui';

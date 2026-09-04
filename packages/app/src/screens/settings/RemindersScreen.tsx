@@ -139,6 +139,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 max={96}
                                 format={(hours) => `${hours} h`}
                                 onChange={(reminderLeadHours) => write({ reminderLeadHours })}
+                                saving={save.isPending}
                                 testID="reminder-lead"
                             />
                             <CardDivider />
@@ -151,6 +152,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={60}
                                 format={formatClock12}
                                 onChange={(minutes) => write({ reminderNotifyAt: timeFromMinutes(minutes) })}
+                                saving={save.isPending}
                                 testID="reminder-notify"
                             />
                             <CardDivider />
@@ -163,6 +165,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={15}
                                 format={(minutes) => `${minutes} min`}
                                 onChange={(reminderRepeatMinutes) => write({ reminderRepeatMinutes })}
+                                saving={save.isPending}
                                 testID="reminder-repeat"
                             />
                         </Card>
@@ -253,10 +256,11 @@ type TimingRowProps = {
     step?: number;
     format: (value: number) => string;
     onChange: (value: number) => void;
+    saving: boolean;
     testID: string;
 };
 
-function TimingRow({ label, hint, value, min, max, step, format, onChange, testID }: TimingRowProps) {
+function TimingRow({ label, hint, value, min, max, step, format, onChange, saving, testID }: TimingRowProps) {
     return (
         <View style={styles.timing}>
             <View style={styles.timingText}>
@@ -275,6 +279,7 @@ function TimingRow({ label, hint, value, min, max, step, format, onChange, testI
                 step={step}
                 format={format}
                 onChange={onChange}
+                disabled={saving}
                 accessibilityLabel={label}
                 testID={testID}
             />

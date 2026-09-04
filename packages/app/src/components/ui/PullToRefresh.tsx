@@ -20,6 +20,7 @@
  * every query hook in the app settles on both paths — and it is the honest
  * state for a read still crossing the tunnel.
  */
+// biome-ignore lint/style/noRestrictedImports: clears the floor `setTimeout` on unmount — an external timer, and the only effect left here
 import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshControl, type RefreshControlProps, ScrollView, StyleSheet } from 'react-native';
 import { color } from '../../theme';
@@ -61,10 +62,10 @@ export function usePullToRefresh(refresh: () => void, busy: boolean): RefreshCon
         refreshRef.current();
     }, []);
 
-    useEffect(() => {
-        if (!refreshing || busy || floor) return;
-        setRefreshing(false);
-    }, [refreshing, busy, floor]);
+    // Adjusted during render rather than in an effect: the spinner going down is
+    // a fact about `busy` and `floor`, not a thing that happens to them, and an
+    // effect would paint one frame of a spinner that has already finished.
+    if (refreshing && !busy && !floor) setRefreshing(false);
 
     return (
         <RefreshControl

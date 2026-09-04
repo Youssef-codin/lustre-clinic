@@ -21,7 +21,7 @@
  * "Class II" — the line is right, its heading is not remembered.
  */
 import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Callout, Chevron, duration, Toast } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
@@ -171,6 +171,14 @@ export function VisitScreen({
     const price = useLocalMutation(amend);
     const checkIn = useLocalMutation(arrive);
     const sendToDesk = useLocalMutation(api.awaitPayment);
+
+    /**
+     * Which of the two footer buttons is mid-write. `amend` alone cannot say:
+     * both press it, Send to desk as the first half of its pair, so keying the
+     * spinner off `price.pending` put it on Confirm whichever was pressed. Set
+     * before the mutation, so the re-render its `pending` causes reads it.
+     */
+    const acting = useRef<'confirm' | 'desk'>('confirm');
 
     // What the catalogue charges, by procedure. An arrival's lines carry no
     // price of their own until one is typed over them.
@@ -323,6 +331,7 @@ export function VisitScreen({
      * written and nothing is what happened.
      */
     function confirm() {
+        acting.current = 'confirm';
         if (mode === 'checkout') {
             save(onConfirm);
             return;
@@ -340,6 +349,7 @@ export function VisitScreen({
      * payment there.
      */
     function handToDesk() {
+        acting.current = 'desk';
         save(() =>
             sendToDesk.mutate(appointment.id, {
                 onSuccess: () =>
@@ -353,6 +363,11 @@ export function VisitScreen({
     const writeError = price.error ?? checkIn.error ?? sendToDesk.error;
     const failure = writeError ? describeError(writeError, 'check-out') : null;
     const writing = price.pending || checkIn.pending || sendToDesk.pending;
+    // Confirm carries the arrival too: on `arrival` it is `arrive` that runs,
+    // not `amend`, and keying off `amend` alone left check-in — the write the
+    // desk makes most — looking idle for the whole round trip.
+    const confirming = acting.current === 'confirm' && (price.pending || checkIn.pending);
+    const handingOver = acting.current === 'desk' && (price.pending || sendToDesk.pending);
     const day = dateKey(new Date(appointment.startsAt));
 
     return (
@@ -613,8 +628,8 @@ export function VisitScreen({
                             label="Send to desk"
                             variant="ghost"
                             block
-                            loading={sendToDesk.pending}
-                            disabled={price.pending}
+                            loading={handingOver}
+                            disabled={confirming}
                             onPress={handToDesk}
                             testID="visit-send-to-desk"
                         />
@@ -624,8 +639,8 @@ export function VisitScreen({
                     <Button
                         label="Confirm"
                         block
-                        loading={price.pending}
-                        disabled={sendToDesk.pending}
+                        loading={confirming}
+                        disabled={handingOver}
                         onPress={confirm}
                         testID="visit-confirm"
                     />

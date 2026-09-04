@@ -1,4 +1,5 @@
 import { WS_EVENT, type WsEvent } from '@lustre/shared';
+// biome-ignore lint/style/noRestrictedImports: opens the `/ws` socket and closes it on cleanup — the subscription case this hook exists for
 import { useEffect } from 'react';
 import { api } from './client';
 import { timing, wsUrl } from './config';

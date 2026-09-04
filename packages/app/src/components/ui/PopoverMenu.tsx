@@ -7,6 +7,7 @@
  * of sitting under its trigger.
  */
 import type { ReactNode } from 'react';
+// biome-ignore lint/style/noRestrictedImports: runs the open/close `Animated.timing` and unmounts on its completion callback, so the menu finishes leaving before it goes
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { color, radius, shadow, size, space, Text } from '../../theme';

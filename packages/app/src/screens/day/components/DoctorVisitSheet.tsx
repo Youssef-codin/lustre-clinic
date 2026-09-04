@@ -23,7 +23,7 @@
  * visit snapshots the catalogue on the day, §7), and pricing is the desk's.
  */
 import { StyleSheet, View } from 'react-native';
-import { StatusPill, TimeValue, ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
+import { StatusPill, ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
 import { Button, Sheet } from '../../../components/ui';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Appointment, AppointmentProcedure } from '../data';
@@ -115,24 +115,21 @@ export function DoctorVisitSheet({ visible, appointment, onClose, onOpenRecord }
 }
 
 /**
- * The mock's identity block, with the time on the dark tile where it puts the
- * date. A doctor opening this already knows what day it is; what he is placing
- * is the patient against the hour, so the tile carries the slot and the line
- * under the name carries the day — which only says something worth reading when
- * he is looking at a day that is not today.
+ * The mock's identity block, with the length of the visit on the dark tile
+ * where it puts the date. The tile is 64pt and a start time is not: `10:00 AM`
+ * set at headline clipped its meridiem. The line under the name already carries
+ * the day and both ends of the slot, so the hour was the one thing on the tile
+ * said twice, and how long he has is the thing it was not saying at all.
  */
 function Identity({ appointment }: { appointment: Appointment }) {
     return (
         <View style={styles.identity}>
             <View style={styles.tile}>
-                <TimeValue
-                    minutes={minutesOfDay(appointment.startsAt)}
-                    variant="headline"
-                    weight="semibold"
-                    tone="inverse"
-                />
+                <Text variant="title3" script="sans" weight="semibold" tone="inverse">
+                    {String(appointment.durationMinutes)}
+                </Text>
                 <Text variant="tag" tone="inverse" style={styles.tileSub}>
-                    {`${appointment.durationMinutes} MIN`}
+                    MIN
                 </Text>
             </View>
 

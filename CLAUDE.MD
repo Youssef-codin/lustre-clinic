@@ -32,7 +32,15 @@ push it, open the PR from there against `main`.
 ## Key Conventions
 
 - DO NOT use try and catch unleses specifically needed to.
-- DO NOT use useEffect unless strictly needed to.
+- **`useEffect` is banned by default, and `bun lint` enforces it.** Importing it
+  from `react` is a `noRestrictedImports` error. It is the right tool for
+  synchronising with something outside React — a timer, an animation, a native
+  listener, a subscription — and almost nothing else. State derived from props
+  or other state is adjusted during render; something that happens because of a
+  tap goes in the handler. If you genuinely need one, name the outside thing and
+  suppress it on the import:
+  `// biome-ignore lint/style/noRestrictedImports: <the reason>`. "It was easier"
+  is not a reason.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)
 - **Money is integer piastres.** No floats, no decimal types, anywhere. Parse at

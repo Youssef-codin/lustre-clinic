@@ -19,6 +19,7 @@
 // costs only the row's amount. A refresh that failed over an existing list
 // leaves it up — stale, not gone (§7.14). The search is debounced because it
 // runs over Tailscale; stale answers are dropped by `useQuery`.
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { PatientRow } from '../../components/domain';

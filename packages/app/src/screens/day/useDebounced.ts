@@ -5,6 +5,7 @@
  * request for the same reason. A search that fires per character also races
  * itself, and the answer for `nad` can land after the answer for `nadi`.
  */
+// biome-ignore lint/style/noRestrictedImports: the lag is a `setTimeout` restarted on every change, and the cleanup cancelling the last one is what makes it a debounce rather than a queue
 import { useEffect, useState } from 'react';
 
 export function useDebounced<T>(value: T, delayMs: number): T {

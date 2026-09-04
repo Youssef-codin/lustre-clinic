@@ -4,6 +4,7 @@
 // design colours: "Outstanding" is context, the age is the thing that is
 // getting worse. Entry animates only on mount; re-running on a filter change
 // would restage the whole list on every search keystroke.
+// biome-ignore lint/style/noRestrictedImports: runs the staggered entry `Animated.timing` on mount and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';

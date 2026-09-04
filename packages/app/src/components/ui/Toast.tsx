@@ -6,6 +6,7 @@
  * without a gap gets its own full life, not the remainder of the one it
  * displaced.
  */
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — the slide `Animated.timing` with its unmount callback, and the `setTimeout` that dismisses the toast
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet } from 'react-native';
 import { color, radius, size, space, Text } from '../../theme';

@@ -5,6 +5,11 @@
  * hours before an appointment, a time of day, a repeat interval. The number
  * stepped is still the number, so `min`/`max`/`step` and the accessibility
  * value stay in that unit; only the label between the buttons is rendered.
+ *
+ * `disabled` is for the steppers that write on the tap rather than into a form
+ * waiting on a Save. The write crosses Tailscale, and nothing else on the row
+ * says so — without it a second tap lands on a value the server has not
+ * confirmed and starts a race against the first.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { color, radius, space, Text } from '../../theme';
@@ -16,6 +21,7 @@ export type StepperProps = {
     max?: number;
     step?: number;
     format?: (value: number) => string;
+    disabled?: boolean;
     accessibilityLabel?: string;
     testID?: string;
 };
@@ -27,17 +33,19 @@ export function Stepper({
     max = Number.MAX_SAFE_INTEGER,
     step = 1,
     format,
+    disabled = false,
     accessibilityLabel,
     testID,
 }: StepperProps) {
-    const canDecrement = value - step >= min;
-    const canIncrement = value + step <= max;
+    const canDecrement = !disabled && value - step >= min;
+    const canIncrement = !disabled && value + step <= max;
 
     return (
         <View
             accessibilityRole="adjustable"
             accessibilityLabel={accessibilityLabel}
             accessibilityValue={{ now: value, min, max }}
+            accessibilityState={{ disabled, busy: disabled }}
             style={styles.track}
             testID={testID}
         >

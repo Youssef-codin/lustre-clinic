@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noRestrictedImports: runs the knob's `Animated.timing` when `value` changes; the animation is imperative and lives outside React's render
 import { useEffect, useRef } from 'react';
 import { Animated, I18nManager, Pressable, StyleSheet } from 'react-native';
 import { color, radius } from '../../theme';

@@ -32,6 +32,7 @@ import {
     useBottomSheetTimingConfigs,
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — driving `BottomSheetModal`'s imperative present/dismiss ref, and swallowing the hardware back through `BackHandler`
 import { useCallback, useEffect, useRef } from 'react';
 import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

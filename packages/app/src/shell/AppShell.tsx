@@ -1,4 +1,5 @@
 import type { ClientRole } from '@lustre/shared';
+// biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
 import { useEffect, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';

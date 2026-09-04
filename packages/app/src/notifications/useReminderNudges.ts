@@ -23,6 +23,7 @@
 
 import { offsetForDate, todayKey } from '@lustre/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — arming the OS notification scheduler, and the `AppState` subscription that re-arms it on foreground
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { api, useTRPC } from '../api';

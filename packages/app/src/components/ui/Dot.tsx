@@ -1,3 +1,4 @@
+// biome-ignore lint/style/noRestrictedImports: drives an `Animated.loop` imperatively — the pulse has to be stopped on cleanup or it outlives the dot
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet } from 'react-native';
 import { color, radius } from '../../theme';

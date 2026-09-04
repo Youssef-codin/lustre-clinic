@@ -9,6 +9,7 @@
  * Re-read on foreground, because the way this gets fixed is the user leaving for
  * Android settings and coming back.
  */
+// biome-ignore lint/style/noRestrictedImports: subscribes to `AppState` to re-read the OS permission on foreground — the fix happens in Android settings, outside the app
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { notificationsAllowed } from './notifications';

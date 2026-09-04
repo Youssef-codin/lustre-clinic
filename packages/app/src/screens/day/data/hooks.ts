@@ -12,6 +12,7 @@
  * `pending` is what stops the second tap becoming a second appointment, and
  * errors are held rather than thrown so a failed write ends up on screen.
  */
+// biome-ignore lint/style/noRestrictedImports: this file is the query layer — one effect is the fetch the key subscribes to, the other tracks mount so a late answer does not set state on a gone screen
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { asRequestError, type RequestError } from './client';
 

@@ -21,7 +21,7 @@
  * refusal lands above that button in the words of what was being attempted
  * (§4/§14) — never a toast that slides away while the patient is standing there.
  */
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
@@ -178,11 +178,13 @@ export function BookingScreen({
     // Asking for a longer visit can take the day in hand off the strip. Landing
     // on the first day that can still take it beats leaving the picker pointing
     // at a day it no longer offers, with a grid that says nothing is left.
-    useEffect(() => {
-        if (openDays.length === 0 || openDays.includes(date)) return;
+    // Adjusted during render, not in an effect: `openDays` does not depend on
+    // `date`, so this settles in one pass, and an effect would paint a frame of
+    // the empty grid before correcting it.
+    if (openDays.length > 0 && !openDays.includes(date)) {
         setDate(openDays[0] as string);
         setSlotMinutes(null);
-    }, [openDays, date]);
+    }
 
     const timeIsFree = !scheduled || slotIsFree(slots, slotMinutes);
     const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);

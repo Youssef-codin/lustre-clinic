@@ -16,6 +16,7 @@
  * `flex: 1` and therefore equal, so one measurement gives the width and the
  * step. Nothing is drawn until that arrives, which is one frame.
  */
+// biome-ignore lint/style/noRestrictedImports: slides the thumb with `Animated.timing` when the selection moves, and stops it on cleanup
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';

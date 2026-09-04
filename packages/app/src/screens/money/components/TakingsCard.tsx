@@ -8,6 +8,7 @@
 // column: four bars of different lengths read as one comparison that way, and
 // the caret is what ties a label to the bar it belongs to. It is positioned
 // with `start`, not `left`, so it tracks the fill under RTL.
+// biome-ignore lint/style/noRestrictedImports: animates the method bar's width to its new share, and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { duration, easing, useReducedMotion } from '../../../components/ui';
