@@ -265,21 +265,28 @@ export function BookingScreen({
             <Text variant="eyebrow" tone="muted">
                 HOW LONG
             </Text>
-            <View style={styles.row}>
+            {/* Four to a row, wrapping — not one row of `grow` chips. Settings
+                lets the clinic keep up to twelve lengths and this screen has to
+                draw whatever it finds: `grow` is `flex: 1`, which overrides the
+                wrap and squeezes every option onto one line, so at eight of them
+                "45 min" came out as three stacked characters. The width is the
+                cell's; the chip grows to fill it. */}
+            <View style={styles.durations}>
                 {durationOptions.map((option) => (
-                    <Chip
-                        key={option}
-                        label={`${option} min`}
-                        grow
-                        selected={duration === option}
-                        onPress={() => {
-                            setDuration(option);
-                            // A new length is a new set of start times, and the
-                            // old pick is usually not one of them.
-                            setSlotMinutes(null);
-                            reset();
-                        }}
-                    />
+                    <View key={option} style={styles.duration}>
+                        <Chip
+                            label={`${option} min`}
+                            grow
+                            selected={duration === option}
+                            onPress={() => {
+                                setDuration(option);
+                                // A new length is a new set of start times, and
+                                // the old pick is usually not one of them.
+                                setSlotMinutes(null);
+                                reset();
+                            }}
+                        />
+                    </View>
                 ))}
             </View>
         </View>
@@ -287,6 +294,7 @@ export function BookingScreen({
 
     const last = step === 'confirm';
     const stepReady = step === 'when' ? whenAnswered && branch !== null : true;
+    const barIdle = last ? !ready : !stepReady;
 
     return (
         <View style={styles.screen} testID="booking-screen">
@@ -590,7 +598,13 @@ export function BookingScreen({
                     label={last ? (scheduled ? 'Book it' : 'Start the visit') : 'Next'}
                     block
                     loading={pending}
-                    disabled={last ? !ready : !stepReady}
+                    disabled={barIdle}
+                    // The only way forward on the screen, so it keeps its fill
+                    // while the step is still open. The step above already says
+                    // what is missing; a grey slab on a bar with nothing else on
+                    // it read as the screen being finished with, not as a
+                    // question waiting. It still refuses the press.
+                    disabledLook="solid"
                     onPress={() => {
                         if (last) {
                             book();
@@ -789,6 +803,9 @@ const styles = StyleSheet.create({
     section: { gap: space[2.5] },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
     grow: { flex: 1, minWidth: 0 },
+    durations: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+    /** Four to a row — 4×23% leaves the three gaps their 8pt and a little slack. */
+    duration: { width: '23%' },
 
     head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
 
@@ -829,12 +846,12 @@ const styles = StyleSheet.create({
     },
 
     notice: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
+    // No fill and no rule: the bar is the page showing through, and the button
+    // is the only thing on it that is meant to be seen.
     bar: {
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
         paddingBottom: space[4],
-        borderTopWidth: border.hair,
-        borderTopColor: color.hair,
-        backgroundColor: color.surface,
+        backgroundColor: color.transparent,
     },
 });
