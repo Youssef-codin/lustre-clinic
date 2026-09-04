@@ -25,6 +25,7 @@ import {
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
 import { withNextVisit } from './booking';
+import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
 import { type Standing, splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
@@ -104,7 +105,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
-    const [calendar, setCalendar] = useState({ open: false, seq: 0 });
+    const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [booking, setBooking] = useState({ open: false, seq: 0 });
     // Who it is for is a sheet; the rest of the booking is a page pushed over
     // the day (`PushView`), so the day keeps its date, branch and scroll and
@@ -185,7 +186,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         setVisitOpen(false);
         setBookNextOpen(false);
         setBooking((current) => ({ ...current, open: false }));
-        setCalendar((current) => ({ ...current, open: false }));
+        setCalendar(closeCalendar);
         setSelected((current) => ({ ...current, open: false }));
     }
 
@@ -412,7 +413,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 branches={branches.data ?? []}
                 branchId={branch}
                 onPickBranch={setBranchId}
-                onOpenCalendar={() => setCalendar((current) => ({ open: true, seq: current.seq + 1 }))}
+                onOpenCalendar={() => setCalendar(openCalendar)}
             />
 
             {reminderCount > 0 || tab === 'reminders' ? (
@@ -563,7 +564,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 branches={branches.data ?? []}
                 branchId={branch}
                 onPick={pickDay}
-                onClose={() => setCalendar((current) => ({ ...current, open: false }))}
+                onClose={() => setCalendar(closeCalendar)}
             />
 
             <BookPatientSheet

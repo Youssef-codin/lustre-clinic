@@ -26,6 +26,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { procedureLabel } from './agenda';
+import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
 import { CalendarSheet } from './components/CalendarSheet';
@@ -56,7 +57,7 @@ export type DoctorDayScreenProps = {
 function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
-    const [calendar, setCalendar] = useState({ open: false, seq: 0 });
+    const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [seenHome, setSeenHome] = useState(goHome);
     // The appointment the sheet is about. Kept while the sheet slides back out;
     // dropping it on close would blank it mid-animation.
@@ -69,7 +70,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
     if (goHome !== seenHome) {
         setSeenHome(goHome);
         setOpened((current) => ({ ...current, sheet: false }));
-        setCalendar((current) => ({ ...current, open: false }));
+        setCalendar(closeCalendar);
     }
 
     const nowMinutes = useNowMinutes();
@@ -174,7 +175,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                 branches={branches.data ?? []}
                 branchId={branch}
                 onPickBranch={setBranchId}
-                onOpenCalendar={() => setCalendar((current) => ({ open: true, seq: current.seq + 1 }))}
+                onOpenCalendar={() => setCalendar(openCalendar)}
             />
 
             {day.status === 'error' && day.error && appointments.length > 0 ? (
@@ -272,7 +273,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                 branches={branches.data ?? []}
                 branchId={branch}
                 onPick={pickDay}
-                onClose={() => setCalendar((current) => ({ ...current, open: false }))}
+                onClose={() => setCalendar(closeCalendar)}
             />
 
             <DoctorVisitSheet
