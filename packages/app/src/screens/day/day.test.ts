@@ -14,6 +14,7 @@ import {
     type Slot,
     slotIsFree,
     slotsFor,
+    timeLabel,
     withNextVisit,
     workingDaysIn,
 } from './booking';
@@ -461,6 +462,18 @@ describe('dates', () => {
         expect(clock12(13 * 60)).toEqual({ time: '1:00', meridiem: 'PM' });
     });
 
+    // The booking flow used to lowercase the meridiem at two call sites, so its
+    // slots read "12:15 pm" against "12:15 PM" everywhere else. Asserted against
+    // `clock12` rather than against 'PM': the meridiem is localized, and a
+    // literal here would pass in Arabic however the casing drifted.
+    it('says the time the way the formatter says it, not re-cased', () => {
+        const { time, meridiem } = clock12(12 * 60 + 15);
+
+        expect(timeLabel(12 * 60 + 15)).toBe(`${time} ${meridiem}`);
+        expect(timeLabel(13 * 60)).toBe('1:00 PM');
+        expect(timeLabel(10 * 60 + 30)).toBe('10:30 AM');
+    });
+
     it('names the weekday in the header pill only when the day is not today', () => {
         const today = dateKey(new Date());
         expect(formatDatePill(today, today).split(' ')).toHaveLength(2);
@@ -834,10 +847,10 @@ describe('the fortnight a booking is offered', () => {
 describe('book-next after a check-in', () => {
     it('adds the next visit to whatever was already being said', () => {
         expect(withNextVisit('Checked in · in the chair', todayKey(), 900)).toBe(
-            'Checked in · in the chair — next visit today at 3:00 pm',
+            'Checked in · in the chair — next visit today at 3:00 PM',
         );
         expect(withNextVisit('Sara is waiting, 2 ahead', addDays(todayKey(), 1), 630)).toBe(
-            'Sara is waiting, 2 ahead — next visit tomorrow at 10:30 am',
+            'Sara is waiting, 2 ahead — next visit tomorrow at 10:30 AM',
         );
     });
 
@@ -848,7 +861,7 @@ describe('book-next after a check-in', () => {
 
         expect(said).not.toContain('next visit today');
         expect(said).toContain(dayLabel(addDays(todayKey(), 9)));
-        expect(said.endsWith('at 12:00 pm')).toBe(true);
+        expect(said.endsWith('at 12:00 PM')).toBe(true);
     });
 
     // The sheet has no earlier step to send anyone back to: the grid is directly

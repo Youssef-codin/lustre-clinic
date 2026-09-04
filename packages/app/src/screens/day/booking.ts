@@ -174,7 +174,7 @@ export function fortnightSlots({
 }
 
 /**
- * A day as it is said out loud mid-sentence — "tomorrow at 3:00 pm". A date far
+ * A day as it is said out loud mid-sentence — "tomorrow at 3:00 PM". A date far
  * enough out to be named rather than described keeps its capital.
  */
 export function dayLabel(key: string): string {
@@ -182,9 +182,16 @@ export function dayLabel(key: string): string {
     return label === formatDate(key) ? label : label.toLowerCase();
 }
 
+/**
+ * The meridiem is `clock12`'s to case, not this function's. It used to be
+ * lowercased here and in the slot grid, which is the one thing the 12-hour
+ * decision forbids — no screen formats a time itself — and it only ever
+ * diverged in English: `clock12` returns a localized meridiem, so lowercasing
+ * ص/م is a no-op and Arabic never showed the drift.
+ */
 export function timeLabel(minutes: number): string {
     const { time, meridiem } = clock12(minutes);
-    return `${time} ${meridiem.toLowerCase()}`;
+    return `${time} ${meridiem}`;
 }
 
 /**
