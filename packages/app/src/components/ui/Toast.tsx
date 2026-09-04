@@ -65,7 +65,10 @@ export function Toast({
     return (
         <Animated.View
             accessibilityLiveRegion="polite"
-            pointerEvents="box-none"
+            // The action dismisses the toast and the toast then slides out, so
+            // it is still under the finger after it has been answered. Dead
+            // once it is leaving, or Undo runs twice.
+            pointerEvents={visible ? 'box-none' : 'none'}
             testID={testID}
             style={[
                 styles.toast,
