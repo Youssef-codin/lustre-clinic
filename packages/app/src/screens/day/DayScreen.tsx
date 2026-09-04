@@ -213,7 +213,7 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
     const noShow = useLocalMutation(api.markNoShow);
 
     const appointments = clinicDay.filter((row) => row.branchId === branch);
-    const closed = isClosed(dateKey, schedule.data);
+    const closed = isClosed(dateKey, schedule.data, branch);
 
     // An empty branch on a day the clinic is working says so, and offers the
     // branch working it — the same fetch already has the rows, and "Nothing
