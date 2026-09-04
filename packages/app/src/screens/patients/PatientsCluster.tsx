@@ -25,7 +25,7 @@
 // on the record that now exists, and correcting one lands on the record with the
 // correction on it, which is `read` bumped so the screen remounts and re-reads
 // rather than showing what it was holding before the write.
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { PushView } from '../../components/ui';
 import type { PatientTarget } from '../../shell/routes';
 import { VisitPage } from '../day';
@@ -68,7 +68,7 @@ export type PatientsClusterProps = {
     onWalkIn?: (patient: PatientTarget) => void;
 };
 
-export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
+function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
     const [route, setRoute] = useState<Route>({ name: 'list' });
     const [seen, setSeen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
@@ -183,3 +183,11 @@ export function PatientsCluster({ open, goHome = 0, onBook, onWalkIn }: Patients
         />
     );
 }
+
+/**
+ * The shell keeps this tab mounted behind the others, so without this it would
+ * re-render — list, record or editor and everything under it — every time a tab
+ * was tapped. The shell holds `open`, `goHome`, `onBook` and `onWalkIn` stable
+ * across a switch, so the comparison is what stops that.
+ */
+export const PatientsCluster = memo(PatientsClusterView);

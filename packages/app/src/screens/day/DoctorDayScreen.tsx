@@ -21,11 +21,12 @@
  * order is re-asked when somebody arrives or leaves the chair and not on every
  * tick of the clock.
  */
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
 import { procedureLabel } from './agenda';
+import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
 import { splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
 import { CalendarSheet } from './components/CalendarSheet';
@@ -53,10 +54,10 @@ export type DoctorDayScreenProps = {
     goHome?: number;
 };
 
-export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
+function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
-    const [calendar, setCalendar] = useState({ open: false, seq: 0 });
+    const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [seenHome, setSeenHome] = useState(goHome);
     // The appointment the sheet is about. Kept while the sheet slides back out;
     // dropping it on close would blank it mid-animation.
@@ -69,7 +70,7 @@ export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenPro
     if (goHome !== seenHome) {
         setSeenHome(goHome);
         setOpened((current) => ({ ...current, sheet: false }));
-        setCalendar((current) => ({ ...current, open: false }));
+        setCalendar(closeCalendar);
     }
 
     const nowMinutes = useNowMinutes();
@@ -174,7 +175,7 @@ export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenPro
                 branches={branches.data ?? []}
                 branchId={branch}
                 onPickBranch={setBranchId}
-                onOpenCalendar={() => setCalendar((current) => ({ open: true, seq: current.seq + 1 }))}
+                onOpenCalendar={() => setCalendar(openCalendar)}
             />
 
             {day.status === 'error' && day.error && appointments.length > 0 ? (
@@ -272,7 +273,7 @@ export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenPro
                 branches={branches.data ?? []}
                 branchId={branch}
                 onPick={pickDay}
-                onClose={() => setCalendar((current) => ({ ...current, open: false }))}
+                onClose={() => setCalendar(closeCalendar)}
             />
 
             <DoctorVisitSheet
@@ -299,6 +300,9 @@ export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenPro
         </View>
     );
 }
+
+/** Memoised for the reason `DayScreen` is — this is the doctor's half of the same pane. */
+export const DoctorDayScreen = memo(DoctorDayScreenView);
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
