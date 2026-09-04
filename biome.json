@@ -36,7 +36,18 @@
                 "noExplicitAny": "error"
             },
             "style": {
-                "useImportType": "error"
+                "useImportType": "error",
+                "noRestrictedImports": {
+                    "level": "error",
+                    "options": {
+                        "paths": {
+                            "react": {
+                                "importNames": ["useEffect"],
+                                "message": "useEffect is not allowed by default. Most of what it gets reached for belongs somewhere else: derive it during render, do it in the event handler that caused it, or key the component to reset it. It is the right tool for synchronising with something outside React — a timer, an animation, a native listener, a subscription. If that is what you have, say which one and suppress this on the import: // biome-ignore lint/style/noRestrictedImports: <the reason>"
+                            }
+                        }
+                    }
+                }
             }
         }
     },

@@ -10,13 +10,13 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import { type ClientRole, formatClock12 } from '@lustre/shared';
+import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
-import { BrandMark } from '../../components/domain';
+import { BrandMark, formatClock12 } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel } from '../../components/ui';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.

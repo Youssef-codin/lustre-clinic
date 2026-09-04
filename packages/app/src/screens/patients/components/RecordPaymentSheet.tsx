@@ -19,6 +19,7 @@
 // the write crosses Tailscale, and a sheet closed while it is in flight leaves
 // the outcome unknowable to the person who took the money.
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
+// biome-ignore lint/style/noRestrictedImports: clears the form on the closed→open transition. A `key` is the usual answer and is wrong here: keyed on `visible` it remounts mid-dismiss and cuts the exit animation, and keyed on a session counter it moves the sheet's own bookkeeping into the record screen.
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MoneyValue } from '../../../components/domain';

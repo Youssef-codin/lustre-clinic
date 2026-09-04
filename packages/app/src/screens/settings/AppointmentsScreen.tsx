@@ -11,7 +11,7 @@
  */
 import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useTRPC } from '../../api';
 import {
@@ -57,12 +57,21 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     const durations = data?.durationOptions ?? [];
     const busy = save.isPending;
 
+    /**
+     * Which control is mid-write. One mutation serves all three, so `isPending`
+     * alone put Add's spinner up for a removal two rows above it — the pending
+     * state belongs on the control that was pressed. Set before the mutation,
+     * so the re-render its `isPending` causes reads it.
+     */
+    const acting = useRef<'add' | 'row'>('add');
+
     const drafted = Number.parseInt(draft, 10);
     const draftError = draftProblem(drafted, durations);
 
     function onAdd() {
         if (draftError !== undefined || !Number.isFinite(drafted)) return;
 
+        acting.current = 'add';
         save.mutate(
             { durationOptions: [...durations, drafted].sort((a, b) => a - b) },
             { onSuccess: () => setDraft('') },
@@ -72,10 +81,12 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     // The default has to stay bookable, so it cannot be the row you remove.
     // The pane hides the control on that row; the server refuses it too.
     function onRemove(minutes: number) {
+        acting.current = 'row';
         save.mutate({ durationOptions: durations.filter((d) => d !== minutes) });
     }
 
     function onSetDefault(minutes: number) {
+        acting.current = 'row';
         save.mutate({ defaultDuration: minutes });
     }
 
@@ -179,7 +190,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                                 <Button
                                     label="Add"
                                     onPress={onAdd}
-                                    loading={save.isPending}
+                                    loading={busy && acting.current === 'add'}
                                     disabled={draft.trim() === '' || draftError !== undefined || busy}
                                     icon={<PlusIcon size={14} />}
                                     testID="duration-add"

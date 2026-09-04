@@ -1,5 +1,7 @@
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
 import { AppShell, SetupScreen, useServerSetup } from './src/shell';
@@ -12,25 +14,36 @@ import { color, useAppFonts } from './src/theme';
 // because the query cache and connection state outlive any one tab.
 //
 // Setup (F1) stands in front of it until the phone knows where the clinic
-// server is — which, on a clinic wired to the address `app.json` ships, is
-// never: the default is probed during the blank hold and a phone that finds the
-// server goes straight to the shell. The hold covers reading the stored address
-// off the device and that probe as well as the fonts, because mounting either
-// screen before the answer is in flashes the wrong one.
+// server is, which on a shipped build is on first launch: `app.json` names no
+// address, so there is nothing to probe and the fields open empty. A build
+// carrying a default — a dev machine's, a clinic's own — probes it during the
+// blank hold instead and goes straight to the shell if it answers. The hold
+// covers reading the stored address off the device and that probe as well as
+// the fonts, because mounting either screen before the answer is in flashes
+// the wrong one.
 export default function App() {
     const fontsLoaded = useAppFonts();
     const { ready, showSetup } = useServerSetup();
     if (!fontsLoaded || !ready) return <View style={styles.screen} />;
 
+    // `GestureHandlerRootView` and `BottomSheetModalProvider` are the two things
+    // `ui/Sheet` needs above it: the first for the drag, the second because every
+    // sheet is a modal presented into a portal here rather than mounted where it
+    // is written. Both sit outside `SafeAreaProvider` so a sheet can draw over
+    // the whole window, including the tab bar.
     return (
-        <SafeAreaProvider>
-            <ApiProvider>
-                <SafeAreaView style={styles.screen} edges={['top']}>
-                    {showSetup ? <SetupScreen /> : <AppShell />}
-                    <StatusBar style="dark" />
-                </SafeAreaView>
-            </ApiProvider>
-        </SafeAreaProvider>
+        <GestureHandlerRootView style={styles.screen}>
+            <SafeAreaProvider>
+                <BottomSheetModalProvider>
+                    <ApiProvider>
+                        <SafeAreaView style={styles.screen} edges={['top']}>
+                            {showSetup ? <SetupScreen /> : <AppShell />}
+                            <StatusBar style="dark" />
+                        </SafeAreaView>
+                    </ApiProvider>
+                </BottomSheetModalProvider>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
     );
 }
 

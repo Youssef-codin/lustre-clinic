@@ -16,11 +16,11 @@
  * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
  * the server accepts.
  */
-import { formatClock12 } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTRPC } from '../../api';
+import { formatClock12 } from '../../components/domain';
 import {
     Callout,
     Card,
@@ -76,6 +76,18 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const overLimit = text.length > TEMPLATE_MAX;
     const notifyAt = data ? minutesFromTime(data.reminderNotifyAt) : 0;
 
+    // Why the typed template will not be written, if it will not. The pane
+    // refuses rather than capping the field: the counter is built to go over
+    // and turn `due`, which a `maxLength` would make unreachable. What has to
+    // stop is refusing in silence — the text stays on screen either way, so
+    // without this the pane reads as saved while Postgres keeps the old
+    // wording, and nobody finds out until a patient gets the old message.
+    const templateProblem = overLimit
+        ? `Too long by ${text.length - TEMPLATE_MAX} ${text.length - TEMPLATE_MAX === 1 ? 'character' : 'characters'}. The message has to fit ${TEMPLATE_MAX}.`
+        : template !== null && text.trim() === ''
+          ? 'The message cannot be empty.'
+          : null;
+
     const write = save.mutate;
 
     return (
@@ -92,7 +104,11 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
             {data ? (
                 <>
-                    {save.error ? (
+                    {templateProblem ? (
+                        <Callout tone="warning" title="Not saved">
+                            {templateProblem}
+                        </Callout>
+                    ) : save.error ? (
                         <Callout tone="warning" title="Not saved">
                             {errorText(save.error)}
                         </Callout>
@@ -123,6 +139,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 max={96}
                                 format={(hours) => `${hours} h`}
                                 onChange={(reminderLeadHours) => write({ reminderLeadHours })}
+                                saving={save.isPending}
                                 testID="reminder-lead"
                             />
                             <CardDivider />
@@ -135,6 +152,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={60}
                                 format={formatClock12}
                                 onChange={(minutes) => write({ reminderNotifyAt: timeFromMinutes(minutes) })}
+                                saving={save.isPending}
                                 testID="reminder-notify"
                             />
                             <CardDivider />
@@ -147,6 +165,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={15}
                                 format={(minutes) => `${minutes} min`}
                                 onChange={(reminderRepeatMinutes) => write({ reminderRepeatMinutes })}
+                                saving={save.isPending}
                                 testID="reminder-repeat"
                             />
                         </Card>
@@ -173,8 +192,9 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             value={text}
                             onChangeText={setTemplate}
                             onBlur={() => {
+                                if (templateProblem) return;
                                 const trimmed = template?.trim();
-                                if (trimmed && !overLimit) write({ reminderTemplate: trimmed });
+                                if (trimmed) write({ reminderTemplate: trimmed });
                             }}
                             accessibilityLabel="Reminder message template"
                             testID="reminder-template"
@@ -236,10 +256,11 @@ type TimingRowProps = {
     step?: number;
     format: (value: number) => string;
     onChange: (value: number) => void;
+    saving: boolean;
     testID: string;
 };
 
-function TimingRow({ label, hint, value, min, max, step, format, onChange, testID }: TimingRowProps) {
+function TimingRow({ label, hint, value, min, max, step, format, onChange, saving, testID }: TimingRowProps) {
     return (
         <View style={styles.timing}>
             <View style={styles.timingText}>
@@ -258,6 +279,7 @@ function TimingRow({ label, hint, value, min, max, step, format, onChange, testI
                 step={step}
                 format={format}
                 onChange={onChange}
+                disabled={saving}
                 accessibilityLabel={label}
                 testID={testID}
             />

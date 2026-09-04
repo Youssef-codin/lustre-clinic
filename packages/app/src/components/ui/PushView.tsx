@@ -6,6 +6,7 @@
  * list's scroll position while a row is edited.
  */
 import type { ReactNode } from 'react';
+// biome-ignore lint/style/noRestrictedImports: runs the slide `Animated.timing` and unmounts on its completion callback — the exit has to finish before the pane leaves the tree
 import { useEffect, useRef, useState } from 'react';
 import { Animated, I18nManager, StyleSheet, useWindowDimensions } from 'react-native';
 import { color } from '../../theme';

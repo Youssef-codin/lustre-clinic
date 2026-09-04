@@ -1,8 +1,9 @@
 import { WS_EVENT, type WsEvent } from '@lustre/shared';
+// biome-ignore lint/style/noRestrictedImports: opens the `/ws` socket and closes it on cleanup — the subscription case this hook exists for
 import { useEffect } from 'react';
 import { api } from './client';
 import { timing, wsUrl } from './config';
-import { resolveBaseUrl } from './connection';
+import { noteLinkDropped, resolveBaseUrl } from './connection';
 import { queryClient } from './queryClient';
 
 // `/ws` tells this phone what the other phone changed (SPEC §13). Payloads carry
@@ -79,7 +80,13 @@ function connect(onEvent: (event: WsEvent) => void): () => void {
         next.onerror = () => next.close();
         next.onclose = () => {
             if (socket === next) socket = null;
+            if (closed) return;
             schedule();
+            // Not a freshness matter, unlike everything else here: a socket
+            // that closes on its own is the first sign the clinic PC is gone,
+            // and the connection state is what the shell's disconnected route
+            // reads. It probes before believing it (`noteLinkDropped`).
+            noteLinkDropped();
         };
     };
 

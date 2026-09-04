@@ -11,12 +11,17 @@
  * UI has to render. A deterministic PRNG then fills the rest of the calendar so
  * the month reads like a working clinic: every open day of the current month
  * carries a full column, past ones settled, future ones booked with reminders
- * pending, and a few in next month so the calendar pages forward. The extra
- * patient roster exists so lists paginate, search has to disambiguate, and the
- * revenue figures come from more than a handful of rows. The clinic keeps the
- * same hours everywhere, so a booking written for a wall-clock time is inside
- * opening hours whichever weekday the seed happens to run on, and a booking's
- * branch is whichever one is open that day rather than the one written down.
+ * pending, and a few in next month so the calendar pages forward. The previous
+ * month is generated too, and it is the only reason the money dashboard's
+ * month-relative reads divide at all: a part-paid visit from last month whose
+ * balance arrives in this one is exactly what `summary.olderCollected` counts,
+ * and the ones that never come good are what `settle` allocates against. The
+ * extra patient roster exists so lists paginate, search has to disambiguate,
+ * and the revenue figures come from more than a handful of rows. The clinic
+ * keeps the same hours everywhere, so a booking written for a wall-clock time
+ * is inside opening hours whichever weekday the seed happens to run on, and a
+ * booking's branch is whichever one is open that day rather than the one
+ * written down.
  *
  * A booking's planned procedures (§7) come from `plan`; `type` is the
  * one-procedure shorthand the older fixtures use. A tooth-specific procedure
@@ -723,8 +728,33 @@ const generatedRange = (() => {
     const month = local.getUTCMonth();
     const dayOfMonth = local.getUTCDate();
     const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    return { first: 1 - dayOfMonth, last: daysInMonth - dayOfMonth };
+    const daysInPreviousMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return {
+        first: 1 - dayOfMonth,
+        last: daysInMonth - dayOfMonth,
+        previousFirst: 1 - dayOfMonth - daysInPreviousMonth,
+        previousLast: -dayOfMonth,
+    };
 })();
+
+const isOpen = (dayOffset: number) => days.some((d) => d.weekday === localWeekday(dayOffset));
+
+/**
+ * When a balance carried over from last month was actually handed across the
+ * desk: an open day of the current month, at or before today, inside opening
+ * hours. Dating it in the future would still fall inside the month `summary`
+ * asks for, and would read as money the clinic has not been given yet.
+ */
+function latePaymentDate(): Date {
+    const span = -generatedRange.first;
+    let offset = generatedRange.first + Math.floor(random() * (span + 1));
+    for (let tries = 0; tries < 7 && !isOpen(offset); tries += 1) {
+        offset = offset === 0 ? generatedRange.first : offset + 1;
+    }
+    const hour = 10 + Math.floor(random() * 8);
+    const minute = Math.floor(random() * 12) * 5;
+    return at(offset, `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+}
 
 const treatments = [
     { type: consultation, minutes: 20, lines: [{ procedure: consultation }] },
@@ -830,6 +860,32 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
                 const total = lines.reduce((sum, line) => sum + line.procedure.defaultPrice, 0);
                 const charged = roll > 0.9 ? Math.round((total * 0.85) / 1_000) * 1_000 : total;
                 const paid = roll < 0.2 ? Math.round((charged * 0.5) / 1_000) * 1_000 : charged;
+                const visitPayments =
+                    paid > 0
+                        ? [
+                              {
+                                  amount: paid,
+                                  method: pick(cashMethods),
+                                  methodNote: undefined,
+                                  paidAt: new Date(startsAt.getTime() + (treatment.minutes + 2) * 60_000),
+                              },
+                          ]
+                        : [];
+
+                // The balance on a visit from before this month, handed over
+                // inside it. This is the whole of `summary.olderCollected`:
+                // payment date in the range, visit date before it. The third
+                // that is never settled is what the outstanding report carries
+                // and what `settle` fills first.
+                if (dayOffset < generatedRange.first && paid < charged && random() < 0.66) {
+                    visitPayments.push({
+                        amount: charged - paid,
+                        method: pick(cashMethods),
+                        methodNote: undefined,
+                        paidAt: latePaymentDate(),
+                    });
+                }
+
                 bookings.push({
                     patient: who,
                     branch,
@@ -843,19 +899,7 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
                         completedAt: new Date(startsAt.getTime() + treatment.minutes * 60_000),
                         chargedTotal: charged,
                         lines,
-                        payments:
-                            paid > 0
-                                ? [
-                                      {
-                                          amount: paid,
-                                          method: pick(cashMethods),
-                                          methodNote: undefined,
-                                          paidAt: new Date(
-                                              startsAt.getTime() + (treatment.minutes + 2) * 60_000,
-                                          ),
-                                      },
-                                  ]
-                                : [],
+                        payments: visitPayments,
                     },
                     reminder: { status: 'sent', sentAt: new Date(startsAt.getTime() - 20 * 3_600_000) },
                 });
@@ -906,6 +950,13 @@ for (
     const before = bookings.length;
     generateDay(offset);
     if (bookings.length > before) scheduledNextMonth += 1;
+}
+
+// Last, deliberately: the PRNG is a single stream, so generating the previous
+// month here rather than in date order leaves every day already in the seed
+// byte-for-byte what it was before this month straddled the boundary.
+for (let offset = generatedRange.previousFirst; offset <= generatedRange.previousLast; offset += 1) {
+    generateDay(offset);
 }
 
 bookings.sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
@@ -1067,6 +1118,25 @@ await db.transaction(async (tx) => {
         });
 });
 
+// Which day the fixtures actually landed on, and where. Everything here is
+// relative to the moment the seed runs, so a database seeded yesterday has an
+// empty today — and because a booking's branch is whichever one is open that
+// weekday (`branchOpenOn`), today's work moves between Nasr City and Maadi as
+// the week turns. Both of those read as "the app is broken" from the day view,
+// so the seed says out loud what it just made.
+const todayStart = todayLocalMidnight.getTime();
+const todayRows = appointmentRows.filter((row) => {
+    const startsAt = (row.startsAt as Date).getTime();
+    return startsAt >= todayStart && startsAt < todayStart + 86_400_000;
+});
+const openTodayId = branchOpenOn(at(0, '12:00'))?.id;
+const openToday =
+    openTodayId === undefined
+        ? 'closed today'
+        : openTodayId === secondBranch.id
+          ? secondBranch.name
+          : mainBranch.name;
+
 logger.info(
     {
         branches: 3,
@@ -1075,8 +1145,19 @@ logger.info(
         visits: visitRows.length,
         payments: paymentRows.length,
         reminders: reminderRows.length,
+        // Shifted back into clinic-local before formatting: local midnight is
+        // 21:00 UTC the day before, so a bare toISOString names the wrong day.
+        today: new Date(todayStart + CLINIC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10),
+        todayBranch: openToday,
+        todayAppointments: todayRows.length,
     },
     'seeded',
 );
+
+if (todayRows.length === 0) {
+    logger.warn(
+        'nothing is booked today — the clinic is closed on this weekday, so the day view will be empty until you move to an open one',
+    );
+}
 
 await sql.end();

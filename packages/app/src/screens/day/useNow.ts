@@ -5,6 +5,7 @@
  * fine: nothing here shows seconds, and a per-second timer on a screen nobody
  * is looking at costs battery for nothing.
  */
+// biome-ignore lint/style/noRestrictedImports: a `setInterval` is the only thing that can move "now" — nothing renders or is tapped when the clock ticks past a minute
 import { useEffect, useState } from 'react';
 import { minutesOfDay } from './time';
 

@@ -3,9 +3,17 @@
  * or genuinely empty — so a screen that shows nothing while it loads looks
  * nothing like a quiet Tuesday. The retry button carries no `loading`: the
  * whole panel is replaced by the skeleton the moment the query goes back to
- * loading, so a spinner here would never be seen. Past days get a statement
- * rather than an offer, and the booking action is omitted on the doctor's
- * screen, where booking one is the desk's job.
+ * loading, so a spinner here would never be seen. What each empty day says and
+ * offers is `empty.ts`; the only thing decided here is how it is drawn. Past
+ * days get a statement rather than an offer, and the offer is omitted on the
+ * doctor's screen, where booking is the desk's job — `emptyDay` takes `canBook`
+ * for exactly that.
+ *
+ * Nothing in the empty state is a `+`. The day view carries the `BookFab`, and
+ * a second 52px circle around a second `+` is the FAB drawn twice with one of
+ * them wired up. Booking is offered by the FAB and by the labelled CTA; the
+ * ring illustrates and nothing more, so a past day — which offers nothing —
+ * has no ring at all.
  *
  * `elsewhere` is the branch working a day this one is not. The day is fetched
  * for the whole clinic, so the count is already to hand, and an empty branch
@@ -16,7 +24,9 @@ import { StyleSheet, View } from 'react-native';
 import { Button, EmptyState } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { RequestError } from '../data';
+import { emptyDay } from '../empty';
 import { describeError } from '../errors';
+import { CalendarIcon } from './icons';
 
 export function DaySkeleton() {
     return (
@@ -56,26 +66,23 @@ export function DayError({ error, onRetry }: DayErrorProps) {
 
 export type DayEmptyProps = {
     past: boolean;
+    /** Absent on the doctor's day view, which has no FAB — booking is the desk's job. */
     onBook?: () => void;
     elsewhere?: { name: string; count: number; onGo: () => void };
 };
 
 export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
-    const offer = !past && onBook !== undefined;
+    const state = emptyDay(past, onBook !== undefined);
 
     return (
         <View style={styles.centred}>
             <EmptyState
                 weight="ring"
-                icon={<Text variant="title3">+</Text>}
-                title={past ? 'Nothing happened this day' : 'Nothing booked'}
-                body={
-                    past
-                        ? 'No appointments were booked, and nobody walked in.'
-                        : 'The day is clear. Book someone in for later, or start a walk-in who is at the desk now.'
-                }
-                actionLabel={offer ? 'Book someone in' : undefined}
-                onAction={offer ? onBook : undefined}
+                icon={state.glyph === 'calendar' ? <CalendarIcon size={22} /> : null}
+                title={state.title}
+                body={state.body}
+                actionLabel={state.actionLabel}
+                onAction={state.actionLabel ? onBook : undefined}
             />
 
             {elsewhere ? (

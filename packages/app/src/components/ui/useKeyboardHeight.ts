@@ -7,6 +7,7 @@
  * anything should be translated by: the resize already moved the sheet, and
  * adding the height again would push it a keyboard clear of the keyboard.
  */
+// biome-ignore lint/style/noRestrictedImports: subscribes to the native `Keyboard` show/hide events; React has no other way to hear the keyboard move
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 

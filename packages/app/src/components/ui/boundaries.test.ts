@@ -2,16 +2,35 @@
 // Inventory §2). That is what keeps screen work parallelisable: screens are built
 // against a frozen `ui/`, and if a primitive could reach a domain type, two
 // screens could disagree about what a Button is. A `ui/` file may import from
-// `react`, `react-native`, `../../theme` and its own siblings; anything else —
-// `@lustre/shared`, `../domain`, a tRPC client, a navigator — is a boundary
-// violation.
+// `react`, `react-native`, `react-native-safe-area-context`, `../../theme` and
+// its own siblings; anything else — `@lustre/shared`, `../domain`, a tRPC
+// client, a navigator — is a boundary violation.
+//
+// `react-native-safe-area-context` is on that list for the same reason
+// `react-native` is: it reports device chrome, carries no Lustre knowledge, and
+// cannot couple a primitive to a domain type. `Sheet` needs the bottom inset to
+// keep its own edge clear of the system navigation bar, the way
+// `useKeyboardHeight` already covers the other edge.
+//
+// `@gorhom/bottom-sheet` is here on the same footing: it is the mechanics under
+// `Sheet` — measurement, gesture and position — and knows nothing about Lustre.
+// The look stays ours, drawn from the theme. A primitive built on it still
+// cannot reach a domain type, which is the invariant this file exists to hold.
 import { describe, expect, it } from 'bun:test';
 import path from 'node:path';
 import { Glob } from 'bun';
 
 const UI_ROOT = path.resolve(import.meta.dir);
 
-const ALLOWED = [/^react$/, /^react\/.+/, /^react-native$/, /^\.\.\/\.\.\/theme$/, /^\.\/[\w.-]+$/];
+const ALLOWED = [
+    /^react$/,
+    /^react\/.+/,
+    /^react-native$/,
+    /^react-native-safe-area-context$/,
+    /^@gorhom\/bottom-sheet$/,
+    /^\.\.\/\.\.\/theme$/,
+    /^\.\/[\w.-]+$/,
+];
 
 const IMPORT = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*'([^']+)'/g;
 

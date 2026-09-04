@@ -3,6 +3,7 @@
  * ends with. Animations multiply their duration by 0 rather than being skipped,
  * so the end state still lands.
  */
+// biome-ignore lint/style/noRestrictedImports: subscribes to `AccessibilityInfo.reduceMotionChanged`, an OS setting that changes while the app is open
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo } from 'react-native';
 

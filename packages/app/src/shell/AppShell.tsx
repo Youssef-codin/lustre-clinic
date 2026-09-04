@@ -1,6 +1,7 @@
 import type { ClientRole } from '@lustre/shared';
-import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+// biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
+import { useEffect, useState } from 'react';
+import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
 import { Toast } from '../components/ui';
@@ -11,7 +12,17 @@ import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
 import { OfflineScreen } from './OfflineScreen';
-import { ask, type BookingTiming, bumpHome, type HomeSignals, NO_HOME, type PatientTarget } from './routes';
+import {
+    ALL_TABS,
+    ask,
+    type BookingTiming,
+    bumpHome,
+    type HomeSignals,
+    NO_HOME,
+    nextRoute,
+    type PatientTarget,
+    type ShellRoute,
+} from './routes';
 
 // The app shell (SPEC §18 F3): four clusters under one `domain/BottomTabBar`,
 // each keeping its own internal stack. A tab is mounted on first open and then
@@ -37,6 +48,13 @@ import { ask, type BookingTiming, bumpHome, type HomeSignals, NO_HOME, type Pati
 // And it owns going home: tapping the tab you are already on pops that cluster
 // back to its root. The shell cannot pop one from outside, so it bumps that
 // tab's counter and the cluster resets itself.
+//
+// Disconnected is the shell's other route (`ShellRoute`), not an overlay and
+// not something each screen answers for itself. The panes stay mounted behind
+// it, hidden the same way a tab that is not up is hidden, which is what lets
+// the reconnect put her back on the day she was reading with her scroll and her
+// caches intact — but nothing of them is drawn or tappable, because a search
+// field over a server that cannot be searched is worse than no screen at all.
 export function AppShell() {
     const [tab, setTab] = useState<TabKey>('day');
     const [role, setRole] = useState<ClientRole>('doctor');
@@ -60,7 +78,6 @@ export function AppShell() {
     // moment the route lands somewhere else — so a check-in that ends on the
     // patient's record has to report itself from up here.
     const [toast, setToast] = useState<string | null>(null);
-    const { isOffline, isOnline } = useConnection();
 
     // The daily reminder nudge (§11). It belongs to the shell rather than to the
     // day cluster: it has to stay armed while the app sits on another tab or in
@@ -68,13 +85,27 @@ export function AppShell() {
     // is the wrong owner for something the whole app has.
     useReminderNudges();
 
-    // Sticky: `reprobe` passes through 'probing' on its way to an answer, and
-    // reading `isOffline` directly would drop the overlay for those few hundred
-    // milliseconds and flash the stale app underneath. Once it is up it only
-    // comes down on a confirmed 'online'.
-    const [showOffline, setShowOffline] = useState(false);
-    if (isOffline && !showOffline) setShowOffline(true);
-    if (isOnline && showOffline) setShowOffline(false);
+    // Entered on the connection's word rather than on a query failing, so the
+    // drop is answered wherever she is standing and not by whichever screen
+    // happens to make the next request. `nextRoute` holds which statuses count,
+    // and holding the route in state is what keeps it from flapping while
+    // `reprobe` passes through 'probing' on its way to an answer.
+    const { status } = useConnection();
+    const [route, setRoute] = useState<ShellRoute>('app');
+    const wanted = nextRoute(route, status);
+    if (wanted !== route) setRoute(wanted);
+    const disconnected = route === 'offline';
+
+    // A pane nobody has opened has no components, so it has no queries either
+    // and the round trip for Patients, Money or Settings started at the tap —
+    // which is the pause. Mounting the other three once the day tab has settled
+    // moves that cost to a moment when she is reading rather than waiting;
+    // `runAfterInteractions` is what keeps it off the first paint. A tab tapped
+    // before this lands still mounts on demand through `reveal`.
+    useEffect(() => {
+        const warm = InteractionManager.runAfterInteractions(() => setVisited([...ALL_TABS]));
+        return () => warm.cancel();
+    }, []);
 
     // Bringing a tab forward, without saying anything about the highlight — a
     // cross-cluster push answers that for itself, and the tab bar's own handler
@@ -133,7 +164,7 @@ export function AppShell() {
     return (
         <View style={styles.root}>
             <View style={styles.body}>
-                <Pane visible={tab === 'day'} mounted={visited.includes('day')}>
+                <Pane visible={!disconnected && tab === 'day'} mounted={visited.includes('day')}>
                     {role === 'doctor' ? (
                         <DoctorDayScreen
                             key="doctor"
@@ -153,7 +184,7 @@ export function AppShell() {
                     )}
                 </Pane>
 
-                <Pane visible={tab === 'patients'} mounted={visited.includes('patients')}>
+                <Pane visible={!disconnected && tab === 'patients'} mounted={visited.includes('patients')}>
                     <PatientsCluster
                         open={record}
                         goHome={home.patients}
@@ -166,7 +197,7 @@ export function AppShell() {
                     />
                 </Pane>
 
-                <Pane visible={tab === 'money'} mounted={visited.includes('money')}>
+                <Pane visible={!disconnected && tab === 'money'} mounted={visited.includes('money')}>
                     {/* The debtor rows are the whole tab now: tapping one opens
                         that patient's record, which is where a payment is taken.
                         Nothing pushes *into* this cluster any more. */}
@@ -176,31 +207,37 @@ export function AppShell() {
                     />
                 </Pane>
 
-                <Pane visible={tab === 'settings'} mounted={visited.includes('settings')}>
+                <Pane visible={!disconnected && tab === 'settings'} mounted={visited.includes('settings')}>
                     <SettingsScreen role={role} goHome={home.settings} onChangeRole={setRole} />
                 </Pane>
 
                 {/* Inside the body rather than at the root, so it rides above
                     the tab bar on the default offset — the same place a
-                    cluster's own toast lands, since the panes end here too. */}
+                    cluster's own toast lands, since the panes end here too.
+                    It has nothing to say on the disconnected route: what it
+                    reports happened on a tab, and no tab is up. */}
                 <Toast
-                    visible={toast !== null}
+                    visible={!disconnected && toast !== null}
                     message={toast ?? ''}
                     onDismiss={() => setToast(null)}
                     testID="shell-toast"
                 />
+
+                {/* The route, in the panes' place rather than over them: they
+                    are hidden above, so this is the only thing in the body. */}
+                {disconnected ? <OfflineScreen /> : null}
             </View>
 
-            <BottomTabBar active={booking && tab === 'day' ? 'patients' : tab} role={role} onChange={open} />
-
-            {/* Covers the tab bar too: offline is a dead end, not a mode you
-                can navigate around. The clusters stay mounted underneath so
-                the date, scroll and caches survive a reconnect. */}
-            {showOffline ? (
-                <View style={styles.offline}>
-                    <OfflineScreen />
-                </View>
-            ) : null}
+            {/* No tab bar on the disconnected route either. It is a dead end,
+                not a mode to navigate around, and every tab it offers leads to
+                the same screen. */}
+            {disconnected ? null : (
+                <BottomTabBar
+                    active={booking && tab === 'day' ? 'patients' : tab}
+                    role={role}
+                    onChange={open}
+                />
+            )}
         </View>
     );
 }
@@ -227,5 +264,4 @@ const styles = StyleSheet.create({
     body: { flex: 1 },
     pane: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0 },
     hidden: { display: 'none' },
-    offline: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0, backgroundColor: color.canvas },
 });

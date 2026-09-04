@@ -5,13 +5,20 @@
  * hours is the secretary's call and nothing here blocks it. Deactivated
  * branches stay in the lists, and this day's own branch is kept as a select
  * option even if it has since been deactivated, so it never draws as an unset
- * placeholder. Times are zero-padded `HH:MM`, so string comparison is
- * chronological. `ui/` has no time field, so the half-hour slots are hardcoded.
+ * placeholder.
+ *
+ * Times cross the wire as zero-padded `HH:MM`, so string comparison stays
+ * chronological, and are held in the editor as minutes from midnight — which is
+ * what the picker speaks and what makes "closes after opens" a number
+ * comparison rather than a string one. `minutesFromTime` / `timeFromMinutes`
+ * are the same pair the reminders pane converts with. What the user reads is
+ * always 12-hour, from `domain/clock`; the `HH:MM` never reaches a screen.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
+import { formatSpan } from '../../components/domain';
 import {
     Button,
     Callout,
@@ -28,19 +35,18 @@ import {
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
+import { TimePickerField } from './components/TimePickerField';
 import { errorText } from './data/errors';
+import { minutesFromTime, timeFromMinutes } from './data/reminders';
 
 type Branch = RouterOutput['branch']['list'][number];
 type ClinicDay = RouterOutput['settings']['schedule'][number];
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
-const TIMES = Array.from({ length: 31 }, (_, index) => {
-    const minutes = 7 * 60 + index * 30;
-    const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
-    const mm = String(minutes % 60).padStart(2, '0');
-    return { value: `${hh}:${mm}`, label: `${hh}:${mm}` };
-});
+function daySpan(day: ClinicDay): string {
+    return formatSpan(minutesFromTime(day.opensAt), minutesFromTime(day.closesAt));
+}
 
 export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
     const trpc = useTRPC();
@@ -134,7 +140,7 @@ function DayRow({ name, day, branchName, onPress }: DayRowProps) {
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={day ? `${name}, ${day.opensAt} to ${day.closesAt}` : `${name}, closed`}
+            accessibilityLabel={day ? `${name}, ${daySpan(day)}` : `${name}, closed`}
             onPress={onPress}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         >
@@ -150,8 +156,11 @@ function DayRow({ name, day, branchName, onPress }: DayRowProps) {
             </View>
 
             {day ? (
-                <Text variant="amount" tone="ink2">
-                    {`${day.opensAt}–${day.closesAt}`}
+                // Smaller than the 24-hour figure it replaces: two meridiems
+                // make the span half again as long, and it shares the row with
+                // a weekday, a branch name and a chevron.
+                <Text variant="subhead" tone="ink2" script="mono" numberOfLines={1}>
+                    {daySpan(day)}
                 </Text>
             ) : (
                 <Tag tone="muted" variant="muted">
@@ -176,8 +185,8 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     const [open, setOpen] = useState(day !== undefined);
     const [branchId, setBranchId] = useState(day?.branchId ?? branches.find((b) => b.active)?.id ?? null);
 
-    const [opensAt, setOpensAt] = useState(day?.opensAt ?? '10:00');
-    const [closesAt, setClosesAt] = useState(day?.closesAt ?? '18:00');
+    const [opens, setOpens] = useState(minutesFromTime(day?.opensAt ?? '10:00'));
+    const [closes, setCloses] = useState(minutesFromTime(day?.closesAt ?? '18:00'));
 
     const options = branches
         .filter((branch) => branch.active || branch.id === day?.branchId)
@@ -193,7 +202,9 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     const setDay = useMutation(trpc.settings.setDay.mutationOptions({ onSuccess: onSettingsWritten }));
     const clearDay = useMutation(trpc.settings.clearDay.mutationOptions({ onSuccess: onSettingsWritten }));
 
-    const orderError = open && !(opensAt < closesAt) ? 'Closing time must be after opening.' : undefined;
+    // A number comparison now the picker counts minutes; the old string one
+    // only worked because every option was zero-padded `HH:MM`.
+    const orderError = open && opens >= closes ? 'Closing time must be after opening.' : undefined;
     const canSave = !open || (branchId !== null && orderError === undefined);
     const pending = setDay.isPending || clearDay.isPending;
     const failure = setDay.error ?? clearDay.error;
@@ -205,7 +216,12 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
         }
         if (!branchId) return;
         setDay.mutate(
-            { weekday, branchId, opensAt, closesAt },
+            {
+                weekday,
+                branchId,
+                opensAt: timeFromMinutes(opens),
+                closesAt: timeFromMinutes(closes),
+            },
             { onSuccess: () => onSaved(`${name} saved`) },
         );
     }
@@ -248,21 +264,8 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                         placeholder="Pick a branch"
                         sheetTitle="Branch"
                     />
-                    <Select
-                        label="Opens"
-                        options={TIMES}
-                        value={opensAt}
-                        onChange={setOpensAt}
-                        sheetTitle="Opening time"
-                    />
-                    <Select
-                        label="Closes"
-                        options={TIMES}
-                        value={closesAt}
-                        onChange={setClosesAt}
-                        error={orderError}
-                        sheetTitle="Closing time"
-                    />
+                    <TimePickerField label="Opens" value={opens} onChange={setOpens} />
+                    <TimePickerField label="Closes" value={closes} onChange={setCloses} error={orderError} />
                 </>
             ) : null}
         </Sheet>

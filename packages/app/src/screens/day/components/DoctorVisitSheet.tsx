@@ -28,7 +28,7 @@ import { Button, Sheet } from '../../../components/ui';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Appointment, AppointmentProcedure } from '../data';
 import { toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatTime, minutesOfDay, minutesToClock, relativeDayLabel } from '../time';
+import { dateKey, formatSpan, minutesOfDay, relativeDayLabel } from '../time';
 
 export type DoctorVisitSheetProps = {
     visible: boolean;
@@ -115,21 +115,21 @@ export function DoctorVisitSheet({ visible, appointment, onClose, onOpenRecord }
 }
 
 /**
- * The mock's identity block, with the time on the dark tile where it puts the
- * date. A doctor opening this already knows what day it is; what he is placing
- * is the patient against the hour, so the tile carries the slot and the line
- * under the name carries the day — which only says something worth reading when
- * he is looking at a day that is not today.
+ * The mock's identity block, with the length of the visit on the dark tile
+ * where it puts the date. The tile is 64pt and a start time is not: `10:00 AM`
+ * set at headline clipped its meridiem. The line under the name already carries
+ * the day and both ends of the slot, so the hour was the one thing on the tile
+ * said twice, and how long he has is the thing it was not saying at all.
  */
 function Identity({ appointment }: { appointment: Appointment }) {
     return (
         <View style={styles.identity}>
             <View style={styles.tile}>
-                <Text variant="headline" script="mono" weight="semibold" tone="inverse">
-                    {formatTime(appointment.startsAt)}
+                <Text variant="title3" script="sans" weight="semibold" tone="inverse">
+                    {String(appointment.durationMinutes)}
                 </Text>
                 <Text variant="tag" tone="inverse" style={styles.tileSub}>
-                    {`${appointment.durationMinutes} MIN`}
+                    MIN
                 </Text>
             </View>
 
@@ -149,11 +149,6 @@ function Identity({ appointment }: { appointment: Appointment }) {
 }
 
 /**
- * The quantity rides on the name rather than in a column of its own: it is 1 on
- * nearly every line, and a column that is almost always "1" costs more width
- * than it explains.
- */
-/**
  * One planned procedure as a `ToothGroupCard` line. The quantity is folded into
  * the name rather than given a column of its own — it is almost always one, and
  * a column that reads `1` down every row is a column about nothing.
@@ -166,11 +161,11 @@ function planLine(procedure: AppointmentProcedure): ToothGroupLine {
     };
 }
 
-/** `Today · 11:35 – 12:35`. */
+/** `Today · 11:35 AM – 12:35 PM`. */
 function slotLabel(appointment: Appointment): string {
     const start = new Date(appointment.startsAt);
-    const end = minutesOfDay(appointment.startsAt) + appointment.durationMinutes;
-    return `${relativeDayLabel(dateKey(start))} · ${formatTime(appointment.startsAt)} – ${minutesToClock(end)}`;
+    const from = minutesOfDay(appointment.startsAt);
+    return `${relativeDayLabel(dateKey(start))} · ${formatSpan(from, from + appointment.durationMinutes)}`;
 }
 
 const styles = StyleSheet.create({

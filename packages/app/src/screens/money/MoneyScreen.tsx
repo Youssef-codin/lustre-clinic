@@ -10,6 +10,7 @@
 // it is hidden while searching rather than recomputed over the filtered rows,
 // because a figure that shrank as you typed would read as the clinic being owed
 // less than it is.
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the `AppState` subscription that re-reads the day on foreground
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';

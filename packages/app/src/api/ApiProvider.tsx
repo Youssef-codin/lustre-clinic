@@ -1,15 +1,22 @@
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createTRPCContext } from '@trpc/tanstack-react-query';
-import type { ReactNode } from 'react';
+// biome-ignore lint/style/noRestrictedImports: starts the connection-recovery subscription, which outlives every screen and has nothing to do with rendering
+import { type ReactNode, useEffect } from 'react';
 import { trpcClient } from './client';
 import { useServerEvents } from './live';
 import { queryClient } from './queryClient';
+import { startConnectionRecovery } from './recovery';
 
 export const { TRPCProvider, useTRPC, useTRPCClient } = createTRPCContext<AppRouter>();
 
 function ServerEvents({ children }: { children: ReactNode }) {
     useServerEvents();
+    // Repairs queries that failed while the clinic was unreachable, once it
+    // answers again. Mounted here rather than in the shell because it belongs
+    // to the query client, and it has to outlive whichever screen was up when
+    // the connection went.
+    useEffect(startConnectionRecovery, []);
     return <>{children}</>;
 }
 

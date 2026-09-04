@@ -21,6 +21,7 @@
  * Only a change animates, never the first branch to arrive; reduced motion
  * runs it at duration 0, so the name lands without travelling.
  */
+// biome-ignore lint/style/noRestrictedImports: runs the branch-change slide `Animated.timing` and clears the outgoing name on its completion callback
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, I18nManager, Pressable, StyleSheet, View } from 'react-native';
 import {

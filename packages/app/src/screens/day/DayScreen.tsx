@@ -24,11 +24,13 @@ import {
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
+import { withNextVisit } from './booking';
 import { type Standing, splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
 import { AppointmentDetailSheet } from './components/AppointmentDetailSheet';
 import { BookFab } from './components/BookFab';
 import { BookingScreen } from './components/BookingScreen';
+import { BookNextSheet } from './components/BookNextSheet';
 import { BookPatientSheet } from './components/BookPatientSheet';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ClosedDay } from './components/ClosedDay';
@@ -44,6 +46,7 @@ import {
     type Appointment,
     api,
     checkInTimes,
+    type EmbeddedPatient,
     type Patient,
     useLocalMutation,
     useLocalQuery,
@@ -146,6 +149,16 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
         seq: number;
     } | null>(null);
     const [visitOpen, setVisitOpen] = useState(false);
+    // The book-next offer, raised by a check-in and by nothing else. `seated` is
+    // captured when it opens rather than read when it closes: it describes the
+    // queue at the moment the patient came through the door, and the refetch
+    // underneath the sheet will have moved on by the time anything is booked.
+    const [bookNext, setBookNext] = useState<{
+        patient: EmbeddedPatient;
+        seated: string;
+        seq: number;
+    } | null>(null);
+    const [bookNextOpen, setBookNextOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
 
     // Both derived during render rather than in an effect, so the page is on
@@ -170,6 +183,7 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
         setTab('day');
         setPageOpen(false);
         setVisitOpen(false);
+        setBookNextOpen(false);
         setBooking((current) => ({ ...current, open: false }));
         setCalendar((current) => ({ ...current, open: false }));
         setSelected((current) => ({ ...current, open: false }));
@@ -356,6 +370,23 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
     }
 
     /**
+     * Where a check-in ends up: the patient's record, with what just happened
+     * raised by the shell, because a toast raised here would draw inside a pane
+     * the shell is about to hide. It is two lines, not one — the record already
+     * has the patient's name as the largest thing on it, and the day view, which
+     * has no record to open, has to say who it is talking about.
+     */
+    function landOnRecord(patient: EmbeddedPatient, onRecord: string, onDay: string) {
+        setBookNextOpen(false);
+
+        if (onOpenRecord) {
+            onOpenRecord(patient.id, onRecord);
+            return;
+        }
+        setToast(onDay);
+    }
+
+    /**
      * Nothing is written here. The arrival screen opens on what the booking
      * planned and its Confirm is what checks the patient in — so a tap that
      * turns out to be the wrong row costs nothing, and the day never shows
@@ -466,7 +497,7 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
                     />
                 ) : appointments.length === 0 ? (
                     <RefreshView refreshControl={refreshControl}>
-                        <DayEmpty past={dateKey < todayKey()} onBook={openBooking} elsewhere={elsewhere} />
+                        <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
                     </RefreshView>
                 ) : (
                     <ScrollView
@@ -587,6 +618,39 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
                 }}
             />
 
+            {/* Keyed per check-in, so the next patient never inherits the day
+                and time half-picked for the last one. */}
+            {bookNext ? (
+                <BookNextSheet
+                    key={`book-next:${bookNext.seq}`}
+                    visible={bookNextOpen}
+                    patientId={bookNext.patient.id}
+                    patientName={bookNext.patient.name}
+                    branchId={branch}
+                    branchName={branches.data?.find((row) => row.id === branch)?.name ?? null}
+                    schedule={schedule.data}
+                    durationMinutes={settings.data?.defaultDuration ?? 30}
+                    nowMinutes={nowMinutes}
+                    onDismiss={() =>
+                        landOnRecord(
+                            bookNext.patient,
+                            `Checked in · ${bookNext.seated}`,
+                            `${bookNext.patient.name} is ${bookNext.seated}`,
+                        )
+                    }
+                    onBooked={({ dateKey: booked, minutes }) => {
+                        // The next visit can be later the same day, so the
+                        // schedule behind the sheet is stale either way.
+                        day.refetch();
+                        landOnRecord(
+                            bookNext.patient,
+                            withNextVisit(`Checked in · ${bookNext.seated}`, booked, minutes),
+                            withNextVisit(`${bookNext.patient.name} is ${bookNext.seated}`, booked, minutes),
+                        );
+                    }}
+                />
+            ) : null}
+
             {/* Nested rather than swapped, so each page slides over the one
                 before it and Back slides it away with that one still behind,
                 scroll and all. A ternary here drew both instantly, which is
@@ -632,20 +696,19 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
                                     if (visit.origin === 'arrival') {
                                         setVisitOpen(false);
                                         day.refetch();
-                                        // The patient is through the door and
-                                        // their record is what comes next:
-                                        // history, balance, what to ask them.
-                                        // The shell raises the toast, because
-                                        // one raised here would draw inside a
-                                        // pane it is about to hide.
-                                        if (onOpenRecord) {
-                                            onOpenRecord(
-                                                visit.appointment.patient.id,
-                                                `Checked in · ${seated()}`,
-                                            );
-                                            return;
-                                        }
-                                        setToast(`${visit.appointment.patient.name} is ${seated()}`);
+                                        // The record still comes next — history,
+                                        // balance, what to ask them — but the
+                                        // one moment the patient is standing
+                                        // there is the moment to offer them a
+                                        // return. The sheet is offered, never
+                                        // imposed: dismissing it lands exactly
+                                        // where confirming an arrival always did.
+                                        setBookNext((current) => ({
+                                            patient: visit.appointment.patient,
+                                            seated: seated(),
+                                            seq: (current?.seq ?? 0) + 1,
+                                        }));
+                                        setBookNextOpen(true);
                                         return;
                                     }
                                     // Same for a patient still in the queue:

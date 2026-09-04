@@ -24,7 +24,7 @@ import {
     visitForAppointment,
 } from '../data';
 import { describeError } from '../errors';
-import { formatTime, minutesOfDay, minutesToClock } from '../time';
+import { formatSpan, minutesOfDay } from '../time';
 
 export type AppointmentDetailSheetProps = {
     visible: boolean;
@@ -101,7 +101,8 @@ export function AppointmentDetailSheet({
             onClose={close}
             dismissable={!writing}
             title={appointment.patient.name}
-            subtitle={`${formatTime(appointment.startsAt)} – ${minutesToClock(
+            subtitle={`${formatSpan(
+                startMinutes,
                 startMinutes + appointment.durationMinutes,
             )} · ${appointment.durationMinutes} min`}
             testID="appointment-detail"

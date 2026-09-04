@@ -21,6 +21,8 @@ import {
     Plus,
     Receipt,
     Stethoscope,
+    Timer,
+    User,
     X,
     Zap,
 } from 'lucide-react-native';
@@ -59,6 +61,12 @@ export const CloseIcon = icon(X, 2.2);
 export const CheckIcon = icon(Check, 2.4);
 
 export const WaitingIcon = icon(Hourglass, 2.2);
+
+/** How long a booking runs. Not `WaitingIcon` — the hourglass is spoken for by
+ * the patient who is waiting, and a duration is not a wait. */
+export const DurationIcon = icon(Timer);
+
+export const PatientIcon = icon(User);
 
 export const ChairIcon = icon(Stethoscope, 2);
 
