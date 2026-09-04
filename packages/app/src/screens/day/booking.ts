@@ -193,13 +193,3 @@ export function timeLabel(minutes: number): string {
     const { time, meridiem } = clock12(minutes);
     return `${time} ${meridiem}`;
 }
-
-/**
- * What was already being said about a patient, with the appointment they were
- * just given added to it. Both halves are needed after a check-in that booked
- * the next visit: where they are standing now is what the desk acts on, and the
- * time they have just been promised is what they will repeat at the door.
- */
-export function withNextVisit(said: string, dateKey: string, minutes: number): string {
-    return `${said} — next visit ${dayLabel(dateKey)} at ${timeLabel(minutes)}`;
-}

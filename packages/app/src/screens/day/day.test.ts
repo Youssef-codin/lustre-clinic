@@ -8,14 +8,12 @@ import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { procedureLabel, splitDay } from './agenda';
 import {
-    dayLabel,
     firstFreeSlot,
     fortnightSlots,
     type Slot,
     slotIsFree,
     slotsFor,
     timeLabel,
-    withNextVisit,
     workingDaysIn,
 } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair';
@@ -57,7 +55,6 @@ import {
     isoAt,
     minutesOfDay,
     relativeDayLabel,
-    todayKey,
 } from './time';
 
 const FRIDAY = '2026-08-07';
@@ -840,39 +837,29 @@ describe('the fortnight a booking is offered', () => {
 });
 
 /**
- * The line the day view raises after a check-in that also booked the return.
- * The check-in half is what the desk acts on; the appointment half is what the
- * patient will repeat at the door, so neither may be dropped for the other.
+ * The book-next sheet asks and does not book. It used to carry its own day strip,
+ * time grid and `appointment.create`, which made it a second booking flow, and
+ * with it a second copy of the double-booking refusal. Both went: the prompt's
+ * answer is `BookingScreen`, so that screen's refusal is the only one, and there
+ * is no longer a `book-next` surface for `describeError` to have an opinion on.
  */
 describe('book-next after a check-in', () => {
-    it('adds the next visit to whatever was already being said', () => {
-        expect(withNextVisit('Checked in · in the chair', todayKey(), 900)).toBe(
-            'Checked in · in the chair — next visit today at 3:00 PM',
-        );
-        expect(withNextVisit('Sara is waiting, 2 ahead', addDays(todayKey(), 1), 630)).toBe(
-            'Sara is waiting, 2 ahead — next visit tomorrow at 10:30 AM',
-        );
-    });
-
-    // A date far enough out to be named rather than described keeps its capital,
-    // because it is read as a date and not as part of the sentence.
-    it('names a day the week after next rather than describing it', () => {
-        const said = withNextVisit('Checked in', addDays(todayKey(), 9), 720);
-
-        expect(said).not.toContain('next visit today');
-        expect(said).toContain(dayLabel(addDays(todayKey(), 9)));
-        expect(said.endsWith('at 12:00 PM')).toBe(true);
-    });
-
-    // The sheet has no earlier step to send anyone back to: the grid is directly
-    // under the message, and has already been re-read by the time it is drawn.
-    it('tells the sheet the times under it have been reloaded, not to go back', () => {
+    it('sends a refused time to the booking screen’s wording, not a sheet’s', () => {
         const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
-        const sheet = describeError(overlap, 'book-next');
+        const booking = describeError(overlap, 'booking');
 
-        expect(sheet.title).toBe('That slot is taken');
-        expect(sheet.body).toContain('reloaded');
-        expect(sheet.body).not.toContain('Go back');
+        expect(booking.title).toBe('That slot is taken');
+        expect(booking.body).toContain('reloaded');
+    });
+
+    // The sheet's own wording sent the desk to a grid directly under the
+    // message. There is no grid now, so nothing may still say there is one.
+    it('no longer tells anyone the times above have been reloaded', () => {
+        const overlap = new RequestError(ERROR_CODE.SLOT_OVERLAP, 'that slot overlaps another appointment');
+
+        for (const context of ['walk-in', 'booking', 'move', 'check-in', 'day', 'generic'] as const) {
+            expect(describeError(overlap, context).body).not.toContain('above');
+        }
     });
 });
 

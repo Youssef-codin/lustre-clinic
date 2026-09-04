@@ -24,7 +24,6 @@ import {
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
-import { withNextVisit } from './booking';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
 import { type Standing, splitDeskDay } from './chair';
 import { BeforeThis, UpNext } from './components/Agenda';
@@ -388,6 +387,28 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     }
 
     /**
+     * The other answer to the book-next prompt: the real booking flow, with the
+     * patient already answered. The same page the FAB pushes, so there is one
+     * booking screen and not a second one living in a sheet — what the sheet
+     * saved was the search, and carrying the patient across is what saves it.
+     *
+     * `later` rather than `now`: they are being seen today, so the return is a
+     * day yet to be chosen. Backing out of the page lands on the day, which is
+     * where the check-in happened — `onBack` is the same one the FAB's booking
+     * uses, so there is nothing extra to unwind.
+     */
+    function bookNextOn(patient: EmbeddedPatient) {
+        setBookNextOpen(false);
+        setPage((current) => ({
+            patient: draftFor(patient),
+            timing: 'later',
+            seq: (current?.seq ?? 0) + 1,
+        }));
+        setPageOpen(true);
+        onBookingChange?.(true);
+    }
+
+    /**
      * Nothing is written here. The arrival screen opens on what the booking
      * planned and its Confirm is what checks the patient in — so a tap that
      * turns out to be the wrong row costs nothing, and the day never shows
@@ -619,19 +640,14 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 }}
             />
 
-            {/* Keyed per check-in, so the next patient never inherits the day
-                and time half-picked for the last one. */}
+            {/* Keyed per check-in, so one patient's answer is never the next
+                patient's starting point. */}
             {bookNext ? (
                 <BookNextSheet
                     key={`book-next:${bookNext.seq}`}
                     visible={bookNextOpen}
-                    patientId={bookNext.patient.id}
                     patientName={bookNext.patient.name}
-                    branchId={branch}
-                    branchName={branches.data?.find((row) => row.id === branch)?.name ?? null}
-                    schedule={schedule.data}
-                    durationMinutes={settings.data?.defaultDuration ?? 30}
-                    nowMinutes={nowMinutes}
+                    onBookNow={() => bookNextOn(bookNext.patient)}
                     onDismiss={() =>
                         landOnRecord(
                             bookNext.patient,
@@ -639,16 +655,6 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             `${bookNext.patient.name} is ${bookNext.seated}`,
                         )
                     }
-                    onBooked={({ dateKey: booked, minutes }) => {
-                        // The next visit can be later the same day, so the
-                        // schedule behind the sheet is stale either way.
-                        day.refetch();
-                        landOnRecord(
-                            bookNext.patient,
-                            withNextVisit(`Checked in · ${bookNext.seated}`, booked, minutes),
-                            withNextVisit(`${bookNext.patient.name} is ${bookNext.seated}`, booked, minutes),
-                        );
-                    }}
                 />
             ) : null}
 
