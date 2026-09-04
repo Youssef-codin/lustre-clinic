@@ -13,7 +13,7 @@
 import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
@@ -66,7 +66,7 @@ export type SettingsScreenProps = {
     goHome?: number;
 };
 
-export function SettingsScreen({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
+function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
     const [route, setRoute] = useState<Route>('index');
     const [switching, setSwitching] = useState(false);
     const [seenHome, setSeenHome] = useState(goHome);
@@ -278,6 +278,9 @@ export function SettingsScreen({ role: roleProp, onChangeRole, goHome = 0 }: Set
         </View>
     );
 }
+
+/** Memoised for the reason the other three clusters are — see `shell/AppShell.tsx`. */
+export const SettingsScreen = memo(SettingsScreenView);
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
     return (

@@ -1,6 +1,6 @@
 import type { ClientRole } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
@@ -30,6 +30,17 @@ import {
 // secretary keeps the date, scroll position and in-flight queries across tab
 // switches. The shell owns the role — it outlives the settings screen — but it
 // is still device-local and gates rows, never access.
+//
+// Four mounted clusters is also what makes the switch expensive if nothing is
+// done about it: `setTab` re-renders this component, and every pane below it
+// re-renders with it — the three nobody is about to look at included. So each
+// cluster is `memo`'d and every prop that reaches one is stable, which leaves a
+// tab switch costing this component, the four `Pane` wrappers and the tab bar.
+// Nothing under a pane runs, because a switch changes nothing a pane is given.
+// The rule that keeps it that way: no inline arrow, object or array may be
+// written into a pane's props. It is worth reading `open` below with that in
+// mind — it is handed to the tab bar, which is cheap, and deliberately is not
+// one of these.
 //
 // It also owns every route that crosses clusters, because a cluster holds its
 // own stack and cannot push into another one's. A patient's record is the
@@ -110,10 +121,10 @@ export function AppShell() {
     // Bringing a tab forward, without saying anything about the highlight — a
     // cross-cluster push answers that for itself, and the tab bar's own handler
     // answers it below.
-    function reveal(next: TabKey) {
+    const reveal = useCallback((next: TabKey) => {
         setTab(next);
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
-    }
+    }, []);
 
     /**
      * The tab bar. A tap on the tab already showing is not a switch — it is
@@ -138,12 +149,15 @@ export function AppShell() {
         reveal(next);
     }
 
-    function openRecord(patientId: string, backLabel?: string, said?: string) {
-        setRecord((current) => ask(current, { patientId, backLabel }));
-        reveal('patients');
-        setBooking(false);
-        if (said) setToast(said);
-    }
+    const openRecord = useCallback(
+        (patientId: string, backLabel?: string, said?: string) => {
+            setRecord((current) => ask(current, { patientId, backLabel }));
+            reveal('patients');
+            setBooking(false);
+            if (said) setToast(said);
+        },
+        [reveal],
+    );
 
     /**
      * The record's two openers. Both are one screen in the day cluster —
@@ -155,31 +169,44 @@ export function AppShell() {
      * tab's own FAB already follows, said here because the shell is what put the
      * page up.
      */
-    function openBooking(patient: PatientTarget, timing: BookingTiming) {
-        setBooked((current) => ask(current, { patient, timing }));
-        reveal('day');
-        setBooking(true);
-    }
+    const openBooking = useCallback(
+        (patient: PatientTarget, timing: BookingTiming) => {
+            setBooked((current) => ask(current, { patient, timing }));
+            reveal('day');
+            setBooking(true);
+        },
+        [reveal],
+    );
+
+    // One per pane, rather than the arrow each `<Pane>` used to be written with.
+    // The clusters are memoised and a tab switch changes none of their props, so
+    // the switch costs a re-render of this component and nothing below it — but
+    // only while every handler that reaches a pane keeps its identity. An inline
+    // arrow here is a new prop on all four trees and puts the whole cascade back.
+    const openFromDoctorDay = useCallback((patientId: string) => openRecord(patientId, 'Day'), [openRecord]);
+    const openFromDay = useCallback(
+        (patientId: string, said?: string, backLabel?: string) =>
+            openRecord(patientId, backLabel ?? 'Day', said),
+        [openRecord],
+    );
+    const openFromMoney = useCallback((patientId: string) => openRecord(patientId, 'Money'), [openRecord]);
+    const bookLater = useCallback((patient: PatientTarget) => openBooking(patient, 'later'), [openBooking]);
+    const bookNow = useCallback((patient: PatientTarget) => openBooking(patient, 'now'), [openBooking]);
+    const clearToast = useCallback(() => setToast(null), []);
 
     return (
         <View style={styles.root}>
             <View style={styles.body}>
                 <Pane visible={!disconnected && tab === 'day'} mounted={visited.includes('day')}>
                     {role === 'doctor' ? (
-                        <DoctorDayScreen
-                            key="doctor"
-                            goHome={home.day}
-                            onOpenRecord={(patientId) => openRecord(patientId, 'Day')}
-                        />
+                        <DoctorDayScreen key="doctor" goHome={home.day} onOpenRecord={openFromDoctorDay} />
                     ) : (
                         <DayScreen
                             key="secretary"
                             open={booked}
                             goHome={home.day}
                             onBookingChange={setBooking}
-                            onOpenRecord={(patientId, said, backLabel) =>
-                                openRecord(patientId, backLabel ?? 'Day', said)
-                            }
+                            onOpenRecord={openFromDay}
                         />
                     )}
                 </Pane>
@@ -192,8 +219,8 @@ export function AppShell() {
                         // booking on it to reach — so on his phone the record's
                         // two openers keep the screen's own fallback, which says
                         // where the flow lives instead of failing silently.
-                        onBook={role === 'secretary' ? (patient) => openBooking(patient, 'later') : undefined}
-                        onWalkIn={role === 'secretary' ? (patient) => openBooking(patient, 'now') : undefined}
+                        onBook={role === 'secretary' ? bookLater : undefined}
+                        onWalkIn={role === 'secretary' ? bookNow : undefined}
                     />
                 </Pane>
 
@@ -201,10 +228,7 @@ export function AppShell() {
                     {/* The debtor rows are the whole tab now: tapping one opens
                         that patient's record, which is where a payment is taken.
                         Nothing pushes *into* this cluster any more. */}
-                    <MoneyCluster
-                        goHome={home.money}
-                        onOpenRecord={(patientId) => openRecord(patientId, 'Money')}
-                    />
+                    <MoneyCluster goHome={home.money} onOpenRecord={openFromMoney} />
                 </Pane>
 
                 <Pane visible={!disconnected && tab === 'settings'} mounted={visited.includes('settings')}>
@@ -219,7 +243,7 @@ export function AppShell() {
                 <Toast
                     visible={!disconnected && toast !== null}
                     message={toast ?? ''}
-                    onDismiss={() => setToast(null)}
+                    onDismiss={clearToast}
                     testID="shell-toast"
                 />
 
