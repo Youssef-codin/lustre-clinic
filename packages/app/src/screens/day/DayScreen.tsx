@@ -11,7 +11,7 @@
  * fall back to the same default hours, but the second is the clinic's own
  * guess while the first is this screen's.
  */
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import {
     Banner,
@@ -100,7 +100,7 @@ export type DayScreenProps = {
     goHome?: number;
 };
 
-export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayScreenProps = {}) {
+function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
@@ -765,6 +765,14 @@ export function DayScreen({ onBookingChange, onOpenRecord, open, goHome = 0 }: D
         </View>
     );
 }
+
+/**
+ * The shell keeps all four tabs mounted, so anything that re-renders it renders
+ * this tree too — a tab switch included, and this is the largest of the four.
+ * The props the shell hands down are stable by design (`shell/AppShell.tsx`), so
+ * memoising here is what makes a switch away from the day cost nothing.
+ */
+export const DayScreen = memo(DayScreenView);
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },

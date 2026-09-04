@@ -15,6 +15,7 @@
 // as a component rather than collapsing into `MoneyScreen` because `goHome` is
 // the tab's business and not the dashboard's. It goes when a real navigator
 // lands (SPEC §18 F3).
+import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { color } from '../../theme';
 import { MoneyScreen } from './MoneyScreen';
@@ -30,7 +31,7 @@ export type MoneyClusterProps = {
     onOpenRecord?: (patientId: string) => void;
 };
 
-export function MoneyCluster({ goHome = 0, onOpenRecord }: MoneyClusterProps = {}) {
+function MoneyClusterView({ goHome = 0, onOpenRecord }: MoneyClusterProps = {}) {
     return (
         <View style={styles.root}>
             {/* `goHome` reaches the dashboard rather than being handled here:
@@ -40,6 +41,13 @@ export function MoneyCluster({ goHome = 0, onOpenRecord }: MoneyClusterProps = {
         </View>
     );
 }
+
+/**
+ * Thin as this is, the memo is not: it is the boundary that keeps `MoneyScreen`
+ * — the whole dashboard, its period tabs and its debtor rows — out of a tab
+ * switch, since both props it passes down come from the shell unchanged.
+ */
+export const MoneyCluster = memo(MoneyClusterView);
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: color.canvas },

@@ -21,7 +21,7 @@
  * order is re-asked when somebody arrives or leaves the chair and not on every
  * tick of the clock.
  */
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
 import { color, size, space } from '../../theme';
@@ -53,7 +53,7 @@ export type DoctorDayScreenProps = {
     goHome?: number;
 };
 
-export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
+function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState({ open: false, seq: 0 });
@@ -299,6 +299,9 @@ export function DoctorDayScreen({ onOpenRecord, goHome = 0 }: DoctorDayScreenPro
         </View>
     );
 }
+
+/** Memoised for the reason `DayScreen` is — this is the doctor's half of the same pane. */
+export const DoctorDayScreen = memo(DoctorDayScreenView);
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
