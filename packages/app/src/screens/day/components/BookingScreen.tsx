@@ -112,6 +112,12 @@ export function BookingScreen({
     const [duration, setDuration] = useState(defaultDuration);
     const [note, setNote] = useState('');
     const [branch, setBranch] = useState<string | null>(branchId);
+    // The dock floats over the scroll, so the body reserves its height — and that
+    // height is not a constant. A warning above the bar wraps to as many lines as
+    // its text needs, and two of them can show at once, so a fixed inset leaves
+    // the end of the content under a notice at full scroll. `BAR_HEIGHT` is the
+    // bare bar, which is what the dock measures to before the first layout.
+    const [dockHeight, setDockHeight] = useState(BAR_HEIGHT);
 
     // A walk-in is always "now", whatever day the screen behind is on — the only
     // thing that rules it out is a branch that is not working today. It moves
@@ -365,7 +371,7 @@ export function BookingScreen({
 
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={styles.body}
+                contentContainerStyle={[styles.body, { paddingBottom: dockHeight + space[5] }]}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
             >
@@ -586,7 +592,11 @@ export function BookingScreen({
                 transparency fixes, because the content never reached under it.
                 `box-none` so the empty width of the dock does not eat taps meant
                 for the times behind it. */}
-            <View style={styles.dock} pointerEvents="box-none">
+            <View
+                style={styles.dock}
+                pointerEvents="box-none"
+                onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
+            >
                 {branch === null ? (
                     <View style={styles.notice}>
                         <Callout tone="warning" title="No branch to book into">
@@ -811,10 +821,9 @@ const styles = StyleSheet.create({
     stepBarDone: { backgroundColor: color.ink },
 
     scroll: { flex: 1 },
-    // The dock floats, so the last thing on the page has to be scrollable clear
-    // of it under its own steam — otherwise the grid's bottom row sits under the
-    // button with no way to reach it.
-    body: { paddingHorizontal: size.gutter, paddingBottom: BAR_HEIGHT + space[5], gap: space[5] },
+    // No `paddingBottom` here — it is measured off the dock and supplied inline,
+    // so the grid's bottom row can always be scrolled clear of the floating bar.
+    body: { paddingHorizontal: size.gutter, gap: space[5] },
     section: { gap: space[2.5] },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
     grow: { flex: 1, minWidth: 0 },
