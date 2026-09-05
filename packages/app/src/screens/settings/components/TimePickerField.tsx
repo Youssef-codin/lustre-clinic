@@ -30,6 +30,7 @@
  * is a bigger call than one screen's picker.
  */
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { useRef } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { formatClock12 } from '../../../components/domain';
 import { Chevron, Field } from '../../../components/ui';
@@ -63,12 +64,24 @@ export function TimePickerField({
 }: TimePickerFieldProps) {
     const shown = formatClock12(value);
 
+    /**
+     * Whether the dialog is already up. The control has no state to bail out
+     * of — the picker is opened imperatively — and the row stays under the
+     * finger until the native dialog has been raised, so a double tap asks for
+     * two of them and Cancel then dismisses one and leaves the other.
+     */
+    const asked = useRef(false);
+
     function open() {
+        if (asked.current) return;
+        asked.current = true;
+
         DateTimePickerAndroid.open({
             value: dateAt(value),
             mode: 'time',
             is24Hour: false,
             onChange: (event, picked) => {
+                asked.current = false;
                 // 'dismissed' is Cancel and the back gesture both; only 'set'
                 // is the user saying yes.
                 if (event.type !== 'set' || !picked) return;

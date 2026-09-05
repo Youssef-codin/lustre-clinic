@@ -48,6 +48,18 @@ export type ButtonProps = {
     icon?: ReactNode;
     block?: boolean;
     pressLockMs?: number;
+    /**
+     * Whether `disabled` is allowed to change how the button looks. `dim` is the
+     * default and is right almost everywhere: the fill lightens, the label
+     * darkens, and the control reads as not yet available.
+     *
+     * `solid` keeps the enabled fill and label while staying just as inert. It
+     * is for the one button on a screen that is always the way forward — a
+     * stepper's Next, where the step above it already says what is missing, and
+     * grey-ing the only action on the bar reads as the screen having nothing to
+     * offer rather than as a question still open.
+     */
+    disabledLook?: 'dim' | 'solid';
     style?: StyleProp<ViewStyle>;
     testID?: string;
 };
@@ -103,11 +115,15 @@ export function Button({
     icon,
     block = false,
     pressLockMs = 500,
+    disabledLook = 'dim',
     style,
     testID,
 }: ButtonProps) {
     const lockedUntil = useRef(0);
     const inert = disabled || loading;
+    // Inertness and appearance are separate questions: `solid` refuses the press
+    // exactly as `dim` does, and only declines to say so in the fill.
+    const dimmed = disabled && disabledLook === 'dim';
 
     function handlePress() {
         if (inert || !onPress) return;
@@ -131,7 +147,7 @@ export function Button({
                 styles[variant],
                 block && styles.block,
                 pressed && styles.pressed,
-                disabled && styles[DISABLED[variant]],
+                dimmed && styles[DISABLED[variant]],
                 style,
             ]}
         >
@@ -140,7 +156,7 @@ export function Button({
                 <Text
                     variant={sizeProp === 'lg' ? 'headline' : 'callout'}
                     weight="semibold"
-                    tone={disabled ? 'muted' : LABEL_TONE[variant]}
+                    tone={dimmed ? 'muted' : LABEL_TONE[variant]}
                 >
                     {label}
                 </Text>
@@ -152,7 +168,7 @@ export function Button({
                         passes both to its primary. The spinner follows the label
                         onto the light fill, or a white one lands on `surface2`
                         and the button reads as doing nothing at all. */}
-                    <ActivityIndicator size="small" color={disabled ? color.muted : SPINNER[variant]} />
+                    <ActivityIndicator size="small" color={dimmed ? color.muted : SPINNER[variant]} />
                 </View>
             )}
         </Pressable>

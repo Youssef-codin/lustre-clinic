@@ -54,6 +54,19 @@ export function ProcedureSheet({
 
     const offered = useMemo(() => offeredFor(categories, tooth !== null), [categories, tooth]);
 
+    /**
+     * A pick closes the sheet, and the sheet is on screen and under the finger
+     * for the whole slide down — so the second tap of a double tap lands on a
+     * row that has already been answered. The caller has cleared what it was
+     * asking by then, and its own fallback is "no tooth", which is how one tap
+     * on `Class II` became two lines with the second one unassigned. The sheet
+     * that is leaving cannot answer.
+     */
+    function pick(picked: PickedProcedure) {
+        if (!visible) return;
+        onPick(picked);
+    }
+
     return (
         <Sheet
             visible={visible}
@@ -102,7 +115,7 @@ export function ProcedureSheet({
                                     label={category.name}
                                     price={category.defaultPrice}
                                     onPress={() =>
-                                        onPick({
+                                        pick({
                                             procedureId: category.id,
                                             name: category.name,
                                             variant: null,
@@ -152,7 +165,7 @@ export function ProcedureSheet({
                                                 key={child.id}
                                                 accessibilityRole="button"
                                                 onPress={() =>
-                                                    onPick({
+                                                    pick({
                                                         procedureId: child.id,
                                                         name: category.name,
                                                         variant: child.name,

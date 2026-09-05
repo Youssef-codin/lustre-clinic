@@ -175,7 +175,7 @@ function SlotChip({ slot, selected, onPress }: { slot: Slot; selected: boolean; 
     return (
         <View style={styles.slot}>
             <Chip
-                label={`${time} ${meridiem.toLowerCase()}`}
+                label={`${time} ${meridiem}`}
                 selected={selected}
                 disabled={slot.state !== 'free'}
                 grow

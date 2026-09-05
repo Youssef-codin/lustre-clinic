@@ -35,6 +35,17 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
         codes: query ? quadrant.codes.filter((code) => code.includes(query)) : quadrant.codes,
     })).filter((quadrant) => quadrant.codes.length > 0);
 
+    /**
+     * A pick closes the sheet, and the sheet is on screen and under the finger
+     * for the whole slide down — so the second tap of a double tap lands on a
+     * chart that has already been answered, and adds the line again. The sheet
+     * that is leaving cannot answer.
+     */
+    function pick(tooth: Tooth | null) {
+        if (!visible) return;
+        onPick(tooth);
+    }
+
     return (
         <Sheet
             visible={visible}
@@ -50,7 +61,7 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
                 required ? undefined : (
                     <Pressable
                         accessibilityRole="button"
-                        onPress={() => onPick(null)}
+                        onPress={() => pick(null)}
                         style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
                     >
                         <Text variant="subhead" weight="medium" tone="muted">
@@ -87,7 +98,7 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
                                         key={code}
                                         accessibilityRole="button"
                                         accessibilityLabel={code}
-                                        onPress={() => onPick(code)}
+                                        onPress={() => pick(code)}
                                         style={({ pressed }) => [styles.tooth, pressed && styles.pressed]}
                                     >
                                         <Text variant="caption" script="sans" weight="bold">

@@ -89,7 +89,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
         () => clinicDay.filter((row) => row.branchId === branch),
         [clinicDay, branch],
     );
-    const closed = isClosed(dateKey, schedule.data);
+    const closed = isClosed(dateKey, schedule.data, branch);
     const isToday = dateKey === todayKey();
 
     const away = clinicDay.filter((row) => row.branchId !== branch && holdsSlot(row));

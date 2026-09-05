@@ -107,7 +107,15 @@ export function CalendarSheet({
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     const pendingLoad = loads.get(pending);
-    const pendingClosed = isClosed(pending, schedule);
+    // The grid below counts every branch on purpose, but this line describes the
+    // one day the desk is about to open, so it asks the branch the pick will
+    // actually land in. `branchId` is the screen's *resolved* branch, not the id
+    // it has stored — an empty day has no `busiest`, and handing `pickDay` a null
+    // there leaves the stored id alone and lets the new date resolve somewhere
+    // else entirely. `onPick` is given `pendingBranch` so the day that opens is
+    // the one this summary just described.
+    const pendingBranch = pendingLoad?.busiest ?? branchId;
+    const pendingClosed = isClosed(pending, schedule, pendingBranch);
 
     const branchOf = (id: string | null) => branches.find((row) => row.id === id)?.name;
     const scopeLabel = scope ? (branchOf(scope) ?? 'this branch') : 'all branches';
@@ -137,7 +145,7 @@ export function CalendarSheet({
                     label={movesToName ? `Go to this day in ${movesToName}` : 'Go to this day'}
                     block
                     onPress={() => {
-                        onPick(pending, pendingLoad?.busiest ?? null);
+                        onPick(pending, pendingBranch);
                         onClose();
                     }}
                 />
@@ -147,17 +155,23 @@ export function CalendarSheet({
                 <Text variant="title3" weight="semibold">
                     {formatMonth(month)}
                 </Text>
+                {/* `pressLockMs={0}` because paging is the one thing here meant to
+                    be pressed repeatedly. The default lock exists to stop a
+                    control answering twice; six months out is six deliberate
+                    taps, and at any normal tapping speed the lock eats half. */}
                 <View style={styles.monthNav}>
                     <IconButton
                         accessibilityLabel="Previous month"
                         icon={<Chevron direction="back" tone="ink" size={9} />}
                         variant="square"
+                        pressLockMs={0}
                         onPress={() => goToMonth(addMonths(month, -1))}
                     />
                     <IconButton
                         accessibilityLabel="Next month"
                         icon={<Chevron direction="forward" tone="ink" size={9} />}
                         variant="square"
+                        pressLockMs={0}
                         onPress={() => goToMonth(addMonths(month, 1))}
                     />
                 </View>

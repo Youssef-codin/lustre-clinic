@@ -25,7 +25,10 @@ push it, open the PR from there against `main`.
 
 1. Build the feature on the checked-out branch, using stacked PRs.
 2. Open the PR against `main`.
-3. Wait for the automated `opencode` review to finish.
+3. Ask CodeRabbit for a review by commenting `@coderabbitai review`, then wait
+   for it. CodeRabbit does not review this repo automatically — its free OSS
+   tier only does that above 10 stars — so an unprompted PR gets a skip notice
+   and nothing else.
 4. Read its comments and fix what genuinely needs fixing.
 5. Only then report back to the user — they do the final review.
 
