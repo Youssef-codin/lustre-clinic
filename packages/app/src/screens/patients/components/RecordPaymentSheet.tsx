@@ -19,8 +19,7 @@
 // the write crosses Tailscale, and a sheet closed while it is in flight leaves
 // the outcome unknowable to the person who took the money.
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
-// biome-ignore lint/style/noRestrictedImports: clears the form on the closed→open transition. A `key` is the usual answer and is wrong here: keyed on `visible` it remounts mid-dismiss and cuts the exit animation, and keyed on a session counter it moves the sheet's own bookkeeping into the record screen.
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MoneyValue } from '../../../components/domain';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
@@ -57,15 +56,19 @@ export function RecordPaymentSheet({
     const [notice, setNotice] = useState<string | null>(null);
 
     // Opening is what resets it, not closing: a sheet that failed keeps what was
-    // typed on screen while the failure is being read.
-    useEffect(() => {
+    // typed on screen while the failure is being read. Adjusted during render
+    // against the last `visible` seen, which is React's answer to resetting on a
+    // prop change without remounting — a `key` here would cut the exit animation.
+    const [wasVisible, setWasVisible] = useState(visible);
+    if (visible !== wasVisible) {
+        setWasVisible(visible);
         if (visible) {
             setAmount('');
             setMethod('cash');
             setNote('');
             setNotice(null);
         }
-    }, [visible]);
+    }
 
     function changeAmount(text: string) {
         if (!isWholePounds(text)) {
