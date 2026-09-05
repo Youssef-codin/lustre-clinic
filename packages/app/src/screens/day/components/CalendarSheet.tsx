@@ -107,7 +107,12 @@ export function CalendarSheet({
     const cells: (string | null)[] = [...Array<null>(leading).fill(null), ...days];
 
     const pendingLoad = loads.get(pending);
-    const pendingClosed = isClosed(pending, schedule);
+    // The grid below counts every branch on purpose, but this line describes the
+    // one day the desk is about to open, so it asks the branch the pick will
+    // actually land in: `onPick` hands back `busiest`, and `pickDay` keeps the
+    // current branch when the day has none.
+    const pendingBranch = pendingLoad?.busiest ?? branchId;
+    const pendingClosed = isClosed(pending, schedule, pendingBranch);
 
     const branchOf = (id: string | null) => branches.find((row) => row.id === id)?.name;
     const scopeLabel = scope ? (branchOf(scope) ?? 'this branch') : 'all branches';

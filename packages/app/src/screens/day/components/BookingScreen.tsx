@@ -75,6 +75,9 @@ export type BookingScreenProps = {
 /** How far ahead the day strip offers. */
 const STRIP_DAYS = 14;
 
+/** The floating dock's button and its padding — what the scroll has to clear. */
+const BAR_HEIGHT = space[3] + size.button + space[4];
+
 type Step = 'what' | 'when' | 'confirm';
 type Timing = 'now' | 'later';
 
@@ -265,21 +268,28 @@ export function BookingScreen({
             <Text variant="eyebrow" tone="muted">
                 HOW LONG
             </Text>
-            <View style={styles.row}>
+            {/* Four to a row, wrapping — not one row of `grow` chips. Settings
+                lets the clinic keep up to twelve lengths and this screen has to
+                draw whatever it finds: `grow` is `flex: 1`, which overrides the
+                wrap and squeezes every option onto one line, so at eight of them
+                "45 min" came out as three stacked characters. The width is the
+                cell's; the chip grows to fill it. */}
+            <View style={styles.durations}>
                 {durationOptions.map((option) => (
-                    <Chip
-                        key={option}
-                        label={`${option} min`}
-                        grow
-                        selected={duration === option}
-                        onPress={() => {
-                            setDuration(option);
-                            // A new length is a new set of start times, and the
-                            // old pick is usually not one of them.
-                            setSlotMinutes(null);
-                            reset();
-                        }}
-                    />
+                    <View key={option} style={styles.duration}>
+                        <Chip
+                            label={`${option} min`}
+                            grow
+                            selected={duration === option}
+                            onPress={() => {
+                                setDuration(option);
+                                // A new length is a new set of start times, and
+                                // the old pick is usually not one of them.
+                                setSlotMinutes(null);
+                                reset();
+                            }}
+                        />
+                    </View>
                 ))}
             </View>
         </View>
@@ -287,6 +297,7 @@ export function BookingScreen({
 
     const last = step === 'confirm';
     const stepReady = step === 'when' ? whenAnswered && branch !== null : true;
+    const barIdle = last ? !ready : !stepReady;
 
     return (
         <View style={styles.screen} testID="booking-screen">
@@ -569,38 +580,53 @@ export function BookingScreen({
                 )}
             </ScrollView>
 
-            {branch === null ? (
-                <View style={styles.notice}>
-                    <Callout tone="warning" title="No branch to book into">
-                        The clinic’s branches could not be loaded, so there is nowhere to put this booking.
-                    </Callout>
-                </View>
-            ) : null}
+            {/* Over the scroll rather than beside it. As a sibling in the column
+                the bar took a strip of its own and the grid stopped dead at it,
+                clipping the last row of times mid-chip — which no amount of
+                transparency fixes, because the content never reached under it.
+                `box-none` so the empty width of the dock does not eat taps meant
+                for the times behind it. */}
+            <View style={styles.dock} pointerEvents="box-none">
+                {branch === null ? (
+                    <View style={styles.notice}>
+                        <Callout tone="warning" title="No branch to book into">
+                            The clinic’s branches could not be loaded, so there is nowhere to put this
+                            booking.
+                        </Callout>
+                    </View>
+                ) : null}
 
-            {failure ? (
-                <View style={styles.notice}>
-                    <Callout tone="warning" title={failure.title}>
-                        {failure.body ?? ''}
-                    </Callout>
-                </View>
-            ) : null}
+                {failure ? (
+                    <View style={styles.notice}>
+                        <Callout tone="warning" title={failure.title}>
+                            {failure.body ?? ''}
+                        </Callout>
+                    </View>
+                ) : null}
 
-            <View style={styles.bar}>
-                <Button
-                    label={last ? (scheduled ? 'Book it' : 'Start the visit') : 'Next'}
-                    block
-                    loading={pending}
-                    disabled={last ? !ready : !stepReady}
-                    onPress={() => {
-                        if (last) {
-                            book();
-                            return;
-                        }
-                        reset();
-                        setIndex(index + 1);
-                    }}
-                    testID="booking-next"
-                />
+                <View style={styles.bar}>
+                    <Button
+                        label={last ? (scheduled ? 'Book it' : 'Start the visit') : 'Next'}
+                        block
+                        loading={pending}
+                        disabled={barIdle}
+                        // The only way forward on the screen, so it keeps its fill
+                        // while the step is still open. The step above already says
+                        // what is missing; a grey slab on a bar with nothing else on
+                        // it read as the screen being finished with, not as a
+                        // question waiting. It still refuses the press.
+                        disabledLook="solid"
+                        onPress={() => {
+                            if (last) {
+                                book();
+                                return;
+                            }
+                            reset();
+                            setIndex(index + 1);
+                        }}
+                        testID="booking-next"
+                    />
+                </View>
             </View>
         </View>
     );
@@ -785,10 +811,16 @@ const styles = StyleSheet.create({
     stepBarDone: { backgroundColor: color.ink },
 
     scroll: { flex: 1 },
-    body: { paddingHorizontal: size.gutter, paddingBottom: space[8], gap: space[5] },
+    // The dock floats, so the last thing on the page has to be scrollable clear
+    // of it under its own steam — otherwise the grid's bottom row sits under the
+    // button with no way to reach it.
+    body: { paddingHorizontal: size.gutter, paddingBottom: BAR_HEIGHT + space[5], gap: space[5] },
     section: { gap: space[2.5] },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
     grow: { flex: 1, minWidth: 0 },
+    durations: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+    /** Four to a row — 4×23% leaves the three gaps their 8pt and a little slack. */
+    duration: { width: '23%' },
 
     head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
 
@@ -829,12 +861,13 @@ const styles = StyleSheet.create({
     },
 
     notice: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
+    dock: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+    // No fill and no rule: the bar is the page showing through, and the button
+    // is the only thing on it that is meant to be seen.
     bar: {
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
         paddingBottom: space[4],
-        borderTopWidth: border.hair,
-        borderTopColor: color.hair,
-        backgroundColor: color.surface,
+        backgroundColor: color.transparent,
     },
 });

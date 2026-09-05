@@ -225,6 +225,29 @@ app shell's, alongside the server address, and it is what the settings index's
 identity card and the branch list's "YOU'RE HERE" tag are both already asking
 for.
 
+## The calendar sheet asks two different branch questions, one per surface
+
+`isClosed` takes an optional `branchId`, and the month sheet passes it in one
+place and not the other. That is the decision, not an oversight left standing.
+
+The **month grid** stays unscoped. It counts every branch on purpose — "is
+Thursday busy" is not a question the desk asks one branch at a time — and
+`busiest` is what pays for the imprecision: the pick carries the branch holding
+most of that day and the day view moves with it.
+
+The **summary line under the grid** is scoped, to `busiest ?? branchId`. It is
+not describing the month, it is describing the one day the desk is about to
+commit to, and `onPick` already hands that day's busiest branch back. Unscoped,
+it read "Closed that day" off whichever branch `clinic_days` happened to list
+first for that weekday — so a clinic running Maadi on Friday and Nasr City on
+Wednesday got a verdict belonging to neither of the branches on screen.
+
+The scoped line can now disagree with the cell above it: a day the grid draws as
+open, because some branch works it, can say "Closed that day" underneath. That
+is the honest reading of two different questions, and the disagreement is the
+information — the grid says the clinic has that day, the line says the branch
+you are about to open does not.
+
 ## Empty time on the day view is not tappable
 
 Tapping an empty slot should open a booking sheet. It does not. Empty time is
