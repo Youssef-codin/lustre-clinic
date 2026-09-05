@@ -3,8 +3,17 @@
  * circles), so the touch target is extended past the paint rather than growing
  * it. Box sizes by variant: 34 top-bar/row, 40 WhatsApp/call, 32 calendar nav,
  * 30 kill/del/option dismiss.
+ *
+ * `pressLockMs` is `ui/Button`'s, at the same default and for the same reason:
+ * this is the same class of control drawn without a word on it, and a second
+ * tap while the first is still landing is the same second write. It matters
+ * more here than on `Button`, not less — an icon button has no room for a
+ * spinner, so nothing about it changes mid-flight to say the tap was taken.
+ * The one shape it is wrong for is a control meant to be tapped repeatedly,
+ * like month nav on a calendar; those pass `pressLockMs={0}`.
  */
 import type { ReactNode } from 'react';
+import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';
 import { color, radius, space } from '../../theme';
@@ -20,6 +29,7 @@ export type IconButtonProps = {
     tone?: IconButtonTone;
     disabled?: boolean;
     size?: number;
+    pressLockMs?: number;
     style?: StyleProp<ViewStyle>;
     testID?: string;
 };
@@ -47,10 +57,20 @@ export function IconButton({
     tone = 'ink',
     disabled = false,
     size,
+    pressLockMs = 500,
     style,
     testID,
 }: IconButtonProps) {
     const box = size ?? BOX[variant];
+    const lockedUntil = useRef(0);
+
+    function handlePress() {
+        if (disabled || !onPress) return;
+        const now = Date.now();
+        if (now < lockedUntil.current) return;
+        lockedUntil.current = now + pressLockMs;
+        onPress();
+    }
 
     return (
         <Pressable
@@ -58,7 +78,7 @@ export function IconButton({
             accessibilityLabel={accessibilityLabel}
             accessibilityState={{ disabled }}
             disabled={disabled}
-            onPress={onPress}
+            onPress={handlePress}
             testID={testID}
             hitSlop={Math.max(0, Math.round((44 - box) / 2))}
             style={({ pressed }) => [

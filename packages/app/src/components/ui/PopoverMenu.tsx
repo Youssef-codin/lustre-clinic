@@ -130,6 +130,11 @@ export function MenuSurface({
             <Animated.View
                 accessibilityRole="menu"
                 accessibilityLabel={accessibilityLabel}
+                // Every item closes the menu before it acts, and the menu is
+                // still on screen for the whole exit — so without this a second
+                // tap lands on a row that has already run, and runs it again.
+                // The surface goes dead the moment it is leaving.
+                pointerEvents={visible ? 'auto' : 'none'}
                 style={[
                     styles.surface,
                     { top, ...inline },
