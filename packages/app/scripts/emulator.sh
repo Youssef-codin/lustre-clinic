@@ -4,6 +4,9 @@
 #   ./emulator.sh          boot the AVD (if cold), then the bundler — building
 #                          and installing first only if the APK isn't there yet
 #   ./emulator.sh --build  force a native rebuild first
+#   ./emulator.sh --release  build and install the release APK, no bundler —
+#                          the only way to time anything, since dev builds run
+#                          Reanimated and the new architecture unoptimised
 #   ./emulator.sh --start  bundler only; the APK is already installed
 #   ./emulator.sh --clear  drop Metro's caches first; combines with the above
 #   ./emulator.sh --shot out.png  screenshot whatever is on screen and exit
@@ -40,6 +43,7 @@ clear_cache=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --build) mode="build" ;;
+        --release) mode="release" ;;
         --start) mode="start" ;;
         --clear) clear_cache="1" ;;
         --shot)
@@ -47,7 +51,7 @@ while [ $# -gt 0 ]; do
             shot="${2:-emulator.png}"
             if [ $# -gt 1 ]; then shift; fi
             ;;
-        *) echo "unknown option: $1 (expected --build, --start, --clear, --shot, or nothing)" >&2; exit 2 ;;
+        *) echo "unknown option: $1 (expected --build, --release, --start, --clear, --shot, or nothing)" >&2; exit 2 ;;
     esac
     shift
 done
@@ -165,6 +169,15 @@ if [ "$mode" = "run" ]; then
     else
         echo "com.lustre.clinic is not installed on $serial — building it."
     fi
+fi
+
+# A release APK carries its own bundle, so there is no Metro to start and no
+# `--dev-client` to attach: the app is installed and runs on its own. It is
+# signed with the debug keystore (`android/app/build.gradle` points the release
+# signing config at it), which is fine for a device in reach and not for
+# anything that leaves this machine.
+if [ "$mode" = "release" ]; then
+    exec bunx expo run:android --device "$avd" --variant release
 fi
 
 if [ "$mode" = "start" ]; then
