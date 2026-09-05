@@ -10,12 +10,12 @@
  * The two days differ only in what they count as over. The doctor is finished
  * when the patient goes out to pay, so `awaiting_payment` is settled for him;
  * the desk is not finished until the money is in, so it holds the black card.
- * `slotProgress` measures the slot, never the patient, and is left uncapped
- * once the slot runs over.
+ * `slotProgress` measures the booked slot, never the patient — arrival time
+ * does not touch it — and is left uncapped once the slot runs over.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import type { Appointment } from './data/types';
-import { dateKey, formatSpan, minutesOfDay } from './time';
+import { dateKey, formatDuration, formatProgress, formatSpan, minutesOfDay } from './time';
 
 const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>([
     'done',
@@ -139,42 +139,38 @@ export interface SlotProgress {
 }
 
 /**
- * How far into the visit the clock is.
+ * How far into the booked slot the clock is.
  *
- * It runs from when the patient was actually seen, which is `checkedInAt` when
- * they arrived early: seating someone at 11:00 for an 11:30 slot means the
- * visit started at 11:00, and a bar that sat at zero until 11:30 was telling
- * the doctor he had not started something he was already doing.
+ * The denominator is the booked duration and nothing else: a 30-minute
+ * appointment is 30 minutes of bar however early the patient walked in, which
+ * is what the desk means when it books one. The bar does not start running
+ * until the slot opens, so an early arrival sits at zero rather than at some
+ * fraction of a slot that grew to meet them.
  *
- * The end does not move with it. The slot still finishes when it was booked to,
- * so arriving early lengthens the visit rather than shifting it — twenty booked
- * minutes seen half an hour early are fifty minutes of room, and the overrun
- * warning holds off accordingly. Arriving late is not the mirror of this: a
- * patient seated after their slot opened keeps the slot's own start, or every
- * late arrival would silently be granted a fresh full slot and nothing would
- * ever read as running over.
+ * This reverses the earlier rule, which ran the clock from `checkedInAt` and
+ * left the end where it was booked, so that arriving early lengthened the
+ * visit. That held for someone twenty minutes early and fell apart at a desk
+ * that checks people in as they walk through the door: a noon consultation
+ * checked in at 08:47 read `0 / 223 min`.
+ *
+ * What the old rule was reaching for — the doctor should not be told he has not
+ * started something he is already doing — needs a record of when the patient
+ * went into the chair, and there is none. `checked_in` means arrived, not
+ * seated. Until that timestamp exists the bar draws the slot, which it can
+ * name, rather than the visit, which it cannot.
  */
-export function slotProgress(
-    appointment: Appointment,
-    nowMinutes: number,
-    checkedInAt?: string,
-): SlotProgress {
+export function slotProgress(appointment: Appointment, nowMinutes: number): SlotProgress {
     const booked = minutesOfDay(appointment.startsAt);
-    const ends = booked + appointment.durationMinutes;
-    const start = checkedInAt ? Math.min(minutesOfDay(checkedInAt), booked) : booked;
+    const duration = appointment.durationMinutes;
+    const ends = booked + duration;
 
-    const elapsed = nowMinutes - start;
-    const duration = ends - start;
+    const elapsed = Math.max(nowMinutes - booked, 0);
     const over = elapsed - duration;
 
     return {
         value: duration > 0 ? elapsed / duration : 0,
         over: over > 0,
-        label: over > 0 ? overLabel(over) : `${Math.max(elapsed, 0)} / ${duration} min`,
-        window: formatSpan(minutesOfDay(appointment.startsAt), ends),
+        label: over > 0 ? `${formatDuration(over)} over` : formatProgress(elapsed, duration),
+        window: formatSpan(booked, ends),
     };
-}
-
-function overLabel(over: number): string {
-    return over < 60 ? `${over} min over` : `${Math.floor(over / 60)}h ${over % 60}m over`;
 }

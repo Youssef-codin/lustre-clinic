@@ -80,6 +80,30 @@ export function formatStamp(at: number, locale: Locale = 'en'): string {
 }
 
 /**
+ * "45 min", "1h 30m" — a length of time rather than a point on the clock.
+ *
+ * Nobody reads `223 min` as three and three-quarter hours. Three callers want
+ * exactly this switch — the chair's progress bar, its overrun label, and the
+ * day's delay headline — and each of them used to carry its own copy, which is
+ * how the bar came to format hours on the overrun and not on the line above it.
+ */
+export function formatDuration(minutes: number): string {
+    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+/**
+ * "15 / 30 min", "45 min / 1h 30m" — how far into a length of time.
+ *
+ * Under an hour the two halves share one unit, which is the compact form the
+ * chair's bar has always drawn. The whole decides: once the slot itself passes
+ * an hour both ends switch, because the denominator is what the reader is
+ * measuring against.
+ */
+export function formatProgress(elapsed: number, total: number): string {
+    return total < 60 ? `${elapsed} / ${total} min` : `${formatDuration(elapsed)} / ${formatDuration(total)}`;
+}
+
+/**
  * "10:00 AM – 6:00 PM" — a span with the meridiem on both ends. Working hours
  * and the chair's window both read as a range, and dropping the opening
  * meridiem to save four characters makes 10–6 ambiguous in a clinic that could
