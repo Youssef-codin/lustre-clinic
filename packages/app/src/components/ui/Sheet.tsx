@@ -33,7 +33,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — driving `BottomSheetModal`'s imperative present/dismiss ref, and swallowing the hardware back through `BackHandler`
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
@@ -132,6 +132,21 @@ export function Sheet({
      * and so mounts already visible.
      */
     const presented = useRef(false);
+    /**
+     * Whether the library has the sheet down, which is not the same question as
+     * `visible` and can disagree with it.
+     *
+     * `visible` is what the parent wants; this is what actually happened. A
+     * caller whose `onClose` swaps the sheet's *contents* rather than closing it
+     * — the working-hours editor stepping back from the time wheel to its form —
+     * leaves `visible` true through a drag or a backdrop tap. Without this the
+     * effect is keyed on `visible` alone, never re-runs, and nothing calls
+     * `present()` again: the sheet is off the screen while React still believes
+     * it is up. No backdrop, no error, and the caller's own open flag stuck on,
+     * so the next tap that would raise it sets a value that is already set and
+     * does nothing at all.
+     */
+    const [down, setDown] = useState(false);
 
     useEffect(() => {
         asked.current = visible;
@@ -139,6 +154,10 @@ export function Sheet({
         if (visible) {
             closing.current = false;
             presented.current = true;
+            // Putting it back up if the library dropped it while the parent
+            // still wanted it. `present()` is a no-op on a sheet already up,
+            // which is what makes running this on every dismissal safe.
+            if (down) setDown(false);
             sheet.current?.present();
             return;
         }
@@ -151,7 +170,7 @@ export function Sheet({
 
         closing.current = true;
         sheet.current?.dismiss();
-    }, [visible]);
+    }, [visible, down]);
 
     /**
      * Every sheet swallows the hardware back while it is up, which is what
@@ -189,6 +208,11 @@ export function Sheet({
         Keyboard.dismiss();
         if (asked.current) onClose();
         onClosed?.();
+        // Last, and unconditionally: `onClose` has had its say by now, so the
+        // effect that follows this render sees what the parent decided. If it
+        // let `visible` go false this is the close it asked for and the effect
+        // stops at `closing`; if it kept the sheet up, the sheet goes back up.
+        setDown(true);
     }, [onClose, onClosed]);
 
     const renderBackdrop = useCallback(
