@@ -20,6 +20,7 @@ import {
     RefreshView,
     SegmentedControl,
     Toast,
+    useAfterSheet,
     usePullToRefresh,
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
@@ -160,6 +161,11 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     } | null>(null);
     const [bookNextOpen, setBookNextOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+    // Every exit from these two sheets goes somewhere else — the record, the
+    // booking page, the visit pages — and none of them may draw until the sheet
+    // that asked has finished leaving.
+    const bookNextDone = useAfterSheet();
+    const detailDone = useAfterSheet();
 
     // Both derived during render rather than in an effect, so the page is on
     // screen in the same commit as the tab switch and the pane never paints the
@@ -381,15 +387,21 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * the shell is about to hide. It is two lines, not one — the record already
      * has the patient's name as the largest thing on it, and the day view, which
      * has no record to open, has to say who it is talking about.
+     *
+     * The move waits for the sheet to be off the screen (`useAfterSheet`). The
+     * record is the heavier of the two answers to mount — a pane swap and a
+     * query — so doing it in this tick is what left the sheet sitting over the
+     * day view with nothing appearing to have happened.
      */
     function landOnRecord(patient: EmbeddedPatient, onRecord: string, onDay: string) {
         setBookNextOpen(false);
-
-        if (onOpenRecord) {
-            onOpenRecord(patient.id, onRecord);
-            return;
-        }
-        setToast(onDay);
+        bookNextDone.after(() => {
+            if (onOpenRecord) {
+                onOpenRecord(patient.id, onRecord);
+                return;
+            }
+            setToast(onDay);
+        });
     }
 
     /**
@@ -405,13 +417,15 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      */
     function bookNextOn(patient: EmbeddedPatient) {
         setBookNextOpen(false);
-        setPage((current) => ({
-            patient: draftFor(patient),
-            timing: 'later',
-            seq: (current?.seq ?? 0) + 1,
-        }));
-        setPageOpen(true);
-        onBookingChange?.(true);
+        bookNextDone.after(() => {
+            setPage((current) => ({
+                patient: draftFor(patient),
+                timing: 'later',
+                seq: (current?.seq ?? 0) + 1,
+            }));
+            setPageOpen(true);
+            onBookingChange?.(true);
+        });
     }
 
     /**
@@ -639,11 +653,14 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 appointment={selected.appointment}
                 onClose={() => setSelected((current) => ({ ...current, open: false }))}
                 onChanged={day.refetch}
-                onCheckIn={checkInFrom}
+                // The sheet closes itself on the way into a check-in, so this
+                // only says what the page is; `onCheckOut` has to close it too.
+                onCheckIn={(appointment) => detailDone.after(() => checkInFrom(appointment))}
                 onCheckOut={(appointment, loaded) => {
                     setSelected((current) => ({ ...current, open: false }));
-                    openVisit(appointment, loaded);
+                    detailDone.after(() => openVisit(appointment, loaded));
                 }}
+                onClosed={detailDone.closed}
             />
 
             {/* Keyed per check-in, so one patient's answer is never the next
@@ -661,6 +678,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             `${bookNext.patient.name} is ${bookNext.seated}`,
                         )
                     }
+                    onClosed={bookNextDone.closed}
                 />
             ) : null}
 

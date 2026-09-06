@@ -88,5 +88,7 @@ export type { ToastProps } from './Toast';
 export { Toast } from './Toast';
 export type { TopBarProps } from './TopBar';
 export { TopBar } from './TopBar';
+export type { AfterSheet } from './useAfterSheet';
+export { useAfterSheet } from './useAfterSheet';
 export { useKeyboardHeight } from './useKeyboardHeight';
 export { useReducedMotion } from './useReducedMotion';

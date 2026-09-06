@@ -39,6 +39,11 @@ export type AppointmentDetailSheetProps = {
      * which of them you pressed.
      */
     onCheckIn: (appointment: Appointment) => void;
+    /**
+     * Both of those open a page over the day, so neither may draw until this
+     * sheet is off the screen. See `Sheet`'s `onClosed`.
+     */
+    onClosed?: () => void;
 };
 
 type Confirming = 'cancel' | 'no-show' | null;
@@ -57,6 +62,7 @@ export function AppointmentDetailSheet({
     onChanged,
     onCheckOut,
     onCheckIn,
+    onClosed,
 }: AppointmentDetailSheetProps) {
     const [confirming, setConfirming] = useState<Confirming>(null);
 
@@ -90,7 +96,7 @@ export function AppointmentDetailSheet({
     }
 
     if (!appointment) {
-        return <Sheet visible={visible} onClose={close} title="Appointment" />;
+        return <Sheet visible={visible} onClose={close} onClosed={onClosed} title="Appointment" />;
     }
 
     const startMinutes = minutesOfDay(appointment.startsAt);
@@ -99,6 +105,7 @@ export function AppointmentDetailSheet({
         <Sheet
             visible={visible}
             onClose={close}
+            onClosed={onClosed}
             dismissable={!writing}
             title={appointment.patient.name}
             subtitle={`${formatSpan(

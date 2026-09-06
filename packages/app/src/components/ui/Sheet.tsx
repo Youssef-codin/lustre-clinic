@@ -42,6 +42,21 @@ import { duration } from './motion';
 export type SheetProps = {
     visible: boolean;
     onClose: () => void;
+    /**
+     * Fired once the sheet has finished leaving — every close, whoever started
+     * it, unlike `onClose`.
+     *
+     * This is where anything that changes the screen underneath belongs. Closing
+     * and navigating in the same tick puts the two on different clocks: the flag
+     * is React's and lands in the next commit, while the exit is an animation
+     * that only starts once `visible` has been through an effect — which is
+     * behind the commit that mounts whatever is being navigated to. The sheet
+     * then sits at full height, scrim and all, over the screen it is supposed to
+     * be handing over to, and the confirm reads as if it did not take. Waiting
+     * for this instead costs the exit's 300ms and spends them on the animation
+     * the sheet already has.
+     */
+    onClosed?: () => void;
     title?: string;
     subtitle?: string;
     children?: ReactNode;
@@ -54,6 +69,7 @@ export type SheetProps = {
 export function Sheet({
     visible,
     onClose,
+    onClosed,
     title,
     subtitle,
     children,
@@ -152,12 +168,17 @@ export function Sheet({
      * the backdrop. Telling it about its own would fire `onClose` twice for one
      * close, and not every caller can take that: some advance a flow or clear a
      * form there rather than just setting a flag.
+     *
+     * `onClosed` is the other half and has no such asymmetry: it says the sheet
+     * is off the screen, which is true of both closes and is the one moment
+     * anything underneath may change.
      */
     const handleDismiss = useCallback(() => {
         closing.current = true;
         Keyboard.dismiss();
         if (asked.current) onClose();
-    }, [onClose]);
+        onClosed?.();
+    }, [onClose, onClosed]);
 
     const renderBackdrop = useCallback(
         (props: BottomSheetBackdropProps) => (

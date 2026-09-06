@@ -37,13 +37,20 @@ export type BookNextSheetProps = {
     onBookNow: () => void;
     /** Scrim, hardware back and Book later all arrive here. */
     onDismiss: () => void;
+    /**
+     * Both answers land somewhere else, so neither is acted on here: the
+     * handlers above only say which it was, and this is where it is taken. See
+     * `Sheet`'s `onClosed`.
+     */
+    onClosed: () => void;
 };
 
-export function BookNextSheet({ visible, patientName, onBookNow, onDismiss }: BookNextSheetProps) {
+export function BookNextSheet({ visible, patientName, onBookNow, onDismiss, onClosed }: BookNextSheetProps) {
     return (
         <Sheet
             visible={visible}
             onClose={onDismiss}
+            onClosed={onClosed}
             title="Book their next visit?"
             subtitle={patientName}
             testID="book-next-sheet"
