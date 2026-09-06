@@ -38,6 +38,7 @@ import { patientService } from '../patient/patient.service.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
 import { reminderService } from '../reminder/reminder.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
+import { seatNextInChair } from '../visit/visit.service.ts';
 import type {
     ByDateInput,
     CreateAppointmentInput,
@@ -641,11 +642,23 @@ export const appointmentService = {
             );
         }
 
-        const [updated] = await db
-            .update(appointments)
-            .set({ status: 'awaiting_payment', updatedAt: new Date() })
-            .where(and(eq(appointments.id, id), eq(appointments.status, 'checked_in')))
-            .returning();
+        // The transition and the seating are one write: going to the desk is
+        // what empties the chair, and the patient who has been waiting starts
+        // their visit at that instant rather than at the time they arrived.
+        // Split across two statements, a failure between them would leave the
+        // chair empty with a queue in front of it and nobody's bar running.
+        const updated = await db.transaction(async (tx) => {
+            const now = new Date();
+
+            const [row] = await tx
+                .update(appointments)
+                .set({ status: 'awaiting_payment', updatedAt: now })
+                .where(and(eq(appointments.id, id), eq(appointments.status, 'checked_in')))
+                .returning();
+
+            if (row) await seatNextInChair(tx, row.branchId, now);
+            return row;
+        });
 
         if (!updated) {
             throw new AppError(

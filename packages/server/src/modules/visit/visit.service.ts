@@ -17,7 +17,7 @@
  * desk), and zero paid is a valid checkout — the balance is derived (§10).
  */
 import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
     appointmentProcedures,
@@ -93,6 +93,65 @@ async function recompute(executor: Executor, visitId: string): Promise<number> {
     return computedTotal;
 }
 
+/**
+ * Whoever is in the chair at this branch right now, if anyone.
+ *
+ * "In the chair" is a stamp, not a position in a queue: `in_chair_at` set and
+ * the appointment still `checked_in`. Once they go to the desk or are checked
+ * out the status moves on and the chair reads empty again, which is what makes
+ * this safe to ask before seating someone.
+ */
+async function chairIsTaken(tx: Executor, branchId: string): Promise<boolean> {
+    const [seated] = await tx
+        .select({ id: visits.id })
+        .from(visits)
+        .innerJoin(appointments, eq(appointments.id, visits.appointmentId))
+        .where(
+            and(
+                eq(appointments.branchId, branchId),
+                eq(appointments.status, 'checked_in'),
+                sql`${visits.inChairAt} is not null`,
+            ),
+        )
+        .limit(1);
+
+    return seated !== undefined;
+}
+
+/**
+ * Move the longest-waiting patient into the chair the moment it empties.
+ *
+ * Called from both ways out of the chair — to the desk (`awaitPayment`) and
+ * straight to checkout — because the patient who has been waiting since 08:24
+ * did not begin their visit when they arrived, they began it when the person
+ * ahead of them got up. That is the whole reason `in_chair_at` exists: the bar
+ * on the day view measures from here, and measuring from `checked_in_at`
+ * charged the second patient of the morning with the first one's visit.
+ *
+ * Longest wait wins, which is the same order the day view queues people in, so
+ * the screen and the stamp cannot name different patients. Nobody waiting is
+ * the ordinary case and does nothing — the next arrival seats themselves.
+ */
+export async function seatNextInChair(tx: Executor, branchId: string, now: Date): Promise<void> {
+    const [next] = await tx
+        .select({ visitId: visits.id })
+        .from(visits)
+        .innerJoin(appointments, eq(appointments.id, visits.appointmentId))
+        .where(
+            and(
+                eq(appointments.branchId, branchId),
+                eq(appointments.status, 'checked_in'),
+                isNull(visits.inChairAt),
+            ),
+        )
+        .orderBy(asc(visits.checkedInAt))
+        .limit(1);
+
+    if (!next) return;
+
+    await tx.update(visits).set({ inChairAt: now }).where(eq(visits.id, next.visitId));
+}
+
 export const visitService = {
     async checkIn(input: CheckInInput, executor?: Executor): Promise<VisitRow> {
         const run = async (tx: Executor): Promise<VisitRow> => {
@@ -114,11 +173,22 @@ export const visitService = {
 
             const now = new Date();
 
+            // Walking into an empty chair is the common case at a quiet clinic,
+            // and it is the one where arriving and being seated are the same
+            // moment. With someone already in it this patient is queueing, and
+            // `in_chair_at` stays null until they get up.
+            const waiting = await chairIsTaken(tx, appointment.branchId);
+
             let visit: VisitRow | undefined;
             try {
                 [visit] = await tx
                     .insert(visits)
-                    .values({ id: Bun.randomUUIDv7(), appointmentId: appointment.id, checkedInAt: now })
+                    .values({
+                        id: Bun.randomUUIDv7(),
+                        appointmentId: appointment.id,
+                        checkedInAt: now,
+                        inChairAt: waiting ? null : now,
+                    })
                     .returning();
             } catch (err) {
                 if (pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION) {
@@ -362,6 +432,14 @@ export const visitService = {
                     .update(appointments)
                     .set({ status: 'done', updatedAt: now })
                     .where(eq(appointments.id, appointment.id));
+
+                // Checking out straight from the chair empties it. Reclosing a
+                // corrected visit does not — that patient left long ago, and
+                // seating someone off it would restart a bar that is already
+                // running.
+                if (appointment.status === 'checked_in') {
+                    await seatNextInChair(tx, appointment.branchId, now);
+                }
             }
         });
 
