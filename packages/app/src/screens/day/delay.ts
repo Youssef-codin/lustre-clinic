@@ -36,7 +36,7 @@ import { isSettled } from './agenda';
 import { MIN_SLOT_STEP } from './booking';
 import { arrivalQueue } from './chair';
 import type { Appointment } from './data/types';
-import { minutesOfDay } from './time';
+import { formatDuration, minutesOfDay } from './time';
 
 export interface DayDelay {
     /** How far behind the day is, to the slot: everything booked slides by this. */
@@ -95,12 +95,10 @@ export function isProjected(appointment: Appointment, delay: DayDelay): boolean 
 
 /** "20 min late", "1h 5m late" — the day's headline, or null when it is on time. */
 export function delayLabel(delay: DayDelay): string | null {
-    if (delay.minutes <= 0) return null;
-    if (delay.minutes < 60) return `${delay.minutes} min late`;
-    return `${Math.floor(delay.minutes / 60)}h ${delay.minutes % 60}m late`;
+    return delay.minutes > 0 ? `${formatDuration(delay.minutes)} late` : null;
 }
 
 /** Why the day is late, in the words the desk would use to explain it. */
 export function delayReason(delay: DayDelay): string | null {
-    return delay.fromChair > 0 ? `the chair is ${delay.fromChair} min over` : null;
+    return delay.fromChair > 0 ? `the chair is ${formatDuration(delay.fromChair)} over` : null;
 }

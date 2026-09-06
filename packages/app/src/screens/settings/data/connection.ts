@@ -12,7 +12,7 @@
  */
 import { useRef } from 'react';
 import { serverAddresses, useConnection } from '../../../api';
-import { formatClock12, formatStamp } from '../../../components/domain';
+import { formatClock12 } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
 
 export type ConnectionKind = 'wifi' | 'remote' | 'offline';

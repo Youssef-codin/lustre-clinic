@@ -19,8 +19,6 @@ export type NowCardProps = {
     next: Appointment | null;
     nowMinutes: number;
     procedure?: string;
-    /** When they were actually seen, which is when the clock started. */
-    checkedInAt?: string;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
     onOpenRecord: (patientId: string) => void;
@@ -85,7 +83,6 @@ export function NowCard({
     next,
     nowMinutes,
     procedure,
-    checkedInAt,
     onCheckIn,
     onOpen,
     onOpenRecord,
@@ -93,7 +90,7 @@ export function NowCard({
 }: NowCardProps) {
     if (active) {
         const inChair = active.status === 'checked_in';
-        const progress = slotProgress(active, nowMinutes, checkedInAt);
+        const progress = slotProgress(active, nowMinutes);
 
         return (
             <Card onPress={() => onOpen(active)}>

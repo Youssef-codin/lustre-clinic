@@ -13,6 +13,7 @@
         "device:stop": "cd android && ./gradlew --stop",
         "emu": "bash scripts/emulator.sh",
         "emu:build": "bash scripts/emulator.sh --build",
+        "emu:release": "bash scripts/emulator.sh --release",
         "emu:start": "bash scripts/emulator.sh --start",
         "emu:shot": "bash scripts/emulator.sh --shot",
         "ios": "expo run:ios",

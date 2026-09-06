@@ -4,7 +4,17 @@
  * needs a device, and this worktree has none.
  */
 import { describe, expect, it } from 'bun:test';
-import { clock12, formatClock12, formatSpan, formatStamp, formatTime12, minutesOfDay, time12 } from './clock';
+import {
+    clock12,
+    formatClock12,
+    formatDuration,
+    formatProgress,
+    formatSpan,
+    formatStamp,
+    formatTime12,
+    minutesOfDay,
+    time12,
+} from './clock';
 
 describe('12-hour clock', () => {
     it('turns the hour over at noon and midnight rather than showing 0 or 13', () => {
@@ -82,5 +92,22 @@ describe('off a timestamp', () => {
         expect(minutesOfDay(iso)).toBe(14 * 60 + 15);
         expect(time12(iso)).toEqual({ time: '2:15', meridiem: 'PM' });
         expect(formatTime12(iso)).toBe('2:15 PM');
+    });
+});
+
+describe('a length of time', () => {
+    it('stays in minutes below the hour and turns over above it', () => {
+        expect(formatDuration(0)).toBe('0 min');
+        expect(formatDuration(59)).toBe('59 min');
+        expect(formatDuration(60)).toBe('1h 0m');
+        // The figure the chair's bar was reporting raw.
+        expect(formatDuration(223)).toBe('3h 43m');
+    });
+
+    it('lets the whole decide the unit both halves read in', () => {
+        expect(formatProgress(15, 30)).toBe('15 / 30 min');
+        expect(formatProgress(0, 30)).toBe('0 / 30 min');
+        expect(formatProgress(45, 90)).toBe('45 min / 1h 30m');
+        expect(formatProgress(75, 90)).toBe('1h 15m / 1h 30m');
     });
 });

@@ -36,6 +36,8 @@ export {
     clock12,
     DAY_MINUTES,
     formatClock12,
+    formatDuration,
+    formatProgress,
     formatSpan,
     formatTime12,
     minutesOfDay,

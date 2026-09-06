@@ -552,7 +552,6 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                                 next={next}
                                 nowMinutes={nowMinutes}
                                 procedure={card ? procedureLabel(card) : undefined}
-                                checkedInAt={active ? arrivals.data?.get(active.id) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}

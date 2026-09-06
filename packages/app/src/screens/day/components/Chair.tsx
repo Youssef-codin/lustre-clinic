@@ -19,8 +19,6 @@ export type ChairStripProps = {
     appointment: Appointment;
     nowMinutes: number;
     procedure?: string;
-    /** When they were actually seen, which is when the clock started. */
-    checkedInAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
     onOpenRecord: (patientId: string) => void;
@@ -31,13 +29,12 @@ export function ChairStrip({
     appointment,
     nowMinutes,
     procedure,
-    checkedInAt,
     finishing,
     onOpen,
     onOpenRecord,
     onFinish,
 }: ChairStripProps) {
-    const progress = slotProgress(appointment, nowMinutes, checkedInAt);
+    const progress = slotProgress(appointment, nowMinutes);
 
     return (
         <View style={styles.strip} testID="chair-strip">
@@ -121,7 +118,7 @@ export function ChairCard({
 
     const eyebrow = EYEBROW[kind];
     const slot = time12(appointment.startsAt);
-    const progress = slotProgress(appointment, nowMinutes, checkedInAt);
+    const progress = slotProgress(appointment, nowMinutes);
 
     return (
         <View style={styles.card} testID="chair-card">

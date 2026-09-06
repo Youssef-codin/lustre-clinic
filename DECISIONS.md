@@ -248,6 +248,29 @@ is the honest reading of two different questions, and the disagreement is the
 information — the grid says the clinic has that day, the line says the branch
 you are about to open does not.
 
+## **Correction.** The chair's bar measures the booked slot, not the arrival
+
+`slotProgress` used to run the clock from `checked_in_at` while leaving the end
+where it was booked, so an early arrival lengthened the visit: twenty booked
+minutes seen half an hour early were fifty minutes of room. The argument was
+that a bar sitting at zero until the booked start tells the doctor he has not
+begun something he is already doing.
+
+That is true of someone twenty minutes early, and it is not true of this clinic.
+The desk checks people in as they walk through the door and they queue, so the
+gap between arrival and the booked end is not a visit. A 30-minute consultation
+booked for noon, checked in at 08:47, drew `0 / 223 min`.
+
+The denominator is now `duration_minutes` and nothing else, and the bar does not
+run before the slot opens. That is a worse answer to the case the old rule was
+written for and the right one for the case that actually happens.
+
+The honest fix is a seated-at timestamp — `checked_in` means arrived, not
+seated, and there is no record of when anyone reaches the chair. Until that
+exists the bar draws the slot, which it can name, and not the visit, which it
+cannot. Anyone adding that column should read this entry first: the bar is
+waiting for it.
+
 ## Empty time on the day view is not tappable
 
 Tapping an empty slot should open a booking sheet. It does not. Empty time is

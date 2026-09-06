@@ -234,7 +234,6 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                                 appointment={strip}
                                 nowMinutes={nowMinutes}
                                 procedure={procedureLabel(strip)}
-                                checkedInAt={arrivals.data?.get(strip.id)}
                                 finishing={finishingId === strip.id}
                                 onOpen={openVisit}
                                 onOpenRecord={onOpenRecord}
