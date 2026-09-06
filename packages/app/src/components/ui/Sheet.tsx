@@ -63,6 +63,16 @@ export type SheetProps = {
     footer?: ReactNode;
     maxHeightRatio?: number;
     dismissable?: boolean;
+    /**
+     * Whether dragging the body moves the sheet.
+     *
+     * Off for a body that scrolls on its own — a wheel, a picker — where the two
+     * gestures are the same downward drag and the sheet wins it: the column
+     * follows the finger for a few pixels and then the whole sheet leaves
+     * instead. The handle and the backdrop still close it, so nothing is lost
+     * but the shortcut.
+     */
+    dragFromBody?: boolean;
     testID?: string;
 };
 
@@ -76,6 +86,7 @@ export function Sheet({
     footer,
     maxHeightRatio = 0.86,
     dismissable = true,
+    dragFromBody = true,
     testID,
 }: SheetProps) {
     const sheet = useRef<BottomSheetModal>(null);
@@ -227,6 +238,7 @@ export function Sheet({
             maxDynamicContentSize={maxContent}
             topInset={insets.top}
             enablePanDownToClose={dismissable}
+            enableContentPanningGesture={dragFromBody}
             enableOverDrag={false}
             handleComponent={renderHandle}
             backdropComponent={renderBackdrop}

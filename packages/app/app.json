@@ -21,7 +21,7 @@
             "softwareKeyboardLayoutMode": "resize",
             "usesCleartextTraffic": true
         },
-        "plugins": ["expo-font", "./plugins/withBuildTuning", "@react-native-community/datetimepicker"],
+        "plugins": ["expo-font", "./plugins/withBuildTuning"],
         "extra": {
             "server": {
                 "lan": null,
