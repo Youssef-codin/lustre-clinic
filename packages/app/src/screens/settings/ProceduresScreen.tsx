@@ -38,6 +38,7 @@
  * a subtype to write with it, and then both go in one transaction. A category that loses its last visible subtype
  * still draws here, as a heading with its "Add to" button and nothing under it.
  */
+import { MAX_PROCEDURE_NAME } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -377,6 +378,7 @@ function CategorySheet({ onClose, onNamed }: { onClose: () => void; onNamed: (na
                 onChangeText={setName}
                 placeholder="Crowns"
                 accessibilityLabel="Category name"
+                maxLength={MAX_PROCEDURE_NAME}
                 autoCapitalize="words"
                 error={error}
                 hint="The next screen asks for the first procedure under it."
@@ -610,6 +612,7 @@ function ProcedureEditor({
                     value={name}
                     onChangeText={setName}
                     placeholder="Zirconia crown"
+                    maxLength={MAX_PROCEDURE_NAME}
                     error={nameError}
                 />
 

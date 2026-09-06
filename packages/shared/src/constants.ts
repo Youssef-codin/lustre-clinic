@@ -45,6 +45,16 @@ export const PIASTRES_PER_POUND = 100;
  */
 export const MAX_AMOUNT_PIASTRES = 100_000_000;
 
+/**
+ * Longest a procedure or category may be named.
+ *
+ * Shared because both ends have to agree on it: the Zod schema refuses anything
+ * longer, and the field stops accepting at the same count. A limit enforced
+ * only on the server is one the secretary meets after typing a name and
+ * pressing Save, which is the worst moment to hear about it.
+ */
+export const MAX_PROCEDURE_NAME = 160;
+
 // --- settings defaults (§5) -------------------------------------------------
 
 export const DEFAULT_DURATION_OPTIONS = [10, 20, 30, 45] as const;
