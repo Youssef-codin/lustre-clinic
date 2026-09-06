@@ -736,10 +736,31 @@ with it, the same problem `ج.م` has in `MoneyValue`.
 Working hours used a `ui/Select` of hardcoded half-hour slots in a full-height
 sheet: no selected state, no confirm, and a clinic opening at 09:45 could not say
 so. It became the Android platform picker (`DateTimePickerAndroid`), and is now a
-wheel of our own — `settings/components/TimeWheel` — three snap-scrolling columns
-opening on the current value with it marked, under Set and Cancel. All sixty
-minutes, so 09:45 is expressible; that was the original complaint and it is not
-worth re-introducing by rounding the wheel to quarters.
+wheel — `settings/components/TimeWheel` — three columns opening on the current
+value with it marked, under Set and Cancel. All sixty minutes, so 09:45 is
+expressible; that was the original complaint and it is not worth re-introducing
+by rounding the wheel to quarters.
+
+**The wheel itself is `@quidone/react-native-wheel-picker`, and hand-rolling it
+was a mistake worth recording.** The first version was three snapping
+`ScrollView`s. It got the value right and felt like nothing: flat rows sliding
+under a band, no weight to a fling — a hard swipe moved four rows where the
+library carries seventeen — and no sense of a cylinder turning. The library
+projects each row onto one, with per-row rotation, vertical foreshortening and an
+opacity ramp away from the centre, all driven by the native animation on the
+scroll offset. That projection is the whole feel of a picker and it is not the
+part to write yourself.
+
+It has no native side, which is why it is allowed to replace one: plain JS over
+`ScrollView`, so it costs no rebuild. Only the mechanics are the library's —
+every row is our `Text` through `renderItem`, and the selection band is drawn by
+us rather than by the library's per-picker overlay, which would put three of them
+side by side with the gutters showing between.
+
+**Not taken: `@quidone/react-native-wheel-picker-feedback`**, the companion that
+adds the tick-per-row sound and impact. It is a native module, and that is the
+one thing this change was getting rid of. The wheel is silent until someone
+decides a haptic is worth a rebuild for.
 
 **Why the platform picker was right and then was not.** It answered the whole
 list for free, and Settings is the lowest-traffic screen in the app — a strong
