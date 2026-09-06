@@ -23,6 +23,14 @@
  * booking's branch is whichever one is open that day rather than the one
  * written down.
  *
+ * Today is the exception and is written against the clock rather than the wall
+ * (`ago`). A state that means "right now" — in the chair, at the desk, waiting —
+ * is a lie at any fixed hour but the one the seed happens to be run at, and the
+ * lie is not harmless: a check-in stamped for later today gives the chair a
+ * progress bar that cannot start and a queue ordered by a time that has not
+ * come. Today's generated column divides at the clock too, so the morning is
+ * settled and the afternoon is still booked whenever you run it.
+ *
  * A booking's planned procedures (§7) come from `plan`; `type` is the
  * one-procedure shorthand the older fixtures use. A tooth-specific procedure
  * needs a tooth to satisfy §5, so the shorthand reuses the tooth the visit
@@ -58,6 +66,7 @@ import {
     visits,
 } from '../src/db/schema.ts';
 import { logger } from '../src/logger.ts';
+import { seedService } from '../src/modules/seed/seed.service.ts';
 import { buildPatientRef, buildRef } from '../src/util/ref.ts';
 
 const CLINIC_OFFSET_MINUTES = 180;
@@ -80,6 +89,48 @@ function at(dayOffset: number, hhmm: string): Date {
             (minutes ?? 0) * 60_000,
     );
 }
+
+/** The whole minute the seed was run in, which today is measured back from. */
+const seedMinute = Math.floor(Date.now() / 60_000) * 60_000;
+
+/**
+ * A time relative to the moment the seed runs, rounded to the minute.
+ *
+ * Today's live fixtures — the patient in the chair, the one at the desk, the one
+ * still waiting — cannot be written as wall-clock times. `at(0, '10:58')` seeded
+ * at half past eight is a check-in two hours in the future, which is a state the
+ * clinic cannot produce and the app has no sensible way to draw: a bar that
+ * cannot start, a queue ordered by a clock that has not struck. It cost two
+ * false bug reports before anyone looked at the seed.
+ *
+ * So the live end of today is written as "twenty minutes ago" and lands wherever
+ * the seed happens to run. Negative goes forwards, for the things that have not
+ * happened yet.
+ */
+function ago(minutes: number): Date {
+    return new Date(seedMinute - minutes * 60_000);
+}
+
+/**
+ * The same, snapped to the five-minute grid the desk books on.
+ *
+ * `ago` inherits whatever minute the seed was run at, which is right for things
+ * that *happened* — a check-in at 09:33 is a fact — and wrong for a slot, which
+ * is a time somebody said out loud on the phone. Run at 09:39 the plain helper
+ * books people at 09:54 and 10:24, and because the generated column steps over
+ * the hand-written rows the skew spreads: the whole afternoon lands on 10:17,
+ * 11:22, 12:07. Nobody says twenty-two past eleven.
+ *
+ * So slots round and stamps do not. The exception is a walk-in, which is not a
+ * slot anyone chose — `makeRoomForWalkIn` gives it the exact end of whatever is
+ * in the chair, and the fixture copies that rather than rounding.
+ */
+function slotAgo(minutes: number): Date {
+    return new Date(Math.round((seedMinute - minutes * 60_000) / 300_000) * 300_000);
+}
+
+/** Minutes since local midnight at the moment the seed runs. */
+const nowLocalMinutes = Math.floor((Date.now() - todayLocalMidnight.getTime()) / 60_000);
 
 function isLocalDatabase(url: string): boolean {
     try {
@@ -406,8 +457,30 @@ interface Booking {
     status: AppointmentStatus;
     channel?: AppointmentChannel;
     note?: string;
+    /**
+     * Built by `seedService` through the real services instead of inserted.
+     *
+     * Only today's live states carry this — in the chair, at the desk, waiting.
+     * They stay in this array so the generator still reserves their slots and
+     * routes around them, and are skipped when the rows are written.
+     *
+     * They carry no `visit`, deliberately. Check-in builds it, including the
+     * lines it copies off the plan, and a `visit` sitting here would be dead
+     * data that reads like the source of truth — which is how a checked-in
+     * patient ended up with a booking that planned a Consultation and a visit
+     * that recorded nothing. `status` is what `reach` should produce, and is
+     * the interface's, not this walk's.
+     */
+    live?: { reach: 'waiting' | 'chair' | 'desk'; arrivedAgo: number; seatedAgo?: number };
     visit?: {
         checkedInAt: Date;
+        /**
+         * When they reached the chair. Left out means they walked into an empty
+         * one and it is the arrival; `null` means they are still queueing, which
+         * only the hand-written fixtures need — the generated days never put two
+         * patients in the chair at once.
+         */
+        inChairAt?: Date | null;
         completedAt?: Date;
         chargedTotal?: number;
         lines: Line[];
@@ -415,6 +488,11 @@ interface Booking {
     };
     reminder?: { status: 'pending' | 'sent' | 'skipped'; sentAt?: Date };
 }
+
+// The chair's booked span today, named because the walk-in behind it is defined
+// as its end rather than as a time of its own.
+const CHAIR_STARTS_AT = slotAgo(40);
+const CHAIR_MINUTES = 45;
 
 const bookings: Booking[] = [
     {
@@ -528,62 +606,72 @@ const bookings: Booking[] = [
         note: 'Cancelled the night before, travelling.',
     },
 
+    // Today's live end, written relative to the moment the seed runs (`ago`).
+    // Read down and it is one morning in order: Mona has been and gone, Nour is
+    // at the desk paying, Kareem is in the chair she got up from, Laila walked
+    // in and is waiting, and three more are still to come.
+    //
+    // The three states in the middle are the ones worth having: `in_chair_at`
+    // differs from `checked_in_at` on Kareem (he queued behind Nour) and is null
+    // on Laila (she has arrived and is not seated). Both are invisible on a
+    // fixture where everyone walks into an empty chair.
     {
         patient: mona,
         branch: mainBranch,
-        startsAt: at(0, '10:00'),
+        startsAt: slotAgo(150),
         durationMinutes: 30,
         type: followUp,
         status: 'done',
         visit: {
-            checkedInAt: at(0, '09:55'),
-            completedAt: at(0, '10:28'),
+            checkedInAt: ago(155),
+            inChairAt: ago(150),
+            completedAt: ago(122),
             lines: [{ procedure: followUp }],
-            payments: [{ amount: 15_000, method: 'cash', paidAt: at(0, '10:29') }],
-        },
-    },
-    {
-        patient: kareem,
-        branch: mainBranch,
-        startsAt: at(0, '11:00'),
-        durationMinutes: 45,
-        type: rootCanal,
-        status: 'checked_in',
-        note: 'Session 2 of 2.',
-        visit: {
-            checkedInAt: at(0, '10:58'),
-            lines: [{ procedure: rootCanal, tooth: 'LR6', note: 'Session 2 of 2.' }],
+            payments: [{ amount: 15_000, method: 'cash', paidAt: ago(121) }],
         },
     },
     {
         patient: nour,
         branch: mainBranch,
-        startsAt: at(0, '11:45'),
+        startsAt: slotAgo(95),
         durationMinutes: 30,
         type: filling,
         status: 'awaiting_payment',
-        visit: {
-            checkedInAt: at(0, '11:44'),
-            lines: [
-                { procedure: filling, tooth: 'UL5' },
-                { procedure: xray, tooth: 'UL5' },
-            ],
-        },
+        live: { reach: 'desk', arrivedAgo: 100, seatedAgo: 95 },
+    },
+    {
+        patient: kareem,
+        branch: mainBranch,
+        startsAt: CHAIR_STARTS_AT,
+        durationMinutes: CHAIR_MINUTES,
+        type: rootCanal,
+        status: 'checked_in',
+        note: 'Session 2 of 2.',
+        // Twenty minutes of waiting room before the chair, so the bar reads
+        // twelve minutes rather than thirty-two. This is the fixture
+        // `in_chair_at` exists for.
+        live: { reach: 'chair', arrivedAgo: 32, seatedAgo: 12 },
     },
     {
         patient: laila,
         branch: mainBranch,
-        startsAt: at(0, '12:30'),
+        // Only a slot reservation: `walkIn` works out the real time — the
+        // moment she arrives, or the end of whatever is in the chair — and
+        // cascades anything it displaces. Holding the space here just keeps the
+        // generated column from filling it and being pushed straight back out.
+        startsAt: new Date(CHAIR_STARTS_AT.getTime() + CHAIR_MINUTES * 60_000),
         durationMinutes: 20,
         type: consultation,
         status: 'checked_in',
         channel: 'walk_in',
-        visit: { checkedInAt: at(0, '12:26'), lines: [] },
+        // Second in the queue behind Kareem: arrived, not seated, and the one
+        // fixture that leaves `in_chair_at` null.
+        live: { reach: 'waiting', arrivedAgo: 6 },
     },
     {
         patient: omar,
         branch: mainBranch,
-        startsAt: at(0, '14:00'),
+        startsAt: slotAgo(-45),
         durationMinutes: 30,
         type: crown,
         status: 'booked',
@@ -592,7 +680,7 @@ const bookings: Booking[] = [
     {
         patient: sara,
         branch: mainBranch,
-        startsAt: at(0, '15:00'),
+        startsAt: slotAgo(-90),
         durationMinutes: 20,
         type: followUp,
         status: 'booked',
@@ -601,14 +689,14 @@ const bookings: Booking[] = [
     {
         patient: yassin,
         branch: mainBranch,
-        startsAt: at(0, '16:30'),
+        startsAt: slotAgo(-135),
         durationMinutes: 20,
         type: consultation,
         status: 'booked',
         note: 'Bring the panoramic from last year.',
         reminder: { status: 'sent', sentAt: at(-1, '19:03') },
     },
-    { patient: hoda, branch: mainBranch, startsAt: at(0, '17:00'), type: consultation, status: 'cancelled' },
+    { patient: hoda, branch: mainBranch, startsAt: slotAgo(-180), type: consultation, status: 'cancelled' },
 
     {
         patient: nour,
@@ -784,6 +872,14 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
     const [closeHour] = day.closesAt.split(':').map(Number);
     const past = dayOffset < 0;
 
+    /**
+     * Today divides at the clock, not at midnight. A 10:00 slot seeded at three
+     * in the afternoon is not something the clinic is still expecting — leaving
+     * the whole of today `booked` drew a column of appointments hours overdue
+     * and a "before this" section with nothing in it.
+     */
+    const settledBy = (endMinute: number) => past || (dayOffset === 0 && endMinute <= nowLocalMinutes);
+
     // Days don't all start dead on the hour, but the desk books on a five-minute
     // grid — a 10:41 start is a time nobody would say out loud.
     let minute = (openHour ?? 10) * 60 + (dense || dayOffset === 0 ? 0 : Math.floor(random() * 6) * 5);
@@ -836,8 +932,9 @@ function generateDay(dayOffset: number, dense = false, maxBookings = Number.POSI
             tooth: line.procedure.isToothSpecific ? pick(teeth) : undefined,
         }));
         const roll = random();
+        const settled = settledBy(minute + treatment.minutes);
 
-        if (past) {
+        if (settled) {
             if (!dense && roll < 0.06) {
                 bookings.push({
                     patient: who,
@@ -983,6 +1080,12 @@ const paymentRows: (typeof payments.$inferInsert)[] = [];
 const reminderRows: (typeof reminders.$inferInsert)[] = [];
 
 for (const booking of bookings) {
+    // The live ones are reached, not written — `seedService` walks them through
+    // check-in after this transaction lands. They stayed in `bookings` so the
+    // generator would route its column around their slots, and that is all they
+    // were needed for.
+    if (booking.live) continue;
+
     const appointmentId = id();
     const durationMinutes = booking.durationMinutes ?? DEFAULT_DURATION_MINUTES;
 
@@ -1037,6 +1140,8 @@ for (const booking of bookings) {
             id: visitId,
             appointmentId,
             checkedInAt: booking.visit.checkedInAt,
+            inChairAt:
+                booking.visit.inChairAt === undefined ? booking.visit.checkedInAt : booking.visit.inChairAt,
             pricedAt: booking.visit.lines.length > 0 ? booking.visit.checkedInAt : null,
             completedAt: booking.visit.completedAt ?? null,
             computedTotal,
@@ -1118,6 +1223,44 @@ await db.transaction(async (tx) => {
         });
 });
 
+/**
+ * Today's queue, after the rest of the day is in place.
+ *
+ * Written last on purpose. `seedService` calls `appointment.create`, which
+ * checks the exclusion constraint against the day as it stands, so the column
+ * these four have to fit into must already exist. Arrival order is the array's
+ * order — longest wait first — because that is what the promotion inside
+ * `awaitPayment` reads when the chair empties.
+ */
+const liveBookings = bookings
+    .filter((booking) => booking.live !== undefined)
+    .sort((a, b) => (b.live?.arrivedAgo ?? 0) - (a.live?.arrivedAgo ?? 0));
+
+const live = await seedService.liveDay(
+    liveBookings.map((booking) => ({
+        patientId: booking.patient.id,
+        branchId: branchOpenOn(booking.startsAt)?.id ?? booking.branch.id,
+        startsAt: booking.startsAt,
+        durationMinutes: booking.durationMinutes ?? DEFAULT_DURATION_MINUTES,
+        procedures: (booking.plan ?? (booking.type ? [{ procedure: booking.type }] : [])).map((line) => ({
+            procedureId: line.procedure.id,
+            quantity: 'quantity' in line ? line.quantity : undefined,
+            tooth:
+                'tooth' in line && line.tooth
+                    ? line.tooth
+                    : line.procedure.isToothSpecific
+                      ? ('UR6' as Tooth)
+                      : undefined,
+            note: 'note' in line ? line.note : undefined,
+        })),
+        arrivedAgo: booking.live?.arrivedAgo ?? 0,
+        seatedAgo: booking.live?.seatedAgo,
+        reach: booking.live?.reach ?? 'waiting',
+        channel: booking.channel === 'walk_in' ? ('walk_in' as const) : ('desk' as const),
+        note: booking.note,
+    })),
+);
+
 // Which day the fixtures actually landed on, and where. Everything here is
 // relative to the moment the seed runs, so a database seeded yesterday has an
 // empty today — and because a booking's branch is whichever one is open that
@@ -1125,6 +1268,8 @@ await db.transaction(async (tx) => {
 // the week turns. Both of those read as "the app is broken" from the day view,
 // so the seed says out loud what it just made.
 const todayStart = todayLocalMidnight.getTime();
+// `live` is counted separately: those rows were created by the services after
+// this array was built, so they are not in it.
 const todayRows = appointmentRows.filter((row) => {
     const startsAt = (row.startsAt as Date).getTime();
     return startsAt >= todayStart && startsAt < todayStart + 86_400_000;
@@ -1141,7 +1286,8 @@ logger.info(
     {
         branches: 3,
         patients: allPatients.length,
-        appointments: appointmentRows.length,
+        appointments: appointmentRows.length + live.length,
+        live: live.length,
         visits: visitRows.length,
         payments: paymentRows.length,
         reminders: reminderRows.length,
@@ -1149,7 +1295,7 @@ logger.info(
         // 21:00 UTC the day before, so a bare toISOString names the wrong day.
         today: new Date(todayStart + CLINIC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10),
         todayBranch: openToday,
-        todayAppointments: todayRows.length,
+        todayAppointments: todayRows.length + live.length,
     },
     'seeded',
 );
