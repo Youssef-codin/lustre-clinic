@@ -8,10 +8,17 @@
  * `undefined` so the row falls back to the duration alone.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import { useRef, useState } from 'react';
+// biome-ignore lint/style/noRestrictedImports: the collapse drives an `Animated.timing` imperatively — the tween chases `open` and has to be stopped on cleanup or it outlives the section
+import { useEffect, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { statusLabel, statusTone } from '../../../components/domain';
-import { Button, Chevron } from '../../../components/ui';
+import {
+    Button,
+    Chevron,
+    easing,
+    duration as motionDuration,
+    useReducedMotion,
+} from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
@@ -322,8 +329,41 @@ export type BeforeThisProps = {
 
 export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
     const [open, setOpen] = useState(false);
+    // What the rows measure when laid out. Zero until the first pass, which is
+    // why the closed state animates from a real number the first time it opens
+    // rather than snapping.
+    const [contentHeight, setContentHeight] = useState(0);
+    const reducedMotion = useReducedMotion();
+    const progress = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const to = open ? 1 : 0;
+        if (reducedMotion) {
+            progress.setValue(to);
+            return;
+        }
+        const tween = Animated.timing(progress, {
+            toValue: to,
+            duration: motionDuration.fadeup,
+            easing: easing.promote,
+            // `height` is a layout property, so nothing here can go native —
+            // and nothing else may be animated on these nodes with the native
+            // driver, or the height tween loses the node to it.
+            useNativeDriver: false,
+        });
+        tween.start();
+        return () => tween.stop();
+    }, [open, reducedMotion, progress]);
 
     if (appointments.length === 0) return null;
+
+    // The rows fade a little ahead of the height so the list is legible before
+    // the section has finished opening, rather than arriving all at once at the
+    // end. They also rise the last few pixels into place.
+    const height = progress.interpolate({ inputRange: [0, 1], outputRange: [0, contentHeight] });
+    const opacity = progress.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0.85, 1] });
+    const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [-space[2], 0] });
+    const spin = progress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
 
     return (
         <View style={styles.section}>
@@ -339,35 +379,57 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
                     {`BEFORE THIS · ${appointments.length}`}
                 </Text>
                 <View style={styles.spacer} />
-                <Chevron direction={open ? 'up' : 'down'} size={7} />
+                {/* Half a turn rather than swapping `direction`: 'down' rotated
+                    180° is 'up' in both scripts, so the chevron's own RTL
+                    mirroring is left alone. */}
+                <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                    <Chevron direction="down" size={7} />
+                </Animated.View>
             </Pressable>
 
-            {open
-                ? appointments.map((appointment) => (
-                      <AgendaRow
-                          key={appointment.id}
-                          appointment={appointment}
-                          procedure={procedureLabel(appointment)}
-                          onPress={() => onSelect(appointment)}
-                          dim
-                          trailing={
-                              <Text
-                                  variant="footnote"
-                                  weight="semibold"
-                                  tone={appointment.status === 'done' ? 'muted' : 'due'}
-                              >
-                                  {statusLabel(appointment.status)}
-                              </Text>
-                          }
-                      />
-                  ))
-                : null}
+            {/* The rows stay mounted and clipped. Something has to lay them out
+                for `contentHeight` to exist, and a section that measured itself
+                only on the way open would animate from zero to zero the first
+                time. `pointerEvents` is what stops a collapsed list swallowing
+                taps meant for the day underneath. */}
+            <Animated.View
+                style={[styles.collapse, { height, opacity }]}
+                pointerEvents={open ? 'auto' : 'none'}
+            >
+                <Animated.View
+                    onLayout={(event) => setContentHeight(event.nativeEvent.layout.height)}
+                    style={[styles.collapseBody, { transform: [{ translateY }] }]}
+                >
+                    {appointments.map((appointment) => (
+                        <AgendaRow
+                            key={appointment.id}
+                            appointment={appointment}
+                            procedure={procedureLabel(appointment)}
+                            onPress={() => onSelect(appointment)}
+                            dim
+                            trailing={
+                                <Text
+                                    variant="footnote"
+                                    weight="semibold"
+                                    tone={appointment.status === 'done' ? 'muted' : 'due'}
+                                >
+                                    {statusLabel(appointment.status)}
+                                </Text>
+                            }
+                        />
+                    ))}
+                </Animated.View>
+            </Animated.View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     section: { paddingHorizontal: size.gutter },
+    collapse: { overflow: 'hidden' },
+    // Absolute so the wrapper's animated height cannot squash it: the body has
+    // to report the height it *wants*, not the one it is being given.
+    collapseBody: { position: 'absolute', start: 0, end: 0, top: 0 },
     upNext: { marginTop: space[2] },
     sectionLabel: {
         flexDirection: 'row',
