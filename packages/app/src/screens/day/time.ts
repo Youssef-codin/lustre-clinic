@@ -37,10 +37,11 @@ export {
     DAY_MINUTES,
     formatClock12,
     formatDuration,
-    formatProgress,
+    formatElapsed,
     formatSpan,
     formatTime12,
     minutesOfDay,
+    secondsOfDay,
     time12,
 } from '../../components/domain/clock';
 

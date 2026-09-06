@@ -2,39 +2,51 @@
  * The doctor's two headline pieces from `doctor-day-view.html`: the strip and
  * the black card. The strip is whoever is in the chair, reduced to a name and
  * one button; the card is what comes after. With nothing after, the chair
- * takes the card back and gets its progress bar and Finish button there. The
- * waited counter is the one number measured against the patient rather than
- * the slot, and is allowed to be: `checked_in_at` is exactly when the wait
- * started.
+ * takes the card back and gets its progress bar and Finish button there.
+ *
+ * The card puts a clock on two things and they run off different stamps, which
+ * is the whole point of there being two. The waited counter measures the queue
+ * and starts at `checked_in_at`; the progress bar measures the visit and starts
+ * at `in_chair_at`. On a patient who walked into an empty chair they are the
+ * same instant, and on everyone behind them they are not.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Dot, ProgressBar } from '../../../components/ui';
+import { Button, Dot } from '../../../components/ui';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
 import { minutesOfDay, time12 } from '../time';
+import { useNowSeconds } from '../useNow';
+import { ChairProgress } from './ChairProgress';
 import { CheckIcon, ClockIcon, ProcedureIcon } from './icons';
 
 export type ChairStripProps = {
     appointment: Appointment;
-    nowMinutes: number;
     procedure?: string;
+    /** `in_chair_at` — the strip is only ever drawn for the chair. */
+    seatedAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
     onOpenRecord: (patientId: string) => void;
     onFinish: (appointment: Appointment) => void;
 };
 
+/**
+ * The strip reads its own clock rather than taking the screen's. Its label is
+ * the same count the card's bar draws, and on the shared thirty-second tick the
+ * seconds would have sat on `:00` for half a minute at a time — a stopped
+ * stopwatch, which is worse than no seconds at all.
+ */
 export function ChairStrip({
     appointment,
-    nowMinutes,
     procedure,
+    seatedAt,
     finishing,
     onOpen,
     onOpenRecord,
     onFinish,
 }: ChairStripProps) {
-    const progress = slotProgress(appointment, nowMinutes);
+    const progress = slotProgress(appointment, useNowSeconds(), seatedAt);
 
     return (
         <View style={styles.strip} testID="chair-strip">
@@ -82,7 +94,10 @@ export type ChairCardProps = {
     kind: ChairCardKind;
     nowMinutes: number;
     procedure?: string;
+    /** When the wait started — the `waiting` card counts up from here. */
     checkedInAt?: string;
+    /** When the wait ended — the `chair` card's bar counts up from here. */
+    seatedAt?: string;
     finishing: boolean;
     onOpen: (appointment: Appointment) => void;
     onOpenRecord: (patientId: string) => void;
@@ -95,6 +110,7 @@ export function ChairCard({
     nowMinutes,
     procedure,
     checkedInAt,
+    seatedAt,
     finishing,
     onOpen,
     onOpenRecord,
@@ -118,7 +134,7 @@ export function ChairCard({
 
     const eyebrow = EYEBROW[kind];
     const slot = time12(appointment.startsAt);
-    const progress = slotProgress(appointment, nowMinutes);
+    const progress = slotProgress(appointment, nowMinutes, seatedAt);
 
     return (
         <View style={styles.card} testID="chair-card">
@@ -160,20 +176,7 @@ export function ChairCard({
 
             {kind === 'chair' ? (
                 <>
-                    <View style={styles.progress}>
-                        <View style={styles.track}>
-                            <ProgressBar
-                                value={progress.value}
-                                tone={progress.over ? 'due' : 'live'}
-                                height={5}
-                                onDark
-                                accessibilityLabel="Time into the slot"
-                            />
-                        </View>
-                        <Text variant="footnote" script="mono" weight="medium" tone="muted">
-                            {progress.label}
-                        </Text>
-                    </View>
+                    <ChairProgress appointment={appointment} seatedAt={seatedAt} />
 
                     <Button
                         label="Finish visit"
@@ -228,8 +231,11 @@ function untilLabel(until: number): string {
     return `in ${Math.floor(until / 60)}h ${until % 60}m`;
 }
 
+// The chair's dot holds still: its card carries the progress bar, and the bar
+// is what pulses. `waiting` keeps the blink because there is no bar under it —
+// nothing else on that card moves.
 const EYEBROW = {
-    chair: { label: 'IN THE CHAIR', tone: 'live', dot: 'live', pulse: true },
+    chair: { label: 'IN THE CHAIR', tone: 'live', dot: 'live', pulse: false },
     waiting: { label: 'WAITING', tone: 'due', dot: 'due', pulse: true },
     next: { label: 'NEXT UP', tone: 'muted', dot: 'accent', pulse: false },
 } as const satisfies Record<
@@ -272,8 +278,6 @@ const styles = StyleSheet.create({
     namePressed: { opacity: 0.6 },
     detail: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1.5] },
     detailText: { flex: 1 },
-    progress: { flexDirection: 'row', alignItems: 'center', gap: space[2.5], marginTop: space[4] },
-    track: { flex: 1 },
     action: { marginTop: space[4] },
     footer: {
         flexDirection: 'row',

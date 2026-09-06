@@ -48,6 +48,19 @@ export function minutesOfDay(iso: string): number {
     return date.getHours() * 60 + date.getMinutes();
 }
 
+/**
+ * Seconds since midnight, for the one thing that counts in them.
+ *
+ * `minutesOfDay` truncates, which is right everywhere it is used to place a row
+ * on a schedule and wrong for the chair's stopwatch: a patient seated at
+ * 09:47:23 read as seated at 09:47:00, so the count ran up to 37 seconds ahead
+ * of the visit it claimed to be measuring.
+ */
+export function secondsOfDay(iso: string): number {
+    const date = new Date(iso);
+    return date.getHours() * 3_600 + date.getMinutes() * 60 + date.getSeconds();
+}
+
 export function clock12(minutes: number, locale: Locale = 'en'): Clock12 {
     const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
     const hours = Math.floor(wrapped / 60);
@@ -92,15 +105,24 @@ export function formatDuration(minutes: number): string {
 }
 
 /**
- * "15 / 30 min", "45 min / 1h 30m" — how far into a length of time.
+ * "0:07", "12:34", "1:15:03" — a count that is running, in the shape every
+ * stopwatch uses.
  *
- * Under an hour the two halves share one unit, which is the compact form the
- * chair's bar has always drawn. The whole decides: once the slot itself passes
- * an hour both ends switch, because the denominator is what the reader is
- * measuring against.
+ * This is deliberately not `formatDuration`. That one names a quantity someone
+ * decided on — a slot is 45 minutes, a clinic is 1h 30m late — and rounding it
+ * to the minute is right. This one is read to find out whether anything is
+ * happening, so the seconds are the whole point: the chair's bar advances about
+ * two percent a minute, which on a 5px track is invisible, and a label that sat
+ * still for sixty seconds was why nobody believed the bar was moving.
  */
-export function formatProgress(elapsed: number, total: number): string {
-    return total < 60 ? `${elapsed} / ${total} min` : `${formatDuration(elapsed)} / ${formatDuration(total)}`;
+export function formatElapsed(totalSeconds: number): string {
+    const whole = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(whole / 3_600);
+    const minutes = Math.floor((whole % 3_600) / 60);
+    const seconds = whole % 60;
+    const pad = (value: number) => String(value).padStart(2, '0');
+
+    return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${minutes}:${pad(seconds)}`;
 }
 
 /**

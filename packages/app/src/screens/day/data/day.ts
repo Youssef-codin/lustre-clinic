@@ -303,15 +303,31 @@ export function rememberVisit(appointmentId: string, visitId: string): void {
     visitIds.set(appointmentId, visitId);
 }
 
-export async function checkInTimes(appointmentIds: readonly string[]): Promise<Map<string, string>> {
+/**
+ * Two clocks per patient, because arriving and being seated are two events.
+ * `checkedInAt` is when the wait started and orders the queue; `inChairAt` is
+ * when it ended and is what the chair's progress bar measures from. A patient
+ * still waiting has no `inChairAt` entry at all.
+ */
+export interface Arrivals {
+    checkedInAt: ReadonlyMap<string, string>;
+    inChairAt: ReadonlyMap<string, string>;
+}
+
+export async function checkInTimes(appointmentIds: readonly string[]): Promise<Arrivals> {
     const visits = await Promise.all(appointmentIds.map((id) => visitForAppointment(id).catch(() => null)));
 
-    return new Map(
-        visits.flatMap((visit, index) => {
-            const id = appointmentIds[index];
-            return visit && id ? [[id, visit.checkedInAt] as const] : [];
-        }),
-    );
+    const checkedInAt = new Map<string, string>();
+    const inChairAt = new Map<string, string>();
+
+    visits.forEach((visit, index) => {
+        const id = appointmentIds[index];
+        if (!visit || !id) return;
+        checkedInAt.set(id, visit.checkedInAt);
+        if (visit.inChairAt) inChairAt.set(id, visit.inChairAt);
+    });
+
+    return { checkedInAt, inChairAt };
 }
 
 export async function visitForAppointment(appointmentId: string): Promise<Visit | null> {

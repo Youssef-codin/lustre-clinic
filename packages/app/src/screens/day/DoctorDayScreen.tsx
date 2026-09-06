@@ -116,6 +116,10 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
         enabled: checkedInIds.length > 0,
     });
 
+    // Where the chair's bar counts from — see `DayScreen`. `in_chair_at` when
+    // there is one, the check-in when the visit predates the column.
+    const seatFor = (id: string) => arrivals.data?.inChairAt.get(id) ?? arrivals.data?.checkedInAt.get(id);
+
     // This screen's reads only — see `DayScreen`. The doctor has no reminders
     // tab and no settings read, so it is four queries rather than six.
     const reads = [day, schedule, branches, arrivals];
@@ -130,7 +134,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
     );
 
     const { chair, headline, strip, list, past } = useMemo(
-        () => splitDoctorDay(appointments, arrivals.data),
+        () => splitDoctorDay(appointments, arrivals.data?.checkedInAt),
         [appointments, arrivals.data],
     );
 
@@ -232,8 +236,8 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                         {isToday && strip ? (
                             <ChairStrip
                                 appointment={strip}
-                                nowMinutes={nowMinutes}
                                 procedure={procedureLabel(strip)}
+                                seatedAt={seatFor(strip.id)}
                                 finishing={finishingId === strip.id}
                                 onOpen={openVisit}
                                 onOpenRecord={onOpenRecord}
@@ -247,7 +251,10 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                                 kind={kind}
                                 nowMinutes={nowMinutes}
                                 procedure={headline ? procedureLabel(headline) : undefined}
-                                checkedInAt={headline ? arrivals.data?.get(headline.id) : undefined}
+                                checkedInAt={
+                                    headline ? arrivals.data?.checkedInAt.get(headline.id) : undefined
+                                }
+                                seatedAt={headline ? seatFor(headline.id) : undefined}
                                 finishing={finishingId === headline?.id}
                                 onOpenRecord={onOpenRecord}
                                 onOpen={openVisit}

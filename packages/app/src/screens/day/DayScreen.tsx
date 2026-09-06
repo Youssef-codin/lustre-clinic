@@ -243,6 +243,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         enabled: checkedInIds.length > 0,
     });
 
+    // Where the chair's bar counts from. `in_chair_at` is the answer; a visit
+    // recorded before that column existed has none, and the check-in is the
+    // closest thing to it — wrong only for someone who queued, which is exactly
+    // the case the column was added for.
+    const seatFor = (id: string) => arrivals.data?.inChairAt.get(id) ?? arrivals.data?.checkedInAt.get(id);
+
     // A pull re-asks for this screen's five reads and nothing else. The other
     // tabs are mounted behind this one and refetching them from here would put
     // three screens' worth of traffic on the tunnel for a screen nobody is
@@ -264,7 +270,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // inside — the doctor's screen reads it the same way, and picking by slot
     // was what had the two screens seating different patients.
     const { chair, waiting, desk, next, card } = useMemo(
-        () => splitDeskDay(appointments, arrivals.data),
+        () => splitDeskDay(appointments, arrivals.data?.checkedInAt),
         [appointments, arrivals.data],
     );
 
@@ -281,7 +287,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // seen. Nothing is written — `startsAt` stays the time the patient was told
     // — and the projection unwinds by itself as the day catches up.
     const delay = useMemo(
-        () => dayDelay(appointments, isToday ? nowMinutes : null, arrivals.data),
+        () => dayDelay(appointments, isToday ? nowMinutes : null, arrivals.data?.checkedInAt),
         [appointments, isToday, nowMinutes, arrivals.data],
     );
 
@@ -552,6 +558,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                                 next={next}
                                 nowMinutes={nowMinutes}
                                 procedure={card ? procedureLabel(card) : undefined}
+                                seatedAt={active ? seatFor(active.id) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}

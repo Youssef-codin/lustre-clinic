@@ -51,10 +51,12 @@ import {
     clockToMinutes,
     dateKey,
     formatDatePill,
+    formatElapsed,
     formatLongDate,
     isoAt,
     minutesOfDay,
     relativeDayLabel,
+    secondsOfDay,
 } from './time';
 
 const FRIDAY = '2026-08-07';
@@ -276,46 +278,136 @@ describe("the doctor's day", () => {
         expect(standingFor(at('closed', '11:05', 'done'), '2026-08-10')).toBe('finished');
     });
 
-    // A 30-minute appointment is 30 minutes of bar. The desk checks people in
-    // as they walk through the door, so an early arrival used to inflate the
-    // denominator — a noon slot checked in at 08:47 read `0 / 223 min`.
-    it('measures the booked slot however early the patient arrived', () => {
+    // Seconds matter here: the count is a stopwatch, and the stamp it starts
+    // from carries them.
+    const stamp = (time: string, seconds = 0) =>
+        `2026-08-10T${time}:${String(seconds).padStart(2, '0')}+03:00`;
+
+    // The bar measures the visit, so it starts when the patient was checked in
+    // rather than when the slot was booked. A patient the card calls IN THE
+    // CHAIR reads zero only at the moment they are seated.
+    it('runs the booked duration from the check-in, not the booked start', () => {
         const appointment = at('chair', '12:00', 'checked_in');
-        const start = minutesOfDay(appointment.startsAt);
+        const seated = minutesOfDay(stamp('08:47'));
 
-        expect(slotProgress(appointment, start - 193).label).toBe('0 / 30 min');
-        expect(slotProgress(appointment, start - 193).value).toBe(0);
-        expect(slotProgress(appointment, start - 193).over).toBe(false);
+        expect(slotProgress(appointment, seated, stamp('08:47')).label).toBe('0:00 / 30 min');
+        expect(slotProgress(appointment, seated + 15, stamp('08:47')).label).toBe('15:00 / 30 min');
+        expect(slotProgress(appointment, seated + 15, stamp('08:47')).value).toBe(0.5);
     });
 
-    // What the old arrival-based clock was protecting: a patient seated after
-    // their slot opened must not be granted a fresh full slot, or nothing ever
-    // reads as running over.
-    it('does not hand a late arrival a fresh slot', () => {
+    // The `0 / 223 min` regression. It came from the denominator — the old rule
+    // set it to `bookedEnd - checkedInAt` — and not from the start point, so
+    // starting at the check-in is safe as long as the whole stays the booked
+    // duration.
+    it('never lets an early arrival stretch the denominator', () => {
+        const appointment = at('chair', '12:00', 'checked_in');
+        const seated = minutesOfDay(stamp('08:47'));
+
+        expect(slotProgress(appointment, seated, stamp('08:47')).label).toBe('0:00 / 30 min');
+        expect(slotProgress(appointment, seated, stamp('08:47')).label).not.toContain('223');
+    });
+
+    // Deliberate, and the other half of measuring the visit: someone seated
+    // half an hour late still needs the whole procedure, so the bar gives them
+    // the whole slot. Running late is the day's problem, and `dayDelay` has it.
+    it('gives a patient seated late their full slot', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = minutesOfDay(stamp('11:30'));
+
+        expect(slotProgress(appointment, seated + 15, stamp('11:30')).label).toBe('15:00 / 30 min');
+        expect(slotProgress(appointment, seated + 15, stamp('11:30')).over).toBe(false);
+    });
+
+    it('says so once the visit runs over', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = minutesOfDay(stamp('11:00'));
+
+        expect(slotProgress(appointment, seated + 15, stamp('11:00')).label).toBe('15:00 / 30 min');
+        expect(slotProgress(appointment, seated + 45, stamp('11:00')).over).toBe(true);
+        expect(slotProgress(appointment, seated + 45, stamp('11:00')).label).toBe('15:00 over');
+    });
+
+    // Whoever is at the desk has no arrival to measure from — the card draws
+    // them without a bar, and the fallback keeps the window honest anyway.
+    it('falls back to the booked slot with no check-in to hand', () => {
         const appointment = at('chair', '11:00', 'checked_in');
         const start = minutesOfDay(appointment.startsAt);
 
-        expect(slotProgress(appointment, start + 45).over).toBe(true);
-        expect(slotProgress(appointment, start + 45).label).toBe('15 min over');
-    });
-
-    it('measures the slot, and says so once it runs over', () => {
-        const appointment = at('chair', '11:00', 'checked_in');
-        const start = minutesOfDay(appointment.startsAt);
-
-        expect(slotProgress(appointment, start + 15).label).toBe('15 / 30 min');
-        expect(slotProgress(appointment, start + 45).over).toBe(true);
-        expect(slotProgress(appointment, start + 45).label).toBe('15 min over');
+        expect(slotProgress(appointment, start - 193).label).toBe('0:00 / 30 min');
+        expect(slotProgress(appointment, start + 15).label).toBe('15:00 / 30 min');
+        expect(slotProgress(appointment, start + 15).window).toBe(
+            slotProgress(appointment, start + 15, stamp('08:47')).window,
+        );
     });
 
     // Both halves of the label read in hours past the hour, not `105 min`.
     it('reads a long slot in hours and minutes', () => {
         const appointment = { ...at('chair', '11:00', 'checked_in'), durationMinutes: 90 };
-        const start = minutesOfDay(appointment.startsAt);
+        const seated = minutesOfDay(stamp('11:00'));
 
-        expect(slotProgress(appointment, start + 45).label).toBe('45 min / 1h 30m');
-        expect(slotProgress(appointment, start + 75).label).toBe('1h 15m / 1h 30m');
-        expect(slotProgress(appointment, start + 153).label).toBe('1h 3m over');
+        expect(slotProgress(appointment, seated + 45, stamp('11:00')).label).toBe('45:00 / 1h 30m');
+        expect(slotProgress(appointment, seated + 75, stamp('11:00')).label).toBe('1:15:00 / 1h 30m');
+        expect(slotProgress(appointment, seated + 153, stamp('11:00')).label).toBe('1:03:00 over');
+    });
+
+    // The counter skipped seconds on the device, and the timer was not why.
+    // `nowMinutes` carries a fraction of a minute, and converting it back with
+    // `* 60` lands just under the integer in binary — `(587 + 23/60 - 560) * 60`
+    // is 1642.9999999999995, whose floor is a second nobody ever sees. Over ten
+    // minutes of counting it swallowed 160 of them.
+    it('never skips a second, over a run long enough to catch the float', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = stamp('10:47', 23);
+        const from = secondsOfDay(seated);
+
+        for (let second = 0; second <= 600; second += 1) {
+            const nowMinutes = (from + second) / 60;
+            expect(slotProgress(appointment, nowMinutes, seated).count).toBe(formatElapsed(second));
+        }
+    });
+
+    // The same bug from the other side: every step is exactly one second, so a
+    // run of labels has no duplicates and no gaps either.
+    it('advances by exactly one second per second', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = stamp('10:47', 23);
+        const from = secondsOfDay(seated);
+
+        const counts = Array.from(
+            { length: 300 },
+            (_, second) => slotProgress(appointment, (from + second) / 60, seated).count,
+        );
+
+        expect(new Set(counts).size).toBe(counts.length);
+    });
+
+    // `minutesOfDay` truncates, which is right for placing a row on a schedule
+    // and wrong for the stamp a stopwatch starts from: seated at :23 and read
+    // half a minute later, the count used to say a full minute had gone.
+    it('counts from the second the patient was seated, not the minute', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = stamp('10:47', 30);
+
+        expect(slotProgress(appointment, (secondsOfDay(seated) + 30) / 60, seated).count).toBe('0:30');
+        expect(slotProgress(appointment, secondsOfDay(seated) / 60, seated).count).toBe('0:00');
+    });
+
+    // The label is split so only the half that changes has to be redrawn — and
+    // rejoining the two has to give back exactly what the strip draws.
+    it('splits the count from what it is counted against', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = stamp('11:00');
+        const from = secondsOfDay(seated);
+
+        const running = slotProgress(appointment, (from + 900) / 60, seated);
+        expect(running.count).toBe('15:00');
+        expect(running.of).toBe('/ 30 min');
+        expect(running.label).toBe(`${running.count} ${running.of}`);
+
+        const late = slotProgress(appointment, (from + 2700) / 60, seated);
+        expect(late.count).toBe('15:00');
+        expect(late.of).toBe('over');
+        expect(late.label).toBe('15:00 over');
     });
 });
 

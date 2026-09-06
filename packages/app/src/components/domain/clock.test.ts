@@ -8,7 +8,7 @@ import {
     clock12,
     formatClock12,
     formatDuration,
-    formatProgress,
+    formatElapsed,
     formatSpan,
     formatStamp,
     formatTime12,
@@ -103,11 +103,27 @@ describe('a length of time', () => {
         // The figure the chair's bar was reporting raw.
         expect(formatDuration(223)).toBe('3h 43m');
     });
+});
 
-    it('lets the whole decide the unit both halves read in', () => {
-        expect(formatProgress(15, 30)).toBe('15 / 30 min');
-        expect(formatProgress(0, 30)).toBe('0 / 30 min');
-        expect(formatProgress(45, 90)).toBe('45 min / 1h 30m');
-        expect(formatProgress(75, 90)).toBe('1h 15m / 1h 30m');
+describe('a count that is running', () => {
+    it('keeps two digits on the seconds so the label does not jump width', () => {
+        expect(formatElapsed(0)).toBe('0:00');
+        expect(formatElapsed(7)).toBe('0:07');
+        expect(formatElapsed(70)).toBe('1:10');
+        expect(formatElapsed(754)).toBe('12:34');
+    });
+
+    it('grows an hours field rather than counting past 59 minutes', () => {
+        expect(formatElapsed(3_599)).toBe('59:59');
+        expect(formatElapsed(3_600)).toBe('1:00:00');
+        expect(formatElapsed(4_503)).toBe('1:15:03');
+    });
+
+    // The bar is fed a fractional minute, so the seconds arrive with a tail on
+    // them. Truncating is what a stopwatch does: 0:59 holds until the minute is
+    // actually up.
+    it('truncates rather than rounds, and never counts below zero', () => {
+        expect(formatElapsed(59.9)).toBe('0:59');
+        expect(formatElapsed(-30)).toBe('0:00');
     });
 });
