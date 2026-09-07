@@ -3,14 +3,14 @@
  * makes a row a category root (one level of nesting only); `isToothSpecific`
  * means lines for the procedure must name a tooth, and others must not.
  */
-import { MAX_AMOUNT_PIASTRES } from '@lustre/shared';
+import { MAX_AMOUNT_PIASTRES, MAX_PROCEDURE_NAME } from '@lustre/shared';
 import { z } from 'zod';
 
 const price = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);
 
 export const createProcedureInput = z.object({
     parentId: z.uuid().nullish(),
-    name: z.string().trim().min(1).max(160),
+    name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
     defaultPrice: price,
     hasQuantity: z.boolean().default(false),
     isToothSpecific: z.boolean().default(false),
@@ -21,7 +21,7 @@ export const createProcedureInput = z.object({
 export const updateProcedureInput = z.object({
     id: z.uuid(),
     parentId: z.uuid().nullish(),
-    name: z.string().trim().min(1).max(160).optional(),
+    name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME).optional(),
     defaultPrice: price.optional(),
     hasQuantity: z.boolean().optional(),
     isToothSpecific: z.boolean().optional(),
@@ -43,10 +43,10 @@ export const procedureTreeInput = z
  * that makes sense, and `procedureService.createCategory` writes it as one.
  */
 export const createCategoryInput = z.object({
-    name: z.string().trim().min(1).max(160),
+    name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
     sortOrder: z.number().int().min(0).max(9999).default(0),
     first: z.object({
-        name: z.string().trim().min(1).max(160),
+        name: z.string().trim().min(1).max(MAX_PROCEDURE_NAME),
         defaultPrice: price,
         hasQuantity: z.boolean().default(false),
         isToothSpecific: z.boolean().default(false),

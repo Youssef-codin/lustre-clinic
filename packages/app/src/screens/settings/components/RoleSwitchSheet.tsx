@@ -25,6 +25,12 @@ export type RoleSwitchSheetProps = {
     toName: string;
     onConfirm: () => void;
     onCancel: () => void;
+    /**
+     * The switch itself, which redraws the whole shell — every tab, this screen
+     * included — so it waits for the sheet to be off the screen. See `Sheet`'s
+     * `onClosed`.
+     */
+    onClosed?: () => void;
 };
 
 const ROLE_WORD: Record<ClientRole, string> = {
@@ -50,6 +56,7 @@ export function RoleSwitchSheet({
     toName,
     onConfirm,
     onCancel,
+    onClosed,
 }: RoleSwitchSheetProps) {
     const other: ClientRole = role === 'doctor' ? 'secretary' : 'doctor';
     const word = ROLE_WORD[other];
@@ -58,6 +65,7 @@ export function RoleSwitchSheet({
         <Sheet
             visible={visible}
             onClose={onCancel}
+            onClosed={onClosed}
             title={`Switch to ${word}?`}
             subtitle="Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do."
             testID="settings-role-sheet"

@@ -184,6 +184,11 @@ export const visits = pgTable('visits', {
         .unique()
         .references(() => appointments.id),
     checkedInAt: timestamptz('checked_in_at').notNull(),
+    // Arrived and seated are two different moments, and the chair's progress
+    // bar is measured from the second one. The desk checks people in as they
+    // come through the door and they queue, so `checked_in_at` is when the wait
+    // started; `in_chair_at` is when it ended. Null means still waiting.
+    inChairAt: timestamptz('in_chair_at'),
     pricedAt: timestamptz('priced_at'),
     completedAt: timestamptz('completed_at'),
     computedTotal: integer('computed_total').notNull().default(0),

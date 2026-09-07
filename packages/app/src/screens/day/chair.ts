@@ -2,20 +2,26 @@
  * Who is in the chair. `checked_in` means arrived, not seated — the desk checks
  * people in as they come and they queue, so the chair is whoever arrived first
  * (`checkedInAt`, falling back to `updatedAt` when the visit is not to hand)
- * and the rest wait. Nothing promotes the next patient: the chair leaves the
- * queue the moment they go to `awaiting_payment` or `done`, and the next
- * arrival is the chair by the same rule. Both screens read the queue from here
- * so they cannot disagree about who is seated.
+ * and the rest wait. The chair leaves the queue the moment they go to
+ * `awaiting_payment` or `done`, which makes the longest wait the new head. Both
+ * screens read the queue from here so they cannot disagree about who is seated.
+ *
+ * The server promotes on the same rule and writes `visits.in_chair_at` as it
+ * does, so the stamp and this ordering name the same patient. That is not a
+ * coincidence to be relied on loosely — if either side changes how it picks,
+ * the other has to change with it, or a bar will start counting for someone the
+ * screen has not put in the chair.
  *
  * The two days differ only in what they count as over. The doctor is finished
  * when the patient goes out to pay, so `awaiting_payment` is settled for him;
  * the desk is not finished until the money is in, so it holds the black card.
- * `slotProgress` measures the booked slot, never the patient — arrival time
- * does not touch it — and is left uncapped once the slot runs over.
+ * `slotProgress` runs the booked duration from `in_chair_at` — when the patient
+ * reached the chair, not when they arrived — and is left uncapped once that
+ * runs over.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import type { Appointment } from './data/types';
-import { dateKey, formatDuration, formatProgress, formatSpan, minutesOfDay } from './time';
+import { dateKey, formatDuration, formatElapsed, formatSpan, minutesOfDay, secondsOfDay } from './time';
 
 const SETTLED: ReadonlySet<AppointmentStatus> = new Set<AppointmentStatus>([
     'done',
@@ -134,43 +140,74 @@ export function splitDoctorDay(
 export interface SlotProgress {
     value: number;
     over: boolean;
+    /** The running count on its own — the only part that changes each second. */
+    count: string;
+    /** What it is counted against: "/ 30 min" while inside the slot, "over" past it. */
+    of: string;
+    /** Both halves, for the one-line form the doctor's strip draws. */
     label: string;
     window: string;
 }
 
 /**
- * How far into the booked slot the clock is.
+ * How far into the visit the clock is.
  *
- * The denominator is the booked duration and nothing else: a 30-minute
- * appointment is 30 minutes of bar however early the patient walked in, which
- * is what the desk means when it books one. The bar does not start running
- * until the slot opens, so an early arrival sits at zero rather than at some
- * fraction of a slot that grew to meet them.
+ * The bar runs the booked duration from `seatedAt` — `visits.in_chair_at`, the
+ * moment the patient reached the chair. A 30-minute appointment is 30 minutes
+ * of bar, and it starts when the visit does.
  *
- * This reverses the earlier rule, which ran the clock from `checkedInAt` and
- * left the end where it was booked, so that arriving early lengthened the
- * visit. That held for someone twenty minutes early and fell apart at a desk
- * that checks people in as they walk through the door: a noon consultation
- * checked in at 08:47 read `0 / 223 min`.
+ * Three rules have now been tried here and the history is worth keeping. The
+ * first ran from `checked_in_at` *and* set the denominator to
+ * `bookedEnd - checkedInAt`; that subtraction drew `0 / 223 min` for a noon
+ * consultation checked in at 08:47. The second fixed the denominator but moved
+ * the start to the booked slot, which left a patient the card called IN THE
+ * CHAIR sitting at zero for hours. The third put the start back on
+ * `checked_in_at`, which is right for whoever walks into an empty chair and
+ * wrong for everyone behind them: the second patient of the morning was charged
+ * with the first one's visit, and read `11:40 over` before being seen.
  *
- * What the old rule was reaching for — the doctor should not be told he has not
- * started something he is already doing — needs a record of when the patient
- * went into the chair, and there is none. `checked_in` means arrived, not
- * seated. Until that timestamp exists the bar draws the slot, which it can
- * name, rather than the visit, which it cannot.
+ * All three failed for one reason — arriving and being seated are different
+ * events and only one of them was recorded. `in_chair_at` is that second
+ * event, stamped by the server when the chair empties, so this function no
+ * longer has to guess.
+ *
+ * `seatedAt` missing means nobody is in the chair yet, and the fallback is the
+ * booked start. The caller decides what to fall back through: the screens pass
+ * `inChairAt ?? checkedInAt` so that a visit recorded before this column
+ * existed still draws something sensible.
+ *
+ * `nowMinutes` may carry a fraction. The chair feeds it a per-second clock so
+ * the label can tick and the bar can move between whole minutes; everything
+ * else passes whole minutes and gets `:00` on the seconds, which is honest —
+ * that is all a thirty-second tick knows.
+ *
+ * All of the arithmetic is in whole seconds, and that is load-bearing rather
+ * than tidiness. Minutes carrying a fraction of a second cannot be converted
+ * back by multiplying: `(587 + 23/60 - 560) * 60` is 1642.9999999999995 in
+ * binary, and the floor of that is a second that never gets displayed. Counting
+ * up from a seating stamp it dropped 160 seconds out of every 600 — the skips
+ * were the float, not the timer. `Math.round` at the one point the fraction
+ * becomes a count is what fixes it; every value downstream is an integer.
  */
-export function slotProgress(appointment: Appointment, nowMinutes: number): SlotProgress {
+export function slotProgress(appointment: Appointment, nowMinutes: number, seatedAt?: string): SlotProgress {
     const booked = minutesOfDay(appointment.startsAt);
     const duration = appointment.durationMinutes;
     const ends = booked + duration;
 
-    const elapsed = Math.max(nowMinutes - booked, 0);
-    const over = elapsed - duration;
+    const fromSeconds = seatedAt ? secondsOfDay(seatedAt) : booked * 60;
+    const elapsed = Math.max(Math.round(nowMinutes * 60) - fromSeconds, 0);
+    const total = duration * 60;
+    const over = elapsed - total;
+
+    const count = formatElapsed(over > 0 ? over : elapsed);
+    const of = over > 0 ? 'over' : `/ ${formatDuration(duration)}`;
 
     return {
-        value: duration > 0 ? elapsed / duration : 0,
+        value: total > 0 ? elapsed / total : 0,
         over: over > 0,
-        label: over > 0 ? `${formatDuration(over)} over` : formatProgress(elapsed, duration),
+        count,
+        of,
+        label: `${count} ${of}`,
         window: formatSpan(booked, ends),
     };
 }

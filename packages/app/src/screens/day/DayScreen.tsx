@@ -20,6 +20,7 @@ import {
     RefreshView,
     SegmentedControl,
     Toast,
+    useAfterSheet,
     usePullToRefresh,
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
@@ -160,6 +161,11 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     } | null>(null);
     const [bookNextOpen, setBookNextOpen] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+    // Every exit from these two sheets goes somewhere else — the record, the
+    // booking page, the visit pages — and none of them may draw until the sheet
+    // that asked has finished leaving.
+    const bookNextDone = useAfterSheet();
+    const detailDone = useAfterSheet();
 
     // Both derived during render rather than in an effect, so the page is on
     // screen in the same commit as the tab switch and the pane never paints the
@@ -243,6 +249,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         enabled: checkedInIds.length > 0,
     });
 
+    // Where the chair's bar counts from. `in_chair_at` is the answer; a visit
+    // recorded before that column existed has none, and the check-in is the
+    // closest thing to it — wrong only for someone who queued, which is exactly
+    // the case the column was added for.
+    const seatFor = (id: string) => arrivals.data?.inChairAt.get(id) ?? arrivals.data?.checkedInAt.get(id);
+
     // A pull re-asks for this screen's five reads and nothing else. The other
     // tabs are mounted behind this one and refetching them from here would put
     // three screens' worth of traffic on the tunnel for a screen nobody is
@@ -264,7 +276,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // inside — the doctor's screen reads it the same way, and picking by slot
     // was what had the two screens seating different patients.
     const { chair, waiting, desk, next, card } = useMemo(
-        () => splitDeskDay(appointments, arrivals.data),
+        () => splitDeskDay(appointments, arrivals.data?.checkedInAt),
         [appointments, arrivals.data],
     );
 
@@ -281,7 +293,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // seen. Nothing is written — `startsAt` stays the time the patient was told
     // — and the projection unwinds by itself as the day catches up.
     const delay = useMemo(
-        () => dayDelay(appointments, isToday ? nowMinutes : null, arrivals.data),
+        () => dayDelay(appointments, isToday ? nowMinutes : null, arrivals.data?.checkedInAt),
         [appointments, isToday, nowMinutes, arrivals.data],
     );
 
@@ -375,15 +387,21 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * the shell is about to hide. It is two lines, not one — the record already
      * has the patient's name as the largest thing on it, and the day view, which
      * has no record to open, has to say who it is talking about.
+     *
+     * The move waits for the sheet to be off the screen (`useAfterSheet`). The
+     * record is the heavier of the two answers to mount — a pane swap and a
+     * query — so doing it in this tick is what left the sheet sitting over the
+     * day view with nothing appearing to have happened.
      */
     function landOnRecord(patient: EmbeddedPatient, onRecord: string, onDay: string) {
         setBookNextOpen(false);
-
-        if (onOpenRecord) {
-            onOpenRecord(patient.id, onRecord);
-            return;
-        }
-        setToast(onDay);
+        bookNextDone.after(() => {
+            if (onOpenRecord) {
+                onOpenRecord(patient.id, onRecord);
+                return;
+            }
+            setToast(onDay);
+        });
     }
 
     /**
@@ -399,13 +417,15 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      */
     function bookNextOn(patient: EmbeddedPatient) {
         setBookNextOpen(false);
-        setPage((current) => ({
-            patient: draftFor(patient),
-            timing: 'later',
-            seq: (current?.seq ?? 0) + 1,
-        }));
-        setPageOpen(true);
-        onBookingChange?.(true);
+        bookNextDone.after(() => {
+            setPage((current) => ({
+                patient: draftFor(patient),
+                timing: 'later',
+                seq: (current?.seq ?? 0) + 1,
+            }));
+            setPageOpen(true);
+            onBookingChange?.(true);
+        });
     }
 
     /**
@@ -552,6 +572,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                                 next={next}
                                 nowMinutes={nowMinutes}
                                 procedure={card ? procedureLabel(card) : undefined}
+                                seatedAt={active ? seatFor(active.id) : undefined}
                                 checkingInId={checkingInId}
                                 onCheckIn={checkInFrom}
                                 onOpen={openDetail}
@@ -632,11 +653,14 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 appointment={selected.appointment}
                 onClose={() => setSelected((current) => ({ ...current, open: false }))}
                 onChanged={day.refetch}
-                onCheckIn={checkInFrom}
+                // The sheet closes itself on the way into a check-in, so this
+                // only says what the page is; `onCheckOut` has to close it too.
+                onCheckIn={(appointment) => detailDone.after(() => checkInFrom(appointment))}
                 onCheckOut={(appointment, loaded) => {
                     setSelected((current) => ({ ...current, open: false }));
-                    openVisit(appointment, loaded);
+                    detailDone.after(() => openVisit(appointment, loaded));
                 }}
+                onClosed={detailDone.closed}
             />
 
             {/* Keyed per check-in, so one patient's answer is never the next
@@ -654,6 +678,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             `${bookNext.patient.name} is ${bookNext.seated}`,
                         )
                     }
+                    onClosed={bookNextDone.closed}
                 />
             ) : null}
 

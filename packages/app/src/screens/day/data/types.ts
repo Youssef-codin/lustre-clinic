@@ -85,6 +85,8 @@ export interface Visit {
     id: string;
     appointmentId: string;
     checkedInAt: string;
+    /** When they reached the chair. Null while they are still waiting. */
+    inChairAt: string | null;
     pricedAt: string | null;
     completedAt: string | null;
     computedTotal: number;
@@ -100,6 +102,7 @@ export interface VisitRow {
     id: string;
     appointmentId: string;
     checkedInAt: string;
+    inChairAt: string | null;
     computedTotal: number;
     chargedTotal: number;
 }

@@ -33,7 +33,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — driving `BottomSheetModal`'s imperative present/dismiss ref, and swallowing the hardware back through `BackHandler`
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
@@ -42,24 +42,51 @@ import { duration } from './motion';
 export type SheetProps = {
     visible: boolean;
     onClose: () => void;
+    /**
+     * Fired once the sheet has finished leaving — every close, whoever started
+     * it, unlike `onClose`.
+     *
+     * This is where anything that changes the screen underneath belongs. Closing
+     * and navigating in the same tick puts the two on different clocks: the flag
+     * is React's and lands in the next commit, while the exit is an animation
+     * that only starts once `visible` has been through an effect — which is
+     * behind the commit that mounts whatever is being navigated to. The sheet
+     * then sits at full height, scrim and all, over the screen it is supposed to
+     * be handing over to, and the confirm reads as if it did not take. Waiting
+     * for this instead costs the exit's 300ms and spends them on the animation
+     * the sheet already has.
+     */
+    onClosed?: () => void;
     title?: string;
     subtitle?: string;
     children?: ReactNode;
     footer?: ReactNode;
     maxHeightRatio?: number;
     dismissable?: boolean;
+    /**
+     * Whether dragging the body moves the sheet.
+     *
+     * Off for a body that scrolls on its own — a wheel, a picker — where the two
+     * gestures are the same downward drag and the sheet wins it: the column
+     * follows the finger for a few pixels and then the whole sheet leaves
+     * instead. The handle and the backdrop still close it, so nothing is lost
+     * but the shortcut.
+     */
+    dragFromBody?: boolean;
     testID?: string;
 };
 
 export function Sheet({
     visible,
     onClose,
+    onClosed,
     title,
     subtitle,
     children,
     footer,
     maxHeightRatio = 0.86,
     dismissable = true,
+    dragFromBody = true,
     testID,
 }: SheetProps) {
     const sheet = useRef<BottomSheetModal>(null);
@@ -105,6 +132,21 @@ export function Sheet({
      * and so mounts already visible.
      */
     const presented = useRef(false);
+    /**
+     * Whether the library has the sheet down, which is not the same question as
+     * `visible` and can disagree with it.
+     *
+     * `visible` is what the parent wants; this is what actually happened. A
+     * caller whose `onClose` swaps the sheet's *contents* rather than closing it
+     * — the working-hours editor stepping back from the time wheel to its form —
+     * leaves `visible` true through a drag or a backdrop tap. Without this the
+     * effect is keyed on `visible` alone, never re-runs, and nothing calls
+     * `present()` again: the sheet is off the screen while React still believes
+     * it is up. No backdrop, no error, and the caller's own open flag stuck on,
+     * so the next tap that would raise it sets a value that is already set and
+     * does nothing at all.
+     */
+    const [down, setDown] = useState(false);
 
     useEffect(() => {
         asked.current = visible;
@@ -112,6 +154,10 @@ export function Sheet({
         if (visible) {
             closing.current = false;
             presented.current = true;
+            // Putting it back up if the library dropped it while the parent
+            // still wanted it. `present()` is a no-op on a sheet already up,
+            // which is what makes running this on every dismissal safe.
+            if (down) setDown(false);
             sheet.current?.present();
             return;
         }
@@ -124,7 +170,7 @@ export function Sheet({
 
         closing.current = true;
         sheet.current?.dismiss();
-    }, [visible]);
+    }, [visible, down]);
 
     /**
      * Every sheet swallows the hardware back while it is up, which is what
@@ -152,12 +198,22 @@ export function Sheet({
      * the backdrop. Telling it about its own would fire `onClose` twice for one
      * close, and not every caller can take that: some advance a flow or clear a
      * form there rather than just setting a flag.
+     *
+     * `onClosed` is the other half and has no such asymmetry: it says the sheet
+     * is off the screen, which is true of both closes and is the one moment
+     * anything underneath may change.
      */
     const handleDismiss = useCallback(() => {
         closing.current = true;
         Keyboard.dismiss();
         if (asked.current) onClose();
-    }, [onClose]);
+        onClosed?.();
+        // Last, and unconditionally: `onClose` has had its say by now, so the
+        // effect that follows this render sees what the parent decided. If it
+        // let `visible` go false this is the close it asked for and the effect
+        // stops at `closing`; if it kept the sheet up, the sheet goes back up.
+        setDown(true);
+    }, [onClose, onClosed]);
 
     const renderBackdrop = useCallback(
         (props: BottomSheetBackdropProps) => (
@@ -206,6 +262,27 @@ export function Sheet({
             maxDynamicContentSize={maxContent}
             topInset={insets.top}
             enablePanDownToClose={dismissable}
+            enableContentPanningGesture={dragFromBody}
+            /*
+             * A sheet opened from inside another stacks on top of it, rather
+             * than taking it down on the way up.
+             *
+             * The library's default is `switch`, which minimises whatever sheet
+             * is currently up before presenting the new one. Minimising is
+             * supposed to be recoverable — the outer sheet is restored when the
+             * inner one goes — but it is driven by a status flag that any snap
+             * landing in between overwrites, and `enableDismissOnClose` then
+             * reads the close as a real dismissal. Our `onDismiss` fires,
+             * `onClose` runs, and the caller unmounts the whole tree the inner
+             * sheet was rendered from. That is why the Branch picker on Working
+             * hours took the day editor with it and left no picker behind: the
+             * inner sheet never got to present, because the React subtree it
+             * lived in had already gone.
+             *
+             * `push` never touches the sheet underneath, so there is no status
+             * to race and nothing to restore.
+             */
+            stackBehavior="push"
             enableOverDrag={false}
             handleComponent={renderHandle}
             backdropComponent={renderBackdrop}

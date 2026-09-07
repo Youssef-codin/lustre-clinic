@@ -271,6 +271,84 @@ exists the bar draws the slot, which it can name, and not the visit, which it
 cannot. Anyone adding that column should read this entry first: the bar is
 waiting for it.
 
+## **Correction.** The bar runs from the check-in after all
+
+The entry above changed two things and only one of them was wrong.
+
+`0 / 223 min` came from the **denominator**. The old rule set it to
+`bookedEnd - checkedInAt`, and it was that subtraction that produced 223 — not
+the fact that the clock started at the arrival. Pinning the denominator to
+`duration_minutes` fixed the number completely. Moving the start to the booked
+slot was a second change riding along with it, and it broke the bar: a patient
+the card calls **IN THE CHAIR** sat at `0 / 45 min` and stayed there. Seen on a
+real check-in at 08:24 against a slot booked for 13:30, the bar had five hours
+of nothing to show before it would move.
+
+A card that says someone is in the chair and a bar that says nothing has started
+cannot both be right. So `slotProgress` now runs `duration_minutes` from
+`checked_in_at`, and falls back to the booked start only when there is no
+check-in to read — whoever is at the desk, who gets no bar anyway.
+
+Two consequences, both accepted:
+
+A patient seated half an hour late gets a full fresh slot. That is right. The
+bar measures the visit, and a procedure booked for thirty minutes still takes
+thirty minutes whenever it starts. Whether the clinic is behind is a different
+question, and `dayDelay` already answers it.
+
+A patient who arrives hours early and queues will read as running over while
+they are still in the waiting room. That is the cost, and it is the seated-at
+gap again: `checked_in` means arrived, and the chair is the head of the arrival
+queue rather than anything anyone wrote down. The trade is deliberate. The case
+this gets wrong needs a long queue and a very early arrival; the case the
+previous rule got wrong was every check-in that happened before its slot opened,
+which at this clinic is most of them.
+
+The seated-at column would end both entries. It is still not built.
+
+## **Resolved.** `visits.in_chair_at` — the column both entries were waiting for
+
+Three rules were tried on one timestamp and all three failed, because the thing
+being measured was never recorded. Arriving and being seated are different
+events. `checked_in_at` is the first one. Nothing was the second one.
+
+So the visit measured from the arrival read `11:40 over` for a patient the
+doctor had not yet seen: she came through the door at 08:24, queued behind
+someone whose visit ran to 08:55, and the bar spent that half hour counting her
+wait as her treatment. Measuring from the booked slot instead just moved the
+lie — a patient in the chair at 08:55 for a 13:10 appointment sat at `0 / 20 min`
+for four hours.
+
+`visits.in_chair_at` is the second event. Null means arrived and waiting; set
+means the visit has begun, and the bar counts the booked duration from it.
+
+The stamp is written by the server, never by a person, at the two moments the
+chair changes hands:
+
+- **Check-in into an empty chair.** Arriving and being seated are the same
+  instant, which is the common case at a quiet clinic.
+- **The chair emptying.** Both ways out — `awaitPayment` to the desk and a
+  checkout straight from the chair — promote the longest wait. The transition
+  and the promotion are one transaction, or a failure between them leaves an
+  empty chair with a queue in front of it and nobody's bar running.
+
+Longest wait wins, which is the order `arrivalQueue` already draws the queue in,
+so the screen and the stamp cannot name different patients.
+
+What this deliberately does **not** do is record when the patient physically sat
+down. It records when the chair became theirs. A doctor who takes ten minutes
+between patients gives the next one a bar that started ten minutes early, and
+closing that gap needs a human to mark it — a button someone has to remember to
+press, on a screen whose whole point is that the desk is busy. The clinic gets a
+stamp that is exact at every handover and generous during a break, which is the
+right way round.
+
+The old fallback survives for visits recorded before the column: the screens
+pass `inChairAt ?? checkedInAt`, and the migration backfills finished visits
+from their check-in. Live visits at migration time are left null on purpose —
+a queue in front of the chair is exactly what cannot be guessed, and stamping
+those would mark waiting patients as seated.
+
 ## Empty time on the day view is not tappable
 
 Tapping an empty slot should open a booking sheet. It does not. Empty time is
@@ -653,33 +731,42 @@ tabular. That split is why `clock12` hands back the figure and the marker
 separately — the marker has to reach the Naskh face without taking the digits
 with it, the same problem `ج.م` has in `MoneyValue`.
 
-## The native time picker, forced to 12-hour
+## The native time picker, forced to 12-hour — after a detour through a wheel
 
 Working hours used a `ui/Select` of hardcoded half-hour slots in a full-height
-sheet: no selected state, no confirm, and a clinic opening at 09:45 could not
-say so. It is now the Android platform picker (`DateTimePickerAndroid`), which
-opens on the current value, marks it, has OK and Cancel, sizes itself and counts
-in minutes. Settings is the lowest-traffic screen in the app and these hours
-change roughly never, which is the argument against hand-building a wheel for
-it.
+sheet: no selected state, no confirm, and a clinic opening at 09:45 could not say
+so. It is the Android platform picker (`DateTimePickerAndroid`), which opens on
+the current value, marks it, has OK and Cancel, sizes itself and counts in
+minutes. Settings is the lowest-traffic screen in the app and these hours change
+roughly never, which is the argument against hand-building a wheel for it.
 
-**The catch, and the resolution.** A native picker follows the *device's*
-12/24-hour setting, which would have put a 24-hour clock inside the one control
-that edits a time while every other surface showed 12-hour — the decision above
-losing in the place it is most visible. Android takes an explicit
-`is24Hour: false`, so the app's decision wins and the device's is ignored. That
-override is what makes the native picker compatible with "no 24-hour anywhere"
-rather than an exception to it, and it is not optional.
+**It was a wheel of ours for two commits and is not any more.** `4f42af1` built
+three snapping `ScrollView`s, `69b26c5` put them on
+`@quidone/react-native-wheel-picker` because the hand-rolled version felt like
+nothing — flat rows under a band, a hard swipe moving four rows where the library
+carries seventeen. Both are reverted. The wheel was the better-behaved control on
+the two counts below and it was still more surface than this screen earns; the
+call was to stop maintaining a picker and take the platform's. Building one
+properly is parked as its own task rather than carried half-done.
 
-This does not generalise to iOS, whose spinner cannot be forced off the device
-setting. The app has no iOS build — `scripts/` is adb and gradle throughout — so
-the conflict is not live. If iOS is ever built, it has to be settled before the
-picker is reused there.
+**`is24Hour: false` is the point.** The native picker otherwise follows the
+*device's* 12/24-hour setting, which would put a 24-hour clock inside the one
+control that edits a time while every other surface shows 12-hour — the decision
+above losing in the place it is most visible. Android takes the override, so the
+app's decision wins and the device's is ignored. That is what makes the native
+picker compatible with "no 24-hour anywhere" rather than an exception to it, and
+it is not optional.
 
-**Still open:** the picker draws its *own* AM/PM from the OS locale, which the
-app cannot override. On an English-locale device showing an Arabic layout, the
-dialog says PM where the row behind it says م. Nothing to do about it short of
-abandoning the native picker.
+**Still open, again:** the picker draws its *own* AM/PM from the OS locale, which
+the app cannot override. On an English-locale device showing the Arabic layout,
+the dialog says PM where the row behind it says م. This is the entry the wheel
+closed and the revert re-opens; it is the known price of the platform control,
+and there is nothing to do about it short of abandoning the picker a second time.
+
+**It costs a rebuild.** `@react-native-community/datetimepicker` is the app's
+only native dependency of its kind, so it is back in `app.json`'s plugins and
+everybody needs `bun app:build` once — the stale-binary crash below is what
+skipping it looks like.
 
 The `ui/TimeField` this entry used to ask for still does not exist. The control
 lives in the settings cluster instead, because `ui/boundaries.test.ts` lets a
@@ -687,6 +774,12 @@ primitive import only react, react-native, the theme and its siblings, and the
 picker is a native module outside that list. Promoting it means widening that
 allowlist — a bigger call than one screen's picker, and one caller does not
 justify it.
+
+**Not settled for iOS.** `DateTimePickerAndroid.open` is the dialog form and the
+app has no iOS build — `scripts/` is adb and gradle throughout. iOS would need
+the element form, and its spinner cannot be forced off the device's 24-hour
+setting; if iOS is ever built, that conflict has to be settled before this
+component is reused there.
 
 ---
 

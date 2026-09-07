@@ -3,15 +3,17 @@
  * `day-view-schedule.html`. The list answers "what does today look like"; this
  * answers "what is happening right now", and it has three states because the
  * clinic has three: someone in the chair or at the desk, someone due next, and
- * nobody. The `ProgressBar` must sit in its own container: it sizes itself
- * with `alignSelf`, which inside a row means nothing at all.
+ * nobody. The bar under the chair is `ChairProgress`, which is its own
+ * component because it runs its own per-second clock and this card must not
+ * re-render at that rate.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Dot, ProgressBar } from '../../../components/ui';
+import { Button, Dot } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
 import { minutesOfDay, time12 } from '../time';
+import { ChairProgress } from './ChairProgress';
 import { CheckIcon, ClockIcon } from './icons';
 
 export type NowCardProps = {
@@ -19,6 +21,8 @@ export type NowCardProps = {
     next: Appointment | null;
     nowMinutes: number;
     procedure?: string;
+    /** `in_chair_at` — where the bar counts from. Absent for whoever is at the desk. */
+    seatedAt?: string;
     onCheckIn: (appointment: Appointment) => void;
     onOpen: (appointment: Appointment) => void;
     onOpenRecord: (patientId: string) => void;
@@ -83,6 +87,7 @@ export function NowCard({
     next,
     nowMinutes,
     procedure,
+    seatedAt,
     onCheckIn,
     onOpen,
     onOpenRecord,
@@ -90,12 +95,15 @@ export function NowCard({
 }: NowCardProps) {
     if (active) {
         const inChair = active.status === 'checked_in';
-        const progress = slotProgress(active, nowMinutes);
+        const progress = slotProgress(active, nowMinutes, seatedAt);
 
         return (
             <Card onPress={() => onOpen(active)}>
+                {/* The dot holds still. Nothing on this card blinks: the
+                    seconds in the bar's label change once a second, which is
+                    the one honest sign the visit is running. */}
                 <View style={styles.eyebrowRow}>
-                    <Dot tone={inChair ? 'live' : 'due'} size={7} pulse={inChair} />
+                    <Dot tone={inChair ? 'live' : 'due'} size={7} />
                     <Text variant="eyebrow" tone={inChair ? 'live' : 'due'}>
                         {inChair ? 'IN THE CHAIR' : 'AT THE DESK'}
                     </Text>
@@ -111,22 +119,7 @@ export function NowCard({
                     </Text>
                 </View>
 
-                {inChair ? (
-                    <View style={styles.progress}>
-                        <View style={styles.track}>
-                            <ProgressBar
-                                value={progress.value}
-                                tone={progress.over ? 'due' : 'live'}
-                                height={5}
-                                onDark
-                                accessibilityLabel="Time into the slot"
-                            />
-                        </View>
-                        <Text variant="footnote" script="mono" weight="medium" tone="muted">
-                            {progress.label}
-                        </Text>
-                    </View>
-                ) : null}
+                {inChair ? <ChairProgress appointment={active} seatedAt={seatedAt} /> : null}
 
                 <Button
                     label={inChair ? 'Finish visit' : 'Take payment'}
@@ -215,7 +208,5 @@ const styles = StyleSheet.create({
     namePressed: { opacity: 0.6 },
     detail: { flexDirection: 'row', alignItems: 'center', gap: space[1.5], marginTop: space[1.5] },
     detailText: { flex: 1 },
-    progress: { flexDirection: 'row', alignItems: 'center', gap: space[2.5], marginTop: space[4] },
-    track: { flex: 1 },
     action: { marginTop: space[4] },
 });

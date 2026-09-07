@@ -17,7 +17,7 @@ import { memo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
-import { Card, CardDivider, PushView, ScreenHeader, SectionLabel } from '../../components/ui';
+import { Card, CardDivider, PushView, ScreenHeader, SectionLabel, useAfterSheet } from '../../components/ui';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
 import { setLocale, useLocale } from '../../shell/localeStore';
@@ -69,6 +69,9 @@ export type SettingsScreenProps = {
 function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
     const [route, setRoute] = useState<Route>('index');
     const [switching, setSwitching] = useState(false);
+    // The switch redraws every tab in the shell, so it waits for the sheet that
+    // asked for it to be off the screen.
+    const roleDone = useAfterSheet();
     const [seenHome, setSeenHome] = useState(goHome);
 
     if (goHome !== seenHome) {
@@ -231,11 +234,14 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                 fromName={ROLE_NAME[role]}
                 toName={ROLE_NAME[role === 'doctor' ? 'secretary' : 'doctor']}
                 onConfirm={() => {
-                    changeRole(role === 'doctor' ? 'secretary' : 'doctor');
                     setSwitching(false);
-                    setRoute('index');
+                    roleDone.after(() => {
+                        changeRole(role === 'doctor' ? 'secretary' : 'doctor');
+                        setRoute('index');
+                    });
                 }}
                 onCancel={() => setSwitching(false)}
+                onClosed={roleDone.closed}
             />
 
             <PushView visible={route === 'app'}>

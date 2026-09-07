@@ -44,6 +44,17 @@ push it, open the PR from there against `main`.
   suppress it on the import:
   `// biome-ignore lint/style/noRestrictedImports: <the reason>`. "It was easier"
   is not a reason.
+- **An effect you do need goes in a custom hook, never inline in a component.**
+  One hook per outside thing, in its own file, named for the thing it
+  synchronises with — `useKeyboardHeight`, `useReducedMotion`. The hook owns the
+  `useEffect` import and carries the suppression; a component file should not
+  import `useEffect` at all. This is what makes the suppression honest: a reason
+  written on a hook called `useHardwareBack` names one subscription, where the
+  same comment on a component ends up covering "two of them" and then three, and
+  nobody can tell from the import line what is being excused. It also gives the
+  effect a name at the call site, a place to put the ordering rules, and
+  somewhere to test it from — a component's effect can only be reached by
+  rendering the component, and `bun test` has no renderer.
 - DO NOT use any unless strictly needed to.
 - **Runtime**: Bun (always use `bun`, not npm/yarn/pnpm)
 - **Money is integer piastres.** No floats, no decimal types, anywhere. Parse at

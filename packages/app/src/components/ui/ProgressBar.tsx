@@ -5,9 +5,20 @@
  * no fill to infer it from, so a vanishing track takes the "four to go" signal
  * with it. `outline` is what every other hairline on `canvas` already uses, and
  * it holds on `surface` too.
+ *
+ * The fill eases to a new `value` rather than jumping, so a change reads as an
+ * event instead of as the screen having always looked that way. `width` is a
+ * layout property, which means this animation cannot use the native driver —
+ * and nothing else may be animated on this node with it. Putting a native
+ * `opacity` on the same view hands the node to the native driver, after which
+ * the width tween throws `animated node that has been moved to "native"`.
  */
-import { StyleSheet, View } from 'react-native';
+// biome-ignore lint/style/noRestrictedImports: an `Animated.timing` driven imperatively — the fill chases a prop and the tween has to be stopped on cleanup
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { color, radius } from '../../theme';
+import { easing, duration as motionDuration } from './motion';
+import { useReducedMotion } from './useReducedMotion';
 
 export type ProgressTone = 'accent' | 'success' | 'due' | 'live' | 'ink';
 
@@ -35,6 +46,25 @@ export function ProgressBar({
     accessibilityLabel,
 }: ProgressBarProps) {
     const clamped = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+    const reducedMotion = useReducedMotion();
+    const filled = useRef(new Animated.Value(clamped)).current;
+
+    useEffect(() => {
+        if (reducedMotion) {
+            filled.setValue(clamped);
+            return;
+        }
+        const tween = Animated.timing(filled, {
+            toValue: clamped,
+            duration: motionDuration.fadeup,
+            easing: easing.standard,
+            useNativeDriver: false,
+        });
+        tween.start();
+        return () => tween.stop();
+    }, [clamped, reducedMotion, filled]);
+
+    const width = filled.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
     return (
         <View
@@ -47,11 +77,8 @@ export function ProgressBar({
                 onDark ? styles.trackDark : styles.trackLight,
             ]}
         >
-            <View
-                style={[
-                    styles.fill,
-                    { width: `${clamped * 100}%`, backgroundColor: TONE[tone], borderRadius: height },
-                ]}
+            <Animated.View
+                style={[styles.fill, { width, backgroundColor: TONE[tone], borderRadius: height }]}
             />
         </View>
     );

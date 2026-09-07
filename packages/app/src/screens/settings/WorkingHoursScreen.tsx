@@ -237,7 +237,9 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
         >
             {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorText(failure, { NOT_FOUND: 'That branch is no longer set up. Pick another one.' })}
+                    {errorText(failure, {
+                        NOT_FOUND: 'That branch is no longer set up. Pick another one.',
+                    })}
                 </Callout>
             ) : null}
 
