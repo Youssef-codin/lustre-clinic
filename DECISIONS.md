@@ -731,72 +731,55 @@ tabular. That split is why `clock12` hands back the figure and the marker
 separately — the marker has to reach the Naskh face without taking the digits
 with it, the same problem `ج.م` has in `MoneyValue`.
 
-## The time wheel, ours — after a detour through the platform picker
+## The native time picker, forced to 12-hour — after a detour through a wheel
 
 Working hours used a `ui/Select` of hardcoded half-hour slots in a full-height
 sheet: no selected state, no confirm, and a clinic opening at 09:45 could not say
-so. It became the Android platform picker (`DateTimePickerAndroid`), and is now a
-wheel — `settings/components/TimeWheel` — three columns opening on the current
-value with it marked, under Set and Cancel. All sixty minutes, so 09:45 is
-expressible; that was the original complaint and it is not worth re-introducing
-by rounding the wheel to quarters.
+so. It is the Android platform picker (`DateTimePickerAndroid`), which opens on
+the current value, marks it, has OK and Cancel, sizes itself and counts in
+minutes. Settings is the lowest-traffic screen in the app and these hours change
+roughly never, which is the argument against hand-building a wheel for it.
 
-**The wheel itself is `@quidone/react-native-wheel-picker`, and hand-rolling it
-was a mistake worth recording.** The first version was three snapping
-`ScrollView`s. It got the value right and felt like nothing: flat rows sliding
-under a band, no weight to a fling — a hard swipe moved four rows where the
-library carries seventeen — and no sense of a cylinder turning. The library
-projects each row onto one, with per-row rotation, vertical foreshortening and an
-opacity ramp away from the centre, all driven by the native animation on the
-scroll offset. That projection is the whole feel of a picker and it is not the
-part to write yourself.
+**It was a wheel of ours for two commits and is not any more.** `4f42af1` built
+three snapping `ScrollView`s, `69b26c5` put them on
+`@quidone/react-native-wheel-picker` because the hand-rolled version felt like
+nothing — flat rows under a band, a hard swipe moving four rows where the library
+carries seventeen. Both are reverted. The wheel was the better-behaved control on
+the two counts below and it was still more surface than this screen earns; the
+call was to stop maintaining a picker and take the platform's. Building one
+properly is parked as its own task rather than carried half-done.
 
-It has no native side, which is why it is allowed to replace one: plain JS over
-`ScrollView`, so it costs no rebuild. Only the mechanics are the library's —
-every row is our `Text` through `renderItem`, and the selection band is drawn by
-us rather than by the library's per-picker overlay, which would put three of them
-side by side with the gutters showing between.
+**`is24Hour: false` is the point.** The native picker otherwise follows the
+*device's* 12/24-hour setting, which would put a 24-hour clock inside the one
+control that edits a time while every other surface shows 12-hour — the decision
+above losing in the place it is most visible. Android takes the override, so the
+app's decision wins and the device's is ignored. That is what makes the native
+picker compatible with "no 24-hour anywhere" rather than an exception to it, and
+it is not optional.
 
-**Not taken: `@quidone/react-native-wheel-picker-feedback`**, the companion that
-adds the tick-per-row sound and impact. It is a native module, and that is the
-one thing this change was getting rid of. The wheel is silent until someone
-decides a haptic is worth a rebuild for.
+**Still open, again:** the picker draws its *own* AM/PM from the OS locale, which
+the app cannot override. On an English-locale device showing the Arabic layout,
+the dialog says PM where the row behind it says م. This is the entry the wheel
+closed and the revert re-opens; it is the known price of the platform control,
+and there is nothing to do about it short of abandoning the picker a second time.
 
-**Why the platform picker was right and then was not.** It answered the whole
-list for free, and Settings is the lowest-traffic screen in the app — a strong
-argument against hand-building a wheel. What it cost was two things that a
-control we own cannot get wrong:
+**It costs a rebuild.** `@react-native-community/datetimepicker` is the app's
+only native dependency of its kind, so it is back in `app.json`'s plugins and
+everybody needs `bun app:build` once — the stale-binary crash below is what
+skipping it looks like.
 
-- It follows the *device's* 12/24-hour setting. Android takes an explicit
-  `is24Hour: false`, so the app's decision won, but that override had to be
-  remembered in the one control that edits a time.
-- It drew its *own* AM/PM from the OS locale, which nothing could override. On
-  an English-locale device showing the Arabic layout the dialog said PM where
-  the row behind it said م. That was logged here as "still open" and had no fix
-  short of dropping the picker.
+The `ui/TimeField` this entry used to ask for still does not exist. The control
+lives in the settings cluster instead, because `ui/boundaries.test.ts` lets a
+primitive import only react, react-native, the theme and its siblings, and the
+picker is a native module outside that list. Promoting it means widening that
+allowlist — a bigger call than one screen's picker, and one caller does not
+justify it.
 
-The wheel's meridiem comes from `clock12`, the same function every other time in
-the app formats through, so the column and the row it edits cannot disagree —
-which closes that entry rather than carrying it. It also drops
-`@react-native-community/datetimepicker`, and with it the stale-binary crash a
-native dependency costs everybody once (below).
-
-**The wheel is not in a sheet of its own.** A `Sheet` inside a `Sheet` does not
-open and takes the outer one with it, so the wheel is a second *face* of the day
-editor's sheet: tapping Opens swaps the form for the columns and the footer for
-Set and Cancel. Same answer `AppointmentDetailSheet` already gives its
-destructive confirms, same reason. The sheet is also told `dragFromBody={false}`
-there, because a column scroll and a sheet dismiss are the same downward drag and
-the sheet otherwise wins it.
-
-The `ui/TimeField` this entry used to ask for still does not exist, and the
-reason has changed: nothing technical stops it now that the native module is
-gone, but the wheel reads the locale and pairs with a sheet the caller owns, and
-one caller does not justify a primitive. It stays in the settings cluster.
-
-**Not settled for iOS.** The app has no iOS build — `scripts/` is adb and gradle
-throughout. The wheel is plain `ScrollView`s and should carry over; it has never
-been run there.
+**Not settled for iOS.** `DateTimePickerAndroid.open` is the dialog form and the
+app has no iOS build — `scripts/` is adb and gradle throughout. iOS would need
+the element form, and its spinner cannot be forced off the device's 24-hour
+setting; if iOS is ever built, that conflict has to be settled before this
+component is reused there.
 
 ---
 

@@ -32,11 +32,10 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { useLocale } from '../../shell/localeStore';
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { formatClock, TimeField, TimeWheel } from './components/TimeWheel';
+import { TimePickerField } from './components/TimePickerField';
 import { errorText } from './data/errors';
 import { minutesFromTime, timeFromMinutes } from './data/reminders';
 
@@ -189,31 +188,6 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     const [opens, setOpens] = useState(minutesFromTime(day?.opensAt ?? '10:00'));
     const [closes, setCloses] = useState(minutesFromTime(day?.closesAt ?? '18:00'));
 
-    /**
-     * Which time the wheel is editing, if any — the sheet's second face.
-     *
-     * It is a face of *this* sheet rather than a sheet of its own because a
-     * `Sheet` inside a `Sheet` does not open, and takes the outer one with it
-     * when it tries (see `TimeWheel`). `draft` is the wheel's running answer;
-     * it reaches `opens`/`closes` on Set and nowhere else, so backing out of the
-     * wheel leaves the day as it was.
-     */
-    const [picking, setPicking] = useState<'opens' | 'closes' | null>(null);
-    const [draft, setDraft] = useState(0);
-
-    const locale = useLocale();
-
-    function pick(which: 'opens' | 'closes') {
-        setDraft(which === 'opens' ? opens : closes);
-        setPicking(which);
-    }
-
-    function setPicked() {
-        if (picking === 'opens') setOpens(draft);
-        if (picking === 'closes') setCloses(draft);
-        setPicking(null);
-    }
-
     const options = branches
         .filter((branch) => branch.active || branch.id === day?.branchId)
         .map((branch) => ({
@@ -252,30 +226,6 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
         );
     }
 
-    if (picking) {
-        const label = picking === 'opens' ? 'Opens' : 'Closes';
-        return (
-            <Sheet
-                visible
-                // Backing out of the wheel returns to the form, not to the day
-                // list — the edit underneath it has not been saved yet.
-                onClose={() => setPicking(null)}
-                dragFromBody={false}
-                title={label}
-                subtitle={formatClock(draft, locale)}
-                testID="working-hours-wheel"
-                footer={
-                    <>
-                        <Button label="Set" block onPress={setPicked} testID="working-hours-set" />
-                        <Button label="Cancel" variant="ghost" block onPress={() => setPicking(null)} />
-                    </>
-                }
-            >
-                <TimeWheel key={picking} value={draft} onChange={setDraft} />
-            </Sheet>
-        );
-    }
-
     return (
         <Sheet
             visible
@@ -287,7 +237,9 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
         >
             {failure ? (
                 <Callout tone="warning" title="Not saved">
-                    {errorText(failure, { NOT_FOUND: 'That branch is no longer set up. Pick another one.' })}
+                    {errorText(failure, {
+                        NOT_FOUND: 'That branch is no longer set up. Pick another one.',
+                    })}
                 </Callout>
             ) : null}
 
@@ -314,13 +266,8 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                         placeholder="Pick a branch"
                         sheetTitle="Branch"
                     />
-                    <TimeField label="Opens" value={opens} onPress={() => pick('opens')} />
-                    <TimeField
-                        label="Closes"
-                        value={closes}
-                        onPress={() => pick('closes')}
-                        error={orderError}
-                    />
+                    <TimePickerField label="Opens" value={opens} onChange={setOpens} />
+                    <TimePickerField label="Closes" value={closes} onChange={setCloses} error={orderError} />
                 </>
             ) : null}
         </Sheet>
