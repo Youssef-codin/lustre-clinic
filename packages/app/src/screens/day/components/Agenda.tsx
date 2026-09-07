@@ -391,10 +391,20 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
                 for `contentHeight` to exist, and a section that measured itself
                 only on the way open would animate from zero to zero the first
                 time. `pointerEvents` is what stops a collapsed list swallowing
-                taps meant for the day underneath. */}
+                taps meant for the day underneath.
+
+                It does not stop TalkBack reaching them, though: clipping is a
+                visual matter and a row at zero height is still in the
+                accessibility tree, so a collapsed section read out every
+                appointment it was hiding. The two flags below are the same
+                statement for the two platforms — `accessibilityElementsHidden`
+                is iOS, `importantForAccessibility` is Android, and only the
+                latter runs today. */}
             <Animated.View
                 style={[styles.collapse, { height, opacity }]}
                 pointerEvents={open ? 'auto' : 'none'}
+                accessibilityElementsHidden={!open}
+                importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
             >
                 <Animated.View
                     onLayout={(event) => setContentHeight(event.nativeEvent.layout.height)}
