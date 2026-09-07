@@ -263,6 +263,26 @@ export function Sheet({
             topInset={insets.top}
             enablePanDownToClose={dismissable}
             enableContentPanningGesture={dragFromBody}
+            /*
+             * A sheet opened from inside another stacks on top of it, rather
+             * than taking it down on the way up.
+             *
+             * The library's default is `switch`, which minimises whatever sheet
+             * is currently up before presenting the new one. Minimising is
+             * supposed to be recoverable — the outer sheet is restored when the
+             * inner one goes — but it is driven by a status flag that any snap
+             * landing in between overwrites, and `enableDismissOnClose` then
+             * reads the close as a real dismissal. Our `onDismiss` fires,
+             * `onClose` runs, and the caller unmounts the whole tree the inner
+             * sheet was rendered from. That is why the Branch picker on Working
+             * hours took the day editor with it and left no picker behind: the
+             * inner sheet never got to present, because the React subtree it
+             * lived in had already gone.
+             *
+             * `push` never touches the sheet underneath, so there is no status
+             * to race and nothing to restore.
+             */
+            stackBehavior="push"
             enableOverDrag={false}
             handleComponent={renderHandle}
             backdropComponent={renderBackdrop}
