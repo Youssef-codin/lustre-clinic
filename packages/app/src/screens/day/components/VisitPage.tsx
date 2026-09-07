@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
+import { useBackHandler } from '../../../shell/useBackHandler';
 import { color, size, space, Text } from '../../../theme';
 import { api, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
@@ -48,6 +49,30 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
         if (edited) onChanged?.();
         onClose();
     }
+
+    /**
+     * The stack is inside this component, so the hardware back is answered here
+     * too — the caller sees one page and cannot walk it. Every press is claimed,
+     * including the one that closes: leaving through `close` is what tells the
+     * screen underneath that its totals have moved, and a press that fell
+     * through to the caller's own close would skip that.
+     *
+     * The two error states above return before their screens are drawn and
+     * after this: `step` is 'view' there, so back closes, which is what their
+     * own Back button does.
+     */
+    useBackHandler(() => {
+        if (step === 'payment') {
+            setStep('treatment');
+            return true;
+        }
+        if (step === 'treatment') {
+            setStep('view');
+            return true;
+        }
+        close();
+        return true;
+    });
 
     if (failure) {
         return (
