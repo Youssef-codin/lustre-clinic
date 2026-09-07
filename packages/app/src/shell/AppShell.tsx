@@ -1,16 +1,17 @@
 import type { ClientRole } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
-import { ErrorBoundary, Toast } from '../components/ui';
+import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import { useReminderNudges } from '../notifications';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
+import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { OfflineScreen } from './OfflineScreen';
 import {
     ALL_TABS,
@@ -23,6 +24,7 @@ import {
     type PatientTarget,
     type ShellRoute,
 } from './routes';
+import { BackStackContext } from './useBackHandler';
 
 // The app shell (SPEC §18 F3): four clusters under one `domain/BottomTabBar`,
 // each keeping its own internal stack. A tab is mounted on first open and then
@@ -59,6 +61,13 @@ import {
 // And it owns going home: tapping the tab you are already on pops that cluster
 // back to its root. The shell cannot pop one from outside, so it bumps that
 // tab's counter and the cluster resets itself.
+//
+// The hardware back is the same shape of problem answered the other way round.
+// It arrives here, as one listener for the whole app, and the shell cannot pop
+// a cluster from outside any more than it can send one home — so each pane
+// carries a stack the screens inside it register with, and the shell asks the
+// stack belonging to the tab that is up. What is left when nothing claims the
+// press is the shell's own: the day, and then the launcher.
 //
 // Disconnected is the shell's other route (`ShellRoute`), not an overlay and
 // not something each screen answers for itself. The panes stay mounted behind
@@ -194,10 +203,52 @@ export function AppShell() {
     const bookNow = useCallback((patient: PatientTarget) => openBooking(patient, 'now'), [openBooking]);
     const clearToast = useCallback(() => setToast(null), []);
 
+    /**
+     * The hardware back — the button on a three-button bar, the edge swipe on a
+     * gesture one. One listener for the whole app, here because the last word on
+     * where it goes is the shell's.
+     *
+     * It is registered at mount and never again, which is what leaves it
+     * underneath everything else: a sheet subscribes when it opens, and React
+     * Native asks the newest listener first. So a sheet answers before this
+     * does, and this is what is left when nothing else wanted the press.
+     *
+     * Then in the order she came in by. Down the pane's own stack first —
+     * whatever it has pushed over its root (`backStack.ts`) — then out to the
+     * day, which is where the app opens and so where back returns, and only from
+     * the day's own root out of the app.
+     *
+     * Built lazily rather than as `useRef(createBackStacks())`, whose argument is
+     * evaluated on every render for a value only the first one keeps. This
+     * component re-renders on every tab switch.
+     */
+    const held = useRef<BackStacks | null>(null);
+    held.current ??= createBackStacks();
+    const stacks = held.current;
+
+    useHardwareBack(true, () => {
+        // The disconnected route is a dead end by design (`OfflineScreen`): no
+        // tab bar, nothing behind it reachable. Back leaves the app rather than
+        // being swallowed into a screen with one button on it.
+        if (disconnected) return false;
+        if (stacks[tab].run()) return true;
+
+        const home = backFromRoot(tab);
+        if (home === null) return false;
+
+        setBooking(false);
+        reveal(home);
+        return true;
+    });
+
     return (
         <View style={styles.root}>
             <View style={styles.body}>
-                <Pane visible={!disconnected && tab === 'day'} mounted={visited.includes('day')}>
+                <Pane
+                    visible={!disconnected && tab === 'day'}
+                    mounted={visited.includes('day')}
+                    back={stacks.day}
+                >
                     {role === 'doctor' ? (
                         <DoctorDayScreen key="doctor" goHome={home.day} onOpenRecord={openFromDoctorDay} />
                     ) : (
@@ -211,7 +262,11 @@ export function AppShell() {
                     )}
                 </Pane>
 
-                <Pane visible={!disconnected && tab === 'patients'} mounted={visited.includes('patients')}>
+                <Pane
+                    visible={!disconnected && tab === 'patients'}
+                    mounted={visited.includes('patients')}
+                    back={stacks.patients}
+                >
                     <PatientsCluster
                         open={record}
                         goHome={home.patients}
@@ -224,14 +279,22 @@ export function AppShell() {
                     />
                 </Pane>
 
-                <Pane visible={!disconnected && tab === 'money'} mounted={visited.includes('money')}>
+                <Pane
+                    visible={!disconnected && tab === 'money'}
+                    mounted={visited.includes('money')}
+                    back={stacks.money}
+                >
                     {/* The debtor rows are the whole tab now: tapping one opens
                         that patient's record, which is where a payment is taken.
                         Nothing pushes *into* this cluster any more. */}
                     <MoneyCluster goHome={home.money} onOpenRecord={openFromMoney} />
                 </Pane>
 
-                <Pane visible={!disconnected && tab === 'settings'} mounted={visited.includes('settings')}>
+                <Pane
+                    visible={!disconnected && tab === 'settings'}
+                    mounted={visited.includes('settings')}
+                    back={stacks.settings}
+                >
                     <SettingsScreen role={role} goHome={home.settings} onChangeRole={setRole} />
                 </Pane>
 
@@ -283,22 +346,28 @@ export function AppShell() {
 function Pane({
     visible,
     mounted,
+    back,
     children,
 }: {
     visible: boolean;
     mounted: boolean;
+    /** This tab's back handlers. One object for the life of the app, so the
+     *  context below never changes value and no cluster re-renders for it. */
+    back: BackStack;
     children: React.ReactNode;
 }) {
     if (!mounted) return null;
     return (
         <View style={[styles.pane, !visible && styles.hidden]} pointerEvents={visible ? 'auto' : 'none'}>
-            <ErrorBoundary
-                title="This tab stopped"
-                message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
-                resetKey={visible}
-            >
-                {children}
-            </ErrorBoundary>
+            <BackStackContext.Provider value={back}>
+                <ErrorBoundary
+                    title="This tab stopped"
+                    message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
+                    resetKey={visible}
+                >
+                    {children}
+                </ErrorBoundary>
+            </BackStackContext.Provider>
         </View>
     );
 }

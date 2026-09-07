@@ -38,6 +38,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, space, Text } from '../../theme';
 import { InfoIcon, PlusIcon, PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
@@ -236,6 +237,12 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
             },
         );
     }
+
+    // A write in flight swallows Back, the same as the header's.
+    useBackHandler(() => {
+        if (!busy) onClose();
+        return true;
+    });
 
     return (
         <Pane

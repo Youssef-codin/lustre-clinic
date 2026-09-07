@@ -23,6 +23,7 @@ import {
     useAfterSheet,
     usePullToRefresh,
 } from '../../components/ui';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
@@ -194,6 +195,39 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         setCalendar(closeCalendar);
         setSelected((current) => ({ ...current, open: false }));
     }
+
+    /**
+     * The hardware back, walking down the pages pushed over the schedule in the
+     * order they were pushed. The sheets are not here: each one swallows back
+     * for itself while it is up (`ui/Sheet`), and none of them is ever under
+     * one of these pages.
+     *
+     * The schedule itself is this cluster's root, so back there is the shell's —
+     * which on the day tab means leaving the app.
+     */
+    useBackHandler(() => {
+        if (visitOpen && visit) {
+            if (visit.step === 'payment' && visit.visit !== null) {
+                setVisit({ ...visit, step: 'treatment' });
+                return true;
+            }
+            // Backing out of an arrival wrote nothing, the same as the page's
+            // own Back: they are still booked, and saying they are in the chair
+            // would be a lie.
+            if (visit.step === 'treatment' && visit.origin === 'view') {
+                setVisit({ ...visit, step: 'view' });
+                return true;
+            }
+            setVisitOpen(false);
+            return true;
+        }
+        if (pageOpen) {
+            setPageOpen(false);
+            onBookingChange?.(false);
+            return true;
+        }
+        return false;
+    });
 
     const nowMinutes = useNowMinutes();
 

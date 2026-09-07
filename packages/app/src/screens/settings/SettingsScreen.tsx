@@ -21,6 +21,7 @@ import { Card, CardDivider, PushView, ScreenHeader, SectionLabel, useAfterSheet 
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
 import { setLocale, useLocale } from '../../shell/localeStore';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { color, size, space, Text } from '../../theme';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
@@ -90,6 +91,22 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
 
     const back = () => setRoute('index');
     const isDoctor = role === 'doctor';
+
+    /**
+     * The hardware back, which for this tab is the same move Back in the header
+     * makes. It is registered here and not in each pane because the panes are
+     * `ui/PushView`, which unmounts the one that is not up — whichever is
+     * showing, the answer is the index.
+     *
+     * What a pane has open inside itself is its own: an editor over
+     * `ProceduresScreen` mounted after this did, and a handler that mounted
+     * later is asked first, so it closes before this is ever reached.
+     */
+    useBackHandler(() => {
+        if (route === 'index') return false;
+        back();
+        return true;
+    });
 
     function changeRole(next: ClientRole) {
         setLocalRole(next);

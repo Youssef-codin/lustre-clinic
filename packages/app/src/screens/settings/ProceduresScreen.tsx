@@ -68,6 +68,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
 
 import { CategoryIcon, EditIcon, HideIcon } from './components/icons';
@@ -91,6 +92,16 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const [newCategory, setNewCategory] = useState<string | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    // Reordering is a mode over the list, and Back leaves it rather than the
+    // screen — the same thing the header's Back does while it is on. Anywhere
+    // else the press falls through to `SettingsScreen`, which owns what leaving
+    // a settings pane means.
+    useBackHandler(() => {
+        if (!reordering) return false;
+        setReordering(false);
+        return true;
+    });
 
     const reorder = useMutation(
         trpc.procedure.reorder.mutationOptions({
@@ -567,6 +578,12 @@ function ProcedureEditor({
             },
         );
     }
+
+    // A write in flight swallows Back, the same as the header's.
+    useBackHandler(() => {
+        if (!busy) onClose();
+        return true;
+    });
 
     return (
         <Pane

@@ -39,6 +39,7 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { useLocale } from '../../shell/localeStore';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -71,6 +72,15 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     const [editing, setEditing] = useState<CustomQuestion | 'new' | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    // Reordering is a mode over the list, and Back leaves it rather than the
+    // screen — the same thing the header's Back does while it is on. Anywhere
+    // else the press falls through to `SettingsScreen`.
+    useBackHandler(() => {
+        if (!reordering) return false;
+        setReordering(false);
+        return true;
+    });
 
     const reorder = useMutation(
         trpc.customQuestion.reorder.mutationOptions({
@@ -428,6 +438,12 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
             },
         );
     }
+
+    // A write in flight swallows Back, the same as the header's.
+    useBackHandler(() => {
+        if (!busy) onClose();
+        return true;
+    });
 
     return (
         <Pane

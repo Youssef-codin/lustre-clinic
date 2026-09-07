@@ -92,5 +92,6 @@ export type { TopBarProps } from './TopBar';
 export { TopBar } from './TopBar';
 export type { AfterSheet } from './useAfterSheet';
 export { useAfterSheet } from './useAfterSheet';
+export { useHardwareBack } from './useHardwareBack';
 export { useKeyboardHeight } from './useKeyboardHeight';
 export { useReducedMotion } from './useReducedMotion';

@@ -28,6 +28,7 @@
 import { memo, useState } from 'react';
 import { PushView } from '../../components/ui';
 import type { PatientTarget } from '../../shell/routes';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { VisitPage } from '../day';
 import { useInvalidatePatients } from './data/hooks';
 import { PatientEditScreen } from './PatientEditScreen';
@@ -38,6 +39,17 @@ type Route =
     | { name: 'list' }
     | { name: 'record'; patientId: string; backLabel?: string }
     | { name: 'edit'; patientId?: string; from: 'list' | 'record' };
+
+/**
+ * Where the editor returns to. Correcting someone goes back to their record and
+ * registering a new one goes back to the list, which is what `from` records —
+ * and a new patient has no record to return to whatever `from` says.
+ */
+function afterEdit(route: Extract<Route, { name: 'edit' }>): Route {
+    return route.from === 'record' && route.patientId
+        ? { name: 'record', patientId: route.patientId }
+        : { name: 'list' };
+}
 
 export type OpenRecordRequest = {
     patientId: string;
@@ -105,6 +117,31 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
         setRoute({ name: 'record', patientId: open.patientId, backLabel: open.backLabel });
     }
 
+    /**
+     * The hardware back, in the order the screens are stacked: the visit page
+     * over the record, then the editor or the record, then nothing — the list is
+     * this cluster's root and the press goes on to the shell.
+     *
+     * A save in flight swallows it, for the reason `goHome` does: the editor
+     * drops the ask rather than taking the screen out from under a write.
+     */
+    useBackHandler(() => {
+        if (saving) return true;
+        if (visitOpen) {
+            setVisitOpen(false);
+            return true;
+        }
+        if (route.name === 'edit') {
+            setRoute(afterEdit(route));
+            return true;
+        }
+        if (route.name === 'record') {
+            setRoute({ name: 'list' });
+            return true;
+        }
+        return false;
+    });
+
     // The tap is spent either way: a save in flight swallows it rather than
     // queueing it, the same way the editor drops Cancel instead of greying it.
     if (goHome !== seenHome) {
@@ -116,18 +153,11 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
     }
 
     if (route.name === 'edit') {
-        const back = route.from;
         return (
             <PatientEditScreen
                 key={`edit:${route.patientId ?? 'new'}`}
                 patientId={route.patientId}
-                onCancel={() =>
-                    setRoute(
-                        back === 'record' && route.patientId
-                            ? { name: 'record', patientId: route.patientId }
-                            : { name: 'list' },
-                    )
-                }
+                onCancel={() => setRoute(afterEdit(route))}
                 onSavingChange={setSaving}
                 onSaved={(patientId) => {
                     reread();
