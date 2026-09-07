@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
-import { Toast } from '../components/ui';
+import { ErrorBoundary, Toast } from '../components/ui';
 import { useReminderNudges } from '../notifications';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
@@ -266,6 +266,20 @@ export function AppShell() {
     );
 }
 
+/**
+ * One tab, and one boundary around it. A cluster that throws costs its own tab
+ * and nothing else: the tab bar stays up and the other three still work, which
+ * is the difference between "the day view is broken" and "the app is dead".
+ *
+ * Reloading is offered twice over. The fallback's own button is the direct
+ * answer, and `resetKey` is the indirect one — leaving the tab and coming back
+ * clears a boundary that has tripped, so a broken tab is never a state the app
+ * is stuck in. Both land the cluster at its own root either way: the tree was
+ * unmounted when the boundary tripped, and its route state went with it.
+ *
+ * Tapping the tab you are already on does *not* clear it. That signal is read
+ * by the cluster, and a tripped cluster is not mounted to hear anything.
+ */
 function Pane({
     visible,
     mounted,
@@ -278,7 +292,13 @@ function Pane({
     if (!mounted) return null;
     return (
         <View style={[styles.pane, !visible && styles.hidden]} pointerEvents={visible ? 'auto' : 'none'}>
-            {children}
+            <ErrorBoundary
+                title="This tab stopped"
+                message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
+                resetKey={visible}
+            >
+                {children}
+            </ErrorBoundary>
         </View>
     );
 }

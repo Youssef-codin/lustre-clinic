@@ -31,6 +31,8 @@ export type { DropdownMenuProps, DropdownOption } from './DropdownMenu';
 export { DropdownMenu } from './DropdownMenu';
 export type { EmptyStateProps } from './EmptyState';
 export { EmptyState } from './EmptyState';
+export type { ErrorBoundaryProps } from './ErrorBoundary';
+export { ErrorBoundary } from './ErrorBoundary';
 export type { ErrorStateProps } from './ErrorState';
 export { ErrorState } from './ErrorState';
 export type { FieldLayout, FieldProps } from './Field';
