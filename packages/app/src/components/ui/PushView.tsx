@@ -16,14 +16,26 @@ import { useReducedMotion } from './useReducedMotion';
 export type PushViewProps = {
     visible: boolean;
     children: ReactNode;
+    /**
+     * Fired once the pane has finished leaving and is off the tree — the same
+     * half `Sheet` has. A caller holding its routes as a stack needs it: the
+     * popped entry has to stay rendered through its own exit animation, and
+     * this is the moment it can be dropped. Nothing fires on the way in.
+     */
+    onClosed?: () => void;
     testID?: string;
 };
 
-export function PushView({ visible, children, testID }: PushViewProps) {
+export function PushView({ visible, children, onClosed, testID }: PushViewProps) {
     const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
     const [mounted, setMounted] = useState(visible);
     const reducedMotion = useReducedMotion();
     const window = useWindowDimensions();
+
+    // Read through a ref so a caller that rebuilds the callback each render does
+    // not restart the slide it is waiting on.
+    const closed = useRef(onClosed);
+    closed.current = onClosed;
 
     useEffect(() => {
         if (visible) setMounted(true);
@@ -34,7 +46,9 @@ export function PushView({ visible, children, testID }: PushViewProps) {
             useNativeDriver: true,
         });
         animation.start(({ finished }) => {
-            if (finished && !visible) setMounted(false);
+            if (!finished || visible) return;
+            setMounted(false);
+            closed.current?.();
         });
         return () => animation.stop();
     }, [visible, progress, reducedMotion]);

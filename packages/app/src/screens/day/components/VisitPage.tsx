@@ -13,7 +13,7 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
-import { useBackHandler } from '../../../shell/useBackHandler';
+import { isOpen, rendered, useRouteStack } from '../../../navigation';
 import { color, size, space, Text } from '../../../theme';
 import { api, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
@@ -29,10 +29,10 @@ export type VisitPageProps = {
     onChanged?: () => void;
 };
 
-type Step = 'view' | 'treatment' | 'payment';
+/** The pages over the read-only one, which is this component's own root. */
+type Route = 'treatment' | 'payment';
 
 export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitPageProps) {
-    const [step, setStep] = useState<Step>('view');
     // The reopened / repriced visit, once a write has moved it on from what was
     // read. Null means "still what the server first said".
     const [edited, setEdited] = useState<Visit | null>(null);
@@ -51,27 +51,21 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
     }
 
     /**
-     * The stack is inside this component, so the hardware back is answered here
-     * too — the caller sees one page and cannot walk it. Every press is claimed,
-     * including the one that closes: leaving through `close` is what tells the
-     * screen underneath that its totals have moved, and a press that fell
-     * through to the caller's own close would skip that.
+     * The stack is inside this component, so back is answered here too — the
+     * caller sees one page and cannot walk it. `atRoot` is why the press is
+     * claimed all the way down rather than falling through: leaving through
+     * `close` is what tells the screen underneath that the totals have moved,
+     * and the caller's own close would skip that.
      *
-     * The two error states above return before their screens are drawn and
-     * after this: `step` is 'view' there, so back closes, which is what their
+     * The two states below return before their screens are drawn and after
+     * this, so the stack is empty there and back closes — which is what their
      * own Back button does.
      */
-    useBackHandler(() => {
-        if (step === 'payment') {
-            setStep('treatment');
+    const routes = useRouteStack<Route>({
+        atRoot: () => {
+            close();
             return true;
-        }
-        if (step === 'treatment') {
-            setStep('view');
-            return true;
-        }
-        close();
-        return true;
+        },
     });
 
     if (failure) {
@@ -96,52 +90,66 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
         );
     }
 
+    // Bound out of the query so the narrowing above survives into the callback
+    // below, which TypeScript cannot see is only reached past those returns.
+    const appointmentData = appointment.data;
+
     return (
         <>
             <VisitViewScreen
-                appointment={appointment.data}
+                appointment={appointmentData}
                 visit={visit}
                 onBack={close}
                 // Nothing is written on the way in, so the record underneath is
                 // not stale yet — `onConfirm` is what makes it so.
-                onEdit={() => setStep('treatment')}
+                onEdit={() => routes.push('treatment')}
             />
 
-            <PushView visible={step !== 'view'} testID="visit-page-treatment">
-                <VisitScreen
-                    key={`edit:${visit.id}:${step === 'view' ? 'idle' : 'live'}`}
-                    appointment={appointment.data}
-                    visit={visit}
-                    // Always a checkout here: this page is opened off a history
-                    // row, so the arrival is long past. And always a finished
-                    // one — the visit was closed and has been reopened to be
-                    // corrected, so the patient is not in the building and the
-                    // desk is not anywhere they can be sent.
-                    mode="checkout"
-                    standing="finished"
-                    onBack={() => setStep('view')}
-                    onConfirm={(priced) => {
-                        setEdited(priced);
-                        setStep('payment');
-                    }}
-                />
+            {rendered(routes.stack).map(({ id, route }, index) => (
+                <PushView
+                    key={id}
+                    visible={isOpen(routes.stack, index)}
+                    onClosed={routes.settled}
+                    testID={`visit-page-${route}`}
+                >
+                    {route === 'treatment' ? (
+                        <VisitScreen
+                            key={`edit:${visit.id}`}
+                            appointment={appointmentData}
+                            visit={visit}
+                            // Always a checkout here: this page is opened off a
+                            // history row, so the arrival is long past. And
+                            // always a finished one — the visit was closed and
+                            // has been reopened to be corrected, so the patient
+                            // is not in the building and the desk is not
+                            // anywhere they can be sent.
+                            mode="checkout"
+                            standing="finished"
+                            onBack={routes.pop}
+                            onConfirm={(priced) => {
+                                setEdited(priced);
+                                routes.push('payment');
+                            }}
+                        />
+                    ) : null}
 
-                <PushView visible={step === 'payment'} testID="visit-page-payment">
-                    <VisitPaymentScreen
-                        key={`pay:${visit.id}:${visit.chargedTotal}`}
-                        appointment={appointment.data}
-                        visit={visit}
-                        // Always: this page only ever reaches the money by way
-                        // of reopening a visit that was checked out.
-                        correcting
-                        onBack={() => setStep('treatment')}
-                        onClosed={() => {
-                            onChanged?.();
-                            onClose();
-                        }}
-                    />
+                    {route === 'payment' ? (
+                        <VisitPaymentScreen
+                            key={`pay:${visit.id}:${visit.chargedTotal}`}
+                            appointment={appointmentData}
+                            visit={visit}
+                            // Always: this page only ever reaches the money by
+                            // way of reopening a visit that was checked out.
+                            correcting
+                            onBack={routes.pop}
+                            onClosed={() => {
+                                onChanged?.();
+                                onClose();
+                            }}
+                        />
+                    ) : null}
                 </PushView>
-            </PushView>
+            ))}
         </>
     );
 }

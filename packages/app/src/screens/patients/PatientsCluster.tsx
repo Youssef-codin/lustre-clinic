@@ -1,9 +1,12 @@
-// The Patients cluster's own root — list ⇄ record ⇄ editor. There is no
-// navigator yet (SPEC §18 F3), so this holds which of the three screens is on
-// top and hands it down; when a navigator lands this becomes a stack with the
-// same three routes, and every screen is already written against
-// `onOpen(patientId)`, `onBack()` and `onSaved(patientId)`. The shell
-// (`src/shell`) mounts this as the Patients tab.
+// The Patients cluster's own root — list ⇄ record ⇄ editor. There is still no
+// navigator (SPEC §18 F3), but the routes above the list are a real stack now
+// (`src/navigation`), so back is `pop` and the chevron calls the same function.
+// Every screen is already written against `onOpen(patientId)`, `onBack()` and
+// `onSaved(patientId)`. The shell (`src/shell`) mounts this as the Patients tab.
+//
+// The list is the root and stays mounted underneath, which is what keeps its
+// scroll and its search text while a record is being read. Everything above it
+// is a pane on `ui/PushView`, drawn from the stack.
 //
 // A record can also be asked for from outside — the doctor's day view opens one
 // off an appointment — and a patient's record is the Patients tab's screen, so
@@ -11,24 +14,25 @@
 // cluster drawing its own copy inside its own tab. `open` is the request, not the
 // route: it carries a `seq` so asking for the same patient twice re-opens the
 // record after it has been backed out of, and `backLabel` says where back goes
-// in the caller's words.
+// in the caller's words. It lands through `resetTo`, because a jump from another
+// tab has nothing on the way out worth watching leave.
 //
 // The traffic runs the other way too: the record's Book and Walk-in both land
 // in a cluster this one cannot reach, so they are handed back up to the shell
 // with the patient and nothing else. `goHome` comes down the same wire — the
 // shell cannot pop a route it does not own, so it says only that the tab was
-// tapped and this decides that home is the list.
+// tapped, and here that is `popToRoot`.
 //
 // The editor is reachable from both screens and returns to whichever asked for
-// it, which is the one thing a two-route union could not express: `from` is the
-// route Cancel goes back to. Saving does not go back — registering someone lands
-// on the record that now exists, and correcting one lands on the record with the
-// correction on it, which is `read` bumped so the screen remounts and re-reads
-// rather than showing what it was holding before the write.
+// it. That used to need a `from` field on the route; the stack already knows
+// what is underneath, so it does not. Saving does not simply go back —
+// registering someone lands on the record that now exists, and correcting one
+// returns to the record it was opened from with `read` bumped, so the screen
+// remounts and re-reads rather than showing what it held before the write.
 import { memo, useState } from 'react';
 import { PushView } from '../../components/ui';
+import { beneath, isOpen, rendered, useRouteStack } from '../../navigation';
 import type { PatientTarget } from '../../shell/routes';
-import { useBackHandler } from '../../shell/useBackHandler';
 import { VisitPage } from '../day';
 import { useInvalidatePatients } from './data/hooks';
 import { PatientEditScreen } from './PatientEditScreen';
@@ -36,20 +40,9 @@ import { PatientListScreen } from './PatientListScreen';
 import { PatientRecordScreen } from './PatientRecordScreen';
 
 type Route =
-    | { name: 'list' }
     | { name: 'record'; patientId: string; backLabel?: string }
-    | { name: 'edit'; patientId?: string; from: 'list' | 'record' };
-
-/**
- * Where the editor returns to. Correcting someone goes back to their record and
- * registering a new one goes back to the list, which is what `from` records —
- * and a new patient has no record to return to whatever `from` says.
- */
-function afterEdit(route: Extract<Route, { name: 'edit' }>): Route {
-    return route.from === 'record' && route.patientId
-        ? { name: 'record', patientId: route.patientId }
-        : { name: 'list' };
-}
+    | { name: 'edit'; patientId?: string }
+    | { name: 'visit'; appointmentId: string; visitId: string };
 
 export type OpenRecordRequest = {
     patientId: string;
@@ -81,7 +74,6 @@ export type PatientsClusterProps = {
 };
 
 function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
-    const [route, setRoute] = useState<Route>({ name: 'list' });
     const [seen, setSeen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
     /** The editor, mid-write. A tab tap must not take the screen out from under it. */
@@ -98,100 +90,106 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
     const [read, setRead] = useState(0);
     const invalidate = useInvalidatePatients();
 
+    // Back is `pop`, wired once by the hook. A save in flight swallows the press
+    // rather than queueing it, the same way the editor drops Cancel instead of
+    // greying it out.
+    const routes = useRouteStack<Route>({ locked: saving });
+
     const reread = () => {
         invalidate();
         setRead((n) => n + 1);
     };
-    // A visit opened off a history row. It is a page over the record rather
-    // than a fourth route, because backing out of it returns to the row you
-    // tapped with the record's scroll where you left it. `VisitPage` is the day
-    // cluster's whole visit stack behind two ids — see `screens/day/index.ts`.
-    const [visit, setVisit] = useState<{ appointmentId: string; visitId: string } | null>(null);
-    const [visitOpen, setVisitOpen] = useState(false);
 
     // Derived during render rather than in an effect: the record is on screen in
     // the same commit as the tab switch, so the pane does not paint the list for
     // a frame first.
     if (open && open.seq !== seen) {
         setSeen(open.seq);
-        setRoute({ name: 'record', patientId: open.patientId, backLabel: open.backLabel });
+        routes.resetTo({ name: 'record', patientId: open.patientId, backLabel: open.backLabel });
+    }
+
+    // The tap is spent either way: a save in flight swallows it rather than
+    // queueing it.
+    if (goHome !== seenHome) {
+        setSeenHome(goHome);
+        if (!saving) routes.popToRoot();
     }
 
     /**
-     * The hardware back, in the order the screens are stacked: the visit page
-     * over the record, then the editor or the record, then nothing — the list is
-     * this cluster's root and the press goes on to the shell.
-     *
-     * A save in flight swallows it, for the reason `goHome` does: the editor
-     * drops the ask rather than taking the screen out from under a write.
+     * Where a save lands. Correcting someone whose record is already underneath
+     * returns to it — the stack is what knows that, where the route used to
+     * carry a `from` saying the same thing in a second place. Registering
+     * someone new has no record to return to, so the editor becomes one.
      */
-    useBackHandler(() => {
-        if (saving) return true;
-        if (visitOpen) {
-            setVisitOpen(false);
-            return true;
-        }
-        if (route.name === 'edit') {
-            setRoute(afterEdit(route));
-            return true;
-        }
-        if (route.name === 'record') {
-            setRoute({ name: 'list' });
-            return true;
-        }
-        return false;
-    });
-
-    // The tap is spent either way: a save in flight swallows it rather than
-    // queueing it, the same way the editor drops Cancel instead of greying it.
-    if (goHome !== seenHome) {
-        setSeenHome(goHome);
-        if (!saving) {
-            setRoute({ name: 'list' });
-            setVisitOpen(false);
-        }
+    function afterSave(patientId: string) {
+        reread();
+        const under = beneath(routes.stack);
+        if (under?.name === 'record' && under.patientId === patientId) routes.pop();
+        else routes.replaceTop({ name: 'record', patientId });
     }
 
-    if (route.name === 'edit') {
-        return (
-            <PatientEditScreen
-                key={`edit:${route.patientId ?? 'new'}`}
-                patientId={route.patientId}
-                onCancel={() => setRoute(afterEdit(route))}
-                onSavingChange={setSaving}
-                onSaved={(patientId) => {
-                    reread();
-                    setRoute({ name: 'record', patientId });
-                }}
+    return (
+        <>
+            <PatientListScreen
+                goHome={goHome}
+                onOpen={(patientId) => routes.push({ name: 'record', patientId })}
+                onNewPatient={() => routes.push({ name: 'edit' })}
             />
-        );
-    }
 
-    if (route.name === 'record') {
-        return (
-            <>
-                <PatientRecordScreen
-                    key={`record:${route.patientId}:${read}`}
-                    patientId={route.patientId}
-                    backLabel={route.backLabel}
-                    onBack={() => setRoute({ name: 'list' })}
-                    onEdit={() => setRoute({ name: 'edit', patientId: route.patientId, from: 'record' })}
-                    onBook={onBook}
-                    onWalkIn={onWalkIn}
-                    onOpenVisit={(entry) => {
-                        if (!entry.visitId) return;
-                        setVisit({ appointmentId: entry.appointmentId, visitId: entry.visitId });
-                        setVisitOpen(true);
-                    }}
-                />
+            {/* Bottom to top, the order they were opened in. A popped route is
+                still in here until its pane reports the slide finished, which
+                is what `onClosed` is for — dropping it any earlier empties the
+                pane halfway out. The index is stable across a pop: a route
+                leaving `open` takes the first place in `leaving`, which is the
+                same position in `rendered`. */}
+            {rendered(routes.stack).map(({ id, route }, index) => (
+                <PushView
+                    key={id}
+                    visible={isOpen(routes.stack, index)}
+                    onClosed={routes.settled}
+                    testID={`patients-${route.name}`}
+                >
+                    {route.name === 'record' ? (
+                        <PatientRecordScreen
+                            key={`record:${route.patientId}:${read}`}
+                            patientId={route.patientId}
+                            backLabel={route.backLabel}
+                            onBack={routes.pop}
+                            onEdit={() => routes.push({ name: 'edit', patientId: route.patientId })}
+                            onBook={onBook}
+                            onWalkIn={onWalkIn}
+                            onOpenVisit={(entry) => {
+                                if (!entry.visitId) return;
+                                routes.push({
+                                    name: 'visit',
+                                    appointmentId: entry.appointmentId,
+                                    visitId: entry.visitId,
+                                });
+                            }}
+                        />
+                    ) : null}
 
-                <PushView visible={visitOpen} testID="patient-visit-page">
-                    {visit ? (
+                    {route.name === 'edit' ? (
+                        <PatientEditScreen
+                            key={`edit:${route.patientId ?? 'new'}`}
+                            patientId={route.patientId}
+                            onCancel={routes.pop}
+                            onSavingChange={setSaving}
+                            onSaved={afterSave}
+                        />
+                    ) : null}
+
+                    {/* `VisitPage` is the day cluster's whole visit stack behind
+                        two ids — see `screens/day/index.ts`. It holds its own
+                        routes and answers back for itself down to its first
+                        screen, which is why closing it is a callback rather than
+                        this pane popping underneath it. */}
+                    {route.name === 'visit' ? (
                         <VisitPage
-                            key={`visit:${visit.visitId}`}
-                            appointmentId={visit.appointmentId}
-                            visitId={visit.visitId}
-                            onClose={() => setVisitOpen(false)}
+                            key={`visit:${route.visitId}`}
+                            appointmentId={route.appointmentId}
+                            visitId={route.visitId}
+                            onClose={routes.pop}
                             // The record's totals move with the visit, so it is
                             // re-read rather than left showing what it held. The
                             // write happened in the day cluster, over the raw
@@ -201,16 +199,8 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
                         />
                     ) : null}
                 </PushView>
-            </>
-        );
-    }
-
-    return (
-        <PatientListScreen
-            goHome={goHome}
-            onOpen={(patientId) => setRoute({ name: 'record', patientId })}
-            onNewPatient={() => setRoute({ name: 'edit', from: 'list' })}
-        />
+            ))}
+        </>
     );
 }
 

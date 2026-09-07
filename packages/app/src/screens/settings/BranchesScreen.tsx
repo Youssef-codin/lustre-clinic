@@ -38,6 +38,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, space, Text } from '../../theme';
 import { InfoIcon, PlusIcon, PowerIcon } from './components/icons';
@@ -51,7 +52,10 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
     const trpc = useTRPC();
 
     const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: true }));
-    const [editing, setEditing] = useState<Branch | 'new' | null>(null);
+    // The editor is a route over this list rather than a nullable piece of
+    // state, so the branch being edited outlives the pane's exit animation.
+    // Clearing it on close slid an empty pane off the screen.
+    const editing = useRouteStack<Branch | 'new'>();
     const [toast, setToast] = useState<string | null>(null);
 
     const active = branches.data?.filter((b) => b.active) ?? [];
@@ -76,7 +80,7 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                             variant="filled"
                             tone="ink"
                             icon={<PlusIcon size={13} />}
-                            onPress={() => setEditing('new')}
+                            onPress={() => editing.push('new')}
                             testID="branch-add"
                         />
                     ) : undefined
@@ -103,7 +107,7 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                                 title="No branches yet"
                                 body="A branch is where an appointment happens. Add the clinic itself first."
                                 actionLabel="Add a branch"
-                                onAction={() => setEditing('new')}
+                                onAction={() => editing.push('new')}
                             />
                         ) : (
                             <View style={styles.section}>
@@ -112,7 +116,7 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                                     <BranchCard
                                         key={branch.id}
                                         branch={branch}
-                                        onPress={() => setEditing(branch)}
+                                        onPress={() => editing.push(branch)}
                                     />
                                 ))}
                             </View>
@@ -125,7 +129,7 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                                     <BranchCard
                                         key={branch.id}
                                         branch={branch}
-                                        onPress={() => setEditing(branch)}
+                                        onPress={() => editing.push(branch)}
                                     />
                                 ))}
                                 <Text variant="footnote" tone="muted" style={styles.note}>
@@ -138,18 +142,18 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                 ) : null}
             </Pane>
 
-            <PushView visible={editing !== null}>
-                {editing !== null ? (
+            {rendered(editing.stack).map(({ id, route: branch }, index) => (
+                <PushView key={id} visible={isOpen(editing.stack, index)} onClosed={editing.settled}>
                     <BranchEditor
-                        branch={editing === 'new' ? null : editing}
-                        onClose={() => setEditing(null)}
+                        branch={branch === 'new' ? null : branch}
+                        onClose={editing.pop}
                         onSaved={(message) => {
-                            setEditing(null);
+                            editing.pop();
                             setToast(message);
                         }}
                     />
-                ) : null}
-            </PushView>
+                </PushView>
+            ))}
         </>
     );
 }
