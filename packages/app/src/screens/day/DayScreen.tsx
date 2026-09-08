@@ -216,6 +216,34 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         setSelected((current) => ({ ...current, open: false }));
     }
 
+    /**
+     * The two route changes that discard a pane instead of letting it leave.
+     * `push` drops whatever was mid-slide and `resetTo` drops that and what is
+     * open with it (`navigation/routeStack.ts`), and a pane that goes that way
+     * never reaches `PushView`'s `onClosed` — so the one line that reports a
+     * booking gone never runs, and the tab stays lit on Patients with no
+     * booking on screen. These say it instead, and say it as what is drawn
+     * after the change rather than as what left, which is the same answer
+     * whether anything was discarded or not.
+     *
+     * Not for the two changes above: those run during render, where the shell
+     * cannot be told anything — and it is the shell that raises and drops the
+     * highlight for both of them anyway.
+     */
+    function pushPage(route: Route) {
+        routes.push(route);
+        // A push keeps what is open, so a booking under the arriving page is
+        // still drawn and still counts.
+        const under = routes.stack.open.some((entry) => entry.route.name === 'booking');
+        onBookingChange?.(route.name === 'booking' || under);
+    }
+
+    function resetToPage(route: Route) {
+        routes.resetTo(route);
+        // A reset leaves nothing of what there was, open or leaving.
+        onBookingChange?.(route.name === 'booking');
+    }
+
     const nowMinutes = useNowMinutes();
 
     const schedule = useLocalQuery('schedule', api.schedule);
@@ -376,7 +404,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         // A finished visit opens on the read-only page and the editor pushes on
         // top of it; everything else starts on the editor with the schedule
         // underneath. That is the whole of what `origin === 'view'` decided.
-        routes.resetTo(origin === 'view' ? { name: 'view' } : { name: 'treatment' });
+        resetToPage(origin === 'view' ? { name: 'view' } : { name: 'treatment' });
     }
 
     /**
@@ -441,8 +469,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     function bookNextOn(patient: EmbeddedPatient) {
         setBookNextOpen(false);
         bookNextDone.after(() => {
-            routes.push({ name: 'booking', patient: draftFor(patient), timing: 'later' });
-            onBookingChange?.(true);
+            pushPage({ name: 'booking', patient: draftFor(patient), timing: 'later' });
         });
     }
 
@@ -632,8 +659,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 onClose={() => setBooking((current) => ({ ...current, open: false }))}
                 onPicked={(patient) => {
                     setBooking((current) => ({ ...current, open: false }));
-                    routes.push({ name: 'booking', patient });
-                    onBookingChange?.(true);
+                    pushPage({ name: 'booking', patient });
                 }}
             />
 
@@ -725,7 +751,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             onBack={routes.pop}
                             // The editor opens on the visit as it stands; the
                             // reopen it needs rides along with Confirm.
-                            onEdit={() => routes.push({ name: 'treatment' })}
+                            onEdit={() => pushPage({ name: 'treatment' })}
                         />
                     ) : null}
 
@@ -774,7 +800,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                                     return;
                                 }
                                 setVisit({ ...visit, visit: priced });
-                                routes.push({ name: 'payment' });
+                                pushPage({ name: 'payment' });
                             }}
                             onSentToDesk={(message) => {
                                 routes.popToRoot();

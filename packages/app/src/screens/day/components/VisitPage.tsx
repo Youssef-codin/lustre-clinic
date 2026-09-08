@@ -10,7 +10,7 @@
  * the lines and the payments, and the appointment carries whose visit it is and
  * when. Neither is on the history row.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
 import { isOpen, rendered, useRouteStack } from '../../../navigation';
@@ -45,7 +45,19 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
     const visit = edited ?? loaded.data;
     const failure = appointment.error ?? loaded.error;
 
+    /**
+     * Asked to close, and not yet gone. Closing is the caller's `pop`, and this
+     * page stays mounted and drawn for the whole of the slide that follows it —
+     * so between the two there is a window where every way out is still live.
+     * A second back press in it would close twice: the caller's second `pop`
+     * takes the screen *underneath* with it, and an edited visit reports its
+     * change to that screen twice over.
+     */
+    const closing = useRef(false);
+
     function close() {
+        if (closing.current) return;
+        closing.current = true;
         if (edited) onChanged?.();
         onClose();
     }
@@ -56,6 +68,10 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
      * claimed all the way down rather than falling through: leaving through
      * `close` is what tells the screen underneath that the totals have moved,
      * and the caller's own close would skip that.
+     *
+     * It claims the press once closing too, where `close` no longer does
+     * anything. Declining would hand it to the caller's own handler, which is
+     * the pop that would take the screen underneath.
      *
      * The two states below return before their screens are drawn and after
      * this, so the stack is empty there and back closes — which is what their
@@ -74,7 +90,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                 <Banner tone="warning" message={describeError(failure).title} />
                 <View style={styles.actions}>
                     <Button label="Try again" variant="text" onPress={appointment.refetch} />
-                    <Button label="Back" variant="ghost" onPress={onClose} />
+                    <Button label="Back" variant="ghost" onPress={close} />
                 </View>
             </View>
         );
@@ -142,10 +158,11 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                             // way of reopening a visit that was checked out.
                             correcting
                             onBack={routes.pop}
-                            onClosed={() => {
-                                onChanged?.();
-                                onClose();
-                            }}
+                            // `close` rather than the two calls it makes: the
+                            // money is only reached by way of a confirm, which
+                            // is what set `edited`, so it reports the change on
+                            // this path too — and it is the guarded way out.
+                            onClosed={close}
                         />
                     ) : null}
                 </PushView>

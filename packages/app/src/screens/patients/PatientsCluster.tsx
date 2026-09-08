@@ -29,9 +29,9 @@
 // registering someone lands on the record that now exists, and correcting one
 // returns to the record it was opened from with `read` bumped, so the screen
 // remounts and re-reads rather than showing what it held before the write.
-import { memo, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { PushView } from '../../components/ui';
-import { beneath, isOpen, rendered, useRouteStack } from '../../navigation';
+import { beneath, isOpen, isTop, rendered, useRouteStack } from '../../navigation';
 import type { PatientTarget } from '../../shell/routes';
 import { VisitPage } from '../day';
 import { useInvalidatePatients } from './data/hooks';
@@ -95,6 +95,16 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
     // greying it out.
     const routes = useRouteStack<Route>({ locked: saving });
 
+    /**
+     * The stack as it stands, for the one caller that cannot use the copy from
+     * the render it was written in: a save landing after the editor that sent
+     * it has been taken off the stack. Everything else here reads `routes.stack`
+     * either during render or in the handler that caused the change, where the
+     * two are the same thing.
+     */
+    const live = useRef(routes.stack);
+    live.current = routes.stack;
+
     const reread = () => {
         invalidate();
         setRead((n) => n + 1);
@@ -120,10 +130,23 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
      * returns to it — the stack is what knows that, where the route used to
      * carry a `from` saying the same thing in a second place. Registering
      * someone new has no record to return to, so the editor becomes one.
+     *
+     * `id` is the entry the editor was drawn from, and the landing only happens
+     * while that is still on top. A request from another tab arrives during
+     * render and resets the stack whether or not a write is in flight — `saving`
+     * holds the back press, not the shell — and it takes the editor's pane with
+     * it. The write carries on regardless and comes back to a stack that is not
+     * the one it left: without the check it pops the record the shell has just
+     * asked for, or, registering someone, replaces that record with the new one.
+     *
+     * The cache is dropped either way. The write happened; what is on screen
+     * does not change that.
      */
-    function afterSave(patientId: string) {
+    function afterSave(id: number, patientId: string) {
         reread();
-        const under = beneath(routes.stack);
+        const stack = live.current;
+        if (!isTop(stack, id)) return;
+        const under = beneath(stack);
         if (under?.name === 'record' && under.patientId === patientId) routes.pop();
         else routes.replaceTop({ name: 'record', patientId });
     }
@@ -175,7 +198,7 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
                             patientId={route.patientId}
                             onCancel={routes.pop}
                             onSavingChange={setSaving}
-                            onSaved={afterSave}
+                            onSaved={(saved) => afterSave(id, saved)}
                         />
                     ) : null}
 

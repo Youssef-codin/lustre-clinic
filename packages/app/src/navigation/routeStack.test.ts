@@ -4,6 +4,7 @@ import {
     canPop,
     emptyStack,
     isOpen,
+    isTop,
     pop,
     popToRoot,
     push,
@@ -159,6 +160,47 @@ describe('routeStack', () => {
             const saved = replaceTop(stack, 'record');
 
             expect(saved.open[1]?.id).not.toBe(stack.open[1]?.id);
+        });
+    });
+
+    // What a save landing after its editor has gone asks before it moves
+    // anything. It is only worth asking because every change to the stack goes
+    // through the top: an id still on top means nothing has moved under it.
+    describe('isTop', () => {
+        it('matches nothing at the root', () => {
+            expect(isTop(emptyStack<Route>(), 0)).toBe(false);
+        });
+
+        it('matches the entry that was pushed last', () => {
+            const stack = stackOf('record', 'edit');
+
+            expect(isTop(stack, stack.open[1]?.id ?? -1)).toBe(true);
+            expect(isTop(stack, stack.open[0]?.id ?? -1)).toBe(false);
+        });
+
+        it('stops matching a route that is only still sliding out', () => {
+            const stack = stackOf('record', 'edit');
+            const popped = pop(stack);
+
+            expect(isTop(popped, stack.open[1]?.id ?? -1)).toBe(false);
+        });
+
+        // The one the guard rests on. Whichever way the stack is moved, the id
+        // that was on top is not on top afterwards — so a caller holding it can
+        // tell that the stack it decided from is gone.
+        it('stops matching however the stack is moved', () => {
+            const stack = stackOf('record', 'edit');
+            const was = stack.open[1]?.id ?? -1;
+
+            for (const moved of [
+                pop(stack),
+                popToRoot(stack),
+                push(stack, 'visit'),
+                replaceTop(stack, 'record'),
+                resetTo(stack, 'record'),
+            ]) {
+                expect(isTop(moved, was)).toBe(false);
+            }
         });
     });
 

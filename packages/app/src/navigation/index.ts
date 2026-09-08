@@ -7,6 +7,7 @@ export {
     canPop,
     emptyStack,
     isOpen,
+    isTop,
     pop,
     popToRoot,
     push,

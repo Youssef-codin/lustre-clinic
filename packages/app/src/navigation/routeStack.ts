@@ -119,6 +119,21 @@ export function canPop<T>(stack: RouteStack<T>): boolean {
 }
 
 /**
+ * Whether `id` is still the entry on top. What something that went away and
+ * came back asks before it moves the stack — a save that lands after the pane
+ * that started it has gone.
+ *
+ * The check is worth more than it looks: nothing here changes what is under the
+ * top without changing which entry the top is. `push` and `replaceTop` put a
+ * fresh id there, `pop` and `popToRoot` take it away, and `resetTo` does both.
+ * So a top that still matches is a stack that has not moved at all, and a
+ * decision made from an older copy of it is still the right one.
+ */
+export function isTop<T>(stack: RouteStack<T>, id: number): boolean {
+    return stack.open[stack.open.length - 1]?.id === id;
+}
+
+/**
  * A pane has finished leaving, so it stops being drawn. Which one is not asked:
  * they leave in the order they were popped, and dropping the oldest is the same
  * answer whichever of them reported. Popping twice quickly is the case that
