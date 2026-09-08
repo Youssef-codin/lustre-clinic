@@ -30,6 +30,7 @@ import {
     SectionLabel,
     SkeletonRows,
     Toast,
+    useKeyboardHeight,
     usePullToRefresh,
 } from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
@@ -60,6 +61,7 @@ export type PatientListScreenProps = {
 const DEBOUNCE_MS = 250;
 
 export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientListScreenProps) {
+    const keyboard = useKeyboardHeight();
     const [term, setTerm] = useState('');
     const [toast, setToast] = useState<string | null>(null);
     const query = useDebounced(term, DEBOUNCE_MS);
@@ -106,9 +108,14 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 
     return (
         <View style={styles.screen}>
+            {/* The search field is at the top of this scroll, so it is never
+                under the keyboard — but the results it is filtering are. The
+                window does not shrink around the keys (`ui/useKeyboardHeight`),
+                so without this the last few matches cannot be scrolled clear of
+                them: the content simply ends behind the keyboard. */}
             <ScrollView
                 ref={scroller}
-                contentContainerStyle={styles.content}
+                contentContainerStyle={[styles.content, { paddingBottom: space[12] + keyboard }]}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={refreshControl}
             >
@@ -247,7 +254,8 @@ function useDebounced(value: string, ms: number): string {
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
-    content: { paddingBottom: space[12] },
+    // `paddingBottom` is supplied inline — it carries the keyboard.
+    content: {},
 
     header: {
         flexDirection: 'row',

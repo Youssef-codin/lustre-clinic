@@ -10,7 +10,7 @@ import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/
 import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
-import { color } from '../theme';
+import { color, space, Text } from '../theme';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { OfflineScreen } from './OfflineScreen';
 import {

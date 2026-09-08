@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
-import { reprobe, type ServerAddresses, serverAddresses, setServerAddresses, trpcClient } from '../api';
+import {
+    reprobe,
+    type ServerAddresses,
+    serverAddresses,
+    setServerAddresses,
+    trpcClient,
+    useDemoMode,
+} from '../api';
 
 // Where the addresses collected by setup are kept. `api/config` holds no
 // storage of its own by design (§14, "persisting what onboarding collected
@@ -136,6 +143,15 @@ function getSnapshot(): SetupState {
 
 export function useServerSetup(): ServerSetup {
     const current = useSyncExternalStore(subscribe, getSnapshot);
+    const demo = useDemoMode();
+
+    // A demo has no address to collect and no clinic to reach, so it skips
+    // setup entirely. Its own flag has to have come back from storage first:
+    // deciding before it does would put the setup screen up for the moment it
+    // takes to read, on the launch after somebody chose the demo.
+    if (!demo.hydrated) return { ...current, ready: false, showSetup: false };
+    if (demo.enabled) return { ...current, ready: true, showSetup: false };
+
     // Setup is for a phone that has never reached this clinic. One that has —
     // by its own stored address or by the shipped default answering — goes to
     // the app, and a server that is down from there is the offline screen.

@@ -3,10 +3,26 @@
  * it carries the pending state — Save under the thumb is also what makes it easy
  * to hit twice. `paddingBottom: space[6]` clears the home indicator until a
  * safe-area inset is available.
+ *
+ * **The keyboard is in that padding for the same reason it is in `ui/Sheet`.**
+ * `edgeToEdgeEnabled` is on in `android/gradle.properties` — the Expo SDK 54+
+ * default — so the app is laid out behind the IME and `adjustResize` resizes
+ * nothing. The bar is the last child of a column whose bottom is the bottom of
+ * a window that never got shorter, so with the keyboard up it stayed exactly
+ * where it was and the keys were drawn over it, along with whatever field sits
+ * just above it. Growing the floor is what lifts it: the bar's content is above
+ * its own bottom padding, so padding by the keyboard moves the buttons — and
+ * the scroll's remaining height — clear of the keys.
+ *
+ * `Math.max` rather than a sum, because the keyboard is drawn *over* the
+ * navigation bar: adding both would clear the bar twice and leave the buttons
+ * floating a nav bar above the keys. The resting look is unchanged — with the
+ * keyboard down this is still `space[6]`.
  */
 import { StyleSheet, View } from 'react-native';
 import { color, size, space } from '../../theme';
 import { Button } from './Button';
+import { useKeyboardHeight } from './useKeyboardHeight';
 
 export type ActionBarProps = {
     primaryLabel: string;
@@ -29,8 +45,10 @@ export function ActionBar({
     onSecondary,
     testID,
 }: ActionBarProps) {
+    const keyboard = useKeyboardHeight();
+
     return (
-        <View style={styles.bar} testID={testID}>
+        <View style={[styles.bar, { paddingBottom: Math.max(space[6], keyboard) }]} testID={testID}>
             {secondaryLabel ? (
                 <View style={styles.secondary}>
                     {/* Outlined, not `ghost`: the bar is already `color.surface`,
@@ -68,7 +86,9 @@ const styles = StyleSheet.create({
         gap: space[2],
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
-        paddingBottom: space[6],
+        // `paddingBottom` is supplied inline — it carries the keyboard. Setting
+        // it here too would be a second source of truth that the inline one
+        // silently wins over.
         borderTopWidth: 1,
         borderTopColor: color.hair,
         // Canvas, not surface. The pane above and the tab bar below are both

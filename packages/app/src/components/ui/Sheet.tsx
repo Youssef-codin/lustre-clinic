@@ -39,6 +39,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
 import { duration } from './motion';
 import { useHardwareBack } from './useHardwareBack';
+import { useKeyboardHeight } from './useKeyboardHeight';
 
 export type SheetProps = {
     visible: boolean;
@@ -109,7 +110,28 @@ export function Sheet({
      * which `space[6]` already happened to cover — which is why this only ever
      * showed on a phone. The tab bar at the same edge reads the inset the same way.
      */
-    const floor = space[6] + insets.bottom;
+    const keyboard = useKeyboardHeight();
+
+    /**
+     * The keyboard is in here because the window no longer gets out of its way.
+     *
+     * `edgeToEdgeEnabled` is on in `android/gradle.properties` — the Expo SDK
+     * 54+ default — which lays the app out behind the system bars *and* behind
+     * the IME. Under it `adjustResize` stops resizing anything, so
+     * `android_keyboardInputMode` on the sheet and `softwareKeyboardLayoutMode`
+     * in `app.json` are both set, both correct, and both inert. The sheet is
+     * anchored to the bottom of a window that never got shorter, so it stayed
+     * put and the keyboard covered the field being typed into.
+     *
+     * Growing the floor is what lifts it: the sheet sizes to its content
+     * (`enableDynamicSizing`) and grows upwards from a fixed bottom edge, so
+     * padding the bottom by the keyboard moves everything above it into view.
+     *
+     * `Math.max` rather than a sum, because the keyboard is drawn *over* the
+     * navigation bar. Adding both would clear the bar twice and leave the sheet
+     * floating a nav bar above the keys.
+     */
+    const floor = space[6] + Math.max(insets.bottom, keyboard);
 
     /**
      * The tallest the content column may be, and the same figure the sheet is

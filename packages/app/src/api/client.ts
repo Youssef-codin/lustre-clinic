@@ -1,9 +1,10 @@
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { TRPC_ENDPOINT } from '@lustre/shared';
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import { createTRPCClient, httpBatchLink, splitLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
 import { timing } from './config';
 import { markOffline, markOnline, resolveBaseUrl } from './connection';
+import { demoLink, isDemoMode } from './demo';
 import { queryClient } from './queryClient';
 
 // The link needs a URL at construction time, but the real origin is only known
@@ -53,11 +54,20 @@ async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promis
     }
 }
 
+// The split is per request rather than per client, because demo mode can be
+// entered from the setup screen after this module has been evaluated. It is
+// asked of `isDemoMode()` and never of the connection: a server that is merely
+// down must reach the offline screen, not a working-looking app over invented
+// patients (`demo/flag.ts`).
 export const trpcClient = createTRPCClient<AppRouter>({
     links: [
-        httpBatchLink({
-            url: `${PLACEHOLDER_ORIGIN}${TRPC_ENDPOINT}`,
-            fetch: serverFetch,
+        splitLink({
+            condition: () => isDemoMode(),
+            true: demoLink,
+            false: httpBatchLink({
+                url: `${PLACEHOLDER_ORIGIN}${TRPC_ENDPOINT}`,
+                fetch: serverFetch,
+            }),
         }),
     ],
 });

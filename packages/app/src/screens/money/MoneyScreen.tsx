@@ -16,7 +16,13 @@ import type { LayoutChangeEvent } from 'react-native';
 import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
-import { DropdownMenu, IconButton, ScreenHeader, usePullToRefresh } from '../../components/ui';
+import {
+    DropdownMenu,
+    IconButton,
+    ScreenHeader,
+    useKeyboardHeight,
+    usePullToRefresh,
+} from '../../components/ui';
 import { color, radius, size, space, Text } from '../../theme';
 import { todayKey } from '../day/time';
 import { DebtorRow } from './components/DebtorRow';
@@ -412,7 +418,18 @@ function useSearchDock() {
     // Where the pill sits once it has nothing left to follow. Measured off the
     // screen's own box rather than the scroller's, because that is the box the
     // pill is positioned inside.
-    const [dockLine, setDockLine] = useState(0);
+    //
+    // The keyboard comes out of it because the box does not shrink around the
+    // keys — `edgeToEdgeEnabled` lays the screen out behind the IME, so the
+    // measured height is the whole window whether or not the keyboard is up
+    // (see `ui/useKeyboardHeight`). Docked, the pill is the field being typed
+    // into, and it sat under the keys the moment it was tapped. The height is
+    // kept and the line derived from it rather than the line being stored: the
+    // layout does not fire again when the keyboard moves, so a stored line
+    // would keep the value it was measured with.
+    const [screenHeight, setScreenHeight] = useState(0);
+    const keyboard = useKeyboardHeight();
+    const dockLine = screenHeight > 0 ? screenHeight - keyboard - size.dock - SEARCH_HEIGHT : 0;
 
     const translateY = useMemo(
         () =>
@@ -456,8 +473,7 @@ function useSearchDock() {
                 useNativeDriver: true,
             }),
         ).current,
-        onScreenLayout: (event: LayoutChangeEvent) =>
-            setDockLine(event.nativeEvent.layout.height - size.dock - SEARCH_HEIGHT),
+        onScreenLayout: (event: LayoutChangeEvent) => setScreenHeight(event.nativeEvent.layout.height),
         onAnchorLayout: (event: LayoutChangeEvent) => anchor.setValue(event.nativeEvent.layout.y),
     };
 }

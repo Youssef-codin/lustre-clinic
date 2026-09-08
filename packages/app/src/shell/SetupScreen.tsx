@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { type AddressKind, getConnectionState, reprobe, serverAddresses } from '../api';
+import { type AddressKind, enableDemoMode, getConnectionState, reprobe, serverAddresses } from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
 import { color, radius, space, Text } from '../theme';
@@ -138,6 +138,28 @@ export function SetupScreen() {
                         </Text>
                     </View>
                 ) : null}
+
+                {/* The way in to demo mode, and the only one on a shipped build.
+                    It is here rather than anywhere inside the app because this
+                    is the screen a phone with no clinic behind it lands on, and
+                    because a control that swaps the register for a fake one
+                    should not sit two taps from a real day's work. */}
+                <View style={styles.demo}>
+                    <Text variant="footnote" tone="muted">
+                        No clinic server to hand?
+                    </Text>
+                    <Button
+                        label="Run in demo mode"
+                        onPress={() => void enableDemoMode()}
+                        variant="ghost"
+                        size="md"
+                        block
+                        disabled={testing}
+                    />
+                    <Text variant="caption" tone="muted" style={styles.demoNote}>
+                        Sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.
+                    </Text>
+                </View>
             </View>
         </ScrollView>
     );
@@ -165,4 +187,6 @@ const styles = StyleSheet.create({
     action: { marginTop: space[6] },
     result: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[2] },
     resultDot: { paddingTop: space[0.5] },
+    demo: { alignSelf: 'stretch', alignItems: 'center', gap: space[2], marginTop: space[8] },
+    demoNote: { textAlign: 'center' },
 });

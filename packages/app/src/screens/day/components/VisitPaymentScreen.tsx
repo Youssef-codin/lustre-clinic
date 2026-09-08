@@ -23,7 +23,7 @@ import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre
 import { useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { I18nManager, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, Callout, Chevron, Sheet, Toast } from '../../../components/ui';
+import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Appointment, api, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
@@ -78,6 +78,7 @@ export function VisitPaymentScreen({
     onBack,
     onClosed,
 }: VisitPaymentScreenProps) {
+    const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
     const due = amountDue(visit.chargedTotal, collected);
     // What the field means, and so the most it can hold: money being taken now
@@ -477,7 +478,7 @@ export function VisitPaymentScreen({
                 </View>
             ) : null}
 
-            <View style={styles.bar}>
+            <View style={[styles.bar, { paddingBottom: Math.max(space[4], keyboard) }]}>
                 <Button
                     label={confirmLabel}
                     block
@@ -761,8 +762,11 @@ const styles = StyleSheet.create({
         paddingTop: space[3.5],
         // The tab bar is below this again and owns the gesture inset, so the
         // bar only needs its own breathing room — `space[6]` left the button
-        // floating well clear of the tabs.
-        paddingBottom: space[4],
+        // floating well clear of the tabs. `paddingBottom` is supplied inline:
+        // it carries the keyboard as well, since the window no longer shrinks
+        // around it (see `ui/useKeyboardHeight`), and this screen's amount
+        // field is the one that first showed it.
+        //
         // The same ground as the page. The mock fades its bar into the page
         // rather than sitting a panel on it, so a white bar on canvas read as
         // a seam across the bottom of the screen.

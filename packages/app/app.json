@@ -26,7 +26,8 @@
             "server": {
                 "lan": null,
                 "tailscale": null
-            }
+            },
+            "demo": false
         }
     }
 }

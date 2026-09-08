@@ -8,6 +8,7 @@
         "android": "expo run:android",
         "device": "bash scripts/device.sh",
         "device:build": "bash scripts/device.sh --build",
+        "device:release": "bash scripts/device.sh --release",
         "device:start": "bash scripts/device.sh --start",
         "device:logs": "adb logcat -s ReactNativeJS:V ReactNative:V",
         "device:stop": "cd android && ./gradlew --stop",

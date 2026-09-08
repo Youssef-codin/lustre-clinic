@@ -23,8 +23,8 @@
 import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, Callout, Chevron, duration, Toast } from '../../../components/ui';
-import { border, color, radius, size, space, Text } from '../../../theme';
+import { Button, Callout, Chevron, duration, Toast, useKeyboardHeight } from '../../../components/ui';
+import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
@@ -153,6 +153,7 @@ export function VisitScreen({
     onConfirm,
     onSentToDesk,
 }: VisitScreenProps) {
+    const keyboard = useKeyboardHeight();
     const [lines, setLines] = useState<DraftLine[]>(() => seed(appointment, visit));
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
@@ -621,7 +622,7 @@ export function VisitScreen({
                 a patient still in the queue and one already standing at the
                 desk each get the single button, because for all three the desk
                 is not the next place they go. */}
-            <View style={styles.bar}>
+            <View style={[styles.bar, { paddingBottom: Math.max(space[4], keyboard) }]}>
                 {inChair ? (
                     <View style={styles.secondaryAction}>
                         <Button
@@ -834,12 +835,16 @@ const styles = StyleSheet.create({
         borderTopColor: color.hair,
     },
     variant: { marginTop: space[1] },
+    // A `TextInput`, so it inherits nothing from `theme/Text` — the family has
+    // to be named here or Android renders it in the system face. `fontWeight`
+    // is deliberately absent: RN picks a face by family name and never
+    // synthesises a weight, and DM Mono ships 400 and 500 only.
     cost: {
         minWidth: 56,
         paddingVertical: space[1],
         textAlign: 'right',
-        fontSize: 15,
-        fontWeight: '700',
+        ...type.body,
+        fontFamily: font.mono.medium,
         color: color.ink,
     },
     kill: {
@@ -917,8 +922,10 @@ const styles = StyleSheet.create({
         paddingTop: space[3.5],
         // The tab bar is below this again and owns the gesture inset, so the
         // bar only needs its own breathing room — `space[6]` left the button
-        // floating well clear of the tabs.
-        paddingBottom: space[4],
+        // floating well clear of the tabs. `paddingBottom` is supplied inline:
+        // it carries the keyboard as well, since the window no longer shrinks
+        // around it (see `ui/useKeyboardHeight`), and the per-procedure cost
+        // fields in this scroll sit low enough to go under it.
         // The same ground as the page. The mock fades its bar into the page
         // rather than sitting a panel on it, so a white bar on canvas read as
         // a seam across the bottom of the screen.
