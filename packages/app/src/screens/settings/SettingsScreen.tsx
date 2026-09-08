@@ -1,8 +1,10 @@
 /**
  * Settings — one screen, not two: the role is a client-side preference, not a
  * permission, so the doctor's rows are simply absent for the secretary. There
- * is no navigator yet, so this screen is its own stack via `ui/PushView`;
- * lifting the panes into a real navigator is `setRoute` → `navigate`.
+ * is no navigator yet, so this screen is its own stack (`src/navigation`) drawn
+ * with `ui/PushView`; lifting the panes into a real navigator is `push` →
+ * `navigate`. The index is the root, and every pane sits one deep on top of it —
+ * a pane's own editors push again from inside it.
  *
  * The index is a summary, not a menu. `settings.html` fills every row's sub
  * with that row's current answer — "default 30 min", "2 active · 1 inactive" —
@@ -18,6 +20,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel, useAfterSheet } from '../../components/ui';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
 import { setLocale, useLocale } from '../../shell/localeStore';
@@ -40,8 +43,8 @@ import { ProceduresScreen } from './ProceduresScreen';
 import { RemindersScreen } from './RemindersScreen';
 import { WorkingHoursScreen } from './WorkingHoursScreen';
 
+/** The panes over the index. The index itself is the root and is not one. */
 type Route =
-    | 'index'
     | 'app'
     | 'appointments'
     | 'reminders'
@@ -67,16 +70,27 @@ export type SettingsScreenProps = {
 };
 
 function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
-    const [route, setRoute] = useState<Route>('index');
     const [switching, setSwitching] = useState(false);
     // The switch redraws every tab in the shell, so it waits for the sheet that
     // asked for it to be off the screen.
     const roleDone = useAfterSheet();
     const [seenHome, setSeenHome] = useState(goHome);
 
+    /**
+     * The panes, and the hardware back with them. Nothing here answers back by
+     * hand: the hook makes it `pop`, which is the same function the headers'
+     * Back calls, so the two cannot come to disagree.
+     *
+     * What a pane has open inside itself stays the pane's own. An editor over
+     * `ProceduresScreen` mounted after this stack did, and a handler that
+     * mounted later is asked first, so it closes before this is reached.
+     */
+    const routes = useRouteStack<Route>();
+    const back = routes.pop;
+
     if (goHome !== seenHome) {
         setSeenHome(goHome);
-        setRoute('index');
+        routes.popToRoot();
         setSwitching(false);
     }
 
@@ -88,7 +102,6 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
     const summary = useSummary();
     const connection = useConnectionView();
 
-    const back = () => setRoute('index');
     const isDoctor = role === 'doctor';
 
     function changeRole(next: ClientRole) {
@@ -127,7 +140,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                 icon={<SettingsIcon glyph="app" />}
                                 label="App"
                                 sub="Language, server connection"
-                                onPress={() => setRoute('app')}
+                                onPress={() => routes.push('app')}
                                 testID="settings-app-row"
                             />
                             <CardDivider />
@@ -135,7 +148,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                 icon={<SettingsIcon glyph="appointments" />}
                                 label="Appointments"
                                 sub={`Durations · default ${summary.data.defaultDuration} min`}
-                                onPress={() => setRoute('appointments')}
+                                onPress={() => routes.push('appointments')}
                                 testID="settings-appointments-row"
                             />
                             <CardDivider />
@@ -143,7 +156,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                 icon={<SettingsIcon glyph="reminders" />}
                                 label="Reminders"
                                 sub={`Due ${summary.data.leadHours}h before · notify ${formatClock12(summary.data.notifyAt)}`}
-                                onPress={() => setRoute('reminders')}
+                                onPress={() => routes.push('reminders')}
                                 testID="settings-reminders-row"
                             />
                         </Group>
@@ -154,7 +167,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<SettingsIcon glyph="clinic" />}
                                     label="Clinic"
                                     sub="Name, phone"
-                                    onPress={() => setRoute('clinic')}
+                                    onPress={() => routes.push('clinic')}
                                     testID="settings-clinic-row"
                                 />
                                 <CardDivider />
@@ -162,7 +175,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<SettingsIcon glyph="branches" />}
                                     label="Branches"
                                     sub={`${summary.data.activeBranches} active · ${summary.data.inactiveBranches} inactive`}
-                                    onPress={() => setRoute('branches')}
+                                    onPress={() => routes.push('branches')}
                                     testID="settings-branches"
                                 />
                                 <CardDivider />
@@ -171,7 +184,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"
                                     sub={`${summary.data.openDays} days open`}
-                                    onPress={() => setRoute('hours')}
+                                    onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
                                 <CardDivider />
@@ -179,7 +192,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<SettingsIcon glyph="procedures" />}
                                     label="Procedures & prices"
                                     sub={`${summary.data.procedures} procedures · ${summary.data.activeProcedures} active`}
-                                    onPress={() => setRoute('procedures')}
+                                    onPress={() => routes.push('procedures')}
                                     testID="settings-procedures"
                                 />
                                 <CardDivider />
@@ -187,7 +200,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<SettingsIcon glyph="fields" />}
                                     label="Patient fields"
                                     sub={`${summary.data.questions} questions · ${summary.data.requiredQuestions} required`}
-                                    onPress={() => setRoute('patientFields')}
+                                    onPress={() => routes.push('patientFields')}
                                     testID="settings-patient-fields"
                                 />
                             </Group>
@@ -205,7 +218,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<DataEntryIcon />}
                                     label="Data entry"
                                     sub="Bulk entry from the old system"
-                                    onPress={() => setRoute('dataEntry')}
+                                    onPress={() => routes.push('dataEntry')}
                                     testID="settings-data-entry-row"
                                 />
                             </Group>
@@ -237,50 +250,37 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                     setSwitching(false);
                     roleDone.after(() => {
                         changeRole(role === 'doctor' ? 'secretary' : 'doctor');
-                        setRoute('index');
+                        routes.popToRoot();
                     });
                 }}
                 onCancel={() => setSwitching(false)}
                 onClosed={roleDone.closed}
             />
 
-            <PushView visible={route === 'app'}>
-                {route === 'app' ? (
-                    <AppScreen locale={locale} onChangeLocale={setLocale} onBack={back} />
-                ) : null}
-            </PushView>
-
-            <PushView visible={route === 'appointments'}>
-                {route === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'reminders'}>
-                {route === 'reminders' ? <RemindersScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'clinic'}>
-                {route === 'clinic' ? <ClinicScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'branches'}>
-                {route === 'branches' ? <BranchesScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'hours'}>
-                {route === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'procedures'}>
-                {route === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'patientFields'}>
-                {route === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
-            </PushView>
-
-            <PushView visible={route === 'dataEntry'}>
-                {route === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
-            </PushView>
+            {/* Nine near-identical blocks before the stack, each repeating its
+                own route name three times. A popped pane stays in here until it
+                reports the slide finished (`onClosed`), which is the only reason
+                a route that is no longer open is still drawn. */}
+            {rendered(routes.stack).map(({ id, route: pane }, index) => (
+                <PushView
+                    key={id}
+                    visible={isOpen(routes.stack, index)}
+                    onClosed={routes.settled}
+                    testID={`settings-pane-${pane}`}
+                >
+                    {pane === 'app' ? (
+                        <AppScreen locale={locale} onChangeLocale={setLocale} onBack={back} />
+                    ) : null}
+                    {pane === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
+                    {pane === 'reminders' ? <RemindersScreen onBack={back} /> : null}
+                    {pane === 'clinic' ? <ClinicScreen onBack={back} /> : null}
+                    {pane === 'branches' ? <BranchesScreen onBack={back} /> : null}
+                    {pane === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
+                    {pane === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
+                    {pane === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
+                    {pane === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
+                </PushView>
+            ))}
         </View>
     );
 }

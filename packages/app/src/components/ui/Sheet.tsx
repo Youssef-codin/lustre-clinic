@@ -32,12 +32,13 @@ import {
     useBottomSheetTimingConfigs,
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
-// biome-ignore lint/style/noRestrictedImports: two of them, both external — driving `BottomSheetModal`'s imperative present/dismiss ref, and swallowing the hardware back through `BackHandler`
+// biome-ignore lint/style/noRestrictedImports: drives `BottomSheetModal`'s imperative present/dismiss ref, which is the animation running outside React. The hardware back is `useHardwareBack`'s.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, radius, size, space, Text } from '../../theme';
 import { duration } from './motion';
+import { useHardwareBack } from './useHardwareBack';
 
 export type SheetProps = {
     visible: boolean;
@@ -181,16 +182,16 @@ export function Sheet({
      * A sheet that refuses to close refuses back too: it is still swallowed, it
      * just does not close anything. A write in flight cannot be cancelled into
      * an unknown state.
+     *
+     * A sheet always wins over the screen it is covering, and nothing here
+     * arranges that: the shell registered its listener when the app started and
+     * this one registers when the sheet opens, which is later, and later is what
+     * React Native asks first.
      */
-    useEffect(() => {
-        if (!visible) return;
-
-        const guard = BackHandler.addEventListener('hardwareBackPress', () => {
-            if (dismissable) onClose();
-            return true;
-        });
-        return () => guard.remove();
-    }, [visible, dismissable, onClose]);
+    useHardwareBack(visible, () => {
+        if (dismissable) onClose();
+        return true;
+    });
 
     /**
      * Fires once the sheet has finished leaving, whoever started it — so the

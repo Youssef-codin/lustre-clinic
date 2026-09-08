@@ -38,7 +38,9 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useLocale } from '../../shell/localeStore';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -68,9 +70,23 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     const queryClient = useQueryClient();
 
     const questions = useQuery(trpc.customQuestion.list.queryOptions({ includeInactive: true }));
-    const [editing, setEditing] = useState<CustomQuestion | 'new' | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    // Reordering is a mode over the list, not a route, so it is not on the
+    // stack — but Back does leave it, the same thing the header's Back does
+    // while it is on. Declared *before* the stack so the editor, which is a
+    // route and sits above this list, is asked first; a press with neither open
+    // falls through to `SettingsScreen`.
+    useBackHandler(() => {
+        if (!reordering) return false;
+        setReordering(false);
+        return true;
+    });
+
+    // A route over this list rather than a nullable piece of state, so the
+    // question being edited outlives the pane's exit animation.
+    const editing = useRouteStack<CustomQuestion | 'new'>();
 
     const reorder = useMutation(
         trpc.customQuestion.reorder.mutationOptions({
@@ -162,7 +178,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                                     title="No questions yet"
                                     body="Ask what you need on top of the built-in details — medical history, how they found you, anything."
                                     actionLabel="Add a question"
-                                    onAction={() => setEditing('new')}
+                                    onAction={() => editing.push('new')}
                                 />
                             ) : (
                                 <Card>
@@ -175,7 +191,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                                                 reorderDisabled={reorder.isPending}
                                                 isFirst={index === 0}
                                                 isLast={index === active.length - 1}
-                                                onPress={() => setEditing(question)}
+                                                onPress={() => editing.push(question)}
                                                 onMoveUp={() => move(index, -1)}
                                                 onMoveDown={() => move(index, 1)}
                                             />
@@ -186,7 +202,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                         </View>
 
                         {active.length > 0 && !reordering ? (
-                            <AddButton label="Add a question" onPress={() => setEditing('new')} />
+                            <AddButton label="Add a question" onPress={() => editing.push('new')} />
                         ) : null}
 
                         {inactive.length > 0 ? (
@@ -204,7 +220,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                                                 reorderDisabled
                                                 isFirst
                                                 isLast
-                                                onPress={() => setEditing(question)}
+                                                onPress={() => editing.push(question)}
                                                 onMoveUp={() => {}}
                                                 onMoveDown={() => {}}
                                             />
@@ -221,19 +237,19 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                 ) : null}
             </Pane>
 
-            <PushView visible={editing !== null}>
-                {editing !== null ? (
+            {rendered(editing.stack).map(({ id, route: question }, index) => (
+                <PushView key={id} visible={isOpen(editing.stack, index)} onClosed={editing.settled}>
                     <QuestionEditor
-                        question={editing === 'new' ? null : editing}
+                        question={question === 'new' ? null : question}
                         nextSortOrder={rows.length}
-                        onClose={() => setEditing(null)}
+                        onClose={editing.pop}
                         onSaved={(message) => {
-                            setEditing(null);
+                            editing.pop();
                             setToast(message);
                         }}
                     />
-                ) : null}
-            </PushView>
+                </PushView>
+            ))}
         </>
     );
 }
@@ -428,6 +444,12 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
             },
         );
     }
+
+    // A write in flight swallows Back, the same as the header's.
+    useBackHandler(() => {
+        if (!busy) onClose();
+        return true;
+    });
 
     return (
         <Pane

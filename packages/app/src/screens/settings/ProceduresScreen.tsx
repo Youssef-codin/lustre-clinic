@@ -68,6 +68,8 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
+import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
 
 import { CategoryIcon, EditIcon, HideIcon } from './components/icons';
@@ -78,19 +80,44 @@ import { errorText } from './data/errors';
 export type ProcedureNode = RouterOutput['procedure']['tree'][number];
 export type Procedure = ProcedureNode['children'][number];
 
+/** What the editor pane was opened to do. */
+type EditorRoute =
+    | { kind: 'edit'; procedure: Procedure }
+    | { kind: 'new' }
+    | { kind: 'under'; parent: ProcedureNode }
+    | { kind: 'category'; name: string };
+
 export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
     const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
-    const [editing, setEditing] = useState<Procedure | 'new' | null>(null);
-    const [addingTo, setAddingTo] = useState<ProcedureNode | null>(null);
     // A category being made: its name, held until the first subtype under it is
-    // saved, because the two are written together.
+    // saved, because the two are written together. The naming itself is a sheet.
     const [namingCategory, setNamingCategory] = useState(false);
-    const [newCategory, setNewCategory] = useState<string | null>(null);
     const [reordering, setReordering] = useState(false);
     const [toast, setToast] = useState<string | null>(null);
+
+    // Reordering is a mode over the list, not a route, so it is not on the
+    // stack — but Back leaves it rather than the screen, the same thing the
+    // header's Back does while it is on. Declared *before* the editor stack so
+    // the editor, which sits above this list, is asked first; a press with
+    // neither open falls through to `SettingsScreen`, which owns what leaving a
+    // settings pane means.
+    useBackHandler(() => {
+        if (!reordering) return false;
+        setReordering(false);
+        return true;
+    });
+
+    /**
+     * The editor, as one route rather than the three nullable fields it used to
+     * be — `editing`, `addingTo` and `newCategory`, none of which meant anything
+     * without checking the other two. What it opens on is now a single value
+     * with a name, and it outlives the pane's exit animation, where clearing all
+     * three on close used to slide an empty pane off the screen.
+     */
+    const editor = useRouteStack<EditorRoute>();
 
     const reorder = useMutation(
         trpc.procedure.reorder.mutationOptions({
@@ -176,7 +203,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         title="No procedures yet"
                         body="These are what a visit is charged for. Add the checkup first — it is the line every visit starts with."
                         actionLabel="Add a procedure"
-                        onAction={() => setEditing('new')}
+                        onAction={() => editor.push({ kind: 'new' })}
                     />
                 ) : null}
 
@@ -189,7 +216,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                 reorderDisabled={reorder.isPending}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
-                                onPress={() => setEditing(node)}
+                                onPress={() => editor.push({ kind: 'edit', procedure: node })}
                                 onMoveUp={() => move(nodes, index, -1)}
                                 onMoveDown={() => move(nodes, index, 1)}
                             />
@@ -213,7 +240,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             accessibilityLabel={`Rename ${node.name}`}
                                             variant="bare"
                                             icon={<EditIcon size={15} />}
-                                            onPress={() => setEditing(node)}
+                                            onPress={() => editor.push({ kind: 'edit', procedure: node })}
                                             testID={`category-rename-${node.id}`}
                                         />
                                     )
@@ -232,7 +259,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             reorderDisabled={reorder.isPending}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
-                                            onPress={() => setEditing(child)}
+                                            onPress={() => editor.push({ kind: 'edit', procedure: child })}
                                             onMoveUp={() => move(node.children, childIndex, -1)}
                                             onMoveDown={() => move(node.children, childIndex, 1)}
                                         />
@@ -245,7 +272,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                         <AddButton
                                             variant="footer"
                                             label={`Add to ${node.name}`}
-                                            onPress={() => setAddingTo(node)}
+                                            onPress={() => editor.push({ kind: 'under', parent: node })}
                                         />
                                     </>
                                 )}
@@ -269,7 +296,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                             <View style={styles.addProcedure}>
                                 <AddButton
                                     label="Add a procedure"
-                                    onPress={() => setEditing('new')}
+                                    onPress={() => editor.push({ kind: 'new' })}
                                     testID="procedure-add"
                                 />
                             </View>
@@ -301,34 +328,28 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         onClose={() => setNamingCategory(false)}
                         onNamed={(name) => {
                             setNamingCategory(false);
-                            setNewCategory(name);
+                            editor.push({ kind: 'category', name });
                         }}
                     />
                 ) : null}
             </Pane>
 
-            <PushView visible={editing !== null || addingTo !== null || newCategory !== null}>
-                {editing !== null || addingTo !== null || newCategory !== null ? (
+            {rendered(editor.stack).map(({ id, route }, index) => (
+                <PushView key={id} visible={isOpen(editor.stack, index)} onClosed={editor.settled}>
                     <ProcedureEditor
-                        procedure={editing !== null && editing !== 'new' ? editing : null}
-                        parent={addingTo}
-                        newCategory={newCategory}
+                        procedure={route.kind === 'edit' ? route.procedure : null}
+                        parent={route.kind === 'under' ? route.parent : null}
+                        newCategory={route.kind === 'category' ? route.name : null}
                         categories={all.filter((node) => !node.selectable)}
                         nextSortOrder={nextSortOrder}
-                        onClose={() => {
-                            setEditing(null);
-                            setAddingTo(null);
-                            setNewCategory(null);
-                        }}
+                        onClose={editor.pop}
                         onSaved={(message) => {
-                            setEditing(null);
-                            setAddingTo(null);
-                            setNewCategory(null);
+                            editor.pop();
                             setToast(message);
                         }}
                     />
-                ) : null}
-            </PushView>
+                </PushView>
+            ))}
         </>
     );
 }
@@ -567,6 +588,12 @@ function ProcedureEditor({
             },
         );
     }
+
+    // A write in flight swallows Back, the same as the header's.
+    useBackHandler(() => {
+        if (!busy) onClose();
+        return true;
+    });
 
     return (
         <Pane

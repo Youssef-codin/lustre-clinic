@@ -23,6 +23,7 @@ import {
     useAfterSheet,
     usePullToRefresh,
 } from '../../components/ui';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { procedureLabel, splitDay } from './agenda';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
@@ -63,6 +64,27 @@ import { relativeDayLabel, todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
 type DayTab = 'day' | 'reminders';
+
+/**
+ * The pages that stack over the schedule. The three visit pages carry no data:
+ * what they are about is one visit held beside the stack, because Confirm
+ * reprices it while the treatment page is still underneath and an entry holding
+ * its own copy would have the stale one to come back to.
+ *
+ * `view` is the read-only page a finished visit opens on. Its being there is
+ * what used to be `origin === 'view'`, checked in two places to work out where
+ * Back went — the stack answers that now by having it underneath, or not.
+ */
+type Route =
+    | {
+          name: 'booking';
+          patient: PatientDraft;
+          /** Set only when the booking was asked for from outside, which says which button it was. */
+          timing?: 'now' | 'later';
+      }
+    | { name: 'view' }
+    | { name: 'treatment' }
+    | { name: 'payment' };
 
 /**
  * A booking asked for from outside this cluster — the patient record's Book and
@@ -107,37 +129,32 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [booking, setBooking] = useState({ open: false, seq: 0 });
-    // Who it is for is a sheet; the rest of the booking is a page pushed over
-    // the day (`PushView`), so the day keeps its date, branch and scroll and
-    // the tab bar stays where it is. The draft outlives the page's exit
-    // animation — clearing it on Back would unmount the pane mid-slide.
-    const [page, setPage] = useState<{
-        patient: PatientDraft;
-        /** Set only when the booking was asked for from outside, which says which button it was. */
-        timing?: 'now' | 'later';
-        seq: number;
-    } | null>(null);
-    const [pageOpen, setPageOpen] = useState(false);
     const [seenOpen, setSeenOpen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
         open: false,
     });
-    // Finishing a visit is two pages pushed over the day — what was done, then
-    // what was paid — not one sheet holding both. `open` is separate from the
-    // target so the pages survive their own exit animation, and `step` lives
-    // here rather than inside them because Back on the payment page returns to
-    // the treatment page, not to the day.
+    /**
+     * What the visit pages are about, which is one visit however many pages are
+     * stacked on it. The pages themselves are routes; this is the subject they
+     * share, and it is deliberately not on the stack — Confirm reprices the
+     * visit while the treatment page is still underneath, and an entry holding
+     * its own copy would have the stale one to come back to.
+     *
+     * Never cleared, only replaced. It has to outlive the last page's exit
+     * animation, and the next `openVisit` is what makes it wrong to keep.
+     */
     const [visit, setVisit] = useState<{
         appointment: Appointment;
         /** Absent on an arrival — Confirm is what creates it. */
         visit: Visit | null;
         /**
-         * Why the flow was opened. It decides what the editor's bar offers and
-         * where Back goes: an arrival confirms into the waiting room, a
-         * checkout goes on to the money, and a finished visit has the read-only
-         * page underneath.
+         * Why the flow was opened. It decides what the editor's bar offers: an
+         * arrival confirms into the waiting room and a checkout goes on to the
+         * money. Where Back goes is the stack's answer now, not this one's — a
+         * finished visit was opened on the read-only page, so the page is there
+         * to return to.
          */
         origin: 'view' | 'arrival' | 'checkout';
         /**
@@ -146,10 +163,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
          * behind it are all `checked_in`.
          */
         standing: Standing | null;
-        step: 'view' | 'treatment' | 'payment';
         seq: number;
     } | null>(null);
-    const [visitOpen, setVisitOpen] = useState(false);
     // The book-next offer, raised by a check-in and by nothing else. `seated` is
     // captured when it opens rather than read when it closes: it describes the
     // queue at the moment the patient came through the door, and the refetch
@@ -167,18 +182,25 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     const bookNextDone = useAfterSheet();
     const detailDone = useAfterSheet();
 
+    /**
+     * The pages over the schedule, and the hardware back with them: back is
+     * `pop`, which is the same function every page's own Back calls.
+     *
+     * The sheets are not on it. Each swallows back for itself while it is up
+     * (`ui/Sheet`), and none of them is ever underneath one of these pages.
+     *
+     * The schedule is the root, so a press with nothing pushed goes on to the
+     * shell — which on the day tab means leaving the app.
+     */
+    const routes = useRouteStack<Route>();
+
     // Both derived during render rather than in an effect, so the page is on
     // screen in the same commit as the tab switch and the pane never paints the
     // schedule for a frame first.
     if (open && open.seq !== seenOpen) {
         setSeenOpen(open.seq);
         setBooking((current) => ({ ...current, open: false }));
-        setPage((current) => ({
-            patient: draftFor(open.patient),
-            timing: open.timing,
-            seq: (current?.seq ?? 0) + 1,
-        }));
-        setPageOpen(true);
+        routes.resetTo({ name: 'booking', patient: draftFor(open.patient), timing: open.timing });
     }
 
     // Everything pushed over the schedule comes down. The shell drops the
@@ -187,12 +209,39 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     if (goHome !== seenHome) {
         setSeenHome(goHome);
         setTab('day');
-        setPageOpen(false);
-        setVisitOpen(false);
+        routes.popToRoot();
         setBookNextOpen(false);
         setBooking((current) => ({ ...current, open: false }));
         setCalendar(closeCalendar);
         setSelected((current) => ({ ...current, open: false }));
+    }
+
+    /**
+     * The two route changes that discard a pane instead of letting it leave.
+     * `push` drops whatever was mid-slide and `resetTo` drops that and what is
+     * open with it (`navigation/routeStack.ts`), and a pane that goes that way
+     * never reaches `PushView`'s `onClosed` — so the one line that reports a
+     * booking gone never runs, and the tab stays lit on Patients with no
+     * booking on screen. These say it instead, and say it as what is drawn
+     * after the change rather than as what left, which is the same answer
+     * whether anything was discarded or not.
+     *
+     * Not for the two changes above: those run during render, where the shell
+     * cannot be told anything — and it is the shell that raises and drops the
+     * highlight for both of them anyway.
+     */
+    function pushPage(route: Route) {
+        routes.push(route);
+        // A push keeps what is open, so a booking under the arriving page is
+        // still drawn and still counts.
+        const under = routes.stack.open.some((entry) => entry.route.name === 'booking');
+        onBookingChange?.(route.name === 'booking' || under);
+    }
+
+    function resetToPage(route: Route) {
+        routes.resetTo(route);
+        // A reset leaves nothing of what there was, open or leaving.
+        onBookingChange?.(route.name === 'booking');
     }
 
     const nowMinutes = useNowMinutes();
@@ -350,10 +399,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
             visit: loaded,
             origin,
             standing: standingOf(appointment),
-            step: origin === 'view' ? 'view' : 'treatment',
             seq: (current?.seq ?? 0) + 1,
         }));
-        setVisitOpen(true);
+        // A finished visit opens on the read-only page and the editor pushes on
+        // top of it; everything else starts on the editor with the schedule
+        // underneath. That is the whole of what `origin === 'view'` decided.
+        resetToPage(origin === 'view' ? { name: 'view' } : { name: 'treatment' });
     }
 
     /**
@@ -418,13 +469,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     function bookNextOn(patient: EmbeddedPatient) {
         setBookNextOpen(false);
         bookNextDone.after(() => {
-            setPage((current) => ({
-                patient: draftFor(patient),
-                timing: 'later',
-                seq: (current?.seq ?? 0) + 1,
-            }));
-            setPageOpen(true);
-            onBookingChange?.(true);
+            pushPage({ name: 'booking', patient: draftFor(patient), timing: 'later' });
         });
     }
 
@@ -614,38 +659,9 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 onClose={() => setBooking((current) => ({ ...current, open: false }))}
                 onPicked={(patient) => {
                     setBooking((current) => ({ ...current, open: false }));
-                    setPage((current) => ({ patient, seq: (current?.seq ?? 0) + 1 }));
-                    setPageOpen(true);
-                    onBookingChange?.(true);
+                    pushPage({ name: 'booking', patient });
                 }}
             />
-
-            <PushView visible={pageOpen} testID="booking-page">
-                {page ? (
-                    <BookingScreen
-                        key={`booking:${page.seq}`}
-                        patient={page.patient}
-                        timing={page.timing}
-                        branchId={branch}
-                        branches={branches.data ?? []}
-                        schedule={schedule.data}
-                        durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
-                        defaultDuration={settings.data?.defaultDuration ?? 30}
-                        dateKey={dateKey}
-                        nowMinutes={nowMinutes}
-                        onBack={() => {
-                            setPageOpen(false);
-                            onBookingChange?.(false);
-                        }}
-                        onBooked={(message) => {
-                            setPageOpen(false);
-                            onBookingChange?.(false);
-                            setToast(message);
-                            day.refetch();
-                        }}
-                    />
-                ) : null}
-            </PushView>
 
             <AppointmentDetailSheet
                 key={`detail:${selected.appointment?.id ?? 'none'}`}
@@ -682,110 +698,137 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 />
             ) : null}
 
-            {/* Nested rather than swapped, so each page slides over the one
-                before it and Back slides it away with that one still behind,
-                scroll and all. A ternary here drew both instantly, which is
-                the missing transition it looked like. A finished visit adds a
-                read-only page underneath the editor; a live one starts on the
-                editor and has nothing under it. */}
-            <PushView visible={visitOpen} testID="visit-page">
-                {visit ? (
-                    <>
-                        {visit.origin === 'view' && visit.visit ? (
-                            <VisitViewScreen
-                                key={`view:${visit.seq}`}
-                                appointment={visit.appointment}
-                                visit={visit.visit}
-                                onBack={() => setVisitOpen(false)}
-                                // The editor opens on the visit as it stands;
-                                // the reopen it needs rides along with Confirm.
-                                onEdit={() => setVisit({ ...visit, step: 'treatment' })}
-                            />
-                        ) : null}
+            {/* Siblings in stacking order rather than nested: each page still
+                slides over the one before it and Back still slides it away with
+                that one behind, scroll and all, because a `PushView` covers the
+                whole pane and the later one paints on top. A ternary here drew
+                both instantly, which is the missing transition it looked like.
 
-                        <PushView visible={visit.step !== 'view'} testID="visit-treatment-page">
-                            <VisitScreen
-                                key={`visit:${visit.seq}:${visit.step === 'view' ? 'idle' : 'live'}`}
-                                appointment={visit.appointment}
-                                visit={visit.visit ?? undefined}
-                                mode={visit.origin === 'arrival' ? 'arrival' : 'checkout'}
-                                standing={visit.standing ?? undefined}
-                                onBack={() => {
-                                    if (visit.origin === 'view') {
-                                        setVisit({ ...visit, step: 'view' });
-                                        return;
-                                    }
-                                    // Backing out of an arrival wrote nothing —
-                                    // they are still booked, and saying they
-                                    // are in the chair would be a lie.
-                                    setVisitOpen(false);
-                                }}
-                                onConfirm={(priced) => {
-                                    // An arrival is done here: they are in the
-                                    // chair or in the queue, and nothing is owed
-                                    // until the work is finished.
-                                    if (visit.origin === 'arrival') {
-                                        setVisitOpen(false);
-                                        day.refetch();
-                                        // The record still comes next — history,
-                                        // balance, what to ask them — but the
-                                        // one moment the patient is standing
-                                        // there is the moment to offer them a
-                                        // return. The sheet is offered, never
-                                        // imposed: dismissing it lands exactly
-                                        // where confirming an arrival always did.
-                                        setBookNext((current) => ({
-                                            patient: visit.appointment.patient,
-                                            seated: seated(),
-                                            seq: (current?.seq ?? 0) + 1,
-                                        }));
-                                        setBookNextOpen(true);
-                                        return;
-                                    }
-                                    // Same for a patient still in the queue:
-                                    // this was their plan being corrected, and
-                                    // nothing is owed until the work is done.
-                                    if (visit.standing === 'waiting') {
-                                        setVisitOpen(false);
-                                        setToast(`${visit.appointment.patient.name} is still waiting`);
-                                        day.refetch();
-                                        return;
-                                    }
-                                    setVisit({ ...visit, visit: priced, step: 'payment' });
-                                }}
-                                onSentToDesk={(message) => {
-                                    setVisitOpen(false);
-                                    setToast(message);
+                A popped page stays in this list until it reports the slide
+                finished (`onClosed`); dropping it any earlier is what used to
+                slide an empty pane off the screen. */}
+            {rendered(routes.stack).map(({ id, route }, index) => (
+                <PushView
+                    key={id}
+                    visible={isOpen(routes.stack, index)}
+                    onClosed={() => {
+                        routes.settled();
+                        // The tab bar lights Patients while a booking is up,
+                        // because a booking belongs to the patient it is for.
+                        // Reported from here rather than from each way out, so
+                        // the hardware back is covered by the same line as Back
+                        // and Booked — whatever popped it, the page finishing
+                        // its slide is the one moment they all share.
+                        if (route.name === 'booking') onBookingChange?.(false);
+                    }}
+                    testID={`day-${route.name}-page`}
+                >
+                    {route.name === 'booking' ? (
+                        <BookingScreen
+                            patient={route.patient}
+                            timing={route.timing}
+                            branchId={branch}
+                            branches={branches.data ?? []}
+                            schedule={schedule.data}
+                            durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
+                            defaultDuration={settings.data?.defaultDuration ?? 30}
+                            dateKey={dateKey}
+                            nowMinutes={nowMinutes}
+                            onBack={routes.pop}
+                            onBooked={(message) => {
+                                routes.pop();
+                                setToast(message);
+                                day.refetch();
+                            }}
+                        />
+                    ) : null}
+
+                    {route.name === 'view' && visit?.visit ? (
+                        <VisitViewScreen
+                            key={`view:${visit.seq}`}
+                            appointment={visit.appointment}
+                            visit={visit.visit}
+                            onBack={routes.pop}
+                            // The editor opens on the visit as it stands; the
+                            // reopen it needs rides along with Confirm.
+                            onEdit={() => pushPage({ name: 'treatment' })}
+                        />
+                    ) : null}
+
+                    {route.name === 'treatment' && visit ? (
+                        <VisitScreen
+                            key={`visit:${visit.seq}`}
+                            appointment={visit.appointment}
+                            visit={visit.visit ?? undefined}
+                            mode={visit.origin === 'arrival' ? 'arrival' : 'checkout'}
+                            standing={visit.standing ?? undefined}
+                            // Backing out of an arrival wrote nothing — they are
+                            // still booked, and saying they are in the chair
+                            // would be a lie. Where that lands is the stack's:
+                            // the read-only page if this was opened over one,
+                            // the schedule if it was not.
+                            onBack={routes.pop}
+                            onConfirm={(priced) => {
+                                // An arrival is done here: they are in the chair
+                                // or in the queue, and nothing is owed until the
+                                // work is finished.
+                                if (visit.origin === 'arrival') {
+                                    routes.popToRoot();
                                     day.refetch();
-                                }}
-                            />
+                                    // The record still comes next — history,
+                                    // balance, what to ask them — but the one
+                                    // moment the patient is standing there is
+                                    // the moment to offer them a return. The
+                                    // sheet is offered, never imposed:
+                                    // dismissing it lands exactly where
+                                    // confirming an arrival always did.
+                                    setBookNext((current) => ({
+                                        patient: visit.appointment.patient,
+                                        seated: seated(),
+                                        seq: (current?.seq ?? 0) + 1,
+                                    }));
+                                    setBookNextOpen(true);
+                                    return;
+                                }
+                                // Same for a patient still in the queue: this was
+                                // their plan being corrected, and nothing is owed
+                                // until the work is done.
+                                if (visit.standing === 'waiting') {
+                                    routes.popToRoot();
+                                    setToast(`${visit.appointment.patient.name} is still waiting`);
+                                    day.refetch();
+                                    return;
+                                }
+                                setVisit({ ...visit, visit: priced });
+                                pushPage({ name: 'payment' });
+                            }}
+                            onSentToDesk={(message) => {
+                                routes.popToRoot();
+                                setToast(message);
+                                day.refetch();
+                            }}
+                        />
+                    ) : null}
 
-                            <PushView
-                                visible={visit.step === 'payment' && visit.visit !== null}
-                                testID="visit-payment-page"
-                            >
-                                {visit.visit ? (
-                                    <VisitPaymentScreen
-                                        key={`payment:${visit.seq}:${visit.visit.chargedTotal}`}
-                                        appointment={visit.appointment}
-                                        visit={visit.visit}
-                                        // Reopened from the read-only page: the
-                                        // money on it is being corrected, not
-                                        // collected for the first time.
-                                        correcting={visit.standing === 'finished'}
-                                        onBack={() => setVisit({ ...visit, step: 'treatment' })}
-                                        onClosed={(message) => {
-                                            setVisitOpen(false);
-                                            setToast(message);
-                                            day.refetch();
-                                        }}
-                                    />
-                                ) : null}
-                            </PushView>
-                        </PushView>
-                    </>
-                ) : null}
-            </PushView>
+                    {route.name === 'payment' && visit?.visit ? (
+                        <VisitPaymentScreen
+                            key={`payment:${visit.seq}:${visit.visit.chargedTotal}`}
+                            appointment={visit.appointment}
+                            visit={visit.visit}
+                            // Reopened from the read-only page: the money on it
+                            // is being corrected, not collected for the first
+                            // time.
+                            correcting={visit.standing === 'finished'}
+                            onBack={routes.pop}
+                            onClosed={(message) => {
+                                routes.popToRoot();
+                                setToast(message);
+                                day.refetch();
+                            }}
+                        />
+                    ) : null}
+                </PushView>
+            ))}
 
             <Toast
                 visible={toast !== null}
