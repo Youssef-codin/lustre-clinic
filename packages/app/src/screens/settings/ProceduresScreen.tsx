@@ -436,9 +436,13 @@ function ProcedureRow({
                 {procedure.name}
             </Text>
             <View style={styles.tags}>
+                {/* The badge for the flag the toggle below now calls "Waived
+                    when other work is done" — left saying CHECKUP it named the
+                    use while the toggle named the behaviour, and the two sat on
+                    the same screen disagreeing. */}
                 {procedure.isCheckup ? (
                     <Tag tone="accent" variant="filled">
-                        CHECKUP
+                        WAIVED
                     </Tag>
                 ) : null}
                 {procedure.isToothSpecific ? <Tag tone="muted">TOOTH</Tag> : null}
@@ -686,8 +690,18 @@ function ProcedureEditor({
                         onChange={setHasQuantity}
                     />
                     <CardDivider />
+                    {/* Named for what the flag does, not for what this clinic
+                        happens to use it for. The sub-copy already explained the
+                        behaviour; the label said "checkup" and left another
+                        clinic — which may call the same thing a consultation, an
+                        examination or a visit fee — looking for a word that is
+                        not there. The procedure keeps whatever name they give it.
+
+                        The column behind this is still `is_checkup`; renaming it
+                        is a migration and is not worth making until someone has
+                        asked a clinic what they call this. */}
                     <FlagRow
-                        label="This is the checkup"
+                        label="Waived when other work is done"
                         sub="Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it."
                         value={isCheckup}
                         onChange={setIsCheckup}
