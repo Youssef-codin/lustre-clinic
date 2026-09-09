@@ -159,6 +159,38 @@ export function offeredFor(categories: readonly ProcedureCategory[], hasTooth: b
     });
 }
 
+export interface ChargeableLine {
+    unitPrice: number;
+    quantity: number;
+    isCheckup: boolean;
+}
+
+/**
+ * Whether the checkup line is being waived on this list — true as soon as any
+ * other work is on it. Split out from the sum because the waiver is a fact
+ * about the whole visit, not about a group: a tooth's subtotal has to be struck
+ * under the same rule the strip uses, or the groups stop adding up to it.
+ */
+export function checkupIsWaived(lines: readonly ChargeableLine[]): boolean {
+    return lines.some((line) => !line.isCheckup);
+}
+
+/**
+ * Σ(unit × quantity), with the checkup line left out once it is waived.
+ *
+ * Mirrors `computeTotal` in `server/src/util/money.ts` (ported for the demo in
+ * `api/demo/rules.ts`), which is the authority: the server prices the visit and
+ * the confirmation screen spends `chargedTotal`. The copy exists because the
+ * chair and the desk show a running total over lines that have not been written
+ * yet, and the day cluster's tests pin the two together.
+ */
+export function chargeableTotal(lines: readonly ChargeableLine[], waived: boolean): number {
+    return lines.reduce(
+        (sum, line) => (waived && line.isCheckup ? sum : sum + line.unitPrice * line.quantity),
+        0,
+    );
+}
+
 /**
  * The line check-in seeds on top of the booking's plan (§9): the clinic's
  * checkup, waived when the plan already names one. `visit.checkIn` is the
