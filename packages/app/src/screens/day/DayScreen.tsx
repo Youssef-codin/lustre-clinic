@@ -25,6 +25,10 @@ import {
 } from '../../components/ui';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { border, color, radius, size, space, Text } from '../../theme';
+// Imported from the file rather than from `../patients`, which re-exports the
+// cluster that mounts `VisitPage` from here — going through the barrel would
+// close the loop between the two clusters.
+import { PatientEditScreen } from '../patients/PatientEditScreen';
 import { procedureLabel, splitDay } from './agenda';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
 import { type Standing, splitDeskDay } from './chair';
@@ -84,7 +88,16 @@ type Route =
       }
     | { name: 'view' }
     | { name: 'treatment' }
-    | { name: 'payment' };
+    | { name: 'payment' }
+    /**
+     * Registering someone the booking sheet could not find. This is the Patients
+     * cluster's editor mounted in this stack — the same direction `VisitPage`
+     * travels the other way — because the alternative is switching tabs and
+     * losing the booking that asked for it. Saving pushes straight on to the
+     * booking page with the patient that now exists; backing out returns to the
+     * day, and the patient stays registered.
+     */
+    | { name: 'registerPatient' };
 
 /**
  * A booking asked for from outside this cluster — the patient record's Book and
@@ -129,6 +142,13 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [booking, setBooking] = useState({ open: false, seq: 0 });
+    /**
+     * The patient editor, mid-write. Back is held while one is in flight, the
+     * same line the Patients cluster holds — leaving mid-save is the one thing
+     * that screen never does, and it does not stop being true for being mounted
+     * over the day.
+     */
+    const [registering, setRegistering] = useState(false);
     const [seenOpen, setSeenOpen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
@@ -192,7 +212,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * The schedule is the root, so a press with nothing pushed goes on to the
      * shell — which on the day tab means leaving the app.
      */
-    const routes = useRouteStack<Route>();
+    const routes = useRouteStack<Route>({ locked: registering });
 
     // Both derived during render rather than in an effect, so the page is on
     // screen in the same commit as the tab switch and the pane never paints the
@@ -242,6 +262,18 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         routes.resetTo(route);
         // A reset leaves nothing of what there was, open or leaving.
         onBookingChange?.(route.name === 'booking');
+    }
+
+    /**
+     * The editor becomes the booking it was opened for. `replaceTop` rather than
+     * a pop and a push, so Back from the booking lands on the day instead of on
+     * the editor of a patient who already exists — there is nothing left to save
+     * there, and going back into it only invites a second one.
+     */
+    function replaceTopPage(route: Route) {
+        routes.replaceTop(route);
+        const under = routes.stack.open.some((entry) => entry.route.name === 'booking');
+        onBookingChange?.(route.name === 'booking' || under);
     }
 
     const nowMinutes = useNowMinutes();
@@ -661,6 +693,10 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                     setBooking((current) => ({ ...current, open: false }));
                     pushPage({ name: 'booking', patient });
                 }}
+                onRegisterNew={() => {
+                    setBooking((current) => ({ ...current, open: false }));
+                    pushPage({ name: 'registerPatient' });
+                }}
             />
 
             <AppointmentDetailSheet
@@ -723,6 +759,33 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                     }}
                     testID={`day-${route.name}-page`}
                 >
+                    {/* The Patients cluster's editor, mounted here so the
+                        booking that asked for it is still underneath. Keyed to
+                        the entry, so backing out and registering someone else
+                        starts on an empty form rather than the last one. */}
+                    {route.name === 'registerPatient' ? (
+                        <PatientEditScreen
+                            key={`register:${id}`}
+                            onCancel={routes.pop}
+                            onSavingChange={setRegistering}
+                            onSaved={(patientId, basics) => {
+                                // `basics` is only absent on a correction, and
+                                // this screen only ever registers. Guarding
+                                // rather than asserting: without a name there is
+                                // nothing to put on the booking page, and going
+                                // back to the day beats going on with a blank.
+                                if (!basics) {
+                                    routes.pop();
+                                    return;
+                                }
+                                replaceTopPage({
+                                    name: 'booking',
+                                    patient: draftFor({ id: patientId, ...basics }),
+                                });
+                            }}
+                        />
+                    ) : null}
+
                     {route.name === 'booking' ? (
                         <BookingScreen
                             patient={route.patient}

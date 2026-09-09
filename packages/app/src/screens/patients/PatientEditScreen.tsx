@@ -73,8 +73,16 @@ export type PatientEditScreenProps = {
      * write is the one thing this screen never does.
      */
     onSavingChange?: (saving: boolean) => void;
-    /** The patient that now exists, or the one that was just corrected. */
-    onSaved: (patientId: string) => void;
+    /**
+     * The patient that now exists, or the one that was just corrected.
+     *
+     * `basics` comes with a registration only. The booking flow carries on with
+     * the patient it has just created and needs their name and number to say who
+     * the booking is for; it has no record to read them from yet, and this screen
+     * is holding the values it just sent. Correcting a record passes nothing —
+     * the caller there already has the patient.
+     */
+    onSaved: (patientId: string, basics?: { name: string; phone: string }) => void;
 };
 
 export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
@@ -162,7 +170,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
             const saved = await create.mutate(input);
             onSavingChange?.(false);
             if (!saved) return;
-            onSaved(saved.id);
+            onSaved(saved.id, { name: input.name, phone: input.phone });
             return;
         }
 

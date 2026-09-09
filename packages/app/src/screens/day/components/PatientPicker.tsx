@@ -10,155 +10,80 @@
  * `patientDraft.ts` with the rules that judge it) because the answer outlives
  * this component: it is what gets carried to the booking page after the sheet
  * closes.
+ *
+ * Registering someone is no longer asked here. It used to be the other half of
+ * a segmented control — the whole patient record, every field of it, inside a
+ * bottom sheet sitting on top of the keyboard. It is a page-sized form and there
+ * is already a page for it, so `onRegisterNew` hands the question to
+ * `PatientEditScreen` and the answer comes back as a patient on file like any
+ * other. What that changes, and it is not nothing: the record is now written
+ * when the editor saves rather than with the booking, so a secretary who
+ * registers someone and then abandons the booking leaves a patient behind with
+ * no appointment. That is the accepted cost of reusing the real editor; the
+ * booking's own `{ kind: 'new' }` path is still in `patientRefOf` and is what
+ * the walk-in contract is written against.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, SearchField, SegmentedControl, Select, Textarea, TextField } from '../../../components/ui';
+import { Button, SearchField } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { api, type Patient, useLocalQuery } from '../data';
-import {
-    birthDateDigits,
-    birthDateDisplay,
-    birthDateError,
-    emailError,
-    GENDERS,
-    type PatientDraft,
-} from '../patientDraft';
+import type { PatientDraft } from '../patientDraft';
 import { useDebounced } from '../useDebounced';
-
-const MODES = [
-    { value: 'existing', label: 'On file' },
-    { value: 'new', label: 'New patient' },
-] as const satisfies readonly { value: PatientDraft['mode']; label: string }[];
 
 export type PatientPickerProps = {
     value: PatientDraft;
     onChange: (next: PatientDraft) => void;
     /** The sheet is open — the search does not run behind a closed one. */
     active: boolean;
+    /** Leave for the patient editor. The sheet closes; the draft does not survive it. */
+    onRegisterNew: () => void;
 };
 
-export function PatientPicker({ value, onChange, active }: PatientPickerProps) {
+export function PatientPicker({ value, onChange, active, onRegisterNew }: PatientPickerProps) {
     const query = useDebounced(value.term.trim(), 250);
 
     const search = useLocalQuery<Patient[]>(
         `patients:${query}`,
         () => (query.length >= 2 ? api.searchPatients(query) : Promise.resolve([])),
-        { enabled: active && value.mode === 'existing' },
+        { enabled: active },
     );
 
     return (
         <View style={styles.step}>
-            <SegmentedControl
-                segments={MODES}
-                value={value.mode}
-                onChange={(mode) => onChange({ ...value, mode })}
-                accessibilityLabel="Is the patient on file"
-            />
-
             <View style={styles.section}>
-                {value.mode === 'existing' ? (
-                    <>
-                        <SearchField
-                            value={value.term}
-                            onChangeText={(term) => onChange({ ...value, term, picked: null })}
-                            onClear={() => onChange({ ...value, term: '', picked: null })}
-                            variant="sheet"
-                            placeholder="Name or phone"
-                            autoCorrect={false}
-                        />
+                <SearchField
+                    value={value.term}
+                    onChangeText={(term) => onChange({ ...value, term, picked: null })}
+                    onClear={() => onChange({ ...value, term: '', picked: null })}
+                    variant="sheet"
+                    placeholder="Name or phone"
+                    autoCorrect={false}
+                />
 
-                        <PatientResults
-                            term={value.term}
-                            results={search.data ?? []}
-                            loading={search.status === 'loading'}
-                            failed={search.status === 'error'}
-                            picked={value.picked}
-                            onPick={(picked) => onChange({ ...value, picked })}
-                            onRetry={search.refetch}
-                        />
-                    </>
-                ) : (
-                    <NewPatientForm value={value} onChange={onChange} />
-                )}
+                <PatientResults
+                    term={value.term}
+                    results={search.data ?? []}
+                    loading={search.status === 'loading'}
+                    failed={search.status === 'error'}
+                    picked={value.picked}
+                    onPick={(picked) => onChange({ ...value, picked })}
+                    onRetry={search.refetch}
+                />
+            </View>
+
+            <View style={styles.register}>
+                <Text variant="subhead" tone="muted">
+                    Not been here before?
+                </Text>
+                <Button
+                    label="Register a new patient"
+                    variant="text"
+                    size="md"
+                    onPress={onRegisterNew}
+                    testID="book-register-new"
+                />
             </View>
         </View>
-    );
-}
-
-/**
- * The record as a booking can fill it. Nothing is hidden behind a disclosure:
- * a field the secretary cannot see is a field she does not ask for, and the
- * whole point of asking here is that she has the patient in front of her. Only
- * the name and the number are required, and the caption says so.
- */
-function NewPatientForm({
-    value,
-    onChange,
-}: {
-    value: PatientDraft;
-    onChange: (next: PatientDraft) => void;
-}) {
-    const email = emailError(value.email);
-    const birthDate = birthDateError(value.birthDate);
-
-    return (
-        <>
-            <TextField
-                label="Name"
-                required
-                value={value.name}
-                onChangeText={(name) => onChange({ ...value, name })}
-                placeholder="As it goes on the record"
-                autoCorrect={false}
-            />
-            <TextField
-                label="Phone"
-                required
-                value={value.phone}
-                onChangeText={(phone) => onChange({ ...value, phone })}
-                keyboardType="phone-pad"
-                placeholder="010 1234 5678"
-            />
-            <TextField
-                label="Email"
-                value={value.email}
-                onChangeText={(email) => onChange({ ...value, email })}
-                error={email ?? undefined}
-                placeholder="name@example.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                inputMode="email"
-            />
-            <TextField
-                label="Date of birth"
-                value={birthDateDisplay(value.birthDate)}
-                onChangeText={(text) => onChange({ ...value, birthDate: birthDateDigits(text) })}
-                error={birthDate ?? undefined}
-                keyboardType="number-pad"
-                placeholder="DD / MM / YYYY"
-            />
-            <Select
-                label="Sex"
-                sheetTitle="Sex"
-                options={GENDERS}
-                value={value.gender}
-                onChange={(gender) => onChange({ ...value, gender })}
-                testID="new-patient-gender"
-            />
-            <Textarea
-                label="Patient note"
-                hint="Kept on the record, not on this appointment."
-                value={value.notes}
-                onChangeText={(notes) => onChange({ ...value, notes })}
-                placeholder="Anything that is true of them every visit."
-            />
-
-            <Text variant="caption" tone="muted">
-                The patient record is created with the booking. Only the name and the number are needed to
-                book — the rest can be left for the desk.
-            </Text>
-        </>
     );
 }
 
@@ -209,7 +134,7 @@ function PatientResults({
     if (results.length === 0) {
         return (
             <Text variant="subhead" tone="muted">
-                Nobody matches. If they are new, switch to New patient.
+                Nobody matches. If they are new here, register them below.
             </Text>
         );
     }
@@ -243,6 +168,14 @@ function PatientResults({
 const styles = StyleSheet.create({
     step: { gap: space[4] },
     section: { gap: space[3] },
+    // Sits under the results rather than beside the search, so it reads as what
+    // to do when the search has failed to find them — which is when it is wanted.
+    register: {
+        gap: space[1],
+        paddingTop: space[2],
+        borderTopWidth: border.hair,
+        borderTopColor: color.line,
+    },
     results: { gap: space[2] },
     resultsError: { gap: space[2] },
     result: {
