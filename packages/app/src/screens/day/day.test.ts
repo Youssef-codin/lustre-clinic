@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
+import { computeTotal } from '../../api/demo/rules';
 import { procedureLabel, splitDay } from './agenda';
 import {
     firstFreeSlot,
@@ -36,6 +37,9 @@ import {
 } from './patientDraft';
 import {
     bookedProcedures,
+    type ChargeableLine,
+    chargeableTotal,
+    checkupIsWaived,
     checkupToAdd,
     describeProcedure,
     groupByTooth,
@@ -1218,6 +1222,53 @@ describe('the checkup the arrival screen shows', () => {
     it('adds nothing when the clinic has no checkup set up', () => {
         const none = tree().filter((row) => !row.isCheckup);
         expect(checkupToAdd(none, [])).toBeNull();
+    });
+});
+
+/**
+ * The bug this covers: the chair and the desk summed every line, including the
+ * checkup the server had already waived, so "Running total" read one checkup
+ * higher than the confirmation screen — which spends `chargedTotal` and is
+ * therefore right. Wrong money, shown to the patient who is about to pay it.
+ *
+ * `computeTotal` is imported straight from the demo server so the two cannot
+ * drift apart again without a red test; it is the same rule as the real
+ * server's `util/money.ts`.
+ */
+describe('the total the chair and the desk show', () => {
+    const filling = { unitPrice: 220_000, quantity: 1, isCheckup: false };
+    const checkup = { unitPrice: 15_000, quantity: 1, isCheckup: true };
+
+    const totalOfList = (lines: ChargeableLine[]) => chargeableTotal(lines, checkupIsWaived(lines));
+
+    it('leaves the checkup out once other work is on the list', () => {
+        expect(totalOfList([filling, checkup])).toBe(220_000);
+    });
+
+    it('charges the checkup when it is the only thing done', () => {
+        expect(totalOfList([checkup])).toBe(15_000);
+    });
+
+    it('agrees with the server, which is what the confirmation spends', () => {
+        for (const lines of [[filling, checkup], [checkup], [filling], []]) {
+            expect(totalOfList(lines)).toBe(computeTotal(lines));
+        }
+    });
+
+    it('counts a quantity on the lines it does count', () => {
+        expect(totalOfList([{ unitPrice: 220_000, quantity: 3, isCheckup: false }, checkup])).toBe(660_000);
+    });
+
+    // The groups are struck under the visit's waiver, not under their own, or a
+    // checkup sitting alone in the no-tooth group would still charge for itself
+    // and the groups would not add up to the strip.
+    it('strikes the waived checkup out of its own tooth group too', () => {
+        const waived = checkupIsWaived([filling, checkup]);
+
+        expect(chargeableTotal([checkup], waived)).toBe(0);
+        expect(chargeableTotal([filling], waived) + chargeableTotal([checkup], waived)).toBe(
+            totalOfList([filling, checkup]),
+        );
     });
 });
 

@@ -20,7 +20,7 @@ import { Button, Chevron, SegmentedControl } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment, Visit, VisitPayment } from '../data';
 import { formatAmount, formatMoney } from '../money';
-import { toothGroupsOf, toothPosition } from '../procedures';
+import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12 } from '../time';
 import { VisitStatusChip } from './VisitStatusChip';
 
@@ -56,6 +56,10 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
     const [panel, setPanel] = useState<Panel>('treatment');
 
     const groups = toothGroupsOf(visit.procedures);
+    // "Total cost" below is `chargedTotal`, which the server struck the checkup
+    // out of. The group subtotals have to be struck the same way or the lines
+    // on this screen visibly do not add up to the total under them.
+    const waived = checkupIsWaived(visit.procedures);
     const settled = visit.balance <= 0;
     const day = dateKey(new Date(appointment.startsAt));
 
@@ -176,27 +180,33 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                                             </Text>
 
                                             <Text variant="callout" script="mono" weight="bold">
-                                                {formatAmount(
-                                                    group.items.reduce(
-                                                        (sum, line) => sum + line.lineTotal,
-                                                        0,
-                                                    ),
-                                                )}
+                                                {formatAmount(chargeableTotal(group.items, waived))}
                                             </Text>
                                         </View>
 
                                         <View>
                                             {group.items.map((line) => (
                                                 <View key={line.id} style={styles.line}>
-                                                    <Text
-                                                        variant="callout"
-                                                        weight="semibold"
-                                                        style={styles.grow}
-                                                    >
-                                                        {line.quantity > 1
-                                                            ? `${line.name} × ${line.quantity}`
-                                                            : line.name}
-                                                    </Text>
+                                                    <View style={styles.grow}>
+                                                        <Text variant="callout" weight="semibold">
+                                                            {line.quantity > 1
+                                                                ? `${line.name} × ${line.quantity}`
+                                                                : line.name}
+                                                        </Text>
+                                                        {/* The price stays on the line — it is what
+                                                            the checkup costs, and the row is the
+                                                            record that the patient was seen — so
+                                                            without this the total looks short by it. */}
+                                                        {waived && line.isCheckup ? (
+                                                            <Text
+                                                                variant="caption"
+                                                                tone="muted"
+                                                                style={styles.waivedNote}
+                                                            >
+                                                                Not charged — other work was done
+                                                            </Text>
+                                                        ) : null}
+                                                    </View>
                                                     <Text variant="eyebrow" tone="muted">
                                                         EGP
                                                     </Text>
@@ -373,6 +383,7 @@ const styles = StyleSheet.create({
     },
     blank: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
     grow: { flex: 1, minWidth: 0 },
+    waivedNote: { marginTop: space[1] },
 
     groups: { gap: space[3], paddingHorizontal: size.gutter, paddingTop: space[0.5] },
     group: {
