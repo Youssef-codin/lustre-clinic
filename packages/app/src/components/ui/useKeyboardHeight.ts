@@ -26,15 +26,24 @@ export function useKeyboardHeight(): number {
     const [height, setHeight] = useState(0);
 
     useEffect(() => {
-        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-        const show = Keyboard.addListener(showEvent, (event) => setHeight(event.endCoordinates.height));
-        const hide = Keyboard.addListener(hideEvent, () => setHeight(0));
+        // Android has no `will` events, iOS has them one frame early for the
+        // interactive travel. Listening to both covers the modal case: a
+        // `BottomSheetModal` is a separate window and on some devices the
+        // `DidShow` never reaches JS while `WillShow` does, and vice versa.
+        const showWill = Keyboard.addListener('keyboardWillShow', (event) =>
+            setHeight(event.endCoordinates.height),
+        );
+        const showDid = Keyboard.addListener('keyboardDidShow', (event) =>
+            setHeight(event.endCoordinates.height),
+        );
+        const hideWill = Keyboard.addListener('keyboardWillHide', () => setHeight(0));
+        const hideDid = Keyboard.addListener('keyboardDidHide', () => setHeight(0));
 
         return () => {
-            show.remove();
-            hide.remove();
+            showWill.remove();
+            showDid.remove();
+            hideWill.remove();
+            hideDid.remove();
         };
     }, []);
 

@@ -132,14 +132,13 @@ export function Sheet({
      * floating a nav bar above the keys.
      */
     const floor = space[6] + Math.max(insets.bottom, keyboard);
-
-    /**
-     * The tallest the content column may be, and the same figure the sheet is
-     * told to cap itself at. Stating it on the column too is what lets the
-     * scroll shrink: `flexShrink` needs a definite bound to shrink against, and
-     * without one the footer is laid out past the cap and clipped away.
-     */
-    const maxContent = window.height * maxHeightRatio - floor;
+    // `maxContent` is the cap when the keyboard is down. Shrinking it with the
+    // keyboard (using `floor`) is what made the sheet *drop* when a field was
+    // focused: `enableDynamicSizing` + a smaller `maxDynamicContentSize` tells
+    // the sheet its content no longer fits, so it re-measures shorter and the
+    // whole sheet slides down a keyboard height instead of the content lifting.
+    const baseFloor = space[6] + insets.bottom;
+    const maxContent = window.height * maxHeightRatio - baseFloor;
 
     /** True once a close is under way, so the two paths cannot re-enter. */
     const closing = useRef(false);
