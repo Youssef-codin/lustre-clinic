@@ -95,6 +95,32 @@ describe('the seeded day', () => {
         expect(appointments.every((row) => row.branchId === opensOn.id)).toBe(true);
     });
 
+    /**
+     * The demo was seeded on a five-minute grid, so it booked people at 10:25
+     * and 11:35 — legal, but nothing like a clinic's book, and the first thing
+     * anyone sees. Every seeded start now lands on a ten.
+     *
+     * The whole table, not just today's: the same grid draws the fortnight of
+     * history behind the day view and the week ahead of it, and the opening
+     * balance is the row that was written by hand and forgot.
+     */
+    it('books every appointment on a ten-minute boundary', () => {
+        const offGrid = getDb()
+            .appointments.filter((row) => row.startsAt.getMinutes() % 10 !== 0)
+            .map((row) => row.startsAt.toString());
+
+        expect(offGrid).toEqual([]);
+    });
+
+    // The picker steps from opening, so an open on a :45 puts every slot it
+    // offers back on a five however tidy the seeded rows are.
+    it('opens and closes the clinic on the same boundary', () => {
+        for (const day of settingsHandlers.schedule()) {
+            expect(Number(day.opensAt.slice(3)) % 10).toBe(0);
+            expect(Number(day.closesAt.slice(3)) % 10).toBe(0);
+        }
+    });
+
     it('puts exactly one patient in the chair', () => {
         const db = getDb();
 
