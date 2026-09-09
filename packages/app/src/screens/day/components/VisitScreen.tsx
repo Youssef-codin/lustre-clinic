@@ -29,7 +29,7 @@ import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
 import { formatAmount, formatMoney, poundsEntry } from '../money';
-import { checkupToAdd, toothGroupsOf, toothPosition } from '../procedures';
+import { chargeableTotal, checkupIsWaived, checkupToAdd, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
@@ -57,6 +57,14 @@ type DraftLine = {
      */
     unitPrice: number | null;
     quantity: number;
+    /**
+     * What the server said this line was, where it has already said it. The
+     * catalogue is the authority (`checkupIds` below) and it answers for every
+     * line once it lands — this is only so a checkout opened before the
+     * catalogue arrives does not paint one checkup too many for a frame, which
+     * on this screen is a wrong price in front of the person paying it.
+     */
+    isCheckup: boolean;
 };
 
 /**
@@ -127,6 +135,7 @@ function seed(appointment: Appointment, visit: Visit | undefined): DraftLine[] {
             tooth: line.tooth,
             unitPrice: line.unitPrice,
             quantity: line.quantity,
+            isCheckup: line.isCheckup,
         }));
     }
 
@@ -141,6 +150,8 @@ function seed(appointment: Appointment, visit: Visit | undefined): DraftLine[] {
         tooth: line.tooth,
         unitPrice: null,
         quantity: line.quantity,
+        // The booking does not carry the flag; the catalogue answers for these.
+        isCheckup: false,
     }));
 }
 
@@ -192,6 +203,21 @@ export function VisitScreen({
         return map;
     }, [catalogue.data]);
 
+    // Which procedure holds the checkup flag — the same row `visit.checkIn`
+    // reads, so the waiver below lands on the same line the server waives.
+    // Asked of the catalogue rather than of the line, because a checkup can
+    // reach this list three ways: seeded below, planned by the booking, or
+    // picked out of the sheet in the chair. Only the first would carry a flag.
+    const checkupIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const category of catalogue.data ?? []) {
+            for (const row of category.selectable ? [category] : category.children) {
+                if (row.isCheckup) ids.add(row.id);
+            }
+        }
+        return ids;
+    }, [catalogue.data]);
+
     if (!checkupSeeded && catalogue.data) {
         setCheckupSeeded(true);
         const checkup = checkupToAdd(catalogue.data, lines);
@@ -206,16 +232,29 @@ export function VisitScreen({
                     tooth: null,
                     unitPrice: null,
                     quantity: 1,
+                    isCheckup: true,
                 },
             ]);
         }
     }
 
     const priceOf = (line: DraftLine): number => line.unitPrice ?? prices.get(line.procedureId) ?? 0;
-    const subtotalOf = (rows: readonly DraftLine[]): number =>
-        rows.reduce((sum, line) => sum + priceOf(line) * line.quantity, 0);
+    const isCheckupLine = (line: DraftLine): boolean => line.isCheckup || checkupIds.has(line.procedureId);
+    const priced = (rows: readonly DraftLine[]) =>
+        rows.map((line) => ({
+            unitPrice: priceOf(line),
+            quantity: line.quantity,
+            isCheckup: isCheckupLine(line),
+        }));
 
     const groups = toothGroupsOf(lines);
+    // The waiver is a fact about the visit, so it is decided once over the whole
+    // list and then applied to the groups — a subtotal struck under its own
+    // group would leave the checkup charging for itself in the no-tooth group
+    // while the strip below had already dropped it.
+    const waived = checkupIsWaived(priced(lines));
+    const subtotalOf = (rows: readonly DraftLine[]): number => chargeableTotal(priced(rows), waived);
+
     const total = subtotalOf(lines);
     const empty = lines.length === 0;
 
@@ -268,6 +307,8 @@ export function VisitScreen({
                 tooth,
                 unitPrice: picked.price,
                 quantity: 1,
+                // The pick does not carry the flag; the catalogue answers for it.
+                isCheckup: false,
             },
         ]);
         setAsking(null);
@@ -526,6 +567,19 @@ export function VisitScreen({
                                                                 style={styles.variant}
                                                             >
                                                                 {line.variant}
+                                                            </Text>
+                                                        ) : null}
+                                                        {/* The price stays on the line — it is what
+                                                            the checkup costs, and the row is the
+                                                            record that the patient was seen — so
+                                                            without this the total looks short by it. */}
+                                                        {waived && isCheckupLine(line) ? (
+                                                            <Text
+                                                                variant="caption"
+                                                                tone="muted"
+                                                                style={styles.variant}
+                                                            >
+                                                                Not charged — other work was done
                                                             </Text>
                                                         ) : null}
                                                     </View>

@@ -45,10 +45,22 @@ import { buildPatientRef, buildRef, computeTotal, normalizePhone, uuidv7 } from 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
 
+/**
+ * The grid the seeded day is drawn on. Ten rather than five because five is how
+ * a real book is *allowed* to be written, not how one looks: a clinic sets
+ * appointments at 10:20 and 10:40, and a demo full of 10:25 and 10:35 reads as
+ * a machine's output rather than a day someone planned.
+ *
+ * Every seeded start goes through `at`, so this is the only place the grid is
+ * decided. It is not `MIN_SLOT_STEP` — the picker still lets a secretary put
+ * someone on a five, and that is a rule about what is permitted, not about what
+ * the demo should be showing.
+ */
+const GRID = 10 * MINUTE;
+
 /** Minutes are rounded so the seeded day sits on the clock rather than on the launch. */
 function at(offsetMinutes: number, from: number = Date.now()): Date {
-    const rounded = Math.round((from + offsetMinutes * MINUTE) / (5 * MINUTE)) * (5 * MINUTE);
-    return new Date(rounded);
+    return new Date(Math.round((from + offsetMinutes * MINUTE) / GRID) * GRID);
 }
 
 function localHhMm(date: Date): string {
@@ -361,7 +373,9 @@ function writeClosedVisit(
 
 /** Debt carried over from the old system: a synthetic appointment and visit at the cutoff. */
 function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow, amount: number): void {
-    const cutoff = new Date(Date.now() - 60 * DAY);
+    // On the grid like every other row, even though nobody was ever booked into
+    // it — it is drawn in the patient's history beside real appointments.
+    const cutoff = at(0, Date.now() - 60 * DAY);
 
     const appointment: AppointmentRow = {
         id: uuidv7(),
@@ -369,7 +383,7 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
         patientId: patient.id,
         branchId: branch.id,
         startsAt: cutoff,
-        durationMinutes: 5,
+        durationMinutes: 10,
         note: 'Opening balance carried over from the old system',
         status: 'done',
         channel: 'desk',
@@ -470,7 +484,9 @@ export function seedDemoDb(): DemoDb {
         for (let slot = 0; slot < 3; slot += 1) {
             const index = (daysAgo * 3 + slot) % patients.length;
             const lines = history[(daysAgo + slot) % history.length] ?? [];
-            const startsAt = new Date(midday.getTime() + slot * 75 * MINUTE);
+            // 90, not 75: three 30-minute visits spread across the same midday,
+            // but landing on 11:00 / 12:30 / 14:00 rather than on a quarter past.
+            const startsAt = new Date(midday.getTime() + slot * 90 * MINUTE);
 
             // Roughly one visit in five leaves something on the books, which is
             // what puts a spread of debtors on the money screens.
@@ -659,11 +675,18 @@ export function seedDemoDb(): DemoDb {
         .filter((row) => !row.isOpeningBalance && sameLocalDay(row.startsAt, new Date()))
         .map((row) => row.startsAt.getTime());
 
-    const earliest = Math.min(...todayStamps, Date.now());
-    const latest = Math.max(...todayStamps, Date.now());
+    // `now` is on the grid like the stamps are, so that the window is still on
+    // it in the corner where now is the widest point — a seed run just after
+    // midnight, whose earlier appointments all fall on yesterday.
+    const now = at(0).getTime();
+    const earliest = Math.min(...todayStamps, now);
+    const latest = Math.max(...todayStamps, now);
 
-    const opensAt = clampToDay(new Date(earliest - 45 * MINUTE), '00:00');
-    const closesAt = clampToDay(new Date(latest + 90 * MINUTE), '23:45');
+    // Padded by whole multiples of the grid, and pinned to one: the hours are
+    // what the slot picker draws its column against, so an 09:15 open puts
+    // every slot in the demo back on a five.
+    const opensAt = clampToDay(new Date(earliest - 50 * MINUTE), '00:00');
+    const closesAt = clampToDay(new Date(latest + 90 * MINUTE), '23:50');
 
     // Late enough in the evening, the window runs past midnight at both ends
     // and both get pinned — which can leave opening after closing, and
