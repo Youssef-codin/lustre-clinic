@@ -5,8 +5,11 @@
  * wants the whole screen, so answering this pushes `BookingScreen` and the
  * sheet gets out of the way.
  *
- * It carries no mutation. Nothing is written until the page's Book button, so
- * dismissing this costs nothing and there is no in-flight state to protect.
+ * It carries no mutation of its own. Nothing is written until the page's Book
+ * button, so dismissing this costs nothing and there is no in-flight state to
+ * protect — but `onRegisterNew` leads to `PatientEditScreen`, which does write,
+ * and a patient registered through it exists whether or not the booking that
+ * sent them there is ever finished.
  */
 import { useState } from 'react';
 import { Button, Sheet } from '../../../components/ui';
@@ -17,9 +20,16 @@ export type BookPatientSheetProps = {
     visible: boolean;
     onClose: () => void;
     onPicked: (draft: PatientDraft) => void;
+    /**
+     * Nobody on file matches, so go and make the record. The sheet is dismissed
+     * on the way — the editor is a full page and this would otherwise be left
+     * open underneath it — and what was typed into the search is not kept, which
+     * is why this is a different callback from `onPicked` rather than a mode.
+     */
+    onRegisterNew: () => void;
 };
 
-export function BookPatientSheet({ visible, onClose, onPicked }: BookPatientSheetProps) {
+export function BookPatientSheet({ visible, onClose, onPicked, onRegisterNew }: BookPatientSheetProps) {
     const [draft, setDraft] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
 
     return (
@@ -27,7 +37,7 @@ export function BookPatientSheet({ visible, onClose, onPicked }: BookPatientShee
             visible={visible}
             onClose={onClose}
             title="Who is it for?"
-            subtitle="Someone on file, or a patient who is new here."
+            subtitle="Search the patients on file, or register someone new."
             testID="book-patient-sheet"
             footer={
                 <Button
@@ -39,7 +49,7 @@ export function BookPatientSheet({ visible, onClose, onPicked }: BookPatientShee
                 />
             }
         >
-            <PatientPicker value={draft} onChange={setDraft} active={visible} />
+            <PatientPicker value={draft} onChange={setDraft} active={visible} onRegisterNew={onRegisterNew} />
         </Sheet>
     );
 }

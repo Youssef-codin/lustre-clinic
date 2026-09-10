@@ -9,6 +9,18 @@ import { color, font, type } from './tokens';
 // it has no Arabic-Indic coverage and swapping faces would break tabular
 // alignment (§7.11). The `live` tone is legible on `ink` only — never on a
 // white ground.
+//
+// **The ramp is the scale, and the OS does not get a vote.** `allowFontScaling`
+// defaults to false here, which is the one place it has to be set for the whole
+// app to obey it. Android's font size setting multiplies every point size — a
+// phone on 1.3 renders the whole ramp 30% over the tokens — and this design
+// sizes its containers in fixed dp against those tokens: an 80dp time column,
+// a `size.row` list item, a chip built to fit its label. Scaled type in a fixed
+// box does not reflow, it clips, and the first thing to go is the meridiem on a
+// clock. Honouring the setting properly means every one of those containers
+// growing with it, which is a different design, not a prop.
+//
+// A screen that genuinely wants to scale passes `allowFontScaling` itself.
 export type TextVariant = keyof typeof type;
 
 export type TextWeight = keyof typeof font.sans;
@@ -111,6 +123,7 @@ export function Text({
     script,
     style,
     children,
+    allowFontScaling = false,
     ...rest
 }: TextProps) {
     const resolvedScript: Script =
@@ -118,6 +131,7 @@ export function Text({
 
     return (
         <RNText
+            allowFontScaling={allowFontScaling}
             style={[
                 type[variant],
                 styles.metrics,

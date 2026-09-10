@@ -13,7 +13,8 @@
  * errors are held rather than thrown so a failed write ends up on screen.
  */
 // biome-ignore lint/style/noRestrictedImports: this file is the query layer — one effect is the fetch the key subscribes to, the other tracks mount so a late answer does not set state on a gone screen
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { dataGeneration, subscribeToDataReset } from '../../../api';
 import { asRequestError, type RequestError } from './client';
 
 export type QueryStatus = 'loading' | 'success' | 'error';
@@ -32,6 +33,12 @@ export function useLocalQuery<T>(
     options: { enabled?: boolean } = {},
 ): QueryResult<T> {
     const enabled = options.enabled ?? true;
+
+    // The day tabs stay mounted, so nothing about entering a demo or reseeding
+    // one changes a key on its own — these hooks would go on drawing a clinic
+    // that has been replaced until the next tap. The generation joins the key
+    // for exactly that reason (`api/dataReset.ts`).
+    const generation = useSyncExternalStore(subscribeToDataReset, dataGeneration);
 
     const [data, setData] = useState<T | undefined>(undefined);
     const [error, setError] = useState<RequestError | null>(null);
@@ -72,7 +79,7 @@ export function useLocalQuery<T>(
     useEffect(() => {
         if (!enabled) return;
         void load(false);
-    }, [key, enabled, load]);
+    }, [key, generation, enabled, load]);
 
     const refetch = useCallback(() => {
         void load(data !== undefined);

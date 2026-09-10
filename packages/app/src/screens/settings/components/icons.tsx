@@ -37,6 +37,7 @@ import {
     Power,
     RefreshCw,
     Repeat,
+    RotateCcw,
     Tags,
     X,
 } from 'lucide-react-native';
@@ -112,6 +113,9 @@ export const PowerIcon = icon(Power, { size: 15, stroke: color.ink, width: 2.2 }
  * nothing to match and the nearest library glyph is the honest answer.
  */
 export const DataEntryIcon = icon(ClipboardList, ROW);
+
+/** Putting the demo's clinic back the way it opens. No mockup counterpart either. */
+export const ResetDemoIcon = icon(RotateCcw, ROW);
 
 /** Taking a procedure out of the catalogue. */
 export const HideIcon = icon(EyeOff, { size: 15, stroke: color.ink, width: 2.2 });

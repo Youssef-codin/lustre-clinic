@@ -314,8 +314,21 @@ export interface Arrivals {
     inChairAt: ReadonlyMap<string, string>;
 }
 
+/**
+ * The `visits` row and nothing else. Separate from `visitForAppointment`
+ * because the day view calls this once per appointment and must not pay for
+ * detail it does not read — the two stamps it wants are both on the row.
+ */
+async function visitRowForAppointment(appointmentId: string): Promise<VisitRow | null> {
+    const row = await wrap<VisitRow | null>(() => trpcClient.visit.byAppointment.query({ appointmentId }));
+    if (row) visitIds.set(appointmentId, row.id);
+    return row;
+}
+
 export async function checkInTimes(appointmentIds: readonly string[]): Promise<Arrivals> {
-    const visits = await Promise.all(appointmentIds.map((id) => visitForAppointment(id).catch(() => null)));
+    const visits = await Promise.all(
+        appointmentIds.map((id) => visitRowForAppointment(id).catch(() => null)),
+    );
 
     const checkedInAt = new Map<string, string>();
     const inChairAt = new Map<string, string>();
@@ -330,11 +343,24 @@ export async function checkInTimes(appointmentIds: readonly string[]): Promise<A
     return { checkedInAt, inChairAt };
 }
 
+/**
+ * The whole visit, for the screens that draw one.
+ *
+ * `visit.byAppointment` answers with the `visits` row alone — no procedures, no
+ * payments, and none of the derived `paidTotal` or `balance` — so its result
+ * can never be handed to a screen. It used to be, cast straight to `Visit` by
+ * `wrap`, and because that cast is unchecked nothing failed to compile: the
+ * first open of any visit this session had not created threw inside the render
+ * (`VisitViewScreen` reads `visit.procedures`) and the pane's boundary caught it
+ * as "this tab stopped working". The second open worked, which is what made it
+ * look random — the failed call had cached the id on its way past, so the next
+ * one took the `visitById` branch and got the real shape.
+ *
+ * So the id is resolved here and the visit is always read back through
+ * `visitById`. Only the first open of an unknown appointment pays for the
+ * second call; every later one is a cache hit, as before.
+ */
 export async function visitForAppointment(appointmentId: string): Promise<Visit | null> {
-    const known = visitIds.get(appointmentId);
-    if (known) return api.visitById(known);
-
-    const visit = await wrap<Visit | null>(() => trpcClient.visit.byAppointment.query({ appointmentId }));
-    if (visit) visitIds.set(appointmentId, visit.id);
-    return visit;
+    const known = visitIds.get(appointmentId) ?? (await visitRowForAppointment(appointmentId))?.id;
+    return known ? api.visitById(known) : null;
 }

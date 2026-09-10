@@ -6,9 +6,13 @@
 # generates from app.json. That APK embeds expo-dev-client, which gives us the
 # same reload/dev-menu loop Expo Go would have.
 #
-#   ./device.sh          build (if needed), install, launch, start the bundler
-#   ./device.sh --build  force a native rebuild first
-#   ./device.sh --start  bundler only; APK already on the phone
+#   ./device.sh            build (if needed), install, launch, start the bundler
+#   ./device.sh --build    force a native rebuild first
+#   ./device.sh --release  build and install the release APK, no bundler — the
+#                          only honest way to judge how the app feels, since a
+#                          dev build runs Reanimated and the new architecture
+#                          unoptimised
+#   ./device.sh --start    bundler only; APK already on the phone
 #
 # `adb reverse` tunnels Metro and the API over the cable, so on-device
 # `localhost` means this machine — no LAN IP anywhere in the codebase, and it
@@ -26,9 +30,10 @@ export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
 mode="run"
 case "${1:-}" in
     --build) mode="build" ;;
+    --release) mode="release" ;;
     --start) mode="start" ;;
     "") ;;
-    *) echo "unknown option: $1 (expected --build, --start, or nothing)" >&2; exit 2 ;;
+    *) echo "unknown option: $1 (expected --build, --release, --start, or nothing)" >&2; exit 2 ;;
 esac
 
 if [ ! -d "$ANDROID_HOME" ]; then
@@ -70,9 +75,15 @@ if [ -n "$abi" ]; then
 fi
 
 # Metro so the JS bundle loads; API so tRPC calls to localhost:3000 reach us.
-adb -s "$serial" reverse "tcp:${METRO_PORT}" "tcp:${METRO_PORT}" >/dev/null
+# A release APK carries its own bundle and never talks to 8081, so it gets the
+# API reverse only — which it still wants, for a build pointed at a real server
+# over the cable rather than at demo mode.
+if [ "$mode" != "release" ]; then
+    adb -s "$serial" reverse "tcp:${METRO_PORT}" "tcp:${METRO_PORT}" >/dev/null
+    echo "Reversed port ${METRO_PORT} (metro) onto the device."
+fi
 adb -s "$serial" reverse "tcp:${API_PORT}" "tcp:${API_PORT}" >/dev/null
-echo "Reversed ports ${METRO_PORT} (metro) and ${API_PORT} (api) onto the device."
+echo "Reversed port ${API_PORT} (api) onto the device."
 
 cd "$(dirname "$0")/.."
 
@@ -95,9 +106,38 @@ case "$serial" in
         }') ;;
 esac
 
-# `expo run:android` prebuilds the native project when missing, builds the debug
-# APK with Gradle, installs it over adb, and then starts the bundler.
+# `expo run:android` prebuilds the native project when missing, builds the APK
+# with Gradle, installs it over adb, and then starts the bundler.
+# Release goes through Gradle directly rather than `expo run:android --variant
+# release`, which builds the right APK and then launches the wrong thing: the
+# APK carries expo-dev-client (a plain dependency, in every variant), so Expo
+# starts Metro and deep-links into `exp+lustre-clinic://expo-development-client`
+# with a bundler URL. The app then runs *Metro's* JS, and the embedded release
+# bundle — the only reason to build this variant — is never executed. Timing an
+# app in that state measures the dev bundle.
+#
+# So: assemble, install, and start the launcher activity by name. No bundler,
+# nothing to reload, and it exits when the app is up. Signed with the debug
+# keystore (`android/app/build.gradle` points the release config at it), so
+# there is no signing setup for a test build; it is not a store artefact.
+if [ "$mode" = "release" ]; then
+    apk="android/app/build/outputs/apk/release/app-release.apk"
+
+    (cd android && ./gradlew assembleRelease)
+
+    echo "Installing $apk"
+    adb -s "$serial" install -r "$apk"
+
+    # `-S` stops it first: a `singleTask` activity that is already up would be
+    # brought forward holding the previous build's state.
+    adb -s "$serial" shell am start -S -n com.lustre.clinic/.MainActivity
+    echo "Launched com.lustre.clinic (release, embedded bundle)."
+    exit 0
+fi
+
 args=(run:android --device "${name:-$serial}" --port "$METRO_PORT")
-[ "$mode" = "build" ] && args+=(--no-build-cache)
+if [ "$mode" = "build" ]; then
+    args+=(--no-build-cache)
+fi
 
 exec bunx expo "${args[@]}"

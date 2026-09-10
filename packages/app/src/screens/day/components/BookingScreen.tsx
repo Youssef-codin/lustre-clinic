@@ -24,7 +24,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
-import { Button, Callout, Chevron, Chip, Select, Textarea } from '../../../components/ui';
+import { Button, Callout, Chevron, Chip, Select, Textarea, useKeyboardHeight } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { dayLabel, fortnightSlots, slotIsFree, timeLabel, workingDaysIn } from '../booking';
 import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
@@ -118,6 +118,7 @@ export function BookingScreen({
     // the end of the content under a notice at full scroll. `BAR_HEIGHT` is the
     // bare bar, which is what the dock measures to before the first layout.
     const [dockHeight, setDockHeight] = useState(BAR_HEIGHT);
+    const keyboard = useKeyboardHeight();
 
     // A walk-in is always "now", whatever day the screen behind is on — the only
     // thing that rules it out is a branch that is not working today. It moves
@@ -592,8 +593,16 @@ export function BookingScreen({
                 transparency fixes, because the content never reached under it.
                 `box-none` so the empty width of the dock does not eat taps meant
                 for the times behind it. */}
+            {/* The keyboard goes in the dock's own floor. The dock is pinned to
+                the bottom of a window that `edgeToEdgeEnabled` stops resizing
+                (see `ui/useKeyboardHeight`), so with the keys up it stayed put
+                and they were drawn over the Note field and the step's button.
+                Its bottom edge is fixed and its height is auto, so padding the
+                floor grows it upwards and carries both clear — and because
+                `dockHeight` is measured off this same view, the scroll's bottom
+                padding follows without being told. */}
             <View
-                style={styles.dock}
+                style={[styles.dock, { paddingBottom: keyboard }]}
                 pointerEvents="box-none"
                 onLayout={(event) => setDockHeight(event.nativeEvent.layout.height)}
             >

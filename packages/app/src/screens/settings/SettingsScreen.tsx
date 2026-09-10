@@ -17,7 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { memo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { type RouterOutput, useTRPC } from '../../api';
+import { type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel, useAfterSheet } from '../../components/ui';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
@@ -30,7 +30,7 @@ import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
-import { DataEntryIcon, SettingsIcon } from './components/icons';
+import { DataEntryIcon, ResetDemoIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
@@ -93,6 +93,8 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
         routes.popToRoot();
         setSwitching(false);
     }
+
+    const demo = useDemoMode();
 
     const [localRole, setLocalRole] = useState<ClientRole>('doctor');
     const role = roleProp ?? localRole;
@@ -223,6 +225,26 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                 />
                             </Group>
                         )}
+
+                        {/* Only in demo mode, and only here: a demo is given
+                            more than once, and the second run should not open
+                            on the first one's cancellations. `resetDemoData`
+                            reports the reseed to `api/dataReset`, which is what
+                            drops the clinic the query cache and the day view's
+                            own hooks are still holding. */}
+                        {demo.enabled ? (
+                            <Group title="DEMO">
+                                <SettingsRow
+                                    icon={<ResetDemoIcon />}
+                                    label="Reset demo data"
+                                    sub="Back to the clinic the demo opens on"
+                                    onPress={() => {
+                                        void resetDemoData();
+                                    }}
+                                    testID="settings-reset-demo"
+                                />
+                            </Group>
+                        ) : null}
 
                         <Group title="ABOUT">
                             <SettingsRow

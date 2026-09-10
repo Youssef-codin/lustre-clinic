@@ -22,7 +22,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { poundsToPiastres, toPounds } from '../../../components/domain/money';
 import { duration } from '../../../components/ui';
-import { border, color, radius, size, space, Text } from '../../../theme';
+import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import type { ProcedureCategory, RequestError } from '../data';
 import { groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import { PlusIcon, XIcon } from './icons';
@@ -302,12 +302,14 @@ const styles = StyleSheet.create({
     emptyBody: { textAlign: 'center' },
 
     groups: { gap: space[3] },
+    // See `VisitScreen`'s `cost`: a `TextInput` inherits nothing from
+    // `theme/Text`, so the family is named here and the weight is left off.
     price: {
         minWidth: 62,
         paddingVertical: space[1],
         textAlign: 'right',
-        fontSize: 15,
-        fontWeight: '700',
+        ...type.body,
+        fontFamily: font.mono.medium,
         color: color.ink,
     },
     kill: {

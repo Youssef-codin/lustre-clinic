@@ -19,13 +19,25 @@
 // rule do the separating.
 //
 // The write crosses Tailscale, so Save spins, cancel is disabled under it, and
-// a failure keeps every field on screen with a `Callout` saying why. Android is
-// `adjustResize`, so the window shrinks around the keyboard and the footer
-// stays above it without being translated.
+// a failure keeps every field on screen with a `Callout` saying why.
+//
+// The footer clears the keyboard by padding its own floor, not by being
+// translated. It used to rely on `adjustResize` shrinking the window around the
+// keyboard, which stopped being true when `edgeToEdgeEnabled` arrived as the
+// Expo SDK 54+ default: the app is laid out behind the IME, the window never
+// gets shorter, and the footer sat under the keys with the last fields of the
+// form. See `ui/useKeyboardHeight` for the whole of it.
 import { resolveLabel } from '@lustre/shared';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Callout, EmptyState, ProgressBar, SkeletonRows } from '../../components/ui';
+import {
+    Button,
+    Callout,
+    EmptyState,
+    ProgressBar,
+    SkeletonRows,
+    useKeyboardHeight,
+} from '../../components/ui';
 import { useLocale } from '../../shell/localeStore';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
@@ -61,8 +73,16 @@ export type PatientEditScreenProps = {
      * write is the one thing this screen never does.
      */
     onSavingChange?: (saving: boolean) => void;
-    /** The patient that now exists, or the one that was just corrected. */
-    onSaved: (patientId: string) => void;
+    /**
+     * The patient that now exists, or the one that was just corrected.
+     *
+     * `basics` comes with a registration only. The booking flow carries on with
+     * the patient it has just created and needs their name and number to say who
+     * the booking is for; it has no record to read them from yet, and this screen
+     * is holding the values it just sent. Correcting a record passes nothing —
+     * the caller there already has the patient.
+     */
+    onSaved: (patientId: string, basics?: { name: string; phone: string }) => void;
 };
 
 export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
@@ -150,7 +170,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
             const saved = await create.mutate(input);
             onSavingChange?.(false);
             if (!saved) return;
-            onSaved(saved.id);
+            onSaved(saved.id, { name: input.name, phone: input.phone });
             return;
         }
 
@@ -418,8 +438,10 @@ function SaveBar({
     pending: boolean;
     onPress: () => void;
 }) {
+    const keyboard = useKeyboardHeight();
+
     return (
-        <View style={styles.saveBar}>
+        <View style={[styles.saveBar, { paddingBottom: Math.max(space[3], keyboard) }]}>
             <Button
                 label={pending ? 'Saving…' : label}
                 onPress={onPress}
@@ -480,7 +502,8 @@ const styles = StyleSheet.create({
     // inset and anything added here is dead grey between the two.
     saveBar: {
         paddingHorizontal: size.gutter,
-        paddingVertical: space[3],
+        // `paddingBottom` is supplied inline — it carries the keyboard.
+        paddingTop: space[3],
         borderTopWidth: border.hair,
         borderTopColor: color.line,
         backgroundColor: color.canvas,

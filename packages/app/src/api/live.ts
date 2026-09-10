@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { api } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
+import { subscribeToDemoEvents, useDemoMode } from './demo';
 import { queryClient } from './queryClient';
 
 // `/ws` tells this phone what the other phone changed (SPEC §13). Payloads carry
@@ -101,5 +102,17 @@ function connect(onEvent: (event: WsEvent) => void): () => void {
 }
 
 export function useServerEvents(): void {
-    useEffect(() => connect(invalidate), []);
+    // Demo mode has no socket to open, but it has the same events: the handlers
+    // announce them locally (`demo/events.ts`) and they drive the same
+    // invalidation, so the money dashboard refreshes after a payment there for
+    // the same reason it does here.
+    //
+    // A dependency rather than a read at mount. This hook is mounted by
+    // `ApiProvider`, which is above both the setup screen and the shell, so it
+    // is already running when somebody taps "Run in demo mode" — asking once
+    // would leave that session subscribed to a socket that will never open and
+    // deaf to the events it does get, until the app was next launched.
+    const { enabled } = useDemoMode();
+
+    useEffect(() => (enabled ? subscribeToDemoEvents(invalidate) : connect(invalidate)), [enabled]);
 }

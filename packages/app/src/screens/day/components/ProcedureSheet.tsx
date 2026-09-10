@@ -241,7 +241,15 @@ const styles = StyleSheet.create({
         borderRadius: radius.lg,
         backgroundColor: color.surface,
     },
-    rowOpen: { backgroundColor: color.surface2 },
+    // Open, the heading is the top of one shape rather than a pill of its own:
+    // `variants` carries the same ground and rounds the bottom, so leaving the
+    // heading's bottom corners rounded curved them into a square-topped panel
+    // and left a notch down each side.
+    rowOpen: {
+        backgroundColor: color.surface2,
+        borderBottomStartRadius: 0,
+        borderBottomEndRadius: 0,
+    },
     grow: { flex: 1 },
     variants: {
         gap: space[1.5],
