@@ -4,6 +4,7 @@ import { createTRPCClient, httpBatchLink, splitLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
 import { timing } from './config';
 import { markOffline, markOnline, resolveBaseUrl } from './connection';
+import { subscribeToDataReset } from './dataReset';
 import { demoLink, isDemoMode } from './demo';
 import { queryClient } from './queryClient';
 
@@ -73,3 +74,10 @@ export const trpcClient = createTRPCClient<AppRouter>({
 });
 
 export const api = createTRPCOptionsProxy<AppRouter>({ client: trpcClient, queryClient });
+
+// The cache is shared across the split above, and its keys say nothing about
+// which side answered — so entering or leaving a demo, or reseeding one, has to
+// throw away what the other left behind. `clear` rather than `invalidate`: the
+// rows are gone, not stale, and an invalidation would keep painting them until
+// the refetch lands (`dataReset.ts`).
+subscribeToDataReset(() => queryClient.clear());

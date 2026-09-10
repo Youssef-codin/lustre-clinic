@@ -7,7 +7,7 @@ import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type ClinicDayRow, getDb, type SettingsRow, save } from '../db';
 import { broadcast } from '../events';
-import { DemoError } from '../rules';
+import { assignDefined, DemoError } from '../rules';
 import type { Dated } from '../wire';
 import { branchHandlers } from './branch';
 
@@ -60,7 +60,7 @@ export const settingsHandlers = {
             );
         }
 
-        Object.assign(current, input, { durationOptions, defaultDuration, updatedAt: new Date() });
+        assignDefined(current, input, { durationOptions, defaultDuration, updatedAt: new Date() });
         save();
 
         broadcast(WS_EVENT.SETTINGS_UPDATED);

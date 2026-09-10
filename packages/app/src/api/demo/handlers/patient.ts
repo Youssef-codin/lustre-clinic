@@ -10,7 +10,14 @@
  */
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
-import { ageFromBirthDate, buildPatientRef, DemoError, normalizePhone, uuidv7 } from '../rules';
+import {
+    ageFromBirthDate,
+    assignDefined,
+    buildPatientRef,
+    DemoError,
+    normalizePhone,
+    uuidv7,
+} from '../rules';
 import type { Dated } from '../wire';
 import { type Answers, customQuestionHandlers } from './customQuestion';
 
@@ -183,7 +190,7 @@ export const patientHandlers = {
             ? customQuestionHandlers.validatePatch(answersOf(current), patch.custom)
             : undefined;
 
-        Object.assign(current, patch, {
+        assignDefined(current, patch, {
             ...(patch.phone ? { phone: normalizePhone(patch.phone) } : {}),
             ...(custom ? { custom } : {}),
         });

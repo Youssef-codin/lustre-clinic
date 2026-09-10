@@ -7,7 +7,7 @@
 import { ERROR_CODE } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type ProcedureTypeRow, save } from '../db';
-import { DemoError, uuidv7 } from '../rules';
+import { assignDefined, DemoError, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 
 type Procedure = Dated<RouterOutput['procedure']['list'][number]>;
@@ -149,7 +149,7 @@ export const procedureHandlers = {
             }
         }
 
-        Object.assign(current, patch, {
+        assignDefined(current, patch, {
             parentId: patch.parentId === undefined ? current.parentId : patch.parentId,
         });
         if (patch.isCheckup) clearOtherCheckups(current.id);

@@ -686,7 +686,14 @@ export function seedDemoDb(): DemoDb {
     // what the slot picker draws its column against, so an 09:15 open puts
     // every slot in the demo back on a five.
     const opensAt = clampToDay(new Date(earliest - 50 * MINUTE), '00:00');
-    const closesAt = clampToDay(new Date(latest + 90 * MINUTE), '23:50');
+
+    // The pad runs past midnight for a demo opened late in the evening, and the
+    // fallback it lands on is `23:50` — which is *behind* the clock between
+    // 23:50 and 23:59, so the day view would open on a clinic that is closed.
+    // Never earlier than now is what this file's header promises.
+    const padded = clampToDay(new Date(latest + 90 * MINUTE), '23:50');
+    const nowHhMm = localHhMm(new Date());
+    const closesAt = padded > nowHhMm ? padded : '23:59';
 
     // Late enough in the evening, the window runs past midnight at both ends
     // and both get pinned — which can leave opening after closing, and

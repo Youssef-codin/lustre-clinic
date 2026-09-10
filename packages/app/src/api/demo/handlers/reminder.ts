@@ -7,10 +7,9 @@
  * the row is the record that no message was owed, and one reminder belongs to
  * one appointment, so a later reinstatement reuses it.
  */
-import { REMINDER_PLACEHOLDERS, WS_EVENT } from '@lustre/shared';
+import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, type ReminderRow, save } from '../db';
-import { broadcast } from '../events';
 import { DemoError, toWhatsAppNumber, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 import { settingsHandlers } from './settings';
@@ -113,7 +112,7 @@ export const reminderHandlers = {
             });
     },
 
-    markSent(input: RouterInput['reminder']['markSent']): ReminderRow {
+    markSent(input: RouterInput['reminder']['markSent']): Dated<RouterOutput['reminder']['markSent']> {
         const row = requireReminder(input.id);
         row.status = 'sent';
         row.sentAt = new Date();
@@ -122,7 +121,9 @@ export const reminderHandlers = {
         return row;
     },
 
-    markSkipped(input: RouterInput['reminder']['markSkipped']): ReminderRow {
+    markSkipped(
+        input: RouterInput['reminder']['markSkipped'],
+    ): Dated<RouterOutput['reminder']['markSkipped']> {
         const row = requireReminder(input.id);
         row.status = 'skipped';
 
@@ -133,8 +134,8 @@ export const reminderHandlers = {
     dismissToday(
         input: RouterInput['reminder']['dismissToday'],
     ): Dated<RouterOutput['reminder']['dismissToday']> {
-        const settings = settingsHandlers.dismissRemindersFor(input.date);
-        broadcast(WS_EVENT.SETTINGS_UPDATED);
-        return settings;
+        // `dismissRemindersFor` broadcasts `SETTINGS_UPDATED` itself; saying it
+        // again here makes every subscriber refetch twice for one dismissal.
+        return settingsHandlers.dismissRemindersFor(input.date);
     },
 };

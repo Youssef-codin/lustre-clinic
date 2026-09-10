@@ -20,7 +20,7 @@
  */
 // biome-ignore lint/style/noRestrictedImports: subscribes to the native `Keyboard` show/hide events; React has no other way to hear the keyboard move
 import { useEffect, useState } from 'react';
-import { Keyboard, Platform } from 'react-native';
+import { Keyboard } from 'react-native';
 
 export function useKeyboardHeight(): number {
     const [height, setHeight] = useState(0);

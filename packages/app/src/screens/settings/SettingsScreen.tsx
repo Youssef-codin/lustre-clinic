@@ -17,7 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import { memo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { queryClient, type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
+import { type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import { Card, CardDivider, PushView, ScreenHeader, SectionLabel, useAfterSheet } from '../../components/ui';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
@@ -228,10 +228,10 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
 
                         {/* Only in demo mode, and only here: a demo is given
                             more than once, and the second run should not open
-                            on the first one's cancellations. The reseed is
-                            followed by an invalidation because the query cache
-                            is still holding the clinic that has just been
-                            replaced. */}
+                            on the first one's cancellations. `resetDemoData`
+                            reports the reseed to `api/dataReset`, which is what
+                            drops the clinic the query cache and the day view's
+                            own hooks are still holding. */}
                         {demo.enabled ? (
                             <Group title="DEMO">
                                 <SettingsRow
@@ -239,7 +239,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     label="Reset demo data"
                                     sub="Back to the clinic the demo opens on"
                                     onPress={() => {
-                                        void resetDemoData().then(() => queryClient.invalidateQueries());
+                                        void resetDemoData();
                                     }}
                                     testID="settings-reset-demo"
                                 />

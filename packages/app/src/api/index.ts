@@ -6,6 +6,7 @@ export type { ServerAddresses } from './config';
 export { serverAddresses, setServerAddresses, timing } from './config';
 export type { AddressKind, ConnectionState, ConnectionStatus } from './connection';
 export { getConnectionState, reprobe, ServerUnreachableError } from './connection';
+export { dataGeneration, subscribeToDataReset } from './dataReset';
 export type { DemoMode } from './demo';
 export { disableDemoMode, enableDemoMode, isDemoMode, resetDemoData, useDemoMode } from './demo';
 export type { ApiFailure, FailureKind } from './errors';

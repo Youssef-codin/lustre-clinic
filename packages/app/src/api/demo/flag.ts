@@ -18,6 +18,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useSyncExternalStore } from 'react';
+import { noteDataReset } from '../dataReset';
 
 const DEMO_KEY = 'lustre.demo';
 
@@ -40,6 +41,14 @@ let state: DemoState = { hydrated: shipped, enabled: shipped };
 const listeners = new Set<() => void>();
 let hydrating = false;
 
+/**
+ * Bumped by every explicit enable/disable. A hydration read that began before
+ * one of those has an answer from before the change, and applying it would put
+ * the flag back — the setup screen's demo button turning itself off a moment
+ * after it was pressed.
+ */
+let transitions = 0;
+
 function emit(next: DemoState): void {
     if (next.hydrated === state.hydrated && next.enabled === state.enabled) return;
     state = next;
@@ -55,7 +64,9 @@ function getSnapshot(): DemoState {
 }
 
 async function hydrate(): Promise<void> {
+    const before = transitions;
     const stored = await AsyncStorage.getItem(DEMO_KEY).catch(() => null);
+    if (transitions !== before) return;
     emit({ hydrated: true, enabled: shipped || stored === 'on' });
 }
 
@@ -81,7 +92,9 @@ export function useDemoMode(): DemoMode {
 }
 
 export async function enableDemoMode(): Promise<void> {
+    transitions += 1;
     emit({ hydrated: true, enabled: true });
+    noteDataReset();
     await AsyncStorage.setItem(DEMO_KEY, 'on').catch(() => undefined);
 }
 
@@ -91,6 +104,8 @@ export async function enableDemoMode(): Promise<void> {
  */
 export async function disableDemoMode(): Promise<void> {
     if (shipped) return;
+    transitions += 1;
     emit({ hydrated: true, enabled: false });
+    noteDataReset();
     await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
 }

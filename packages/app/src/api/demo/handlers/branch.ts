@@ -4,7 +4,7 @@
  */
 import type { RouterInput, RouterOutput } from '../../types';
 import { type BranchRow, getDb, save } from '../db';
-import { DemoError, uuidv7 } from '../rules';
+import { assignDefined, DemoError, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 
 type Branch = Dated<RouterOutput['branch']['list'][number]>;
@@ -38,7 +38,7 @@ export const branchHandlers = {
         const { id, ...patch } = input;
         const row = branchHandlers.byId(id);
 
-        Object.assign(row, patch);
+        assignDefined(row, patch);
         save();
         return row;
     },

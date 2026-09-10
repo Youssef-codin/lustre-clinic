@@ -11,6 +11,7 @@ export type { DemoMode } from './flag';
 export { disableDemoMode, enableDemoMode, isDemoMode, useDemoMode } from './flag';
 export { demoLink, openDemoDb } from './link';
 
+import { noteDataReset } from '../dataReset';
 import { clearStored, setDb } from './db';
 import { seedDemoDb } from './seed';
 
@@ -22,4 +23,5 @@ import { seedDemoDb } from './seed';
 export async function resetDemoData(): Promise<void> {
     await clearStored();
     setDb(seedDemoDb());
+    noteDataReset();
 }

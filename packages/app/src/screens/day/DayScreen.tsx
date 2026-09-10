@@ -226,7 +226,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // Everything pushed over the schedule comes down. The shell drops the
     // booking highlight itself — it is what raised it — so nothing is reported
     // back up from inside a render.
-    if (goHome !== seenHome) {
+    // Held while the patient editor is mid-write. `locked` covers the hardware
+    // back, but this path pops the stack itself — and a tab tap that discards
+    // the editor mid-save leaves `onSaved` to land on whatever is on top by
+    // then, replacing a route it was never opened over. `seenHome` is left
+    // alone so the tap is answered as soon as the save finishes.
+    if (goHome !== seenHome && !registering) {
         setSeenHome(goHome);
         setTab('day');
         routes.popToRoot();

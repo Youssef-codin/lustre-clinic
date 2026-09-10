@@ -18,7 +18,7 @@ import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, save } from '../db';
 import { broadcast } from '../events';
-import { DemoError, dayRange } from '../rules';
+import { assertAmount, DemoError, dayRange } from '../rules';
 import type { Dated } from '../wire';
 import { insertPayment } from './visit';
 
@@ -86,21 +86,26 @@ function unsettledVisits(patientId: string): VisitBalance[] {
 export const balanceHandlers = {
     outstanding(): OutstandingReport {
         const db = getDb();
-        const byPatient = new Map<string, { balance: number; oldestUnpaidAt: Date }>();
+        const byPatient = new Map<string, { balance: number; oldestUnpaidAt: Date | null }>();
 
         for (const visit of db.visits) {
             const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
             if (!appointment) continue;
 
             const balance = visit.chargedTotal - paidFor(visit.id);
-            const entry = byPatient.get(appointment.patientId);
+            const entry = byPatient.get(appointment.patientId) ?? { balance: 0, oldestUnpaidAt: null };
 
-            if (entry) {
-                entry.balance += balance;
-                if (appointment.startsAt < entry.oldestUnpaidAt) entry.oldestUnpaidAt = appointment.startsAt;
-            } else {
-                byPatient.set(appointment.patientId, { balance, oldestUnpaidAt: appointment.startsAt });
+            entry.balance += balance;
+
+            // Only an unpaid visit can be the oldest unpaid one. Dating the
+            // debt from every visit puts it at a January that was settled, and
+            // the money screen then presents it as older than it is —
+            // `unsettledVisits` filters on the same rule before it orders.
+            if (balance > 0 && (!entry.oldestUnpaidAt || appointment.startsAt < entry.oldestUnpaidAt)) {
+                entry.oldestUnpaidAt = appointment.startsAt;
             }
+
+            byPatient.set(appointment.patientId, entry);
         }
 
         const patients = [...byPatient.entries()]
@@ -112,7 +117,9 @@ export const balanceHandlers = {
                     name: patient?.name ?? '',
                     phone: patient?.phone ?? '',
                     balance: entry.balance,
-                    oldestUnpaidAt: entry.oldestUnpaidAt,
+                    // A positive total cannot be reached without at least one
+                    // unpaid visit, so the filter above has already settled this.
+                    oldestUnpaidAt: entry.oldestUnpaidAt ?? new Date(),
                 };
             })
             .sort((a, b) => b.balance - a.balance);
@@ -140,6 +147,16 @@ export const balanceHandlers = {
 
         if (outstandingBefore <= 0) {
             throw new DemoError(ERROR_CODE.NOTHING_OUTSTANDING, 'this patient has nothing outstanding', 422);
+        }
+
+        // The demo link hands the handler its input without the router's schema
+        // in front of it, so the bounds the server would have enforced are this
+        // handler's to enforce. A zero or negative amount otherwise breaks the
+        // allocation loop on its first pass, writes no payment row, and still
+        // reports an `outstandingAfter` the stored rows do not produce.
+        assertAmount(input.amount, 'payment');
+        if (input.amount <= 0) {
+            throw new DemoError(ERROR_CODE.VALIDATION, 'a payment must be more than nothing', 422);
         }
 
         if (input.amount > outstandingBefore) {

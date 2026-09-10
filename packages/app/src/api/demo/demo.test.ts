@@ -77,7 +77,6 @@ describe('the seeded day', () => {
      * passed.
      */
     it('holds today at the branch the day view opens on', () => {
-        const db = getDb();
         const opensOn = branchHandlers.list({ includeInactive: false })[0];
         if (!opensOn) throw new Error('the seed registered no branches');
 
@@ -166,8 +165,17 @@ describe('the seeded day', () => {
             );
             if (planned.length === 0) continue;
 
+            // Identities, not counts: a visit whose lines are entirely
+            // unrelated to its booking satisfies any comparison of lengths,
+            // and that is the case this file exists to catch.
             const performed = db.visitProcedures.filter((line) => line.visitId === visit.id);
-            expect(performed.length).toBeGreaterThanOrEqual(planned.length);
+            const performedIds = performed.map((line) => line.procedureId);
+            for (const line of planned) {
+                expect(performedIds).toContain(line.procedureId);
+            }
+
+            // The checkup seeded at check-in is the one permitted extra.
+            expect(performed.length).toBeLessThanOrEqual(planned.length + 1);
         }
     });
 
@@ -277,6 +285,53 @@ describe('a visit, end to end', () => {
     });
 });
 
+describe('the chair, when someone leaves the queue by another door', () => {
+    function seated(): number {
+        const db = getDb();
+        return db.visits.filter((visit) => {
+            if (!visit.inChairAt) return false;
+            const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+            return appointment?.status === 'checked_in';
+        }).length;
+    }
+
+    it('does not seat the next patient off one who never held the chair', () => {
+        const db = getDb();
+
+        const waiting = db.visits.find((visit) => {
+            const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+            return appointment?.status === 'checked_in' && visit.inChairAt === null;
+        });
+        if (!waiting) throw new Error('the seed left nobody waiting');
+
+        expect(seated()).toBe(1);
+
+        // Sending a waiting patient to the desk does not empty the chair, so
+        // nothing may be seated off it. Seating anyway leaves two visits
+        // answering "in the chair" and the day view drawing two running bars.
+        appointmentHandlers.awaitPayment({ id: waiting.appointmentId });
+
+        expect(seated()).toBe(1);
+    });
+
+    it('still seats the next patient off the one who did hold it', () => {
+        const db = getDb();
+
+        const inChair = db.visits.find((visit) => {
+            if (!visit.inChairAt) return false;
+            const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+            return appointment?.status === 'checked_in';
+        });
+        if (!inChair) throw new Error('the seed seated nobody');
+
+        appointmentHandlers.awaitPayment({ id: inChair.appointmentId });
+
+        // The chair emptied, so the longest-waiting visit takes it.
+        expect(seated()).toBe(1);
+        expect(getDb().visits.find((row) => row.id === inChair.id)?.inChairAt).not.toBeNull();
+    });
+});
+
 describe('the refusals a demo runs into', () => {
     it('refuses a double booking with SLOT_OVERLAP', () => {
         const db = getDb();
@@ -317,6 +372,21 @@ describe('the refusals a demo runs into', () => {
         ).toThrow('a payment may not exceed what the patient owes');
     });
 
+    it('refuses a payment of nothing', () => {
+        const owing = balanceHandlers.outstanding().patients[0];
+        if (!owing) throw new Error('the seed left nobody owing');
+
+        // The demo link hands the handler its input with none of the router's
+        // schema in front of it, so the bound is this handler's to hold. Zero
+        // would otherwise write no payment row and still report a balance the
+        // stored rows do not produce.
+        for (const amount of [0, -500]) {
+            expect(() =>
+                balanceHandlers.settle({ patientId: owing.patientId, amount, method: 'cash' }),
+            ).toThrow(DemoError);
+        }
+    });
+
     it('refuses a tooth on a procedure that is not done on one', () => {
         const db = getDb();
         const cleaning = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
@@ -340,6 +410,12 @@ describe('the dispatch table', () => {
         expect(hasHandler('appointment.byDate')).toBe(true);
         expect(hasHandler('visit.checkOut')).toBe(true);
         expect(hasHandler('nope.missing')).toBe(false);
+
+        // Inherited members are not procedures. Answering `true` here would
+        // have `resolve` call the prototype method and return its value, where
+        // `link.ts` is expecting the refusal it turns into NOT_FOUND.
+        expect(hasHandler('toString')).toBe(false);
+        expect(hasHandler('constructor')).toBe(false);
 
         const report = resolve('stats.summary', {
             from: today(),

@@ -115,6 +115,25 @@ export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()
     return age < 0 ? null : age;
 }
 
+/**
+ * `Object.assign` for a patch that may carry explicit `undefined`.
+ *
+ * The real server is reached over HTTP, and `JSON.stringify` drops a key whose
+ * value is `undefined` — so a field the caller left undefined arrives absent
+ * and the stored value survives. The demo link hands `op.input` to the handler
+ * by reference, with no serialization in between, so the same key arrives
+ * present and `Object.assign` writes `undefined` over the column. Skipping the
+ * undefined keys is what makes the two agree.
+ */
+export function assignDefined<T extends object>(target: T, ...patches: Partial<T>[]): T {
+    for (const patch of patches) {
+        for (const [key, value] of Object.entries(patch)) {
+            if (value !== undefined) (target as Record<string, unknown>)[key] = value;
+        }
+    }
+    return target;
+}
+
 // --- money (`server/src/util/money.ts`) -------------------------------------
 
 export function assertAmount(amount: number, what = 'amount'): number {

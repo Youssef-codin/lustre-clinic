@@ -15,7 +15,7 @@ import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, WS_EVENT } from '@lus
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, save } from '../db';
 import { broadcast } from '../events';
-import { buildRef, DemoError, dayRange, resolveProcedureLines, uuidv7 } from '../rules';
+import { assignDefined, buildRef, DemoError, dayRange, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 import { createMinimalPatient, requirePatient } from './patient';
 import { rescheduleReminder, scheduleReminderFor, skipReminderFor } from './reminder';
@@ -370,7 +370,7 @@ export const appointmentHandlers = {
             );
         }
 
-        Object.assign(current, patch, {
+        assignDefined(current, patch, {
             ...(startsAt ? { startsAt } : {}),
             ...(durationMinutes ? { durationMinutes } : {}),
             updatedAt: new Date(),
@@ -423,9 +423,17 @@ export const appointmentHandlers = {
         }
 
         const now = new Date();
+
+        // Only a patient who actually held the chair empties it. One who is
+        // checked in but still waiting never had it, and seating the next
+        // person off their departure leaves two visits answering "in the
+        // chair" at once — which the day view draws as two running bars.
+        const visit = getDb().visits.find((row) => row.appointmentId === current.id);
+        const wasInChair = Boolean(visit?.inChairAt);
+
         current.status = 'awaiting_payment';
         current.updatedAt = now;
-        seatNextInChair(current.branchId, now);
+        if (wasInChair) seatNextInChair(current.branchId, now);
 
         save();
         broadcast(WS_EVENT.APPOINTMENT_UPDATED);

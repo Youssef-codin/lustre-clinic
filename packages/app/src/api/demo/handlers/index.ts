@@ -101,8 +101,10 @@ const handlers = {
     'migration.progress': migrationHandlers.progress,
 } as const satisfies Record<Path, Handler>;
 
+// `in` would also answer for `toString` and `constructor`, and `resolve` would
+// then call the prototype method instead of leaving `link.ts` to refuse.
 export function hasHandler(path: string): path is Path {
-    return path in handlers;
+    return Object.hasOwn(handlers, path);
 }
 
 /** The one cast: `resolve` is called with whatever the client sent for `path`. */

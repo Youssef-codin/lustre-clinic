@@ -11,7 +11,7 @@
 import { ERROR_CODE } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type CustomQuestionRow, getDb, save } from '../db';
-import { DemoError, uuidv7 } from '../rules';
+import { assignDefined, DemoError, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 
 type CustomQuestion = Dated<RouterOutput['customQuestion']['list'][number]>;
@@ -153,7 +153,7 @@ export const customQuestionHandlers = {
         const row = getDb().customQuestions.find((question) => question.id === id);
         if (!row) throw DemoError.notFound('custom question');
 
-        Object.assign(row, patch);
+        assignDefined(row, patch);
         save();
         return row;
     },
