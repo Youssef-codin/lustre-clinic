@@ -18,10 +18,14 @@
                 "monochromeImage": "./assets/android-icon-monochrome.png"
             },
             "predictiveBackGestureEnabled": true,
-            "softwareKeyboardLayoutMode": "resize",
-            "usesCleartextTraffic": true
+            "softwareKeyboardLayoutMode": "resize"
         },
-        "plugins": ["expo-font", "./plugins/withBuildTuning", "@react-native-community/datetimepicker"],
+        "plugins": [
+            "expo-font",
+            "./plugins/withBuildTuning",
+            "./plugins/withCleartextTraffic",
+            "@react-native-community/datetimepicker"
+        ],
         "extra": {
             "server": {
                 "lan": null,

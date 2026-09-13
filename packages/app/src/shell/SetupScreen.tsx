@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { type AddressKind, enableDemoMode, getConnectionState, reprobe, serverAddresses } from '../api';
+import {
+    type AddressKind,
+    allowsDemo,
+    allowsLan,
+    BUILD_VARIANT,
+    enableDemoMode,
+    getConnectionState,
+    reprobe,
+    serverAddresses,
+} from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
 import { color, radius, space, Text } from '../theme';
-import { noAnswer, type ServerCandidate, toBase } from './address';
+import { noAnswer, nothingEntered, toCandidate } from './address';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
 // First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
@@ -15,9 +24,10 @@ import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serv
 // the traffic here is the clinic that moved its server and the typo: someone
 // standing in front of the phone, correcting an address that did not answer.
 //
-// Both sides are collected because §14 resolves them in order: the LAN address
-// for when the phone is on clinic wifi, the MagicDNS hostname for everywhere
-// else on the tailnet.
+// A prod build asks for the MagicDNS hostname alone: the clinic server listens
+// only on Tailscale, so there is no LAN address that could answer, and no demo
+// button beside a real clinic's register (`api/variant.ts`). Dev and demo builds
+// keep the LAN field, tried first per §14, and the way into demo mode.
 //
 // Nothing is saved on the strength of the text being well-formed. The button
 // probes, and only an address that answered is written down — a typo that lands
@@ -32,6 +42,9 @@ const ADDRESS_LABEL: Record<AddressKind, string> = {
     tailscale: 'Tailscale',
 };
 
+const LAN_ALLOWED = allowsLan(BUILD_VARIANT);
+const DEMO_ALLOWED = allowsDemo(BUILD_VARIANT);
+
 export function SetupScreen() {
     const current = serverAddresses();
     const [lan, setLan] = useState(current.lan ?? '');
@@ -40,9 +53,9 @@ export function SetupScreen() {
     const [attempt, setAttempt] = useState<Attempt | null>(null);
 
     async function connect() {
-        const candidate: ServerCandidate = { lan: toBase(lan), tailscale: toBase(tailscale) };
+        const candidate = toCandidate({ lan, tailscale }, LAN_ALLOWED);
         if (!candidate.lan && !candidate.tailscale) {
-            setAttempt({ ok: false, message: 'Enter at least one address.' });
+            setAttempt({ ok: false, message: nothingEntered(LAN_ALLOWED) });
             return;
         }
 
@@ -88,25 +101,31 @@ export function SetupScreen() {
                 </Text>
 
                 <View style={styles.fields}>
-                    <TextField
-                        label="Clinic wifi"
-                        value={lan}
-                        onChangeText={setLan}
-                        placeholder="192.168.1.20:3000"
-                        hint="The clinic computer's address on the local network."
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        keyboardType="url"
-                        returnKeyType="next"
-                        editable={!testing}
-                    />
+                    {LAN_ALLOWED ? (
+                        <TextField
+                            label="Clinic wifi"
+                            value={lan}
+                            onChangeText={setLan}
+                            placeholder="192.168.1.20:3000"
+                            hint="The clinic computer's address on the local network."
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardType="url"
+                            returnKeyType="next"
+                            editable={!testing}
+                        />
+                    ) : null}
 
                     <TextField
                         label="Tailscale"
                         value={tailscale}
                         onChangeText={setTailscale}
                         placeholder="clinic-pc.tailnet.ts.net:3000"
-                        hint="Usually filled in by the clinic computer once connected. Leave blank."
+                        hint={
+                            LAN_ALLOWED
+                                ? 'Usually filled in by the clinic computer once connected. Leave blank.'
+                                : "The clinic computer's Tailscale name, with the port. This phone must be signed in to Tailscale."
+                        }
                         autoCapitalize="none"
                         autoCorrect={false}
                         keyboardType="url"
@@ -139,27 +158,30 @@ export function SetupScreen() {
                     </View>
                 ) : null}
 
-                {/* The way in to demo mode, and the only one on a shipped build.
-                    It is here rather than anywhere inside the app because this
-                    is the screen a phone with no clinic behind it lands on, and
-                    because a control that swaps the register for a fake one
-                    should not sit two taps from a real day's work. */}
-                <View style={styles.demo}>
-                    <Text variant="footnote" tone="muted">
-                        No clinic server to hand?
-                    </Text>
-                    <Button
-                        label="Run in demo mode"
-                        onPress={() => void enableDemoMode()}
-                        variant="ghost"
-                        size="md"
-                        block
-                        disabled={testing}
-                    />
-                    <Text variant="caption" tone="muted" style={styles.demoNote}>
-                        Sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.
-                    </Text>
-                </View>
+                {/* The way in to demo mode, and the only one. It is here rather
+                    than anywhere inside the app because this is the screen a
+                    phone with no clinic behind it lands on, and because a
+                    control that swaps the register for a fake one should not
+                    sit two taps from a real day's work. */}
+                {DEMO_ALLOWED ? (
+                    <View style={styles.demo}>
+                        <Text variant="footnote" tone="muted">
+                            No clinic server to hand?
+                        </Text>
+                        <Button
+                            label="Run in demo mode"
+                            onPress={() => void enableDemoMode()}
+                            variant="ghost"
+                            size="md"
+                            block
+                            disabled={testing}
+                        />
+                        <Text variant="caption" tone="muted" style={styles.demoNote}>
+                            Sample patients and a made-up day, kept on this phone. Nothing is saved to a
+                            clinic.
+                        </Text>
+                    </View>
+                ) : null}
             </View>
         </ScrollView>
     );

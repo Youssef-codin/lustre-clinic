@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import {
+    allowsLan,
+    BUILD_VARIANT,
     reprobe,
     type ServerAddresses,
     serverAddresses,
@@ -72,6 +74,14 @@ async function hydrate(): Promise<void> {
     for (const [key, value] of entries ?? []) {
         if (key === LAN_KEY) restored.lan = value || null;
         if (key === TAILSCALE_KEY) restored.tailscale = value || null;
+    }
+
+    // A LAN address saved by an earlier dev install is not this phone's answer
+    // on a prod build: it can never be probed, and counting it as stored would
+    // skip setup for a phone that has no Tailscale address at all.
+    if (!allowsLan(BUILD_VARIANT)) {
+        restored.lan = null;
+        await AsyncStorage.removeItem(LAN_KEY).catch(() => undefined);
     }
 
     // A stored pair is this phone's own answer and is never second-guessed: if

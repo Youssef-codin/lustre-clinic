@@ -8,10 +8,11 @@ import { isDemoMode } from './demo';
 // component; `useConnection` subscribes.
 //
 // The base URL is cached for the session and dropped on failure so the next
-// call probes again — that is how the phone moves between clinic wifi and the
+// call probes again — that is how a dev phone moves between the LAN and the
 // tailnet with no network-change listener. Probes run sequentially, LAN first
-// (§14), and a bare GET on `health.check` counts as "online" without reading
-// the body. Staleness is scheduled rather than computed on read because
+// (§14), and a prod build has no LAN address to probe (`config.ts`), so there
+// it is the tailnet alone. A bare GET on `health.check` counts as "online"
+// without reading the body. Staleness is scheduled rather than computed on read because
 // `getSnapshot` must return the same object until something changes.
 export type ConnectionStatus = 'unknown' | 'probing' | 'online' | 'offline';
 
