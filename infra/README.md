@@ -112,6 +112,7 @@ the clinic's LAN range, then run the playbook with `--limit <host>`.
 | `tailscale` | Asserts the node is logged in, prints tailnet, IPs, MagicDNS name and key expiry. Turns off Tailscale DNS so it stops fighting dhcpcd, and Tailscale SSH so tailnet logins go through sshd's key-only rules instead of bypassing them. |
 | `base` | Timezone, unattended security upgrades, never suspends (lid shut, sleep targets masked), boots to text mode. |
 | `power` | Survives power cuts unattended: boot-time fsck repairs without asking, upower starts on text-mode boots and powers the machine off cleanly at 35% on a long cut (the first laptop's worn battery reads 35% and then 3% a minute later), and Tailscale and SSH start on boot. |
+| `network` | Wired ports follow the cable (systemd-networkd, preferred over Wi-Fi, no boot wait without one); Wi-Fi stays as the fallback. The host uses fixed DNS servers instead of whatever DHCP last wrote. |
 | `ssh` | Key-only, no root, only the admin user. |
 | `firewall` | nftables, own table only. Inbound: everything over `tailscale0`, SSH from the LAN, Tailscale's direct-connection port. Nothing else. The allow-list is enforced in prerouting as well as input, because Docker's published ports bypass input: a container published on `0.0.0.0` or the LAN IP is still unreachable from the LAN. |
 | `docker` | Docker CE and the compose plugin from Docker's apt repo, log rotation, admin user in the `docker` group, and no port-bind race with Tailscale at boot. |

@@ -58,6 +58,10 @@
       ansible.builtin.import_tasks: tasks/power.yml
       tags: [power]
 
+    - name: Network
+      ansible.builtin.import_tasks: tasks/network.yml
+      tags: [network]
+
     - name: SSH
       ansible.builtin.import_tasks: tasks/ssh.yml
       tags: [ssh]
