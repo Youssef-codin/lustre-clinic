@@ -169,7 +169,8 @@ export const birthDateDisplay = dateDigitsDisplay;
  * rule on top of this.
  */
 export function calendarIsoOf(digits: string): string | null {
-    if (digits.length !== BIRTH_DATE_DIGITS) return null;
+    // Digits only: `Number('aa')` is NaN, which slips past every range check below.
+    if (!new RegExp(`^\\d{${BIRTH_DATE_DIGITS}}$`).test(digits)) return null;
 
     const day = Number(digits.slice(0, 2));
     const month = Number(digits.slice(2, 4));
