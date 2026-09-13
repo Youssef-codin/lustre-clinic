@@ -276,6 +276,7 @@ export function AppShell() {
                         // where the flow lives instead of failing silently.
                         onBook={role === 'secretary' ? bookLater : undefined}
                         onWalkIn={role === 'secretary' ? bookNow : undefined}
+                        role={role}
                     />
                 </Pane>
 

@@ -26,6 +26,7 @@ function toSettings(row: SettingsRow): Settings {
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
         patientRefLast: row.patientRefLast,
+        proceduresRecordedBy: row.proceduresRecordedBy ?? 'doctor',
         updatedAt: row.updatedAt,
     };
 }

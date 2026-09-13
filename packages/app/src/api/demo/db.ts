@@ -18,6 +18,7 @@ import type {
     AppointmentChannel,
     AppointmentStatus,
     PaymentMethod,
+    ProcedureRecorder,
     QuestionKind,
     ReminderStatus,
     Tooth,
@@ -151,6 +152,8 @@ export interface SettingsRow {
     reminderDismissedOn: string | null;
     reminderTemplate: string;
     patientRefLast: number;
+    /** Optional so a stored demo from before the setting still loads; absent reads as `doctor`. */
+    proceduresRecordedBy?: ProcedureRecorder;
     updatedAt: Date;
 }
 

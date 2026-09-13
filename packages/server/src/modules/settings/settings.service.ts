@@ -13,7 +13,13 @@
  * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
  * violation.
  */
-import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@lustre/shared';
+import {
+    DEFAULT_CLINIC_NAME,
+    DEFAULT_REMINDER_TEMPLATE,
+    ERROR_CODE,
+    type ProcedureRecorder,
+    WS_EVENT,
+} from '@lustre/shared';
 import { asc, eq, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { clinicDays, patients, settings } from '../../db/schema.ts';
@@ -35,6 +41,7 @@ interface Settings {
     reminderTemplate: string;
     /** The last patient number handed out. The next registration gets one more. */
     patientRefLast: number;
+    proceduresRecordedBy: ProcedureRecorder;
     updatedAt: Date;
 }
 
@@ -52,6 +59,7 @@ function toSettings(row: SettingsRow): Settings {
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
         patientRefLast: row.patientRefLast,
+        proceduresRecordedBy: row.proceduresRecordedBy,
         updatedAt: row.updatedAt,
     };
 }

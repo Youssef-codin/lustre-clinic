@@ -10,6 +10,7 @@
  * the lines and the payments, and the appointment carries whose visit it is and
  * when. Neither is on the history row.
  */
+import type { ClientRole } from '@lustre/shared';
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
@@ -17,6 +18,8 @@ import { isOpen, rendered, useRouteStack } from '../../../navigation';
 import { color, size, space, Text } from '../../../theme';
 import { api, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
+import { canRecordProcedures } from '../recording';
+import { useProcedureRecorder } from '../useProcedureRecorder';
 import { VisitPaymentScreen } from './VisitPaymentScreen';
 import { VisitScreen } from './VisitScreen';
 import { VisitViewScreen } from './VisitViewScreen';
@@ -27,15 +30,20 @@ export type VisitPageProps = {
     onClose: () => void;
     /** Something was written, so whatever is underneath is now stale. */
     onChanged?: () => void;
+    /** Whose phone this is, which with the clinic's setting decides whether Edit reaches the lines. */
+    role: ClientRole;
 };
 
 /** The pages over the read-only one, which is this component's own root. */
 type Route = 'treatment' | 'payment';
 
-export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitPageProps) {
+export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: VisitPageProps) {
     // The reopened / repriced visit, once a write has moved it on from what was
     // read. Null means "still what the server first said".
     const [edited, setEdited] = useState<Visit | null>(null);
+    // A payment corrected without the editor writes too, and never sets `edited`.
+    const paid = useRef(false);
+    const recordsProcedures = canRecordProcedures(role, useProcedureRecorder());
 
     const appointment = useLocalQuery(`appointment:${appointmentId}`, () =>
         api.appointmentById(appointmentId),
@@ -58,7 +66,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
     function close() {
         if (closing.current) return;
         closing.current = true;
-        if (edited) onChanged?.();
+        if (edited || paid.current) onChanged?.();
         onClose();
     }
 
@@ -118,7 +126,8 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                 onBack={close}
                 // Nothing is written on the way in, so the record underneath is
                 // not stale yet — `onConfirm` is what makes it so.
-                onEdit={() => routes.push('treatment')}
+                editLabel={recordsProcedures ? undefined : 'Correct payment'}
+                onEdit={() => routes.push(recordsProcedures ? 'treatment' : 'payment')}
             />
 
             {rendered(routes.stack).map(({ id, route }, index) => (
@@ -162,7 +171,10 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                             // money is only reached by way of a confirm, which
                             // is what set `edited`, so it reports the change on
                             // this path too — and it is the guarded way out.
-                            onClosed={close}
+                            onClosed={() => {
+                                paid.current = true;
+                                close();
+                            }}
                         />
                     ) : null}
                 </PushView>
