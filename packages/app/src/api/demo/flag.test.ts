@@ -1,0 +1,40 @@
+/**
+ * Demo mode is entered from the setup screen of a phone with a real clinic
+ * behind it, so leaving it is part of the feature: without a way out, a mis-tap
+ * on "Run in demo mode" leaves the desk writing into a fake register until
+ * someone clears the app's data.
+ */
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+const stored = new Map<string, string>();
+
+mock.module('@react-native-async-storage/async-storage', () => ({
+    default: {
+        getItem: (key: string) => Promise.resolve(stored.get(key) ?? null),
+        setItem: (key: string, value: string) => Promise.resolve(void stored.set(key, value)),
+        removeItem: (key: string) => Promise.resolve(void stored.delete(key)),
+        multiGet: () => Promise.resolve([]),
+        multiSet: () => Promise.resolve(),
+    },
+}));
+
+mock.module('expo-constants', () => ({ default: { expoConfig: { extra: { demo: false } } } }));
+
+const demo = await import('./index');
+
+beforeEach(() => {
+    stored.clear();
+});
+
+describe('leaving demo mode', () => {
+    it('puts a phone that chose the demo back on its clinic', async () => {
+        await demo.enableDemoMode();
+        expect(demo.isDemoMode()).toBe(true);
+        expect(stored.get('lustre.demo')).toBe('on');
+
+        await demo.disableDemoMode();
+
+        expect(demo.isDemoMode()).toBe(false);
+        expect(stored.has('lustre.demo')).toBe(false);
+    });
+});

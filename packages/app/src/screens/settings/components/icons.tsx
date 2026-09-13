@@ -31,6 +31,7 @@ import {
     Hospital,
     Info,
     ListPlus,
+    LogOut,
     MapPin,
     Pencil,
     Plus,
@@ -116,6 +117,9 @@ export const DataEntryIcon = icon(ClipboardList, ROW);
 
 /** Putting the demo's clinic back the way it opens. No mockup counterpart either. */
 export const ResetDemoIcon = icon(RotateCcw, ROW);
+
+/** Leaving the demo for the clinic server. No mockup counterpart. */
+export const LeaveDemoIcon = icon(LogOut, ROW);
 
 /** Taking a procedure out of the catalogue. */
 export const HideIcon = icon(EyeOff, { size: 15, stroke: color.ink, width: 2.2 });
