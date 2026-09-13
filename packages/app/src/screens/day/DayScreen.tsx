@@ -347,7 +347,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // looking at — `/ws` is what keeps those fresh. A failed refresh keeps the
     // day on screen behind its banner, so the gesture is safe on a bad signal.
     const reads = [day, schedule, branches, reminders, arrivals];
-    const refreshControl = usePullToRefresh(
+    const pull = usePullToRefresh(
         () => {
             day.refetch();
             schedule.refetch();
@@ -609,7 +609,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 {tab === 'reminders' ? (
                     <Reminders
                         query={reminders}
-                        refreshControl={refreshControl}
+                        pull={pull}
                         onOpenRecord={
                             onOpenRecord && ((patientId) => onOpenRecord(patientId, undefined, 'Reminders'))
                         }
@@ -617,7 +617,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 ) : day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <RefreshView refreshControl={refreshControl}>
+                    <RefreshView pull={pull}>
                         <DayError error={day.error} onRetry={day.refetch} />
                     </RefreshView>
                 ) : closed ? (
@@ -625,17 +625,18 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                         dateKey={dateKey}
                         appointments={appointments}
                         onSelect={openDetail}
-                        refreshControl={refreshControl}
+                        pull={pull}
                     />
                 ) : appointments.length === 0 ? (
-                    <RefreshView refreshControl={refreshControl}>
+                    <RefreshView pull={pull}>
                         <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
                     </RefreshView>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
                         showsVerticalScrollIndicator={false}
-                        refreshControl={refreshControl}
+                        refreshControl={pull.refreshControl}
+                        {...pull.scrollProps}
                         testID="day-agenda"
                     >
                         {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}

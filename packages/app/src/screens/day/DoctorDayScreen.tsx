@@ -123,7 +123,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
     // This screen's reads only — see `DayScreen`. The doctor has no reminders
     // tab and no settings read, so it is four queries rather than six.
     const reads = [day, schedule, branches, arrivals];
-    const refreshControl = usePullToRefresh(
+    const pull = usePullToRefresh(
         () => {
             day.refetch();
             schedule.refetch();
@@ -210,7 +210,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                 {day.status === 'loading' ? (
                     <DaySkeleton />
                 ) : day.status === 'error' && day.error && appointments.length === 0 ? (
-                    <RefreshView refreshControl={refreshControl}>
+                    <RefreshView pull={pull}>
                         <DayError error={day.error} onRetry={day.refetch} />
                     </RefreshView>
                 ) : closed ? (
@@ -218,17 +218,18 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                         dateKey={dateKey}
                         appointments={appointments}
                         onSelect={openVisit}
-                        refreshControl={refreshControl}
+                        pull={pull}
                     />
                 ) : appointments.length === 0 ? (
-                    <RefreshView refreshControl={refreshControl}>
+                    <RefreshView pull={pull}>
                         <DayEmpty past={dateKey < todayKey()} elsewhere={elsewhere} />
                     </RefreshView>
                 ) : (
                     <ScrollView
                         contentContainerStyle={styles.agenda}
                         showsVerticalScrollIndicator={false}
-                        refreshControl={refreshControl}
+                        refreshControl={pull.refreshControl}
+                        {...pull.scrollProps}
                         testID="doctor-agenda"
                     >
                         {isToday ? <BeforeThis appointments={past} onSelect={openVisit} /> : null}
