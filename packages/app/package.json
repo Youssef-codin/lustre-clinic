@@ -17,6 +17,12 @@
         "emu:release": "bash scripts/emulator.sh --release",
         "emu:start": "bash scripts/emulator.sh --start",
         "emu:shot": "bash scripts/emulator.sh --shot",
+        "waydroid": "bash scripts/waydroid.sh",
+        "waydroid:build": "bash scripts/waydroid.sh --build",
+        "waydroid:release": "bash scripts/waydroid.sh --release",
+        "waydroid:start": "bash scripts/waydroid.sh --start",
+        "waydroid:shot": "bash scripts/waydroid.sh --shot",
+        "waydroid:stop": "bash scripts/waydroid.sh --stop",
         "ios": "expo run:ios",
         "typecheck": "tsc --noEmit"
     },

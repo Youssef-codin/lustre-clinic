@@ -19,9 +19,15 @@
 # the ABI of the device attached when it runs. An APK built against a 32-bit
 # phone will not install on an x86_64 emulator — `INSTALL_FAILED_NO_MATCHING_ABIS`
 # is that, and `--build` is the fix.
+#
+# The default AVD is `lustre_lite`: Google APIs without the Play Store, a
+# 1080×2400 screen and 2 GB. The app schedules local notifications only, so it
+# needs nothing Play services provides, and a Play Store image at Pixel XL
+# resolution held nearly 5 GB. Agents use `waydroid.sh` instead, which reserves
+# nothing up front.
 set -euo pipefail
 
-AVD="${LUSTRE_AVD:-lustre_note}"
+AVD="${LUSTRE_AVD:-lustre_lite}"
 METRO_PORT="${METRO_PORT:-8081}"
 BOOT_TIMEOUT="${BOOT_TIMEOUT:-180}"
 
