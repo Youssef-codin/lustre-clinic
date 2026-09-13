@@ -40,7 +40,7 @@ describe('database environment marker', () => {
         const db = connect();
         await db`SELECT set_config('lustre.environment', 'production', false)`;
         expect(await databaseEnvironment(db)).toBe('production');
-        expect(refuseProduction(db, 'seed')).rejects.toThrow(
+        await expect(refuseProduction(db, 'seed')).rejects.toThrow(
             'refusing to seed: this is the production database',
         );
     });

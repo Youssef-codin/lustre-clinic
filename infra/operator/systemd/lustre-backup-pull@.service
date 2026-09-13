@@ -3,4 +3,4 @@ Description=Pull Lustre backups from %i
 
 [Service]
 Type=oneshot
-ExecStart=@OPERATOR_DIR@/backup-pull.sh %i
+ExecStart="@OPERATOR_DIR@/backup-pull.sh" %i

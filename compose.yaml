@@ -96,7 +96,7 @@ services:
         # boundary (SPEC §1). Set TAILSCALE_IP in .env. API_PORT is 3000 for
         # production and 3001 for the dev stack.
         ports:
-            - '${TAILSCALE_IP:-0.0.0.0}:${API_PORT:-3000}:3000'
+            - '${TAILSCALE_IP:?set TAILSCALE_IP in .env (0.0.0.0 only on a laptop)}:${API_PORT:-3000}:3000'
         depends_on:
             db:
                 condition: service_healthy
@@ -168,7 +168,7 @@ services:
             - glitchtip-uploads:/code/uploads
         # Tailscale interface only, like the API. The image binds :8080.
         ports:
-            - '${TAILSCALE_IP:-0.0.0.0}:8000:8080'
+            - '${TAILSCALE_IP:?set TAILSCALE_IP in .env (0.0.0.0 only on a laptop)}:8000:8080'
         depends_on:
             glitchtip-db:
                 condition: service_healthy

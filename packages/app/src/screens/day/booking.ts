@@ -143,6 +143,35 @@ export function daysOffered(
     return [...window, farDay].sort();
 }
 
+export interface SettleInput {
+    date: string;
+    /** The day picked from the calendar, if any. */
+    farDay: string | null;
+    /** Every day the branch works that the booking may be offered (`daysOffered`). */
+    workingDays: readonly string[];
+    /** The ones with room left for this visit (`fortnightSlots`). */
+    openDays: readonly string[];
+}
+
+/**
+ * Which day the booking sits on, and the strip that offers it.
+ *
+ * A day that loses its room, because a longer visit was asked for, moves to the
+ * first day that still has some. A day picked from the calendar does not: the
+ * desk chose that date, and moving the booking to another one without a word is
+ * how it lands on a day nobody asked for. It stays picked, joins the strip so it
+ * reads as selected, and the grid says it has no times.
+ */
+export function settleBookingDay({ date, farDay, workingDays, openDays }: SettleInput): {
+    date: string;
+    strip: string[];
+} {
+    if (openDays.includes(date)) return { date, strip: [...openDays] };
+    if (date === farDay && workingDays.includes(date)) return { date, strip: [...openDays, date].sort() };
+    if (openDays.length > 0) return { date: openDays[0] as string, strip: [...openDays] };
+    return { date, strip: [...openDays] };
+}
+
 export interface Fortnight {
     slotsByDay: Map<string, Slot[]>;
     /** Only the days with room left for a visit this long — what a strip may offer. */

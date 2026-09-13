@@ -13,6 +13,7 @@ import {
     firstFreeSlot,
     fortnightSlots,
     type Slot,
+    settleBookingDay,
     slotIsFree,
     slotsFor,
     timeLabel,
@@ -974,6 +975,59 @@ describe('the fortnight a booking is offered', () => {
 
         it('is ignored when it is in the past', () => {
             expect(daysOffered(MONDAY, 14, '2026-08-03', SCHEDULE, 'b')).toEqual([MONDAY, NEXT_MONDAY]);
+        });
+    });
+
+    /**
+     * The day a booking sits on once the strip has been worked out. The case
+     * that matters is a date picked from the calendar that has no room: it used
+     * to be swapped for the first open day during render, so the booking went
+     * ahead on a date the desk never chose.
+     */
+    describe('which day the booking settles on', () => {
+        const MARCH_MONDAY = '2027-03-01';
+        const WORKING = [MONDAY, NEXT_MONDAY, MARCH_MONDAY];
+
+        it('keeps a calendar pick that has no room left, and puts it on the strip', () => {
+            expect(
+                settleBookingDay({
+                    date: MARCH_MONDAY,
+                    farDay: MARCH_MONDAY,
+                    workingDays: WORKING,
+                    openDays: [MONDAY, NEXT_MONDAY],
+                }),
+            ).toEqual({ date: MARCH_MONDAY, strip: [MONDAY, NEXT_MONDAY, MARCH_MONDAY] });
+        });
+
+        it('moves a strip day that lost its room to the first day that still has some', () => {
+            expect(
+                settleBookingDay({
+                    date: MONDAY,
+                    farDay: null,
+                    workingDays: WORKING,
+                    openDays: [NEXT_MONDAY],
+                }),
+            ).toEqual({ date: NEXT_MONDAY, strip: [NEXT_MONDAY] });
+        });
+
+        it('leaves a day that still has room where it is', () => {
+            expect(
+                settleBookingDay({
+                    date: NEXT_MONDAY,
+                    farDay: null,
+                    workingDays: WORKING,
+                    openDays: [MONDAY, NEXT_MONDAY],
+                }),
+            ).toEqual({ date: NEXT_MONDAY, strip: [MONDAY, NEXT_MONDAY] });
+        });
+
+        it('leaves the date alone while no day has room, or the rows are still being read', () => {
+            expect(
+                settleBookingDay({ date: MONDAY, farDay: null, workingDays: WORKING, openDays: [] }),
+            ).toEqual({
+                date: MONDAY,
+                strip: [],
+            });
         });
     });
 });

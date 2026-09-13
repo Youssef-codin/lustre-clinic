@@ -225,7 +225,10 @@ export function CalendarSheet({
                     }
 
                     const load = loads.get(day);
-                    const closed = isClosed(day, schedule);
+                    // Booking asks about the branch on the form: a day that branch
+                    // is closed must look and read closed, not only refuse the tap.
+                    // The day view counts every branch.
+                    const closed = isClosed(day, schedule, mode === 'book' ? branchId : undefined);
                     const past = day < today;
                     const picked = day === pending;
                     const full = (load?.fill ?? 0) >= FULL_AT;

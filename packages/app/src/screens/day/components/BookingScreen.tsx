@@ -26,7 +26,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea, useKeyboardHeight } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { dayLabel, daysOffered, fortnightSlots, slotIsFree, timeLabel } from '../booking';
+import { dayLabel, daysOffered, fortnightSlots, settleBookingDay, slotIsFree, timeLabel } from '../booking';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from '../calendar';
 import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
@@ -203,14 +203,15 @@ export function BookingScreen({
 
     const slots = slotsByDay.get(date) ?? [];
 
-    // Asking for a longer visit can take the day in hand off the strip. Landing
-    // on the first day that can still take it beats leaving the picker pointing
-    // at a day it no longer offers, with a grid that says nothing is left.
-    // Adjusted during render, not in an effect: `openDays` does not depend on
-    // `date`, so this settles in one pass, and an effect would paint a frame of
-    // the empty grid before correcting it.
-    if (openDays.length > 0 && !openDays.includes(date)) {
-        setDate(openDays[0] as string);
+    // Asking for a longer visit can take the day in hand off the strip, and the
+    // booking lands on the first day that can still take it — unless the day
+    // was picked from the calendar, which stays picked and says it has no times
+    // (`settleBookingDay`). Adjusted during render, not in an effect: `openDays`
+    // does not depend on `date`, so this settles in one pass, and an effect
+    // would paint a frame of the empty grid before correcting it.
+    const settled = settleBookingDay({ date, farDay, workingDays, openDays });
+    if (settled.date !== date) {
+        setDate(settled.date);
         setSlotMinutes(null);
     }
 
@@ -483,7 +484,7 @@ export function BookingScreen({
                         {scheduled ? (
                             <SlotPicker
                                 dateKey={date}
-                                days={openDays}
+                                days={settled.strip}
                                 daysLoading={fetched === undefined && fortnight.status !== 'error'}
                                 onPickDate={setDate}
                                 onPickFurtherDate={() => setCalendar(openCalendar)}

@@ -18,6 +18,32 @@ trap 'fail backup_pull.failed "Pulling backups from the clinic failed. Check jou
 mkdir -p "$LOCAL_BACKUP_DIR"
 ssh_opts=(-o BatchMode=yes -o ConnectTimeout=15)
 
+# Newest KEEP_DAILY dumps, plus the newest of each of the last KEEP_MONTHLY
+# months. Reads dump names (lustre-<stamp>.dump) newest first and prints the
+# ones to keep. The same rule decides what to pull and what to prune, so a dump
+# is fetched only if it will be kept, and one that retention would keep is
+# never skipped for being old.
+retained() {
+    local -A seen_month=()
+    local index=0 months_kept=0 name month keep
+    while IFS= read -r name; do
+        index=$((index + 1))
+        month=${name:7:7}
+        keep=false
+        ((index <= KEEP_DAILY)) && keep=true
+        if [[ -z ${seen_month[$month]:-} ]]; then
+            seen_month[$month]=1
+            if ((months_kept < KEEP_MONTHLY)); then
+                months_kept=$((months_kept + 1))
+                keep=true
+            fi
+        fi
+        if $keep; then
+            printf '%s\n' "$name"
+        fi
+    done
+}
+
 # The server or this machine being off, or this machine being on another
 # tailnet, is normal. Only a backup going stale is worth an alert.
 if remote_files=$(ssh "${ssh_opts[@]}" "$LUSTRE_HOST" \
@@ -29,15 +55,18 @@ else
     log "server unreachable, nothing pulled"
 fi
 
-oldest_kept=$(local_backups_newest_first | sed -n "${KEEP_DAILY}p")
+wanted=$(
+    {
+        printf '%s\n' "$remote_files"
+        local_backups_newest_first | sed 's/\.age$//'
+    } | grep -E '^lustre-.+\.dump$' | sort -ru | retained
+)
+
 pulled=0
 for name in $remote_files; do
     dest="$LOCAL_BACKUP_DIR/$name.age"
     [[ -e $dest ]] && continue
-    # Older than anything retention keeps: it would be pruned straight away.
-    if [[ -n $oldest_kept ]] && (($(backup_epoch "$name") < $(backup_epoch "$oldest_kept"))); then
-        continue
-    fi
+    grep -qxF "$name" <<<"$wanted" || continue
 
     part="$dest.part"
     fifo="$STATE_DIR/pull.fifo"
@@ -61,24 +90,9 @@ for name in $remote_files; do
     log "pulled $name"
 done
 
-# Newest KEEP_DAILY backups, plus the newest of each of the last KEEP_MONTHLY
-# months.
-declare -A seen_month=()
-index=0
-months_kept=0
+keep=$(local_backups_newest_first | sed 's/\.age$//' | retained)
 while IFS= read -r name; do
-    index=$((index + 1))
-    month=${name:7:7}
-    keep=false
-    ((index <= KEEP_DAILY)) && keep=true
-    if [[ -z ${seen_month[$month]:-} ]]; then
-        seen_month[$month]=1
-        if ((months_kept < KEEP_MONTHLY)); then
-            months_kept=$((months_kept + 1))
-            keep=true
-        fi
-    fi
-    $keep || { rm -f -- "${LOCAL_BACKUP_DIR:?}/$name" && log "pruned $name"; }
+    grep -qxF "${name%.age}" <<<"$keep" || { rm -f -- "${LOCAL_BACKUP_DIR:?}/$name" && log "pruned $name"; }
 done < <(local_backups_newest_first)
 
 newest=$(local_backups_newest_first | head -n1)

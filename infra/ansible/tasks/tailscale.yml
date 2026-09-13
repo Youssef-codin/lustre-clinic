@@ -55,10 +55,15 @@
     delay: "{{ 5 if ts_ssh_off is changed else 0 }}"
     timeout: 60
 
-- name: Re-read Tailscale prefs
+# The command was fired without waiting, so poll until the preference has
+# actually changed rather than trusting the delay above.
+- name: Re-read Tailscale prefs until SSH is off
   ansible.builtin.command: tailscale debug prefs
   register: ts_prefs_after
   changed_when: false
+  until: not (ts_prefs_after.stdout | from_json).RunSSH
+  retries: 10
+  delay: 3
 
 - name: Tailscale SSH is off
   ansible.builtin.assert:
