@@ -1,0 +1,75 @@
+# The Debian installer configured only the interface it installed over, which
+# on the first clinic laptop was Wi-Fi: its ethernet port stays down, and at a
+# clinic connected by cable the machine would sit offline. ifupdown only acts
+# at boot, so a cable plugged in later, or knocked out and back, would do
+# nothing. systemd-networkd follows the carrier instead, and here it manages
+# the wired port only; Wi-Fi stays with ifupdown and dhcpcd as the fallback.
+
+- name: Wired ports follow the cable
+  ansible.builtin.copy:
+    dest: /etc/systemd/network/20-lustre-wired.network
+    content: |
+      # Managed by infra/ansible. Matches wired ports only (en*); Docker's veth
+      # and bridge interfaces and Wi-Fi are left alone.
+      [Match]
+      Name=en*
+
+      [Network]
+      DHCP=ipv4
+
+      [DHCPv4]
+      # dhcpcd gives the Wi-Fi route metric 3000+, so a plugged-in cable wins.
+      RouteMetric=100
+      # DNS is fixed below; nothing here writes resolv.conf anyway.
+      UseDNS=no
+
+      [Link]
+      # No cable is a normal state, not a reason to hold up boot.
+      RequiredForOnline=no
+    mode: "0644"
+  register: wired_network
+
+- name: networkd runs
+  ansible.builtin.systemd_service:
+    name: systemd-networkd
+    enabled: true
+    state: started
+
+- name: Apply the wired config
+  ansible.builtin.command: networkctl reload
+  when: wired_network is changed
+  changed_when: true
+
+# Enabling networkd pulls in its wait-online unit, which with no cable would
+# wait out its full timeout on every boot before network-online.target, and
+# Docker waits for that target. ifupdown's own wait-online still covers Wi-Fi.
+- name: Do not wait for a cable at boot
+  ansible.builtin.systemd_service:
+    name: systemd-networkd-wait-online
+    enabled: false
+    masked: true
+
+# resolv.conf was written by dhcpcd from the Wi-Fi lease. Where Wi-Fi never
+# connects (a clinic on cable), the host would have no DNS at all: no updates,
+# no time sync. Fixed resolvers, which the outbound firewall allows, and dhcpcd
+# no longer rewrites the file. Containers get the same pair from daemon.json.
+- name: dhcpcd leaves resolv.conf alone
+  ansible.builtin.lineinfile:
+    path: /etc/dhcpcd.conf
+    line: nohook resolv.conf
+    create: true
+    mode: "0644"
+
+- name: Fixed DNS servers for the host
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      # Managed by infra/ansible (tasks/network.yml). Not written by DHCP.
+      nameserver 1.1.1.1
+      nameserver 8.8.8.8
+    mode: "0644"
+    unsafe_writes: true
+
+- name: Host can resolve names
+  ansible.builtin.command: getent hosts deb.debian.org
+  changed_when: false

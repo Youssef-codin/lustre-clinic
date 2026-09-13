@@ -1,0 +1,203 @@
+# One stack (`stack`, from `lustre_stacks` in the inventory): prod or dev.
+# Needs `bun run build:server` on the machine running the play first.
+#
+# Runs as the admin user, who owns /opt/lustre-<name> and is in the docker
+# group; only creating the directory needs root.
+
+- name: "{{ stack.name }}: the binary has been built"
+  become: false
+  delegate_to: localhost
+  ansible.builtin.stat:
+    path: "{{ repo_root }}/dist/lustre"
+  register: built_binary
+
+- name: "{{ stack.name }}: refuse to deploy without a build"
+  ansible.builtin.assert:
+    that: built_binary.stat.exists
+    fail_msg: dist/lustre is missing. Run `bun run build:server` in the repo first.
+    quiet: true
+
+- name: "{{ stack.name }}: read this node's Tailscale address"
+  become: false
+  ansible.builtin.command: tailscale status --json
+  register: stack_ts
+  changed_when: false
+
+- name: "{{ stack.name }}: remember the address"
+  ansible.builtin.set_fact:
+    stack_dir: /opt/lustre-{{ stack.name }}
+    stack_ts_ip: "{{ (stack_ts.stdout | from_json).Self.TailscaleIPs | select('match', '^100\\.') | first }}"
+    stack_ts_dns: "{{ (stack_ts.stdout | from_json).Self.DNSName | regex_replace('\\.$', '') }}"
+
+# The stack directory is private (its .env holds the passwords, mode 0600), but
+# infra/postgres/init is bind-mounted into Postgres, which runs as its own user
+# inside the container and has to list and read it. It holds no secrets: the
+# script takes every password from the environment.
+- name: "{{ stack.name }}: directories"
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ stack_dir }}", mode: "0750" }
+    - { path: "{{ stack_dir }}/dist", mode: "0750" }
+    - { path: "{{ stack_dir }}/infra", mode: "0755" }
+    - { path: "{{ stack_dir }}/infra/postgres", mode: "0755" }
+    - { path: "{{ stack_dir }}/infra/postgres/init", mode: "0755" }
+
+- name: "{{ stack.name }}: compose, image recipe and database init"
+  become: false
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/{{ item.src }}"
+    dest: "{{ stack_dir }}/{{ item.src }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: compose.yaml, mode: "0640" }
+    - { src: Dockerfile, mode: "0640" }
+    - { src: .dockerignore, mode: "0640" }
+    - { src: infra/postgres/init/10-roles.sh, mode: "0755" }
+
+- name: "{{ stack.name }}: server binary"
+  become: false
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/dist/lustre"
+    dest: "{{ stack_dir }}/dist/lustre"
+    mode: "0755"
+
+- name: "{{ stack.name }}: migrations"
+  become: false
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/dist/migrations/"
+    dest: "{{ stack_dir }}/dist/migrations/"
+    mode: "0644"
+    directory_mode: "0755"
+
+# The .env is rendered in full on every deploy, so a changed port, profile or
+# setting reaches the stack. Its passwords are the exception: the database
+# volume was initialised with them, so they are read back from the existing
+# file and only generated when there is no file yet. Nothing here passes
+# through Ansible's output.
+- name: "{{ stack.name }}: read the existing environment file"
+  become: false
+  no_log: true
+  ansible.builtin.slurp:
+    src: "{{ stack_dir }}/.env"
+  register: stack_env_file
+  failed_when: false
+
+- name: "{{ stack.name }}: parse it"
+  no_log: true
+  ansible.builtin.set_fact:
+    stack_existing_env: >-
+      {%- set env = {} -%}
+      {%- for line in (stack_env_file.content | default('') | b64decode).splitlines() -%}
+      {%- if '=' in line and not line.startswith('#') -%}
+      {%- set pair = line.split('=', 1) -%}
+      {%- set _ = env.update({pair[0]: pair[1]}) -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ env | to_json }}
+
+# An existing file that lost a password would get a new one the database
+# does not know, and the stack would fail to authenticate. Stop instead.
+- name: "{{ stack.name }}: an existing file still has every password"
+  no_log: true
+  ansible.builtin.assert:
+    that: stack_env_file.content is not defined or ((stack_existing_env | from_json).keys() | list | intersect(stack_password_keys) | length) == (stack_password_keys | length)
+    fail_msg: "{{ stack_dir }}/.env exists but is missing a password. Restore it rather than letting the deploy generate one the database was not created with."
+    quiet: true
+  vars:
+    stack_password_keys: [POSTGRES_PASSWORD, LUSTRE_OWNER_PASSWORD, LUSTRE_APP_PASSWORD, GLITCHTIP_POSTGRES_PASSWORD, GLITCHTIP_SECRET_KEY]
+
+- name: "{{ stack.name }}: passwords and URLs"
+  no_log: true
+  vars:
+    existing: "{{ stack_existing_env | from_json }}"
+  ansible.builtin.set_fact:
+    stack_secrets:
+      superuser: "{{ existing.POSTGRES_PASSWORD | default(lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits'])) }}"
+      owner: "{{ existing.LUSTRE_OWNER_PASSWORD | default(lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits'])) }}"
+      app: "{{ existing.LUSTRE_APP_PASSWORD | default(lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits'])) }}"
+      glitchtip_db: "{{ existing.GLITCHTIP_POSTGRES_PASSWORD | default(lookup('ansible.builtin.password', '/dev/null', length=32, chars=['ascii_letters', 'digits'])) }}"
+      glitchtip_key: "{{ existing.GLITCHTIP_SECRET_KEY | default(lookup('ansible.builtin.password', '/dev/null', length=50, chars=['ascii_letters', 'digits'])) }}"
+    # From the environment of whoever runs the play, so no URL is ever
+    # committed. Unset keeps whatever the file already has.
+    stack_urls:
+      discord: "{{ (lookup('ansible.builtin.env', stack.discord_env) if stack.discord_env else '') or existing.DISCORD_WEBHOOK_URL | default('') }}"
+      heartbeat: "{{ (lookup('ansible.builtin.env', stack.heartbeat_env) if stack.heartbeat_env else '') or existing.HEARTBEAT_URL | default('') }}"
+
+- name: "{{ stack.name }}: environment file"
+  become: false
+  no_log: true
+  ansible.builtin.template:
+    src: stack.env.j2
+    dest: "{{ stack_dir }}/.env"
+    mode: "0600"
+
+- name: "{{ stack.name }}: build the image"
+  become: false
+  ansible.builtin.command: docker compose build
+  args:
+    chdir: "{{ stack_dir }}"
+  changed_when: false
+
+- name: "{{ stack.name }}: database"
+  become: false
+  ansible.builtin.command: docker compose up -d --wait db
+  args:
+    chdir: "{{ stack_dir }}"
+  changed_when: false
+
+# The running production server cannot change the schema (DECISIONS.md), so the
+# deploy migrates as the owner in a one-off container. The password is read
+# from .env by the shell and never passes through Ansible.
+- name: "{{ stack.name }}: migrate as the owner"
+  become: false
+  ansible.builtin.shell: |
+    set -eu
+    set -a; . ./.env; set +a
+    docker compose run --rm --no-deps \
+      -e MIGRATION_DATABASE_URL="postgres://lustre_owner:${LUSTRE_OWNER_PASSWORD}@db:5432/lustre" \
+      server migrate
+  args:
+    chdir: "{{ stack_dir }}"
+  register: stack_migrate
+  changed_when: "'migrations applied' in stack_migrate.stdout"
+
+- name: "{{ stack.name }}: start everything"
+  become: false
+  ansible.builtin.command: docker compose up -d --remove-orphans
+  args:
+    chdir: "{{ stack_dir }}"
+  changed_when: false
+
+- name: "{{ stack.name }}: API answers over Tailscale"
+  become: false
+  ansible.builtin.uri:
+    url: "http://{{ stack_ts_ip }}:{{ stack.api_port }}/trpc/health.check"
+    return_content: true
+  register: stack_health
+  until: stack_health.status == 200 and (stack_health.content | from_json).result.data.ok
+  retries: 30
+  delay: 2
+
+# GlitchTip's first boot runs its Django migrations, which take a while on this
+# laptop.
+- name: "{{ stack.name }}: GlitchTip answers"
+  become: false
+  ansible.builtin.uri:
+    url: "http://{{ stack_ts_ip }}:8000/_health/"
+  register: stack_glitchtip
+  until: stack_glitchtip.status == 200
+  retries: 60
+  delay: 5
+  when: stack.glitchtip
+
+- name: "{{ stack.name }}: deployed"
+  ansible.builtin.debug:
+    msg:
+      - "API:       http://{{ stack_ts_dns }}:{{ stack.api_port }}"
+      - "GlitchTip: {{ 'http://' ~ stack_ts_dns ~ ':8000' if stack.glitchtip else 'not in this stack' }}"
+      - "Database:  {{ stack.environment }}, 127.0.0.1:{{ stack.db_port }} on the server only"
