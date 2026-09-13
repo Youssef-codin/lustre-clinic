@@ -6,14 +6,21 @@
  * is suppressed while it equals today. Reminder logic reads it through this
  * service rather than touching the row itself.
  *
- * Postgres returns `time` as `HH:MM:SS`, so rows are trimmed to `HH:MM` for the
- * client. Seeding uses `onConflictDoNothing` to cover two boots racing on an
- * empty database. `defaultDuration` must stay inside `durationOptions` or the
- * picker would offer an unpickable default, and `setDay` resolves the branch
- * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
- * violation.
+ * How a row reads and the duration rule are in `@lustre/shared`, shared with the
+ * demo backend. Seeding uses `onConflictDoNothing` to cover two boots racing on
+ * an empty database, and `setDay` resolves the branch first so the client gets a
+ * localizable `NOT_FOUND` rather than a foreign-key violation.
  */
-import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@lustre/shared';
+import {
+    type ClinicDay,
+    DEFAULT_CLINIC_NAME,
+    DEFAULT_REMINDER_TEMPLATE,
+    resolveDurations,
+    type Settings,
+    toClinicDay,
+    toSettings,
+    WS_EVENT,
+} from '@lustre/shared';
 import { asc, eq } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { clinicDays, settings } from '../../db/schema.ts';
@@ -22,35 +29,7 @@ import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
 import type { SetClinicDayInput, UpdateSettingsInput } from './settings.schema.ts';
 
-interface Settings {
-    clinicName: string;
-    clinicPhone: string | null;
-    durationOptions: number[];
-    defaultDuration: number;
-    reminderLeadHours: number;
-    reminderNotifyAt: string;
-    reminderRepeatMinutes: number;
-    reminderDismissedOn: string | null;
-    reminderTemplate: string;
-    updatedAt: Date;
-}
-
 type SettingsRow = typeof settings.$inferSelect;
-
-function toSettings(row: SettingsRow): Settings {
-    return {
-        clinicName: row.clinicName,
-        clinicPhone: row.clinicPhone,
-        durationOptions: [...row.durationOptions].sort((a, b) => a - b),
-        defaultDuration: row.defaultDuration,
-        reminderLeadHours: row.reminderLeadHours,
-        reminderNotifyAt: row.reminderNotifyAt.slice(0, 5),
-        reminderRepeatMinutes: row.reminderRepeatMinutes,
-        reminderDismissedOn: row.reminderDismissedOn,
-        reminderTemplate: row.reminderTemplate,
-        updatedAt: row.updatedAt,
-    };
-}
 
 async function readRow(): Promise<SettingsRow> {
     const [existing] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
@@ -66,24 +45,6 @@ async function readRow(): Promise<SettingsRow> {
     return seeded;
 }
 
-interface ClinicDay {
-    weekday: number;
-    branchId: string;
-    opensAt: string;
-    closesAt: string;
-}
-
-type ClinicDayRow = typeof clinicDays.$inferSelect;
-
-function toClinicDay(row: ClinicDayRow): ClinicDay {
-    return {
-        weekday: row.weekday,
-        branchId: row.branchId,
-        opensAt: row.opensAt.slice(0, 5),
-        closesAt: row.closesAt.slice(0, 5),
-    };
-}
-
 export const settingsService = {
     async get(): Promise<Settings> {
         return toSettings(await readRow());
@@ -96,18 +57,11 @@ export const settingsService = {
     async update(input: UpdateSettingsInput): Promise<Settings> {
         const current = await readRow();
 
-        const durationOptions = input.durationOptions
-            ? [...new Set(input.durationOptions)].sort((a, b) => a - b)
-            : [...current.durationOptions].sort((a, b) => a - b);
-        const defaultDuration = input.defaultDuration ?? current.defaultDuration;
-
-        if (!durationOptions.includes(defaultDuration)) {
-            throw new AppError(
-                ERROR_CODE.INVALID_DURATION,
-                'defaultDuration must be one of durationOptions',
-                422,
-            );
-        }
+        const { durationOptions, defaultDuration } = resolveDurations(
+            input,
+            current,
+            (code, message, status) => new AppError(code, message, status),
+        );
 
         const [updated] = await db
             .update(settings)

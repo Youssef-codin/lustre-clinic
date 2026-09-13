@@ -3,30 +3,13 @@
  * anywhere. Parsing happens at the boundary and formatting at the display
  * layer, so nothing in between ever sees a fractional pound.
  *
- * `computeTotal` is Σ(unit_price × quantity) minus checkup lines, if any
- * non-checkup line exists. The checkup waiver is the only automatic rule; the
- * checkup line is never deleted — it is excluded from the sum and stays on the
- * visit as the record that the patient was seen.
+ * The rules themselves are in `@lustre/shared`, shared with the demo backend.
  */
-import { ERROR_CODE, MAX_AMOUNT_PIASTRES } from '@lustre/shared';
+import { assertAmount as assertAmountWith } from '@lustre/shared';
 import { AppError } from '../errors/AppError.ts';
 
+export { computeTotal, type PricedLine } from '@lustre/shared';
+
 export function assertAmount(amount: number, what = 'amount'): number {
-    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT_PIASTRES) {
-        throw new AppError(ERROR_CODE.INVALID_AMOUNT, `${what} is out of range`, 422);
-    }
-    return amount;
-}
-
-export interface PricedLine {
-    unitPrice: number;
-    quantity: number;
-    isCheckup: boolean;
-}
-
-export function computeTotal(lines: readonly PricedLine[]): number {
-    const hasOther = lines.some((line) => !line.isCheckup);
-    const counted = hasOther ? lines.filter((line) => !line.isCheckup) : lines;
-
-    return counted.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    return assertAmountWith(amount, (code, message, status) => new AppError(code, message, status), what);
 }

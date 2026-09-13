@@ -11,22 +11,15 @@
  * Modulo bias across the alphabet's symbols is irrelevant: uniqueness is
  * enforced by the UNIQUE constraint, not by the distribution.
  */
-import { REF_ALPHABET, REF_RANDOM_LENGTH } from '@lustre/shared';
-import { refDatePart } from './time.ts';
+import { buildRef as buildRefWith, type Draw, randomRefSuffix } from '@lustre/shared';
 
-function randomRefSuffix(): string {
-    const bytes = new Uint8Array(REF_RANDOM_LENGTH);
-    crypto.getRandomValues(bytes);
-
-    let out = '';
-    for (const byte of bytes) {
-        out += REF_ALPHABET[byte % REF_ALPHABET.length];
-    }
-    return out;
-}
+const draw: Draw = (size) => {
+    const [byte = 0] = crypto.getRandomValues(new Uint8Array(1));
+    return byte % size;
+};
 
 export function buildRef(startsAt: Date, offsetMinutes = 0): string {
-    return `${refDatePart(startsAt, offsetMinutes)}-${randomRefSuffix()}`;
+    return buildRefWith(startsAt, draw, offsetMinutes);
 }
 
 /**
@@ -35,5 +28,5 @@ export function buildRef(startsAt: Date, offsetMinutes = 0): string {
  * in its own right and not a suffix of anything.
  */
 export function buildPatientRef(): string {
-    return randomRefSuffix();
+    return randomRefSuffix(draw);
 }
