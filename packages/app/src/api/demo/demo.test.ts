@@ -32,7 +32,7 @@ const { appointmentHandlers } = await import('./handlers/appointment');
 const { visitHandlers } = await import('./handlers/visit');
 const { balanceHandlers } = await import('./handlers/balance');
 const { branchHandlers } = await import('./handlers/branch');
-const { patientHandlers } = await import('./handlers/patient');
+const { createMinimalPatient, patientHandlers } = await import('./handlers/patient');
 const { procedureHandlers } = await import('./handlers/procedure');
 const { settingsHandlers } = await import('./handlers/settings');
 const { reminderHandlers } = await import('./handlers/reminder');
@@ -435,5 +435,53 @@ describe('the dispatch table', () => {
 
         expect(summary.appointments.total).toBeGreaterThan(0);
         expect(summary.visits.outstanding).toBeGreaterThan(0);
+    });
+});
+
+/**
+ * The server numbers patients off `settings.patient_ref_last`, and a demo that
+ * kept drawing random codes would show the clinic a register it will never have.
+ */
+describe('patient numbers', () => {
+    const minimal = (name: string, phone: string) => ({
+        name,
+        phone,
+        email: null,
+        birthDate: null,
+        gender: null,
+        notes: null,
+        legacyRef: null,
+    });
+
+    it('seeds a register numbered 1…N with the counter left on N', () => {
+        const refs = patientHandlers.recent({ limit: 100 }).patients.map((patient) => Number(patient.ref));
+        expect([...refs].sort((a, b) => a - b)).toEqual(refs.map((_, index) => index + 1));
+        expect(settingsHandlers.get().patientRefLast).toBe(refs.length);
+    });
+
+    it('gives each registration the number after the last, whichever path made it', () => {
+        const last = settingsHandlers.get().patientRefLast;
+        // The seed's questionnaire has required questions; numbering is not about them.
+        getDb().customQuestions = [];
+
+        const registered = patientHandlers.create({ ...minimal('Nadia Hassan', '01012345678'), custom: {} });
+        const booked = createMinimalPatient(minimal('Walk In', '01098765432'));
+
+        expect(registered.ref).toBe(String(last + 1));
+        expect(booked.ref).toBe(String(last + 2));
+        expect(settingsHandlers.get().patientRefLast).toBe(last + 2);
+    });
+
+    it('carries on from a number the clinic sets', () => {
+        settingsHandlers.update({ patientRefLast: 4000 });
+        expect(createMinimalPatient(minimal('Carried On', '01011112222')).ref).toBe('4001');
+    });
+
+    it('refuses a number below one a patient already has', () => {
+        const last = settingsHandlers.get().patientRefLast;
+
+        expect(() => settingsHandlers.update({ patientRefLast: last - 1 })).toThrow(DemoError);
+        expect(settingsHandlers.get().patientRefLast).toBe(last);
+        expect(() => settingsHandlers.update({ patientRefLast: last })).not.toThrow();
     });
 });

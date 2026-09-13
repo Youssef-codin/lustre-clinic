@@ -6,10 +6,10 @@
  * The rules themselves are in `@lustre/shared`, shared with the demo backend.
  */
 import { assertAmount as assertAmountWith } from '@lustre/shared';
-import { AppError } from '../errors/AppError.ts';
+import { appFail } from '../errors/AppError.ts';
 
 export { computeTotal, type PricedLine } from '@lustre/shared';
 
 export function assertAmount(amount: number, what = 'amount'): number {
-    return assertAmountWith(amount, (code, message, status) => new AppError(code, message, status), what);
+    return assertAmountWith(amount, appFail, what);
 }

@@ -12,7 +12,7 @@ import { type Answers, answerRules, ERROR_CODE, type QuestionnaireGap } from '@l
 import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { customQuestions } from '../../db/schema.ts';
-import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
+import { AppError, appFail, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import type {
     CreateCustomQuestionInput,
     ListCustomQuestionInput,
@@ -24,7 +24,7 @@ export type { Answers, QuestionnaireGap, QuestionnaireGapReason } from '@lustre/
 
 type CustomQuestion = typeof customQuestions.$inferSelect;
 
-const rules = answerRules((code, message, status) => new AppError(code, message, status));
+const rules = answerRules(appFail);
 
 export const customQuestionService = {
     async list(input: ListCustomQuestionInput = { includeInactive: false }): Promise<CustomQuestion[]> {

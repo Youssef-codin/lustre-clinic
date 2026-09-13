@@ -3,7 +3,14 @@
  * `../db`. The single enforced row is a single object, so there is nothing to
  * seed on read.
  */
-import { resolveDurations, toClinicDay, toSettings, WS_EVENT } from '@lustre/shared';
+import {
+    assertPatientRefLast,
+    highestNumericRef,
+    resolveDurations,
+    toClinicDay,
+    toSettings,
+    WS_EVENT,
+} from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type ClinicDayRow, getDb, save } from '../db';
 import { broadcast } from '../events';
@@ -22,6 +29,11 @@ export const settingsHandlers = {
     update(input: RouterInput['settings']['update']): Settings {
         const current = getDb().settings;
         const { durationOptions, defaultDuration } = resolveDurations(input, current, demoFail);
+
+        if (input.patientRefLast !== undefined) {
+            const taken = highestNumericRef(getDb().patients.map((patient) => patient.ref));
+            assertPatientRefLast(input.patientRefLast, taken, demoFail);
+        }
 
         assignDefined(current, input, { durationOptions, defaultDuration, updatedAt: new Date() });
         save();

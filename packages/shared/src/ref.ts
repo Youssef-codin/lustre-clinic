@@ -17,6 +17,19 @@ export function randomRefSuffix(draw: Draw): string {
     return out;
 }
 
+/**
+ * The highest patient ref that is a plain number, or 0. The random codes from
+ * before numbering are skipped — except the few that happen to be all digits,
+ * like `2345`, which the counter must not hand out a second time.
+ */
+export function highestNumericRef(refs: Iterable<string>): number {
+    let highest = 0;
+    for (const ref of refs) {
+        if (/^\d+$/.test(ref)) highest = Math.max(highest, Number(ref));
+    }
+    return highest;
+}
+
 /** `DDMMYY-XXXX`, dated in the clinic's local day. */
 export function buildRef(startsAt: Date, draw: Draw, offsetMinutes = 0): string {
     return `${refDatePart(startsAt, offsetMinutes)}-${randomRefSuffix(draw)}`;

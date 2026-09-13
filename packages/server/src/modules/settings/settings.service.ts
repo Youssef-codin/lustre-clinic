@@ -12,19 +12,21 @@
  * localizable `NOT_FOUND` rather than a foreign-key violation.
  */
 import {
+    assertPatientRefLast,
     type ClinicDay,
     DEFAULT_CLINIC_NAME,
     DEFAULT_REMINDER_TEMPLATE,
+    highestNumericRef,
     resolveDurations,
     type Settings,
     toClinicDay,
     toSettings,
     WS_EVENT,
 } from '@lustre/shared';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
-import { clinicDays, settings } from '../../db/schema.ts';
-import { AppError } from '../../errors/AppError.ts';
+import { clinicDays, patients, settings } from '../../db/schema.ts';
+import { AppError, appFail } from '../../errors/AppError.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
 import type { SetClinicDayInput, UpdateSettingsInput } from './settings.schema.ts';
@@ -57,22 +59,35 @@ export const settingsService = {
     async update(input: UpdateSettingsInput): Promise<Settings> {
         const current = await readRow();
 
-        const { durationOptions, defaultDuration } = resolveDurations(
-            input,
-            current,
-            (code, message, status) => new AppError(code, message, status),
-        );
+        const { durationOptions, defaultDuration } = resolveDurations(input, current, appFail);
 
-        const [updated] = await db
-            .update(settings)
-            .set({
-                ...input,
-                durationOptions,
-                defaultDuration,
-                updatedAt: new Date(),
-            })
-            .where(eq(settings.id, 1))
-            .returning();
+        const updated = await db.transaction(async (tx) => {
+            if (input.patientRefLast !== undefined) {
+                // The row lock comes first, so a registration already numbering
+                // itself either commits before the highest ref is read or waits
+                // until this has been written.
+                await tx.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)).for('update');
+
+                const [taken] = await tx
+                    .select({ refs: sql<string[]>`coalesce(array_agg(${patients.ref}), '{}')` })
+                    .from(patients)
+                    .where(sql`${patients.ref} ~ '^[0-9]+$'`);
+
+                assertPatientRefLast(input.patientRefLast, highestNumericRef(taken?.refs ?? []), appFail);
+            }
+
+            const [row] = await tx
+                .update(settings)
+                .set({
+                    ...input,
+                    durationOptions,
+                    defaultDuration,
+                    updatedAt: new Date(),
+                })
+                .where(eq(settings.id, 1))
+                .returning();
+            return row;
+        });
 
         if (!updated) throw AppError.notFound('settings');
 

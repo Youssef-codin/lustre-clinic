@@ -219,11 +219,6 @@ describe('time', () => {
                 );
             }
         }
-
-        await expectSame(
-            () => demoRules.buildPatientRef(),
-            () => serverRef.buildPatientRef(),
-        );
     });
 });
 
@@ -446,9 +441,20 @@ describe('settings', () => {
         return { id: 1, ...getDb().settings };
     }
 
-    /** `settings.update` on the server: read the row, write the patch, hand back what was written. */
+    /**
+     * `settings.update` on the server: read the row, then — inside the
+     * transaction — lock it and read the numbered refs when the patient number
+     * is being set, write the patch, and hand back what was written.
+     */
     function stubUpdate(): void {
-        stubSelect([serverRow()]);
+        const numbered = getDb()
+            .patients.map((patient) => patient.ref)
+            .filter((ref) => /^\d+$/.test(ref));
+        stubSelect([serverRow()], [serverRow()], [{ refs: numbered }]);
+        stubs.push(
+            spyOn(db, 'transaction').mockImplementation(((run: (tx: unknown) => unknown) =>
+                run(db)) as never),
+        );
         stubs.push(
             spyOn(db, 'update').mockImplementation(
                 () =>
@@ -481,6 +487,12 @@ describe('settings', () => {
         { defaultDuration: 45 },
         { defaultDuration: 55 },
         { reminderNotifyAt: '08:15', reminderTemplate: 'Hello {{name}}' },
+        // The seed numbers its patients 1…N and leaves the counter on N.
+        { patientRefLast: seedDemoDb().patients.length },
+        { patientRefLast: seedDemoDb().patients.length + 500 },
+        { patientRefLast: seedDemoDb().patients.length - 1 },
+        { patientRefLast: 0 },
+        { patientRefLast: 0, defaultDuration: 55 },
     ];
 
     it('accepts and refuses the same updates', async () => {

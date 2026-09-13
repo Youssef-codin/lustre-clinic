@@ -17,7 +17,6 @@ import {
     ERROR_CODE,
     type ErrorCode,
     type Fail,
-    randomRefSuffix,
     type Tooth,
 } from '@lustre/shared';
 import type { ProcedureTypeRow } from './db';
@@ -78,10 +77,6 @@ const draw: Draw = (size) => Math.floor(Math.random() * size);
 
 export function buildRef(startsAt: Date, offsetMinutes = 0): string {
     return buildRefWith(startsAt, draw, offsetMinutes);
-}
-
-export function buildPatientRef(): string {
-    return randomRefSuffix(draw);
 }
 
 /**

@@ -19,6 +19,8 @@ export interface Settings {
     reminderRepeatMinutes: number;
     reminderDismissedOn: string | null;
     reminderTemplate: string;
+    /** The last patient number handed out. The next registration gets one more. */
+    patientRefLast: number;
     updatedAt: Date;
 }
 
@@ -33,8 +35,25 @@ export function toSettings(row: Settings): Settings {
         reminderRepeatMinutes: row.reminderRepeatMinutes,
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
+        patientRefLast: row.patientRefLast,
         updatedAt: row.updatedAt,
     };
+}
+
+/**
+ * Where numbering carries on from. Refused below the highest numbered ref
+ * already on a patient: the next registration would be handed a number someone
+ * already has. Raising it leaves a gap, which is the clinic's call.
+ */
+export function assertPatientRefLast(value: number, highestTaken: number, fail: Fail): number {
+    if (value < highestTaken) {
+        throw fail(
+            ERROR_CODE.PATIENT_REF_BELOW_EXISTING,
+            `patientRefLast must not be below ${highestTaken}, the highest patient ref in use`,
+            422,
+        );
+    }
+    return value;
 }
 
 type Durations = Pick<Settings, 'durationOptions' | 'defaultDuration'>;
