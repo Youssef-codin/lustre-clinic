@@ -89,37 +89,6 @@ export function phoneError(phone: string): string | null {
     return digits.length < SHORTEST_PHONE ? 'That is too short to be a number.' : null;
 }
 
-/**
- * Required and still empty. The two a patient cannot be without, on every form
- * that registers one. A blank gets no message — the label turns `due` instead.
- */
-export function blankNameAndPhone(form: { name: string; phone: string }): ('name' | 'phone')[] {
-    const blank: ('name' | 'phone')[] = [];
-    if (form.name.trim().length === 0) blank.push('name');
-    if (form.phone.trim().length === 0) blank.push('phone');
-    return blank;
-}
-
-/** Typed, and wrong: a message for each. A form without an email field leaves `email` out. */
-export function malformedDraft(form: {
-    phone: string;
-    email?: string;
-    age: string;
-}): Partial<Record<'phone' | 'email' | 'age', string>> {
-    const found: Partial<Record<'phone' | 'email' | 'age', string>> = {};
-
-    const phone = phoneError(form.phone);
-    if (phone) found.phone = phone;
-
-    const email = form.email === undefined ? null : emailError(form.email);
-    if (email) found.email = email;
-
-    const age = ageError(form.age);
-    if (age) found.age = age;
-
-    return found;
-}
-
 // --- the age, converted (the patient record and the migration) --------------
 
 export function ageDigits(text: string): string {
@@ -150,25 +119,15 @@ export function birthDateDigits(text: string): string {
     return text.replace(/\D/g, '').slice(0, BIRTH_DATE_DIGITS);
 }
 
-/**
- * What a typed day-month-year field shows: the digits so far, with the
- * separators the entry has earned. The data entry screen's cutoff date is typed
- * the same way.
- */
-export function dateDigitsDisplay(digits: string): string {
+/** What the field shows: the digits so far, with the separators the entry has earned. */
+export function birthDateDisplay(digits: string): string {
     return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)]
         .filter((part) => part.length > 0)
         .join(' / ');
 }
 
-export const birthDateDisplay = dateDigitsDisplay;
-
-/**
- * `YYYY-MM-DD` from `DDMMYYYY`, or null while the entry is incomplete or names a
- * day the calendar does not have. Which days a field accepts is the caller's
- * rule on top of this.
- */
-export function calendarIsoOf(digits: string): string | null {
+/** `YYYY-MM-DD` for the server, or null while the entry is incomplete or impossible. */
+export function birthDateIso(digits: string, today: string = todayKey()): string | null {
     if (digits.length !== BIRTH_DATE_DIGITS) return null;
 
     const day = Number(digits.slice(0, 2));
@@ -177,14 +136,9 @@ export function calendarIsoOf(digits: string): string | null {
 
     if (month < 1 || month > 12) return null;
     if (day < 1 || day > daysInMonth(year, month)) return null;
+    if (year < EARLIEST_BIRTH_YEAR) return null;
 
-    return `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
-}
-
-/** `YYYY-MM-DD` for the server, or null while the entry is incomplete or impossible. */
-export function birthDateIso(digits: string, today: string = todayKey()): string | null {
-    const iso = calendarIsoOf(digits);
-    if (iso === null || Number(digits.slice(4, 8)) < EARLIEST_BIRTH_YEAR) return null;
+    const iso = `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
     return iso > today ? null : iso;
 }
 

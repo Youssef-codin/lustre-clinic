@@ -31,21 +31,10 @@
 // migration that is a hundredfold overcharge told to a patient months later
 // with no visit to check it against. A keypad with no decimal key is what stops
 // it being typed; the stripping is only what catches a paste.
-import { todayKey } from '@lustre/shared';
-import {
-    birthDateOf,
-    blankNameAndPhone,
-    calendarIsoOf,
-    malformedDraft,
-    orNull,
-} from '../../../components/domain/patientDraft';
+import { daysInMonth, todayKey } from '@lustre/shared';
+import { ageError, birthDateOf, orNull, phoneError } from '../../../components/domain/patientDraft';
 
-export {
-    ageDigits,
-    dateDigitsDisplay as cutoffDisplay,
-    FEMALE,
-    MALE,
-} from '../../../components/domain/patientDraft';
+export { ageDigits, FEMALE, MALE } from '../../../components/domain/patientDraft';
 
 export type EntryForm = {
     /**
@@ -116,10 +105,13 @@ export function balancePiastres(pounds: string): number | null {
 //
 // Typed as digits and shown with separators, the way `domain/patientDraft`'s
 // date of birth is — the same keypad, the same rhythm, so the desk learns one
-// date field and not two. The display and the calendar check are that module's;
-// the rule on top is not the same one: a date of birth is refused for being too
-// early and this is refused for being in the future. The old system stopped
+// date field and not two. The rule underneath is not the same one, which is why
+// the parse is here rather than imported: a date of birth is refused for being
+// too early and this is refused for being in the future. The old system stopped
 // being the truth on a day that has already happened.
+//
+// `daysInMonth` is shared, because the length of February is the calendar and
+// not a rule about cutoffs.
 
 const CUTOFF_DIGITS = 8;
 
@@ -127,10 +119,26 @@ export function cutoffDigits(text: string): string {
     return text.replace(/\D/g, '').slice(0, CUTOFF_DIGITS);
 }
 
+/** What the field shows: the digits so far, with the separators the entry has earned. */
+export function cutoffDisplay(digits: string): string {
+    return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)]
+        .filter((part) => part.length > 0)
+        .join(' / ');
+}
+
 /** `YYYY-MM-DD` for the server, or null while the entry is incomplete or impossible. */
 export function cutoffIso(digits: string, today: string = todayKey()): string | null {
-    const iso = calendarIsoOf(digits);
-    return iso === null || iso > today ? null : iso;
+    if (digits.length !== CUTOFF_DIGITS) return null;
+
+    const day = Number(digits.slice(0, 2));
+    const month = Number(digits.slice(2, 4));
+    const year = Number(digits.slice(4, 8));
+
+    if (month < 1 || month > 12) return null;
+    if (day < 1 || day > daysInMonth(year, month)) return null;
+
+    const iso = `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+    return iso > today ? null : iso;
 }
 
 export function cutoffError(digits: string, today: string = todayKey()): string | null {
@@ -185,7 +193,10 @@ export type EntryField = 'name' | 'phone' | 'age' | 'balance';
  * certainly has.
  */
 export function blankFields(form: EntryForm): EntryField[] {
-    return blankNameAndPhone(form);
+    const blank: EntryField[] = [];
+    if (form.name.trim().length === 0) blank.push('name');
+    if (form.phone.trim().length === 0) blank.push('phone');
+    return blank;
 }
 
 /**
@@ -193,7 +204,13 @@ export function blankFields(form: EntryForm): EntryField[] {
  * because there is something on screen to correct.
  */
 export function malformedFields(form: EntryForm): Partial<Record<EntryField, string>> {
-    const found: Partial<Record<EntryField, string>> = malformedDraft({ phone: form.phone, age: form.age });
+    const found: Partial<Record<EntryField, string>> = {};
+
+    const phone = phoneError(form.phone);
+    if (phone) found.phone = phone;
+
+    const age = ageError(form.age);
+    if (age) found.age = age;
 
     if (form.balance.trim() !== '' && balancePiastres(form.balance) === null) {
         found.balance = 'That is not an amount in pounds.';

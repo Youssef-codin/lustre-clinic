@@ -36,4 +36,6 @@ export function normalizePhone(raw: string): string {
     return `+${digits}`;
 }
 
-export { toWhatsAppNumber } from '@lustre/shared';
+export function toWhatsAppNumber(e164: string): string {
+    return e164.replace(/^\+/, '');
+}
