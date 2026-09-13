@@ -43,13 +43,21 @@
     mode: "0755"
 
 # The default json-file log never rotates and would eventually fill the SSD.
-- name: Rotate container logs
+#
+# Fixed DNS servers because Docker copies the host's nameservers into a
+# container when the container starts. After a power cut the containers start
+# before Wi-Fi has a lease, get none, and every lookup fails until they are
+# recreated: on the first clinic machine that silenced the heartbeat and every
+# Discord alert for two hours after a reboot. The firewall already allows DNS
+# out, and nothing looked up is patient data.
+- name: Container logs and DNS
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json
     content: |
       {
         "log-driver": "json-file",
-        "log-opts": { "max-size": "10m", "max-file": "3" }
+        "log-opts": { "max-size": "10m", "max-file": "3" },
+        "dns": ["1.1.1.1", "8.8.8.8"]
       }
     mode: "0644"
   notify: Restart docker
