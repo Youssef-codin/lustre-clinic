@@ -66,6 +66,20 @@ async function readRow(): Promise<SettingsRow> {
     return seeded;
 }
 
+/** Every write to the row stamps `updatedAt` and tells the handsets to refetch. */
+async function writeRow(values: Partial<typeof settings.$inferInsert>): Promise<Settings> {
+    const [updated] = await db
+        .update(settings)
+        .set({ ...values, updatedAt: new Date() })
+        .where(eq(settings.id, 1))
+        .returning();
+
+    if (!updated) throw AppError.notFound('settings');
+
+    broadcast(WS_EVENT.SETTINGS_UPDATED);
+    return toSettings(updated);
+}
+
 interface ClinicDay {
     weekday: number;
     branchId: string;
@@ -109,21 +123,7 @@ export const settingsService = {
             );
         }
 
-        const [updated] = await db
-            .update(settings)
-            .set({
-                ...input,
-                durationOptions,
-                defaultDuration,
-                updatedAt: new Date(),
-            })
-            .where(eq(settings.id, 1))
-            .returning();
-
-        if (!updated) throw AppError.notFound('settings');
-
-        broadcast(WS_EVENT.SETTINGS_UPDATED);
-        return toSettings(updated);
+        return writeRow({ ...input, durationOptions, defaultDuration });
     },
 
     async schedule(): Promise<ClinicDay[]> {
@@ -161,16 +161,6 @@ export const settingsService = {
 
     async dismissRemindersFor(date: string): Promise<Settings> {
         await readRow();
-
-        const [updated] = await db
-            .update(settings)
-            .set({ reminderDismissedOn: date, updatedAt: new Date() })
-            .where(eq(settings.id, 1))
-            .returning();
-
-        if (!updated) throw AppError.notFound('settings');
-
-        broadcast(WS_EVENT.SETTINGS_UPDATED);
-        return toSettings(updated);
+        return writeRow({ reminderDismissedOn: date });
     },
 };
