@@ -3,7 +3,7 @@ import { config } from '../../src/config.ts';
 import { refuseProduction } from '../../src/db/environment.ts';
 import { sql as dbSql } from '../../src/db/index.ts';
 import { runMigrations } from '../../src/db/migrate.ts';
-import { buildPatientRef } from '../../src/util/ref.ts';
+import { buildRef } from '../../src/util/ref.ts';
 
 /**
  * Tests run against a real Postgres, because the things worth testing here are
@@ -74,15 +74,18 @@ export async function insertBranch(name = 'Main'): Promise<string> {
 
 /**
  * A patient row straight into the table, for suites that need one to exist and
- * do not care what is on it. The `ref` is generated the same way the service
- * generates it — the column is NOT NULL, and every patient carries this clinic's
- * own number (§5).
+ * do not care what is on it. The column is NOT NULL, so it gets a ref — a
+ * four-character code of the kind patients carried before numbering, with a
+ * letter in it, so a row made here never takes a number the counter will hand
+ * out.
  */
 export async function insertPatient(name = 'Test Patient'): Promise<string> {
     const id = uuid();
+    let ref = '';
+    while (!/\D/.test(ref)) ref = buildRef(new Date()).split('-')[1] ?? '';
     await sql`
         INSERT INTO patients (id, ref, name, phone)
-        VALUES (${id}, ${buildPatientRef()}, ${name}, '+201000000000')
+        VALUES (${id}, ${ref}, ${name}, '+201000000000')
     `;
     return id;
 }

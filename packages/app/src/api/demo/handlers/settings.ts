@@ -25,6 +25,7 @@ function toSettings(row: SettingsRow): Settings {
         reminderRepeatMinutes: row.reminderRepeatMinutes,
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
+        patientRefLast: row.patientRefLast,
         updatedAt: row.updatedAt,
     };
 }
