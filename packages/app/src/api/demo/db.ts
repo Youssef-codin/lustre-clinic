@@ -150,6 +150,7 @@ export interface SettingsRow {
     reminderRepeatMinutes: number;
     reminderDismissedOn: string | null;
     reminderTemplate: string;
+    patientRefLast: number;
     updatedAt: Date;
 }
 
@@ -180,8 +181,9 @@ const STORE_KEY = 'lustre.demo.db';
  *    day at Zamalek while the day view opens on Maadi — a demo that started on
  *    "Closed on Tuesdays". A phone that already stored that database has to drop
  *    it, or the fix does not reach it.
+ * 3: settings carry `patientRefLast`.
  */
-const STORE_VERSION = 2;
+const STORE_VERSION = 3;
 
 let db: DemoDb | null = null;
 

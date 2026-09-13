@@ -1,9 +1,7 @@
 /**
- * SPEC §5 — two refs, one alphabet.
- *
- * `appointments.ref` is `DDMMYY-XXXX`, day first, unique within the date.
- * `patients.ref` is `XXXX` alone: a patient is not an event, and the number goes
- * at the top of a page in the paper book rather than against a day.
+ * SPEC §5 — `appointments.ref` is `DDMMYY-XXXX`, day first, unique within the
+ * date. `patients.ref` is a plain number off `settings.patient_ref_last`,
+ * allocated where the patient is inserted.
  *
  * The alphabet excludes `0/O` and `1/I/L` so a ref read down the phone or
  * written by hand is unambiguous. Stored uppercase, matched case-insensitively.
@@ -30,10 +28,14 @@ export function buildRef(startsAt: Date, offsetMinutes = 0): string {
 }
 
 /**
- * A patient's ref: the random part with no date on the front. Named rather than
- * having callers reach for `randomRefSuffix`, because this one is an identifier
- * in its own right and not a suffix of anything.
+ * The highest patient ref that is a plain number, or 0. Patients from before
+ * numbering keep random codes, which are skipped — except the few that happen
+ * to be all digits, like `2345`, which the counter must not hand out again.
  */
-export function buildPatientRef(): string {
-    return randomRefSuffix();
+export function highestNumericRef(refs: Iterable<string>): number {
+    let highest = 0;
+    for (const ref of refs) {
+        if (/^\d+$/.test(ref)) highest = Math.max(highest, Number(ref));
+    }
+    return highest;
 }
