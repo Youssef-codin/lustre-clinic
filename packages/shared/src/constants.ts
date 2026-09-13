@@ -20,21 +20,19 @@ export const REF_RANDOM_LENGTH = 4;
 export const REF_PATTERN = /^\d{6}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/i;
 
 /**
- * `patients.ref` is a plain number — `1`, `2`, `3` — carried on from the
- * clinic's own count, which `settings.patient_ref_last` holds.
+ * `patients.ref` is the random part alone — `W5F5`, four characters, no date.
  *
  * The date prefix is what makes an appointment ref scoped to a day, and a
  * patient is not an event: they are registered once and the number goes at the
- * top of their page in the paper book for good.
+ * top of their page in the paper book for good. Four characters is what someone
+ * writes at the top of a page without resenting it, and 31⁴ is 923,521 of them
+ * — a clinic that has seen ten thousand patients still collides on about one
+ * insert in ninety, which the UNIQUE constraint and a retry absorb.
  *
- * Patients registered before numbering keep the four-character random code they
- * were given (`W5F5`), so both shapes are valid. Neither can be mistaken for an
- * appointment ref: that one has a date and a hyphen.
+ * Deliberately shaped so it cannot be mistaken for an appointment ref: one has
+ * a date and a hyphen, the other does not.
  */
-export const PATIENT_REF_PATTERN = /^(?:[1-9]\d*|[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4})$/i;
-
-/** `settings.patient_ref_last` is a Postgres `integer`. */
-export const MAX_PATIENT_REF = 2_147_483_647;
+export const PATIENT_REF_PATTERN = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/i;
 
 // --- money (§9) -------------------------------------------------------------
 

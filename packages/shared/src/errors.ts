@@ -65,20 +65,11 @@ export const ERROR_CODE = {
     CUSTOM_QUESTION_REQUIRED: 'CUSTOM_QUESTION_REQUIRED',
     /** A custom question `key` is already in use. */
     DUPLICATE_KEY: 'DUPLICATE_KEY',
-    /** The patient number was set below a patient ref already handed out. */
-    PATIENT_REF_BELOW_EXISTING: 'PATIENT_REF_BELOW_EXISTING',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
 
 export const ERROR_CODES = Object.values(ERROR_CODE) as readonly ErrorCode[];
-
-/**
- * How a shared rule refuses. The server throws `AppError` and the demo backend
- * `DemoError`, and each side's error handling recognises only its own, so a rule
- * that lives here is handed the constructor rather than choosing one.
- */
-export type Fail = (code: ErrorCode, message: string, httpStatus: number) => Error;
 
 export function isErrorCode(value: unknown): value is ErrorCode {
     return typeof value === 'string' && (ERROR_CODES as readonly string[]).includes(value);

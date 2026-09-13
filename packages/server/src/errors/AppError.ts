@@ -8,7 +8,7 @@
  * off `cause`, so the SQLSTATE services switch on is usually a level or two
  * down.
  */
-import { ERROR_CODE, type ErrorCode, type Fail } from '@lustre/shared';
+import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 
 export class AppError extends Error {
     readonly code: ErrorCode;
@@ -29,9 +29,6 @@ export class AppError extends Error {
         return new AppError(ERROR_CODE.INTERNAL, message, 500, options);
     }
 }
-
-/** What a rule in `@lustre/shared` throws when the server runs it. */
-export const appFail: Fail = (code, message, httpStatus) => new AppError(code, message, httpStatus);
 
 export function isAppError(err: unknown): err is AppError {
     return err instanceof AppError;

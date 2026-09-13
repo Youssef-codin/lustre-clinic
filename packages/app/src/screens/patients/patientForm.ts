@@ -21,7 +21,7 @@
 // cluster, which asks for the date) never has it flattened to 1 January by an
 // editor that was opened for their phone number. See `updateInputOf`.
 
-import { birthDateOf, blankNameAndPhone, malformedDraft, orNull } from '../../components/domain/patientDraft';
+import { ageError, birthDateOf, emailError, orNull, phoneError } from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import type { Answers, CreatePatientInput, CustomQuestion, Patient, UpdatePatientInput } from './data/types';
@@ -74,7 +74,10 @@ export type BasicsField = 'name' | 'phone' | 'email' | 'age';
  * desk has not reached yet is telling them off for not having typed yet.
  */
 export function blankBasics(form: PatientForm): BasicsField[] {
-    return blankNameAndPhone(form);
+    const blank: BasicsField[] = [];
+    if (form.name.trim().length === 0) blank.push('name');
+    if (form.phone.trim().length === 0) blank.push('phone');
+    return blank;
 }
 
 /**
@@ -83,7 +86,18 @@ export function blankBasics(form: PatientForm): BasicsField[] {
  * and waiting until Save is pressed hides it behind a button that will not move.
  */
 export function malformedBasics(form: PatientForm): Partial<Record<BasicsField, string>> {
-    return malformedDraft(form);
+    const found: Partial<Record<BasicsField, string>> = {};
+
+    const phone = phoneError(form.phone);
+    if (phone) found.phone = phone;
+
+    const email = emailError(form.email);
+    if (email) found.email = email;
+
+    const age = ageError(form.age);
+    if (age) found.age = age;
+
+    return found;
 }
 
 function basicsAreSound(form: PatientForm): boolean {

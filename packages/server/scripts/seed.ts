@@ -68,7 +68,7 @@ import {
 } from '../src/db/schema.ts';
 import { logger } from '../src/logger.ts';
 import { seedService } from '../src/modules/seed/seed.service.ts';
-import { buildRef } from '../src/util/ref.ts';
+import { buildPatientRef, buildRef } from '../src/util/ref.ts';
 
 const CLINIC_OFFSET_MINUTES = 180;
 
@@ -306,14 +306,17 @@ const questions = [
     },
 ];
 
-// Seeded patients are numbered the way the service numbers them, and the
-// settings row below is left on the last one, so the first patient registered
-// after a seed carries on from there.
-let lastPatientRef = 0;
+// Seeded refs are drawn the same way the service draws them, and deduped
+// against what has already been handed out — the seed inserts in one statement,
+// so the UNIQUE constraint would take the whole batch down rather than letting a
+// retry sort it out.
+const usedPatientRefs = new Set<string>();
 
 function seedPatientRef(): string {
-    lastPatientRef += 1;
-    return String(lastPatientRef);
+    let ref = buildPatientRef();
+    while (usedPatientRefs.has(ref)) ref = buildPatientRef();
+    usedPatientRefs.add(ref);
+    return ref;
 }
 
 const patient = (
@@ -1223,16 +1226,10 @@ await db.transaction(async (tx) => {
             clinicName: 'Lustre Clinic',
             clinicPhone: '+20223456789',
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
-            patientRefLast: lastPatientRef,
         })
         .onConflictDoUpdate({
             target: settings.id,
-            set: {
-                clinicName: 'Lustre Clinic',
-                clinicPhone: '+20223456789',
-                patientRefLast: lastPatientRef,
-                updatedAt: new Date(),
-            },
+            set: { clinicName: 'Lustre Clinic', clinicPhone: '+20223456789', updatedAt: new Date() },
         });
 });
 
