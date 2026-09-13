@@ -7,6 +7,7 @@
  * client. `defaultDuration` must stay inside `durationOptions`, or the picker
  * would offer a default nobody can pick.
  */
+import { MAX_PATIENT_REF } from './constants.ts';
 import { ERROR_CODE, type Fail } from './errors.ts';
 
 export interface Settings {
@@ -46,6 +47,10 @@ export function toSettings(row: Settings): Settings {
  * already has. Raising it leaves a gap, which is the clinic's call.
  */
 export function assertPatientRefLast(value: number, highestTaken: number, fail: Fail): number {
+    // The counter is moved on before the insert, so it has to have one more number left in it.
+    if (!Number.isInteger(value) || value < 0 || value >= MAX_PATIENT_REF) {
+        throw fail(ERROR_CODE.VALIDATION, `patientRefLast must be from 0 to ${MAX_PATIENT_REF - 1}`, 422);
+    }
     if (value < highestTaken) {
         throw fail(
             ERROR_CODE.PATIENT_REF_BELOW_EXISTING,

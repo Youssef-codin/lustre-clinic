@@ -142,7 +142,8 @@ export function answerRules(fail: Fail) {
             const result = checkSubmitted(answers, questions);
 
             for (const question of questions.values()) {
-                const answered = question.key in result;
+                // Own keys only: a question keyed `constructor` is not answered by `Object.prototype`.
+                const answered = Object.hasOwn(result, question.key);
                 if (question.active && question.required && !answered) throw missingAnswer(question);
             }
 
@@ -155,7 +156,7 @@ export function answerRules(fail: Fail) {
             const result: Answers = { ...stored };
 
             for (const key of Object.keys(patch)) {
-                if (key in edits) result[key] = edits[key];
+                if (Object.hasOwn(edits, key)) result[key] = edits[key];
                 else delete result[key];
             }
 

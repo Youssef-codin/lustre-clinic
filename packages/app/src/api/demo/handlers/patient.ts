@@ -37,6 +37,9 @@ function answersOf(row: PatientRow): Answers {
 type MinimalPatientInput = Omit<RouterInput['patient']['create'], 'custom'>;
 
 export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
+    // Before the counter moves: a refused registration must not use a number up.
+    const phone = normalizePhone(input.phone);
+
     // The server's counter: `settings.patient_ref_last`, moved on by one per registration.
     const settings = getDb().settings;
     settings.patientRefLast += 1;
@@ -45,7 +48,7 @@ export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
         id: uuidv7(),
         ref: String(settings.patientRefLast),
         name: input.name,
-        phone: normalizePhone(input.phone),
+        phone,
         email: input.email ?? null,
         birthDate: input.birthDate ?? null,
         gender: input.gender ?? null,

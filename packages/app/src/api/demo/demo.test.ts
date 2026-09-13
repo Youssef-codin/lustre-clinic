@@ -15,6 +15,7 @@
  * reach.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { MAX_PATIENT_REF } from '@lustre/shared';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -33,6 +34,7 @@ const { visitHandlers } = await import('./handlers/visit');
 const { balanceHandlers } = await import('./handlers/balance');
 const { branchHandlers } = await import('./handlers/branch');
 const { createMinimalPatient, patientHandlers } = await import('./handlers/patient');
+const { customQuestionHandlers } = await import('./handlers/customQuestion');
 const { procedureHandlers } = await import('./handlers/procedure');
 const { settingsHandlers } = await import('./handlers/settings');
 const { reminderHandlers } = await import('./handlers/reminder');
@@ -475,6 +477,38 @@ describe('patient numbers', () => {
     it('carries on from a number the clinic sets', () => {
         settingsHandlers.update({ patientRefLast: 4000 });
         expect(createMinimalPatient(minimal('Carried On', '01011112222')).ref).toBe('4001');
+    });
+
+    it('does not use a number up on a refused registration', () => {
+        const last = settingsHandlers.get().patientRefLast;
+
+        expect(() => createMinimalPatient(minimal('Bad Phone', 'not a phone'))).toThrow(DemoError);
+        expect(settingsHandlers.get().patientRefLast).toBe(last);
+    });
+
+    it('refuses a counter with no number left after it', () => {
+        expect(() => settingsHandlers.update({ patientRefLast: MAX_PATIENT_REF })).toThrow(DemoError);
+        expect(() => settingsHandlers.update({ patientRefLast: MAX_PATIENT_REF - 1 })).not.toThrow();
+    });
+
+    // `in` would find `constructor` on `Object.prototype` and call the question answered.
+    it('does not take an inherited name as an answer to a required question', () => {
+        getDb().customQuestions = [
+            {
+                id: 'q-constructor',
+                key: 'constructor',
+                label: 'Constructor',
+                labelAr: null,
+                kind: 'text',
+                options: null,
+                required: true,
+                sortOrder: 0,
+                active: true,
+            },
+        ];
+
+        expect(() => customQuestionHandlers.validateIntake({})).toThrow(DemoError);
+        expect(customQuestionHandlers.validatePatch({}, { constructor: 'x' })).toEqual({ constructor: 'x' });
     });
 
     it('refuses a number below one a patient already has', () => {

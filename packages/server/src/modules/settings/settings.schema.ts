@@ -36,7 +36,11 @@ export const updateSettingsInput = z
         reminderTemplate: z.string().trim().min(1).max(1000),
         // Below the highest numbered ref on file is refused by the service,
         // which is the only side that can see the patients.
-        patientRefLast: z.number().int().min(0).max(MAX_PATIENT_REF),
+        patientRefLast: z
+            .number()
+            .int()
+            .min(0)
+            .max(MAX_PATIENT_REF - 1),
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

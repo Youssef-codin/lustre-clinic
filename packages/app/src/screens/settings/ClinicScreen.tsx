@@ -51,7 +51,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
 
     const nameError = submitted && nameValue.trim() === '' ? 'The clinic needs a name.' : undefined;
     const phoneError = submitted && phoneValue.trim() === '' ? 'The clinic needs a phone number.' : undefined;
-    const patientNumberInvalid = patientNumberValue === '' || Number(patientNumberValue) > MAX_PATIENT_REF;
+    const patientNumberInvalid = patientNumberValue === '' || Number(patientNumberValue) >= MAX_PATIENT_REF;
     const patientNumberError =
         submitted && patientNumberInvalid ? 'Type the last patient number used, or 0.' : undefined;
 

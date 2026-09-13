@@ -80,7 +80,9 @@ export async function insertBranch(name = 'Main'): Promise<string> {
  */
 export async function insertPatient(name = 'Test Patient'): Promise<string> {
     const id = uuid();
-    const ref = randomRefSuffix((size) => Math.floor(Math.random() * size));
+    // An all-digit code (`2345`) is a number the counter can reach, so draw again.
+    let ref = '';
+    while (!/\D/.test(ref)) ref = randomRefSuffix((size) => Math.floor(Math.random() * size));
     await sql`
         INSERT INTO patients (id, ref, name, phone)
         VALUES (${id}, ${ref}, ${name}, '+201000000000')
