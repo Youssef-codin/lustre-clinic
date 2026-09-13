@@ -127,9 +127,9 @@ export function Sheet({
      * (`enableDynamicSizing`) and grows upwards from a fixed bottom edge, so
      * padding the bottom by the keyboard moves everything above it into view.
      *
-     * `Math.max` rather than a sum, because the keyboard is drawn *over* the
-     * navigation bar. Adding both would clear the bar twice and leave the sheet
-     * floating a nav bar above the keys.
+     * `Math.max` rather than a sum, because `useKeyboardHeight` already counts
+     * the navigation bar the keyboard is drawn over. Adding the inset again would
+     * clear the bar twice and leave the sheet floating a nav bar above the keys.
      */
     const floor = space[6] + Math.max(insets.bottom, keyboard);
     // `maxContent` is the cap when the keyboard is down. Shrinking it with the

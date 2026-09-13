@@ -22,6 +22,7 @@ import { Calendar, CreditCard, Headset, Stethoscope, Users } from 'lucide-react-
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { border, color, radius, size, space, Text } from '../../theme';
+import { useKeyboardHeight } from '../ui';
 
 export type TabKey = 'day' | 'patients' | 'money' | 'settings';
 
@@ -59,7 +60,14 @@ const TAB_ICON: Record<Exclude<TabKey, 'settings'>, typeof Calendar> = {
 
 export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
     const insets = useSafeAreaInsets();
+    const keyboard = useKeyboardHeight();
     const RoleGlyph = ROLE_ICON[role];
+
+    // Out of the layout while typing. The keyboard covers it anyway, and while it
+    // stays in flow every bar above it — a pane's action bar, the visit dock —
+    // is lifted by the keyboard from the top of the tab bar rather than from the
+    // bottom of the window, and floats a tab bar's height clear of the keys.
+    if (keyboard > 0) return null;
 
     const tabs: { key: TabKey; label: string }[] = [
         { key: 'day', label: 'Day' },
