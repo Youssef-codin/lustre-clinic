@@ -10,14 +10,7 @@
  */
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
-import {
-    ageFromBirthDate,
-    assignDefined,
-    buildPatientRef,
-    DemoError,
-    normalizePhone,
-    uuidv7,
-} from '../rules';
+import { ageFromBirthDate, assignDefined, DemoError, normalizePhone, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 import { type Answers, customQuestionHandlers } from './customQuestion';
 
@@ -44,11 +37,18 @@ function answersOf(row: PatientRow): Answers {
 type MinimalPatientInput = Omit<RouterInput['patient']['create'], 'custom'>;
 
 export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
+    // Before the counter moves: a refused registration must not use a number up.
+    const phone = normalizePhone(input.phone);
+
+    // The server's counter: `settings.patient_ref_last`, moved on by one per registration.
+    const settings = getDb().settings;
+    settings.patientRefLast += 1;
+
     const row: PatientRow = {
         id: uuidv7(),
-        ref: buildPatientRef(),
+        ref: String(settings.patientRefLast),
         name: input.name,
-        phone: normalizePhone(input.phone),
+        phone,
         email: input.email ?? null,
         birthDate: input.birthDate ?? null,
         gender: input.gender ?? null,

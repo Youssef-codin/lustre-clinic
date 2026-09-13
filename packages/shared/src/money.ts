@@ -1,0 +1,31 @@
+/**
+ * SPEC §9 — money is integer piastres throughout. Run by the server and by the
+ * app's demo backend alike, so a change to either rule reaches both.
+ *
+ * `computeTotal` is Σ(unit_price × quantity) minus checkup lines, if any
+ * non-checkup line exists. The checkup waiver is the only automatic rule; the
+ * checkup line is never deleted — it is excluded from the sum and stays on the
+ * visit as the record that the patient was seen.
+ */
+import { MAX_AMOUNT_PIASTRES } from './constants.ts';
+import { ERROR_CODE, type Fail } from './errors.ts';
+
+export function assertAmount(amount: number, fail: Fail, what = 'amount'): number {
+    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT_PIASTRES) {
+        throw fail(ERROR_CODE.INVALID_AMOUNT, `${what} is out of range`, 422);
+    }
+    return amount;
+}
+
+export interface PricedLine {
+    unitPrice: number;
+    quantity: number;
+    isCheckup: boolean;
+}
+
+export function computeTotal(lines: readonly PricedLine[]): number {
+    const hasOther = lines.some((line) => !line.isCheckup);
+    const counted = hasOther ? lines.filter((line) => !line.isCheckup) : lines;
+
+    return counted.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+}

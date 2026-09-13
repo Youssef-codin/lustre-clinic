@@ -3,31 +3,16 @@
  * `patients.custom`, keyed by `key`.
  *
  * Validating those answers is the reason this module is a dependency of
- * `patient`, and it has two entry points because a questionnaire is edited over
- * years while the records filled in against it are kept forever:
- *
- * - `validateIntake` is the whole form, answered in one sitting. Every active
- *   required question must come back with an answer — a required question that
- *   is never enforced is a form the clinic only thinks it has.
- * - `validatePatch` is an edit to one existing record. Only the keys the caller
- *   actually sent are checked; everything already stored passes through exactly
- *   as it is.
- *
- * The asymmetry is the whole point. If a patient picked a `select` option in
- * 2024 and the doctor removed that option in 2026, correcting that patient's
- * phone number must not fail on an answer nobody touched.
- *
- * A submitted blank drops the answer (or clears it on patch), and a key with no
- * question behind it is refused — nothing would ever validate it again.
- * `coerce` is the single definition of an acceptable answer, shared by
- * validation, patching, and auditing. Error messages name the question key,
- * never the answer, which is patient data.
+ * `patient`. The rules — `validateIntake` enforcing every active required
+ * question, `validatePatch` checking only the keys it was sent, and the audit —
+ * are `answerRules` in `@lustre/shared`, because the demo backend applies them
+ * too. What stays here is reading the questions out of Postgres.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { type Answers, answerRules, ERROR_CODE, type QuestionnaireGap } from '@lustre/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { customQuestions } from '../../db/schema.ts';
-import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
+import { AppError, appFail, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import type {
     CreateCustomQuestionInput,
     ListCustomQuestionInput,
@@ -35,23 +20,11 @@ import type {
     UpdateCustomQuestionInput,
 } from './customQuestion.schema.ts';
 
+export type { Answers, QuestionnaireGap, QuestionnaireGapReason } from '@lustre/shared';
+
 type CustomQuestion = typeof customQuestions.$inferSelect;
 
-export type Answers = Record<string, unknown>;
-
-export type QuestionnaireGapReason = 'unanswered' | 'answer_no_longer_valid';
-
-export interface QuestionnaireGap {
-    key: string;
-    label: string;
-    labelAr: string | null;
-    required: boolean;
-    reason: QuestionnaireGapReason;
-}
-
-function optionsOf(question: CustomQuestion): string[] {
-    return Array.isArray(question.options) ? (question.options as string[]) : [];
-}
+const rules = answerRules(appFail);
 
 export const customQuestionService = {
     async list(input: ListCustomQuestionInput = { includeInactive: false }): Promise<CustomQuestion[]> {
@@ -133,135 +106,14 @@ export const customQuestionService = {
     },
 
     async validateIntake(answers: Answers): Promise<Answers> {
-        const questions = await this.byKey();
-        const result = checkSubmitted(answers, questions);
-
-        for (const question of questions.values()) {
-            const answered = question.key in result;
-            if (question.active && question.required && !answered) throw missingAnswer(question);
-        }
-
-        return result;
+        return rules.intake(answers, await this.byKey());
     },
 
     async validatePatch(stored: Answers, patch: Answers): Promise<Answers> {
-        const questions = await this.byKey();
-        const edits = checkSubmitted(patch, questions);
-        const result: Answers = { ...stored };
-
-        for (const key of Object.keys(patch)) {
-            if (key in edits) result[key] = edits[key];
-            else delete result[key];
-        }
-
-        return result;
+        return rules.patch(stored, patch, await this.byKey());
     },
 
     async auditAnswers(stored: Answers): Promise<QuestionnaireGap[]> {
-        const questions = await this.list();
-        const gaps: QuestionnaireGap[] = [];
-
-        for (const question of questions) {
-            const value = stored[question.key];
-            const reason = gapIn(question, value);
-            if (!reason) continue;
-
-            gaps.push({
-                key: question.key,
-                label: question.label,
-                labelAr: question.labelAr,
-                required: question.required,
-                reason,
-            });
-        }
-
-        return gaps;
+        return rules.audit(stored, await this.list());
     },
 };
-
-function gapIn(question: CustomQuestion, value: unknown): QuestionnaireGapReason | null {
-    if (isBlank(value)) return 'unanswered';
-
-    try {
-        coerce(question, value);
-        return null;
-    } catch {
-        return 'answer_no_longer_valid';
-    }
-}
-
-function checkSubmitted(submitted: Answers, questions: Map<string, CustomQuestion>): Answers {
-    const result: Answers = {};
-
-    for (const [key, value] of Object.entries(submitted)) {
-        const question = questions.get(key);
-        if (!question) {
-            throw new AppError(ERROR_CODE.VALIDATION, `no custom question has the key '${key}'`, 422);
-        }
-
-        if (isBlank(value)) {
-            if (question.active && question.required) throw missingAnswer(question);
-            continue;
-        }
-
-        result[key] = coerce(question, value);
-    }
-
-    return result;
-}
-
-function isBlank(value: unknown): boolean {
-    return value === undefined || value === null || value === '';
-}
-
-function coerce(question: CustomQuestion, value: unknown): unknown {
-    switch (question.kind) {
-        case 'text':
-            if (typeof value !== 'string') throw wrongKind(question, 'a string');
-            return value;
-
-        case 'number': {
-            const n = typeof value === 'string' ? Number(value) : value;
-            if (typeof n !== 'number' || !Number.isFinite(n)) throw wrongKind(question, 'a number');
-            return n;
-        }
-
-        case 'boolean':
-            if (typeof value !== 'boolean') throw wrongKind(question, 'a boolean');
-            return value;
-
-        case 'date':
-            if (typeof value !== 'string' || !isCalendarDate(value)) {
-                throw wrongKind(question, 'a YYYY-MM-DD date');
-            }
-            return value;
-
-        case 'select': {
-            const options = optionsOf(question);
-            if (typeof value !== 'string' || !options.includes(value)) {
-                throw wrongKind(question, 'one of its options');
-            }
-            return value;
-        }
-    }
-}
-
-const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-function isCalendarDate(value: string): boolean {
-    if (!CALENDAR_DATE.test(value)) return false;
-    const parsed = new Date(`${value}T00:00:00Z`);
-    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
-}
-
-function wrongKind(question: CustomQuestion, expected: string): AppError {
-    return new AppError(ERROR_CODE.VALIDATION, `custom question '${question.key}' expects ${expected}`, 422);
-}
-
-function missingAnswer(question: CustomQuestion): AppError {
-    return new AppError(
-        ERROR_CODE.CUSTOM_QUESTION_REQUIRED,
-        `custom question '${question.key}' is required`,
-        422,
-    );
-}

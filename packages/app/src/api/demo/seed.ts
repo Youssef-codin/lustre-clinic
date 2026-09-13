@@ -40,7 +40,7 @@ import {
 } from './db';
 import { appointmentHandlers } from './handlers/appointment';
 import { visitHandlers } from './handlers/visit';
-import { buildPatientRef, buildRef, computeTotal, normalizePhone, uuidv7 } from './rules';
+import { buildRef, computeTotal, normalizePhone, uuidv7 } from './rules';
 
 const MINUTE = 60_000;
 const DAY = 86_400_000;
@@ -208,7 +208,7 @@ const NAMES: readonly [name: string, phone: string, birthDate: string | null][] 
 function buildPatients(createdFrom: number): PatientRow[] {
     return NAMES.map(([name, phone, birthDate], index) => ({
         id: uuidv7(),
-        ref: buildPatientRef(),
+        ref: String(index + 1),
         name,
         phone: normalizePhone(phone),
         email: null,
@@ -429,6 +429,7 @@ function emptyDb(): DemoDb {
             reminderRepeatMinutes: DEFAULT_REMINDER_REPEAT_MINUTES,
             reminderDismissedOn: null,
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
+            patientRefLast: NAMES.length,
             updatedAt: new Date(),
         },
     };

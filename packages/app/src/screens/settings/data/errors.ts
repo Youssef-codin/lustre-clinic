@@ -21,6 +21,8 @@ const TEXT: Partial<Record<ErrorCode, string>> = {
     [ERROR_CODE.VALIDATION]: 'Check the fields and try again.',
     [ERROR_CODE.PROCEDURE_NESTING_TOO_DEEP]: 'A category cannot go inside another category.',
     [ERROR_CODE.INVALID_DURATION]: 'The default has to be one of the durations offered.',
+    [ERROR_CODE.PATIENT_REF_BELOW_EXISTING]:
+        'A patient already has a higher number. Numbering has to carry on above it.',
     [ERROR_CODE.DB_UNAVAILABLE]: "Couldn't reach the clinic computer.",
 };
 

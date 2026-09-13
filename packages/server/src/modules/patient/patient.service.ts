@@ -14,6 +14,9 @@
  * (used by appointment booking) takes whatever of the record the booking
  * collected and deliberately skips questionnaire validation — the secretary is
  * on the phone, and the questions are answered at the desk.
+ *
+ * Both paths number the patient off `settings.patient_ref_last`, moved on by
+ * one in the same transaction as the insert.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { ERROR_CODE } from '@lustre/shared';
@@ -25,15 +28,16 @@ import {
     patients,
     payments,
     procedureTypes,
+    settings,
     visitProcedures,
     visits,
 } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { normalizePhone } from '../../util/phone.ts';
-import { buildPatientRef } from '../../util/ref.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
+import { settingsService } from '../settings/settings.service.ts';
 import type {
     CreatePatientInput,
     PatientByPhoneInput,
@@ -102,39 +106,66 @@ export function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
 }
 
-/** How many draws before a collision is treated as something other than bad luck. */
-const REF_ATTEMPTS = 5;
-
 /**
  * The one way a patient row is written, so both registration paths get a `ref`
- * and neither can forget one. Same shape as `insertWithRef` in
- * `appointment.service.ts`: draw a code, insert, and re-draw only when *this*
- * unique constraint is the one that fired.
+ * and neither can forget one.
  *
- * Every other unique violation is rethrown untouched. Narrowing on the
- * constraint name matters — swallowing all of them would turn a genuine
- * conflict into five silent retries and then a misleading error about refs.
+ * The counter is moved on and the row inserted in one transaction (a savepoint
+ * when the caller is already in one, as booking is). The `UPDATE` takes the
+ * settings row's lock, so a second registration waits for the first to commit
+ * and reads its number; a failed insert rolls the counter back with it, so a
+ * refused registration does not use a number up.
+ *
+ * A collision is not retried. Settings refuses a counter below the highest
+ * numbered ref, so one means a row was written around the counter, and the
+ * next number would most likely collide too.
  */
 async function insertPatientWithRef(
     executor: Executor,
     values: Omit<typeof patients.$inferInsert, 'id' | 'ref'>,
 ): Promise<PatientRow> {
-    for (let attempt = 0; attempt < REF_ATTEMPTS; attempt += 1) {
+    return executor.transaction(async (tx) => {
+        const ref = String(await nextPatientRef(tx));
+
         try {
-            const [row] = await executor
+            const [row] = await tx
                 .insert(patients)
-                .values({ ...values, id: Bun.randomUUIDv7(), ref: buildPatientRef() })
+                .values({ ...values, id: Bun.randomUUIDv7(), ref })
                 .returning();
 
             if (!row) throw AppError.internal('patient insert returned nothing');
             return row;
         } catch (err) {
-            const collided = pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION && isRefCollision(err);
-            if (!collided) throw err;
+            if (pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION && isRefCollision(err)) {
+                throw new AppError(
+                    ERROR_CODE.REF_GENERATION_FAILED,
+                    'the next patient ref is already taken',
+                    409,
+                    { cause: err },
+                );
+            }
+            throw err;
         }
+    });
+}
+
+async function nextPatientRef(executor: Executor): Promise<number> {
+    const bump = () =>
+        executor
+            .update(settings)
+            .set({ patientRefLast: sql`${settings.patientRefLast} + 1` })
+            .where(eq(settings.id, 1))
+            .returning({ last: settings.patientRefLast });
+
+    let [counter] = await bump();
+    if (!counter) {
+        // The row is seeded on first read, and nothing has read it yet.
+        await settingsService.ensureSeeded();
+        [counter] = await bump();
     }
 
-    throw new AppError(ERROR_CODE.REF_GENERATION_FAILED, 'could not allocate a unique patient ref', 500);
+    if (!counter) throw AppError.internal('settings row could not be seeded');
+    return counter.last;
 }
 
 function isRefCollision(err: unknown): boolean {

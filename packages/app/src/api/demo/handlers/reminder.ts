@@ -7,21 +7,14 @@
  * the row is the record that no message was owed, and one reminder belongs to
  * one appointment, so a later reinstatement reuses it.
  */
-import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
+import { reminderMessage } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, type ReminderRow, save } from '../db';
-import { DemoError, toWhatsAppNumber, uuidv7 } from '../rules';
+import { DemoError, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 import { settingsHandlers } from './settings';
 
 type PendingReminder = Dated<RouterOutput['reminder']['pending'][number]>;
-
-/** An unrecognized `{{placeholder}}` is left visible, so a typo shows rather than vanishing. */
-function renderTemplate(template: string, values: Record<string, string>): string {
-    return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (whole, key: string) =>
-        (REMINDER_PLACEHOLDERS as readonly string[]).includes(key) ? (values[key] ?? whole) : whole,
-    );
-}
 
 export function scheduleReminderFor(appointment: AppointmentRow, leadHours: number): void {
     const db = getDb();
@@ -87,16 +80,14 @@ export const reminderHandlers = {
                 const name = patient?.name ?? '';
                 const phone = patient?.phone ?? '';
 
-                // `startsAt` is UTC, so the quoted date and time are shifted
-                // into the clinic's local day before they are formatted.
-                const local = new Date(appointment.startsAt.getTime() + offsetMinutes * 60_000);
-
-                const message = renderTemplate(settings.reminderTemplate, {
+                const { message, whatsAppUrl } = reminderMessage({
+                    template: settings.reminderTemplate,
+                    clinicName: settings.clinicName,
                     name,
-                    clinic: settings.clinicName,
-                    date: local.toISOString().slice(0, 10),
-                    time: local.toISOString().slice(11, 16),
+                    phone,
                     ref: appointment.ref,
+                    startsAt: appointment.startsAt,
+                    offsetMinutes,
                 });
 
                 return {
@@ -106,7 +97,7 @@ export const reminderHandlers = {
                     startsAt: appointment.startsAt,
                     ref: appointment.ref,
                     patient: { id: appointment.patientId, name, phone },
-                    whatsAppUrl: `https://wa.me/${toWhatsAppNumber(phone)}?text=${encodeURIComponent(message)}`,
+                    whatsAppUrl,
                     message,
                 };
             });

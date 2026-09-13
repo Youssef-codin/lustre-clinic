@@ -1,19 +1,22 @@
 /**
  * The parts of the server the handlers share: its error type, its id and ref
- * generators, and the four rule helpers that live in `server/src/util` and
+ * generators, and the rule helpers that live in `server/src/util` and
  * `procedure.rules.ts`.
  *
- * These are ports, not re-exports — `packages/app` depends on `@lustre/server`
- * for types only, and everything on the other side reaches for `Bun`, `crypto`
- * or Postgres. Where a rule is duplicated here the original is named above it,
- * because the two have to be changed together.
+ * `packages/app` depends on `@lustre/server` for types only, and everything on
+ * the other side reaches for `Bun`, `crypto` or Postgres. So a pure rule lives in
+ * `@lustre/shared` and both sides call it, handing in what differs — `DemoError`
+ * through `demoFail`, `Math.random` as the draw. The rest are still ports, and
+ * the original is named above each one, because the two have to be changed
+ * together.
  */
 import {
+    assertAmount as assertAmountWith,
+    buildRef as buildRefWith,
+    type Draw,
     ERROR_CODE,
     type ErrorCode,
-    MAX_AMOUNT_PIASTRES,
-    REF_ALPHABET,
-    REF_RANDOM_LENGTH,
+    type Fail,
     type Tooth,
 } from '@lustre/shared';
 import type { ProcedureTypeRow } from './db';
@@ -66,53 +69,14 @@ function hex(length: number, high = 0): string {
     return out;
 }
 
-// --- refs (`server/src/util/ref.ts`) ----------------------------------------
+// --- refs and time (`@lustre/shared`, with the server) ----------------------
 
-function randomRefSuffix(): string {
-    let out = '';
-    for (let i = 0; i < REF_RANDOM_LENGTH; i += 1) {
-        out += REF_ALPHABET[Math.floor(Math.random() * REF_ALPHABET.length)];
-    }
-    return out;
-}
+export { ageFromBirthDate, dayRange } from '@lustre/shared';
+
+const draw: Draw = (size) => Math.floor(Math.random() * size);
 
 export function buildRef(startsAt: Date, offsetMinutes = 0): string {
-    return `${refDatePart(startsAt, offsetMinutes)}-${randomRefSuffix()}`;
-}
-
-export function buildPatientRef(): string {
-    return randomRefSuffix();
-}
-
-// --- time (`server/src/util/time.ts`) ---------------------------------------
-
-function refDatePart(at: Date, offsetMinutes = 0): string {
-    const local = new Date(at.getTime() + offsetMinutes * 60_000);
-    const dd = String(local.getUTCDate()).padStart(2, '0');
-    const mm = String(local.getUTCMonth() + 1).padStart(2, '0');
-    const yy = String(local.getUTCFullYear() % 100).padStart(2, '0');
-    return `${dd}${mm}${yy}`;
-}
-
-export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Date } {
-    const startUtc = new Date(`${date}T00:00:00Z`);
-    if (Number.isNaN(startUtc.getTime())) throw new Error(`invalid date: ${date}`);
-
-    const from = new Date(startUtc.getTime() - offsetMinutes * 60_000);
-    return { from, to: new Date(from.getTime() + 86_400_000) };
-}
-
-export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()): number | null {
-    if (!birthDate) return null;
-
-    const born = new Date(`${birthDate}T00:00:00Z`);
-    if (Number.isNaN(born.getTime())) return null;
-
-    let age = on.getUTCFullYear() - born.getUTCFullYear();
-    const monthDiff = on.getUTCMonth() - born.getUTCMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && on.getUTCDate() < born.getUTCDate())) age -= 1;
-
-    return age < 0 ? null : age;
+    return buildRefWith(startsAt, draw, offsetMinutes);
 }
 
 /**
@@ -134,26 +98,14 @@ export function assignDefined<T extends object>(target: T, ...patches: Partial<T
     return target;
 }
 
-// --- money (`server/src/util/money.ts`) -------------------------------------
+// --- money (`@lustre/shared`, with the server) ------------------------------
+
+export { computeTotal } from '@lustre/shared';
+
+export const demoFail: Fail = (code, message, status) => new DemoError(code, message, status);
 
 export function assertAmount(amount: number, what = 'amount'): number {
-    if (!Number.isInteger(amount) || amount < 0 || amount > MAX_AMOUNT_PIASTRES) {
-        throw new DemoError(ERROR_CODE.INVALID_AMOUNT, `${what} is out of range`, 422);
-    }
-    return amount;
-}
-
-export interface PricedLine {
-    unitPrice: number;
-    quantity: number;
-    isCheckup: boolean;
-}
-
-/** Σ(unit × quantity), with the checkup line waived whenever other work was done. */
-export function computeTotal(lines: readonly PricedLine[]): number {
-    const hasOther = lines.some((line) => !line.isCheckup);
-    const counted = hasOther ? lines.filter((line) => !line.isCheckup) : lines;
-    return counted.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    return assertAmountWith(amount, demoFail, what);
 }
 
 // --- phone (`server/src/util/phone.ts`) -------------------------------------
@@ -173,10 +125,6 @@ export function normalizePhone(raw: string): string {
         throw new DemoError(ERROR_CODE.INVALID_PHONE, 'phone is not a valid E.164 number', 422);
     }
     return `+${digits}`;
-}
-
-export function toWhatsAppNumber(e164: string): string {
-    return e164.replace(/^\+/, '');
 }
 
 // --- procedure lines (`server/src/modules/procedure/procedure.rules.ts`) ----

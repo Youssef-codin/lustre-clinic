@@ -11,12 +11,11 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
+import { reminderMessage } from '@lustre/shared';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, reminders } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
-import { toWhatsAppNumber } from '../../util/phone.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import type { DismissTodayInput, PendingRemindersInput } from './reminder.schema.ts';
 
@@ -33,11 +32,7 @@ interface PendingReminder {
     message: string;
 }
 
-export function renderTemplate(template: string, values: Record<string, string>): string {
-    return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (whole, key: string) =>
-        (REMINDER_PLACEHOLDERS as readonly string[]).includes(key) ? (values[key] ?? whole) : whole,
-    );
-}
+export { renderTemplate } from '@lustre/shared';
 
 export const reminderService = {
     async scheduleFor(
@@ -99,14 +94,14 @@ export const reminderService = {
             .limit(input.limit);
 
         return rows.map((row) => {
-            const local = new Date(row.startsAt.getTime() + input.offsetMinutes * 60_000);
-
-            const message = renderTemplate(settings.reminderTemplate, {
+            const { message, whatsAppUrl } = reminderMessage({
+                template: settings.reminderTemplate,
+                clinicName: settings.clinicName,
                 name: row.name,
-                clinic: settings.clinicName,
-                date: local.toISOString().slice(0, 10),
-                time: local.toISOString().slice(11, 16),
+                phone: row.phone,
                 ref: row.ref,
+                startsAt: row.startsAt,
+                offsetMinutes: input.offsetMinutes,
             });
 
             return {
@@ -116,7 +111,7 @@ export const reminderService = {
                 startsAt: row.startsAt,
                 ref: row.ref,
                 patient: { id: row.patientId, name: row.name, phone: row.phone },
-                whatsAppUrl: `https://wa.me/${toWhatsAppNumber(row.phone)}?text=${encodeURIComponent(message)}`,
+                whatsAppUrl,
                 message,
             };
         });

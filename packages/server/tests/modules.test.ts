@@ -896,6 +896,82 @@ describe('patient', () => {
         expect(refused).toBe(true);
     });
 
+    test('numbers patients 1, 2, 3 on a clinic that has none', async () => {
+        const refs: string[] = [];
+        for (const phone of ['01011110001', '01011110002']) {
+            refs.push((await patientService.create({ name: 'Numbered', phone, custom: {} })).ref);
+        }
+        refs.push((await patientService.createMinimal({ name: 'Booked In', phone: '01011110003' })).ref);
+
+        expect(refs).toEqual(['1', '2', '3']);
+        expect((await settingsService.get()).patientRefLast).toBe(3);
+    });
+
+    test('carries on from the number the clinic sets', async () => {
+        await settingsService.update({ patientRefLast: 4417 });
+
+        const next = await patientService.create({ name: 'Carried On', phone: '01011112222', custom: {} });
+
+        expect(next.ref).toBe('4418');
+        expect((await settingsService.get()).patientRefLast).toBe(4418);
+    });
+
+    test('two registrations at once get two numbers', async () => {
+        const created = await Promise.all(
+            ['01020000001', '01020000002', '01020000003', '01020000004', '01020000005'].map((phone) =>
+                patientService.create({ name: 'Concurrent', phone, custom: {} }),
+            ),
+        );
+
+        expect(created.map((row) => row.ref).sort()).toEqual(['1', '2', '3', '4', '5']);
+    });
+
+    test('a refused registration does not use a number up', async () => {
+        await expectAppError(ERROR_CODE.INVALID_PHONE, () =>
+            patientService.create({ name: 'Bad Phone', phone: 'not a phone', custom: {} }),
+        );
+        await sql`INSERT INTO custom_questions (id, key, label, kind, required)
+                  VALUES (${uuid()}, 'allergies', 'Allergies', 'text', true)`;
+        await expectAppError(ERROR_CODE.CUSTOM_QUESTION_REQUIRED, () =>
+            patientService.create({ name: 'No Answers', phone: '01011113333', custom: {} }),
+        );
+
+        const next = await patientService.createMinimal({ name: 'Next', phone: '01011114444' });
+        expect(next.ref).toBe('1');
+    });
+
+    test('refuses a number below one a patient already has, and leaves the counter alone', async () => {
+        await patientService.create({ name: 'One', phone: '01011110001', custom: {} });
+        await patientService.create({ name: 'Two', phone: '01011110002', custom: {} });
+
+        await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
+            settingsService.update({ patientRefLast: 1 }),
+        );
+        expect((await settingsService.get()).patientRefLast).toBe(2);
+
+        const kept = await settingsService.update({ patientRefLast: 2 });
+        expect(kept.patientRefLast).toBe(2);
+    });
+
+    // Patients from before numbering keep their codes. One that happens to be
+    // all digits is a number the counter could reach, so it is the floor too.
+    test('leaves existing codes alone, and counts an all-digit one as taken', async () => {
+        const oldCode = uuid();
+        const oldNumber = uuid();
+        await sql`INSERT INTO patients (id, ref, name, phone)
+                  VALUES (${oldCode}, 'W5F5', 'Old Code', '+201000000001'),
+                         (${oldNumber}, '2345', 'Old Digits', '+201000000002')`;
+
+        await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
+            settingsService.update({ patientRefLast: 2344 }),
+        );
+        await settingsService.update({ patientRefLast: 2345 });
+
+        const next = await patientService.createMinimal({ name: 'New', phone: '01011115555' });
+        expect(next.ref).toBe('2346');
+        expect((await patientService.byId(oldCode)).patient.ref).toBe('W5F5');
+    });
+
     test('a ref survives an update that touches everything else', async () => {
         const created = await patientService.create({ name: 'Before', phone: '01055556666', custom: {} });
 
