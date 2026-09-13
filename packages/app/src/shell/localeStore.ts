@@ -1,6 +1,7 @@
 import { LOCALES, type Locale } from '@lustre/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import { hydratingSubscribe } from './hydratingSubscribe';
 
 // The language this handset draws in (§14). It lived in `SettingsScreen`'s
 // `useState` while the only thing that read it was the picker itself; it moved
@@ -21,7 +22,6 @@ const DEFAULT_LOCALE: Locale = 'en';
 
 let locale: Locale = DEFAULT_LOCALE;
 const listeners = new Set<() => void>();
-let hydrating = false;
 
 function emit(next: Locale): void {
     locale = next;
@@ -37,16 +37,7 @@ async function hydrate(): Promise<void> {
     if (isLocale(stored) && stored !== locale) emit(stored);
 }
 
-function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    if (!hydrating) {
-        hydrating = true;
-        void hydrate();
-    }
-    return () => {
-        listeners.delete(listener);
-    };
-}
+const subscribe = hydratingSubscribe(listeners, hydrate);
 
 function getSnapshot(): Locale {
     return locale;

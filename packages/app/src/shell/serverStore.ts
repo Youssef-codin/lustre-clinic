@@ -8,6 +8,7 @@ import {
     trpcClient,
     useDemoMode,
 } from '../api';
+import { hydratingSubscribe } from './hydratingSubscribe';
 
 // Where the addresses collected by setup are kept. `api/config` holds no
 // storage of its own by design (§14, "persisting what onboarding collected
@@ -51,7 +52,6 @@ let state: SetupState = {
     reconfiguring: false,
 };
 const listeners = new Set<() => void>();
-let hydrating = false;
 
 function emit(next: SetupState): void {
     state = next;
@@ -126,16 +126,7 @@ export async function learnTailnetAddress(): Promise<string | null> {
     return reported ? reported : null;
 }
 
-function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    if (!hydrating) {
-        hydrating = true;
-        void hydrate();
-    }
-    return () => {
-        listeners.delete(listener);
-    };
-}
+const subscribe = hydratingSubscribe(listeners, hydrate);
 
 function getSnapshot(): SetupState {
     return state;
