@@ -14,16 +14,25 @@
  * window stays exactly where it was with the keyboard drawn over it. That is
  * what put the payment sheet's amount field underneath the keys.
  *
- * `ui/Sheet` is the caller that matters, and it takes `Math.max` of this and the
- * bottom safe-area inset rather than the sum — the keyboard is drawn over the
- * navigation bar, so clearing both would clear one of them twice.
+ * **It is measured from the bottom of the window, navigation bar included.**
+ * React Native's Android root view reports `ime - systemBars` (`ReactRootView`),
+ * which is the keyboard *above* the navigation bar. The keyboard is drawn over
+ * that bar, so a bar pinned to the window's bottom edge needs the bar's inset on
+ * top of what the event says. Without it every confirm button stopped one
+ * navigation bar short — flush against the keys on a gesture phone, 24dp under
+ * them on a three-button one.
+ *
+ * `ui/Sheet` takes `Math.max` of this and the bottom inset rather than the sum,
+ * since this already contains the inset while the keyboard is up.
  */
 // biome-ignore lint/style/noRestrictedImports: subscribes to the native `Keyboard` show/hide events; React has no other way to hear the keyboard move
 import { useEffect, useState } from 'react';
-import { Keyboard } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function useKeyboardHeight(): number {
     const [height, setHeight] = useState(0);
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         // Android has no `will` events, iOS has them one frame early for the
@@ -47,5 +56,7 @@ export function useKeyboardHeight(): number {
         };
     }, []);
 
-    return height;
+    // iOS reports the keyboard from the bottom of the screen already.
+    if (height === 0 || Platform.OS !== 'android') return height;
+    return height + insets.bottom;
 }

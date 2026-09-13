@@ -47,7 +47,7 @@ export function Textarea({
                             { minHeight, fontFamily: arabic ? font.arabic.regular : font.sans.regular },
                         ]}
                     />
-                    <Placeholder text={placeholder} visible={!input.value} align="top" />
+                    <Placeholder text={placeholder} visible={!input.value && !focused} align="top" />
                 </View>
             </View>
         </Field>

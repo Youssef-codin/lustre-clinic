@@ -12,7 +12,7 @@
 // less than it is.
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the `AppState` subscription that re-reads the day on foreground
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LayoutChangeEvent } from 'react-native';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
@@ -95,7 +95,6 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
         return sortDebtors(matched, sort);
     }, [outstanding.data, search, sort]);
 
-    const dock = useSearchDock();
     const hero = useHeroHeight();
 
     // An effect because scrolling is imperative and there is nothing to derive —
@@ -115,7 +114,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
     // touch the other periods or the panes pushed over this one, which read
     // themselves when they open. The debtor search is client-side, so a refresh
     // while searching re-reads the same list and re-filters it.
-    const refreshControl = usePullToRefresh(
+    const pull = usePullToRefresh(
         () => {
             // Before the refetches, not after: a pull at 00:05 has to ask for
             // the new day, not re-send yesterday's range.
@@ -127,15 +126,19 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
         summary.isLoading || takings.isLoading || outstanding.isLoading,
     );
 
+    const dock = useSearchDock(pull.scrollProps.onScroll);
+
     return (
         <View style={styles.screen} onLayout={dock.onScreenLayout}>
             <Animated.ScrollView
                 ref={scroller}
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
-                refreshControl={refreshControl}
+                refreshControl={pull.refreshControl}
                 scrollEventThrottle={16}
                 onScroll={dock.onScroll}
+                onScrollBeginDrag={pull.scrollProps.onScrollBeginDrag}
+                onScrollEndDrag={pull.scrollProps.onScrollEndDrag}
                 testID="money-screen"
             >
                 <ScreenHeader
@@ -410,7 +413,8 @@ const DOCK_LIFT = 56;
 const DOCK_SCALE = 0.975;
 const FAR = 10_000;
 
-function useSearchDock() {
+/** `listener` is the pull-to-refresh's own scroll handler, which rides on the native event rather than replacing it. */
+function useSearchDock(listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => void) {
     const scrollY = useRef(new Animated.Value(0)).current;
     const anchor = useRef(new Animated.Value(0)).current;
     const slotY = useRef(Animated.subtract(anchor, scrollY)).current;
@@ -471,6 +475,7 @@ function useSearchDock() {
         onScroll: useRef(
             Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
                 useNativeDriver: true,
+                listener,
             }),
         ).current,
         onScreenLayout: (event: LayoutChangeEvent) => setScreenHeight(event.nativeEvent.layout.height),

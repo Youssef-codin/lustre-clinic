@@ -21,7 +21,7 @@
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import type { TextTone } from '../../theme';
 import { border, color, radius, shadow, size, space, Text } from '../../theme';
 
@@ -130,6 +130,11 @@ export function Button({
         const now = Date.now();
         if (now < lockedUntil.current) return;
         lockedUntil.current = now + pressLockMs;
+        // A press is the end of typing. Left up, the keyboard covers whatever the
+        // press opens next — a booking's second step, a save's result. A screen
+        // that wants the caret back (data entry's next row) focuses a field
+        // afterwards, which raises it again.
+        Keyboard.dismiss();
         onPress();
     }
 

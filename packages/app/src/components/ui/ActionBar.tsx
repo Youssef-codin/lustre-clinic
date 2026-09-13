@@ -14,10 +14,10 @@
  * its own bottom padding, so padding by the keyboard moves the buttons — and
  * the scroll's remaining height — clear of the keys.
  *
- * `Math.max` rather than a sum, because the keyboard is drawn *over* the
- * navigation bar: adding both would clear the bar twice and leave the buttons
- * floating a nav bar above the keys. The resting look is unchanged — with the
- * keyboard down this is still `space[6]`.
+ * The keyboard height already includes the navigation bar it is drawn over (see
+ * `useKeyboardHeight`), and the tab bar under a pane leaves the layout while it
+ * is up, so the bar's bottom edge is the window's. `space[3]` on top keeps the
+ * primary off the keys. With the keyboard down this is still `space[6]`.
  */
 import { StyleSheet, View } from 'react-native';
 import { color, size, space } from '../../theme';
@@ -48,7 +48,10 @@ export function ActionBar({
     const keyboard = useKeyboardHeight();
 
     return (
-        <View style={[styles.bar, { paddingBottom: Math.max(space[6], keyboard) }]} testID={testID}>
+        <View
+            style={[styles.bar, { paddingBottom: keyboard > 0 ? keyboard + space[3] : space[6] }]}
+            testID={testID}
+        >
             {secondaryLabel ? (
                 <View style={styles.secondary}>
                     {/* Outlined, not `ghost`: the bar is already `color.surface`,

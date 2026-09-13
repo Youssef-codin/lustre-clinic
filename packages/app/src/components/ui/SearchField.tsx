@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { color, containsArabic, font, radius, size, space, Text, type } from '../../theme';
@@ -24,6 +25,7 @@ export function SearchField({
     leading,
     ...input
 }: SearchFieldProps) {
+    const [focused, setFocused] = useState(false);
     const arabic = containsArabic(input.value || placeholder || '');
 
     return (
@@ -41,9 +43,17 @@ export function SearchField({
                     accessibilityRole="search"
                     returnKeyType="search"
                     autoCorrect={false}
+                    onFocus={(event) => {
+                        setFocused(true);
+                        input.onFocus?.(event);
+                    }}
+                    onBlur={(event) => {
+                        setFocused(false);
+                        input.onBlur?.(event);
+                    }}
                     style={[styles.input, { fontFamily: arabic ? font.arabic.regular : font.sans.regular }]}
                 />
-                <Placeholder text={placeholder} visible={!input.value} />
+                <Placeholder text={placeholder} visible={!input.value && !focused} />
             </View>
 
             {input.value.length > 0 ? (

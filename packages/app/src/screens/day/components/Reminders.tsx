@@ -14,7 +14,7 @@
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, EmptyState, type RefreshControlElement, RefreshView } from '../../../components/ui';
+import { Banner, Button, EmptyState, type PullToRefresh, RefreshView } from '../../../components/ui';
 import { useRearmReminderNudges } from '../../../notifications';
 import { border, color, size, space, Text } from '../../../theme';
 import { api, type PendingReminder, type QueryResult } from '../data';
@@ -26,7 +26,7 @@ import { CloseIcon } from './icons';
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
     /** The day screen's pull-to-refresh, shared so the tab re-reads with it. */
-    refreshControl?: RefreshControlElement;
+    pull?: PullToRefresh;
     /**
      * Open the patient behind a row. The reminder carries the patient embedded,
      * so the id is already here and the name is a way into the record — which is
@@ -35,7 +35,7 @@ export type RemindersProps = {
     onOpenRecord?: (patientId: string) => void;
 };
 
-export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProps) {
+export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
     const [failed, setFailed] = useState<string | null>(null);
 
@@ -82,7 +82,7 @@ export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProp
     if (query.status === 'error' && query.error && pending.length === 0) {
         const described = describeError(query.error);
         return (
-            <RefreshView refreshControl={refreshControl}>
+            <RefreshView pull={pull}>
                 <EmptyState
                     title={described.title}
                     body={described.body}
@@ -95,7 +95,7 @@ export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProp
 
     if (pending.length === 0) {
         return (
-            <RefreshView refreshControl={refreshControl}>
+            <RefreshView pull={pull}>
                 <EmptyState title="Everyone has been messaged" body="No reminder is waiting to go out." />
             </RefreshView>
         );
@@ -110,7 +110,8 @@ export function Reminders({ query, refreshControl, onOpenRecord }: RemindersProp
             <ScrollView
                 contentContainerStyle={styles.list}
                 showsVerticalScrollIndicator={false}
-                refreshControl={refreshControl}
+                refreshControl={pull?.refreshControl}
+                {...pull?.scrollProps}
             >
                 <Text variant="body" tone="ink2" style={styles.lede}>
                     {pending.length === 1

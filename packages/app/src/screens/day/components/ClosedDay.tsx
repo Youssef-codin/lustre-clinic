@@ -6,7 +6,7 @@
  * a day that was open when it was booked can be closed afterwards.
  */
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Callout, type RefreshControlElement, SectionLabel } from '../../../components/ui';
+import { Callout, type PullToRefresh, SectionLabel } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { weekdayName, weekdayOf } from '../time';
@@ -17,15 +17,16 @@ export type ClosedDayProps = {
     appointments: readonly Appointment[];
     onSelect: (appointment: Appointment) => void;
     /** The day screen's pull-to-refresh, so a closed day is pullable too. */
-    refreshControl?: RefreshControlElement;
+    pull?: PullToRefresh;
 };
 
-export function ClosedDay({ dateKey, appointments, onSelect, refreshControl }: ClosedDayProps) {
+export function ClosedDay({ dateKey, appointments, onSelect, pull }: ClosedDayProps) {
     return (
         <ScrollView
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
-            refreshControl={refreshControl}
+            refreshControl={pull?.refreshControl}
+            {...pull?.scrollProps}
         >
             <View style={styles.panel}>
                 <Text variant="title3" weight="semibold">

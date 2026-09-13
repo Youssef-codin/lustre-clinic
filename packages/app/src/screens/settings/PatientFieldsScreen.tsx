@@ -111,7 +111,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     }
 
     // Not while reordering — the same reason as `ProceduresScreen`.
-    const refreshControl = usePullToRefresh(() => {
+    const pull = usePullToRefresh(() => {
         if (!reordering) void questions.refetch();
     }, questions.isFetching);
 
@@ -120,7 +120,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
             <Pane
                 title="Patient fields"
                 onBack={reordering ? () => setReordering(false) : onBack}
-                refreshControl={refreshControl}
+                pull={pull}
                 trailing={
                     active.length > 1 ? (
                         <Button

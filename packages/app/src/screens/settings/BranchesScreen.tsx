@@ -64,14 +64,14 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
     // Settings are read once when the pane opens, so a branch added on the
     // doctor's phone is invisible here until something asks again. The editor
     // is a pane of its own, so a pull can never land under a half-typed draft.
-    const refreshControl = usePullToRefresh(branches.refetch, branches.isFetching);
+    const pull = usePullToRefresh(branches.refetch, branches.isFetching);
 
     return (
         <>
             <Pane
                 title="Branches"
                 onBack={onBack}
-                refreshControl={refreshControl}
+                pull={pull}
                 testID="settings-branches-pane"
                 trailing={
                     branches.data ? (
