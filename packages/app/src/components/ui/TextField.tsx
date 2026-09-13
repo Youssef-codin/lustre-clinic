@@ -65,7 +65,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
                             { fontFamily: arabic ? font.arabic.regular : font.sans.regular },
                         ]}
                     />
-                    <Placeholder text={placeholder} visible={!input.value} />
+                    <Placeholder text={placeholder} visible={!input.value && !focused} />
                 </View>
             </View>
         </Field>

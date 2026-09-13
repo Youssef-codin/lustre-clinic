@@ -111,7 +111,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                     />
                     <Placeholder
                         text={placeholder}
-                        visible={!input.value}
+                        visible={!input.value && !focused}
                         variant={figure}
                         script="mono"
                         align={variant === 'end' ? 'end' : 'start'}
