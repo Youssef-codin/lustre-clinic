@@ -15,6 +15,11 @@
  * patient, and the clinic-wide total belongs to the money cluster.
  */
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
+// By file, not through `../../day`: that barrel mounts screens that open this
+// cluster, and the queue rule is all this needs.
+import { arrivalQueue } from '../../day/chair';
+import { checkInTimes, api as dayApi } from '../../day/data';
+import { todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
     CreatePatientInput,
@@ -48,6 +53,23 @@ async function wrap<T>(run: () => Promise<unknown>): Promise<T> {
 /** The `jsonb` column reaches the client as `unknown`; a select's options are an array or nothing. */
 function optionsOf(value: unknown): string[] | null {
     return Array.isArray(value) ? (value as string[]) : null;
+}
+
+/**
+ * Who is in the chair today at the branch this appointment is booked in, read
+ * the way the day view reads it: today's rows for that branch, ordered by
+ * arrival (`arrivalQueue`). A record's history row carries the status and not
+ * the queue, and `checked_in` alone cannot tell the chair from the waiting room.
+ */
+export async function chairToday(appointmentId: string): Promise<string | null> {
+    const rows = await dayApi.byDate(todayKey());
+    const branchId = rows.find((row) => row.id === appointmentId)?.branchId;
+    if (branchId === undefined) return null;
+
+    const branch = rows.filter((row) => row.branchId === branchId);
+    const arrived = branch.filter((row) => row.status === 'checked_in').map((row) => row.id);
+    const { checkedInAt } = await checkInTimes(arrived);
+    return arrivalQueue(branch, checkedInAt).chair?.id ?? null;
 }
 
 interface OutstandingRow {

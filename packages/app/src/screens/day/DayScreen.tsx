@@ -680,6 +680,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                     <ClosedDay
                         dateKey={dateKey}
                         appointments={appointments}
+                        chairId={isToday ? (chair?.id ?? null) : null}
                         onSelect={openDetail}
                         pull={pull}
                     />
@@ -774,6 +775,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 key={`detail:${selected.appointment?.id ?? 'none'}`}
                 visible={selected.open}
                 appointment={selected.appointment}
+                // The queue's head, as `UpNext` reads it: off today there is no chair.
+                inChair={isToday && chair !== null && chair.id === selected.appointment?.id}
                 onClose={() => setSelected((current) => ({ ...current, open: false }))}
                 onChanged={day.refetch}
                 // The sheet closes itself on the way into a check-in, so this
