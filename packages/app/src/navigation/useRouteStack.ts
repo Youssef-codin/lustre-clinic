@@ -14,6 +14,7 @@
  * pane. Until it fires, a popped route is still drawn — see `routeStack.ts`.
  */
 import { useMemo, useState } from 'react';
+import { noteScreen } from '../reporting/trail';
 import { useBackHandler } from '../shell/useBackHandler';
 import {
     canPop,
@@ -65,6 +66,7 @@ export function useRouteStack<T>(options: RouteStackOptions = {}): RouteStackCon
     useBackHandler(() => {
         if (locked) return true;
         if (!canPop(stack)) return atRoot?.() ?? false;
+        noteScreen('back');
         setStack(pop);
         return true;
     });
@@ -72,13 +74,31 @@ export function useRouteStack<T>(options: RouteStackOptions = {}): RouteStackCon
     // Built once. Every one of these is a prop on a screen, and a cluster whose
     // handlers changed identity each render would undo the memoisation the shell
     // depends on (`shell/AppShell.tsx`).
+    //
+    // Each move leaves a crash-report crumb naming the route it went to. A route
+    // that is a record rather than a screen name is dropped by the allow-list.
     const controls = useMemo(
         () => ({
-            push: (route: T) => setStack((current) => push(current, route)),
-            pop: () => setStack(pop),
-            popToRoot: () => setStack(popToRoot),
-            replaceTop: (route: T) => setStack((current) => replaceTop(current, route)),
-            resetTo: (route: T) => setStack((current) => resetTo(current, route)),
+            push: (route: T) => {
+                noteScreen(route);
+                setStack((current) => push(current, route));
+            },
+            pop: () => {
+                noteScreen('back');
+                setStack(pop);
+            },
+            popToRoot: () => {
+                noteScreen('home');
+                setStack(popToRoot);
+            },
+            replaceTop: (route: T) => {
+                noteScreen(route);
+                setStack((current) => replaceTop(current, route));
+            },
+            resetTo: (route: T) => {
+                noteScreen(route);
+                setStack((current) => resetTo(current, route));
+            },
             settled: () => setStack(settled),
         }),
         [],

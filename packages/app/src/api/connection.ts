@@ -1,4 +1,5 @@
 import { AppState, type NativeEventSubscription } from 'react-native';
+import { noteConnection } from '../reporting/trail';
 import { serverAddresses, timing, trpcUrl } from './config';
 import { isDemoMode } from './demo';
 
@@ -55,6 +56,7 @@ function emit(next: Partial<ConnectionState>): void {
     ) {
         return;
     }
+    if (merged.status !== state.status) noteConnection(merged.status);
     state = merged;
     for (const listener of listeners) listener();
 }

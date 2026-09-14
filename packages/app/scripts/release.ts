@@ -118,7 +118,13 @@ async function buildApk(): Promise<void> {
     // InvocationTargetException. The flag outranks `~/.gradle/gradle.properties`.
     await $`./gradlew assembleRelease -Dorg.gradle.jvmargs=${'-Xmx2048m -XX:MaxMetaspaceSize=1024m'}`
         .cwd(join(APP_DIR, 'android'))
-        .env({ ...process.env, ORG_GRADLE_PROJECT_reactNativeArchitectures: abis });
+        .env({
+            ...process.env,
+            ORG_GRADLE_PROJECT_reactNativeArchitectures: abis,
+            // Sentry's Gradle hook uploads source maps on every release build and
+            // fails the build without a GlitchTip token. Off unless asked for.
+            SENTRY_DISABLE_AUTO_UPLOAD: process.env.SENTRY_DISABLE_AUTO_UPLOAD ?? 'true',
+        });
 
     const outputs = JSON.parse(
         await readFile(join(APK_OUTPUTS, 'output-metadata.json'), 'utf8'),

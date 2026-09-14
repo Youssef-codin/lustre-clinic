@@ -6,6 +6,7 @@ import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import { useReminderNudges } from '../notifications';
+import { noteScreen, renderErrorReporter, useCrashReportRole } from '../reporting';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
@@ -104,6 +105,7 @@ export function AppShell() {
     // the background, and the day cluster is unmounted for neither of those but
     // is the wrong owner for something the whole app has.
     useReminderNudges();
+    useCrashReportRole(role);
 
     // Entered on the connection's word rather than on a query failing, so the
     // drop is answered wherever she is standing and not by whichever screen
@@ -131,6 +133,7 @@ export function AppShell() {
     // cross-cluster push answers that for itself, and the tab bar's own handler
     // answers it below.
     const reveal = useCallback((next: TabKey) => {
+        noteScreen(next);
         setTab(next);
         setVisited((current) => (current.includes(next) ? current : [...current, next]));
     }, []);
@@ -245,6 +248,7 @@ export function AppShell() {
         <View style={styles.root}>
             <View style={styles.body}>
                 <Pane
+                    tab="day"
                     visible={!disconnected && tab === 'day'}
                     mounted={visited.includes('day')}
                     back={stacks.day}
@@ -263,6 +267,7 @@ export function AppShell() {
                 </Pane>
 
                 <Pane
+                    tab="patients"
                     visible={!disconnected && tab === 'patients'}
                     mounted={visited.includes('patients')}
                     back={stacks.patients}
@@ -281,6 +286,7 @@ export function AppShell() {
                 </Pane>
 
                 <Pane
+                    tab="money"
                     visible={!disconnected && tab === 'money'}
                     mounted={visited.includes('money')}
                     back={stacks.money}
@@ -292,6 +298,7 @@ export function AppShell() {
                 </Pane>
 
                 <Pane
+                    tab="settings"
                     visible={!disconnected && tab === 'settings'}
                     mounted={visited.includes('settings')}
                     back={stacks.settings}
@@ -345,11 +352,14 @@ export function AppShell() {
  * by the cluster, and a tripped cluster is not mounted to hear anything.
  */
 function Pane({
+    tab,
     visible,
     mounted,
     back,
     children,
 }: {
+    /** Which tab, for the crash report the boundary sends. */
+    tab: TabKey;
     visible: boolean;
     mounted: boolean;
     /** This tab's back handlers. One object for the life of the app, so the
@@ -365,6 +375,7 @@ function Pane({
                     title="This tab stopped"
                     message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
                     resetKey={visible}
+                    onError={renderErrorReporter(tab)}
                 >
                     {children}
                 </ErrorBoundary>

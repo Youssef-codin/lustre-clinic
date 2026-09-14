@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { UPDATES_CHANNEL, UPDATES_MANIFEST_PATH } from '@lustre/shared';
 import type { ConfigContext } from 'expo/config';
-import appConfig, { CHANNEL, MANIFEST_PATH, updatesConfig } from './app.config';
+import appConfig, { CHANNEL, glitchtipDsn, MANIFEST_PATH, updatesConfig } from './app.config';
 
 /**
  * What a release APK is built to ask for, which cannot be changed after the
@@ -61,5 +61,26 @@ describe('appConfig', () => {
 
         if (previous === undefined) delete process.env.LUSTRE_UPDATES_URL;
         else process.env.LUSTRE_UPDATES_URL = previous;
+    });
+
+    test('bakes the GlitchTip DSN from LUSTRE_GLITCHTIP_DSN, and never into a demo', () => {
+        const previous = process.env.LUSTRE_GLITCHTIP_DSN;
+        process.env.LUSTRE_GLITCHTIP_DSN = ' http://key@clinic.tail.ts.net:8000/1 ';
+
+        expect(appConfig(context(false)).extra).toEqual({
+            demo: false,
+            glitchtipDsn: 'http://key@clinic.tail.ts.net:8000/1',
+        });
+        expect(appConfig(context(true)).extra?.glitchtipDsn).toBeNull();
+
+        if (previous === undefined) delete process.env.LUSTRE_GLITCHTIP_DSN;
+        else process.env.LUSTRE_GLITCHTIP_DSN = previous;
+    });
+});
+
+describe('glitchtipDsn', () => {
+    test('is empty, and reports off, when nothing was given', () => {
+        expect(glitchtipDsn(undefined, false)).toBeNull();
+        expect(glitchtipDsn('   ', false)).toBeNull();
     });
 });
