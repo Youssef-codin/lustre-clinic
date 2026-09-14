@@ -114,10 +114,14 @@ export async function enableDemoMode(): Promise<void> {
  * A build that shipped `extra.demo` stays a demo: clearing the flag would leave
  * it pointed at a server it was never given an address for.
  */
-async function disableDemoMode(): Promise<void> {
+export async function disableDemoMode(): Promise<void> {
     if (shipped) return;
     transitions += 1;
     emit({ hydrated: true, enabled: false });
     noteDataReset();
-    await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
+    // A removal that fails would leave `on` behind and the next launch back in
+    // the demo, so the key is overwritten instead; hydration reads only `on`.
+    await AsyncStorage.removeItem(DEMO_KEY)
+        .catch(() => AsyncStorage.setItem(DEMO_KEY, 'off'))
+        .catch(() => undefined);
 }
