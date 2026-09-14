@@ -133,8 +133,10 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
     const reports = CRASH_REPORTS_ON && !demo.enabled;
 
     function report() {
-        const sent = reportProblem();
-        setToast(sent.sent ? `Report sent · ref ${sent.ref}` : 'Problem reports are off on this build');
+        const result = reportProblem();
+        setToast(
+            result.queued ? `Report queued · ref ${result.ref}` : 'Problem reports are off on this build',
+        );
     }
 
     // Not behind the summary: a report is most wanted when the server is not

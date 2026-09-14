@@ -66,17 +66,21 @@ export function renderErrorReporter(boundary: Boundary): (error: Error, info: Er
     return reporter;
 }
 
-export type ProblemReport = { sent: true; ref: string } | { sent: false };
+export type ProblemReport = { queued: true; ref: string } | { queued: false };
 
 /**
  * "Report a problem". Breadcrumbs only leave the phone attached to an event,
  * so a glitch that did not crash sends nothing until this is pressed. `ref` is
  * the start of the event id, which the person on the phone can read out.
+ *
+ * Queued, not sent: the SDK keeps the event on disk and delivers it when
+ * GlitchTip answers, which in a power cut is later. A flush would only hand it
+ * to the native transport, so there is no delivery to wait for here.
  */
 export function reportProblem(): ProblemReport {
-    if (!CRASH_REPORTS_ON || isDemoMode()) return { sent: false };
+    if (!CRASH_REPORTS_ON || isDemoMode()) return { queued: false };
     const id = Sentry.captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
-    return { sent: true, ref: id.slice(0, 8) };
+    return { queued: true, ref: id.slice(0, 8) };
 }
 
 export function tagRole(role: ClientRole): void {
