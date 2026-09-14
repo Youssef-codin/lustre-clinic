@@ -22,7 +22,9 @@ mock.module('@react-native-async-storage/async-storage', () => ({
 
 mock.module('expo-constants', () => ({ default: { expoConfig: { extra: { demo: false } } } }));
 
-const demo = await import('./index');
+// `./flag`, not the demo barrel: the barrel reaches `api/config.ts`, which reads
+// React Native's `__DEV__` at import and throws under `bun test`.
+const demo = await import('./flag');
 
 beforeEach(() => {
     stored.clear();
