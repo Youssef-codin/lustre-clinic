@@ -102,7 +102,11 @@ async function buildApk(): Promise<void> {
     await $`bunx expo prebuild --platform android --no-install`.cwd(APP_DIR);
     // Clinic phones are arm64. Add x86_64 for the emulator or Waydroid.
     const abis = process.env.LUSTRE_APK_ABIS ?? 'arm64-v8a';
-    await $`./gradlew assembleRelease`
+    // A release build compiles every native module's Kotlin, and with
+    // `kotlin.compiler.execution.strategy=in-process` that happens inside the
+    // Gradle daemon: a 512 MiB metaspace runs out part-way and fails as a bare
+    // InvocationTargetException. The flag outranks `~/.gradle/gradle.properties`.
+    await $`./gradlew assembleRelease -Dorg.gradle.jvmargs=${'-Xmx2048m -XX:MaxMetaspaceSize=1024m'}`
         .cwd(join(APP_DIR, 'android'))
         .env({ ...process.env, ORG_GRADLE_PROJECT_reactNativeArchitectures: abis });
 
