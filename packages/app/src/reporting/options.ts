@@ -46,6 +46,14 @@ export function sdkOptions(dsn: string | null, variant: BuildVariant) {
         enableUserInteractionTracing: false,
         enableCaptureFailedRequests: false,
         enableLogs: false,
+        // A native (Java/NDK) crash is captured and sent by the Android SDK with
+        // no JS `beforeSend` in between, and its message can quote anything the
+        // native code held, an intent URL with a phone number in it included.
+        // Until there is a native-side allow-list those events are not made at
+        // all. JS events still go through the native transport, which keeps them
+        // on disk while GlitchTip is unreachable.
+        enableNativeCrashHandling: false,
+        enableNdk: false,
         sampleRate: 1,
         maxBreadcrumbs: MAX_BREADCRUMBS,
     } as const;

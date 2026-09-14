@@ -34,6 +34,9 @@ describe('what the SDK collects (§17)', () => {
             enableUserInteractionTracing: false,
             enableCaptureFailedRequests: false,
             enableLogs: false,
+            // Native crash events would skip the allow-list entirely.
+            enableNativeCrashHandling: false,
+            enableNdk: false,
             sampleRate: 1,
             maxBreadcrumbs: MAX_BREADCRUMBS,
         });
