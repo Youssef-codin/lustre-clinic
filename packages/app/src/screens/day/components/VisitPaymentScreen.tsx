@@ -276,7 +276,9 @@ export function VisitPaymentScreen({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Back to the visit"
-                    disabled={checkOut.pending}
+                    // A correction is two writes, the money and then the close;
+                    // leaving between them strands a reopened visit.
+                    disabled={checkOut.pending || setPaidTotal.pending}
                     onPress={onBack}
                     style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
                 >
