@@ -4,13 +4,15 @@
  * server.
  *
  * There is no server picker, and that is the design's point, not an omission:
- * the clinic has one server, and the app decides for itself whether to take the
- * LAN address or the tailnet one (`api/connection.ts` probes LAN first). So the
- * card reports the route and offers a re-probe — the one useful action when the
- * phone has stayed on the wrong answer after walking out of the clinic.
+ * the clinic has one server. A prod build reaches it over Tailscale only; a dev
+ * build decides for itself between the LAN address and the tailnet one
+ * (`api/connection.ts` probes LAN first). So the card reports the route and
+ * offers a re-probe — the one useful action when the phone has stayed on a
+ * stale answer.
  */
 import type { Locale } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { allowsLan, BUILD_VARIANT } from '../../api';
 import { Button, Card, Dot, SectionLabel } from '../../components/ui';
 import { color, radius, space, Text } from '../../theme';
 import { ReprobeIcon } from './components/icons';
@@ -114,8 +116,9 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                 </Card>
 
                 <Text variant="footnote" tone="muted" style={styles.hint}>
-                    Lustre prefers the clinic server when you are on its wifi and falls back to the tailnet
-                    elsewhere. Re-probe if the app is stuck on the wrong one.
+                    {allowsLan(BUILD_VARIANT)
+                        ? 'Lustre prefers the clinic server when you are on its wifi and falls back to the tailnet elsewhere. Re-probe if the app is stuck on the wrong one.'
+                        : 'Lustre reaches the clinic server over Tailscale. Re-probe if it has stopped answering.'}
                 </Text>
             </View>
         </Pane>

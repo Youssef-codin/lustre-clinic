@@ -3,7 +3,7 @@
 // again. `bun test` has no renderer; this is the part of the screen that
 // decides an address.
 import { describe, expect, it } from 'bun:test';
-import { noAnswer, toBase } from './address';
+import { noAnswer, nothingEntered, toBase, toCandidate } from './address';
 
 describe('toBase', () => {
     it('assumes http for a bare host, which is how the address is read aloud', () => {
@@ -39,5 +39,33 @@ describe('noAnswer', () => {
             'Neither address answered',
         );
         expect(noAnswer({ lan: 'http://a:3000', tailscale: '' })).toStartWith('That address did not answer');
+    });
+
+    it('mentions the clinic wifi only when a LAN address was tried', () => {
+        expect(noAnswer({ lan: 'http://a:3000', tailscale: 'http://b:3000' })).toContain('clinic wifi');
+        expect(noAnswer({ lan: '', tailscale: 'http://b:3000' })).not.toContain('wifi');
+    });
+});
+
+describe('prod setup', () => {
+    it('drops a typed or restored LAN address when the build does not allow one', () => {
+        const typed = { lan: '192.168.1.20:3000', tailscale: 'smilemakers.tailad17f9.ts.net:3000' };
+        expect(toCandidate(typed, false)).toEqual({
+            lan: '',
+            tailscale: 'http://smilemakers.tailad17f9.ts.net:3000',
+        });
+        expect(noAnswer(toCandidate(typed, false))).not.toContain('wifi');
+    });
+
+    it('keeps both addresses where the LAN is allowed', () => {
+        expect(toCandidate({ lan: 'localhost:3000', tailscale: '' }, true)).toEqual({
+            lan: 'http://localhost:3000',
+            tailscale: '',
+        });
+    });
+
+    it('asks for the one field there is', () => {
+        expect(nothingEntered(false)).toBe('Enter the Tailscale address.');
+        expect(nothingEntered(true)).toBe('Enter at least one address.');
     });
 });

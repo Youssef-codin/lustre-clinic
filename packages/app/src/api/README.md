@@ -113,6 +113,18 @@ when the phone is pocketed.
 That is the one place to change the address, and it is what a dev machine edits
 — put your machine's LAN address in `lan` and leave it out of the commit.
 
+**A prod build has no LAN address.** The clinic server listens only on
+Tailscale, so `lan` can never answer there. `variant.ts` calls a build prod when
+`__DEV__` is false and `extra.demo` is not `true`; `config.ts` drops the LAN
+side on prod however it arrives, `shell/serverStore.ts` deletes one an older
+install saved, and `demo/flag.ts` clears a stored demo flag. Setup on prod shows
+the Tailscale field alone and no demo button, and the Tailscale side must be a
+tailnet address — a `.ts.net` name, a 100.64.0.0/10 IP or Tailscale's IPv6 range
+(`isTailnetAddress`) — whether it was typed, stored, shipped or reported by the
+server. Dev builds keep both, because the
+emulator and a cable-attached phone reach the dev server through `localhost`. A
+release build that ships `extra.demo: true` is a demo build, not prod.
+
 Both ship as `null`. A `lan` value would be the clinic's static address (the
 server PC is outside the router's DHCP pool for exactly this reason), which
 makes it a *default* and not a fact: right for the clinic it was written for and
@@ -129,11 +141,12 @@ storage — persisting what setup collected belongs with setup, in
 never re-probed against it: a phone that has been set up and cannot reach the
 clinic is offline, not unconfigured.
 
-Resolution order, per §14: the LAN address with a 500 ms ceiling, then the
-MagicDNS hostname with 3 s. Whichever answers is cached for the session. A
-request that reaches no server drops the cached address, so the next call
-re-probes — that is what covers the phone moving between clinic wifi and the
-tailnet. Coming back to the foreground while not online re-probes too.
+Resolution order, per §14: on dev, the LAN address with a 500 ms ceiling, then
+the MagicDNS hostname with 3 s; on prod, the MagicDNS hostname alone. Whichever
+answers is cached for the session. A request that reaches no server drops the
+cached address, so the next call re-probes — that is what covers a dev phone
+moving between the LAN and the tailnet. Coming back to the foreground while not
+online re-probes too.
 
 There is no network-change listener: it would need `@react-native-community/netinfo`,
 and the failure-driven re-probe already covers the case that matters. Add one
@@ -149,8 +162,8 @@ never a data path — everything works with the socket down, just staler.
 ## Timings
 
 All in [`config.ts`](./config.ts). An unreachable clinic costs about ten seconds
-end to end: 0.5 s LAN probe, 3 s tailnet probe, one 5 s request, one retry for
-reads. Fast enough to read as "the server is off" rather than as a hung app.
+end to end: 3 s tailnet probe (after a 0.5 s LAN probe on dev), one 5 s request,
+one retry for reads. Fast enough to read as "the server is off" rather than as a hung app.
 
 ## Known gap: dates arrive as strings
 

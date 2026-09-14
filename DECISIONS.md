@@ -509,6 +509,39 @@ keeps the field as a manual fallback: a server that reports nothing must not
 wipe an address that works, and an older build that does not send the field is
 indistinguishable from one that has not been configured.
 
+## Prod builds are Tailscale only, and `__DEV__` is what says prod
+
+The clinic server listens only on Tailscale and its firewall drops the API port
+from the wifi, so a LAN address cannot answer a prod build: it was a 0.5 s probe
+that always failed and a setup field that confused whoever filled it in. Demo
+mode on a clinic phone put a fake register one tap from the real one.
+
+So a prod build has neither. It probes the MagicDNS hostname alone, setup shows
+that one field and no demo button, and on boot it deletes a stored LAN address
+and a stored `lustre.demo` flag, so a phone upgraded from a dev or demo install
+comes up on Tailscale and not in the demo.
+
+**Why `__DEV__`, not an `extra.channel` or the EAS profile.** Metro sets it false
+in every release bundle whatever `app.json` says, and nothing needs to be
+remembered to get it right. A config value is a flag somebody forgets to flip
+before a release; there is no EAS config in this repo to hang a profile on.
+`extra.demo: true` on a release build still makes a demo build, which keeps the
+demo that is handed to someone, and a prod build cannot be one because prod is
+defined as not shipping it.
+
+Dev builds keep the LAN field and demo mode: the emulator and a cable-attached
+phone reach the dev server through `localhost`.
+
+**Release builds could not use HTTP at all until this.** Android blocks cleartext
+traffic from a release build unless the main manifest allows it, and only the
+debug manifest Expo generates did. `android.usesCleartextTraffic` in `app.json`
+was never a key Expo reads, so every release build failed to reach any server —
+it showed as "That address did not answer" for an address that answers from the
+same machine. `plugins/withCleartextTraffic.js` sets it on the main manifest,
+app-wide rather than per host: Tailscale is the security boundary (SPEC §1), and
+a network security config cannot name the `100.64.0.0/10` range a raw tailnet
+address comes from.
+
 ---
 
 # Design fidelity
