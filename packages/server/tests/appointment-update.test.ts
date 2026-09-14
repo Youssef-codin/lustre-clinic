@@ -202,6 +202,20 @@ describe('status transitions', () => {
         );
     });
 
+    test('refuses to move an appointment that is no longer booked, and leaves it where it was', async () => {
+        const { appointment } = await bookedAppointment();
+        await visitService.checkIn({ appointmentId: appointment.id });
+        const moved = new Date(Date.parse(slot()) + 24 * 3_600_000).toISOString();
+
+        await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
+            appointmentService.update({ id: appointment.id, startsAt: moved }),
+        );
+
+        const current = await appointmentService.byId(appointment.id);
+        expect(current.startsAt.toISOString()).toBe(appointment.startsAt.toISOString());
+        expect(current.status).toBe('checked_in');
+    });
+
     test('the transition table permits exactly what §7 draws', () => {
         expect(APPOINTMENT_TRANSITIONS).toEqual({
             booked: ['checked_in', 'cancelled', 'no_show'],
