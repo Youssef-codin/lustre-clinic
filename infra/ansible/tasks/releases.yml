@@ -4,7 +4,10 @@
 # each request, so nothing restarts.
 #
 # Additive on purpose: an update a phone may still be downloading is never
-# deleted from under it.
+# deleted from under it. The copy lands file by file in no particular order,
+# which is safe because the server offers nothing until it is complete: an APK
+# whose size matches its metadata, an update whose signature and every file
+# its manifest names are present (`modules/release/release.service.ts`).
 
 - name: "{{ stack.name }}: staged releases"
   become: false

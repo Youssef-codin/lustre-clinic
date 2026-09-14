@@ -23,6 +23,10 @@ import { type ExportedFile, manifestFor, signManifest } from './updateManifest';
 const APP_DIR = resolve(import.meta.dir, '..');
 const OUT_DIR = resolve(process.env.LUSTRE_RELEASES_DIR ?? join(APP_DIR, '../../dist/releases'));
 const APK_OUTPUTS = join(APP_DIR, 'android/app/build/outputs/apk/release');
+// The release keystore's certificate (infra/README.md, Release signing). A phone
+// installs an APK over the clinic app only when it carries this certificate, and
+// a new keystore means an uninstall on every phone, so changing this is deliberate.
+const RELEASE_CERT_SHA256 = 'a1fedfaa3ebc517c829c680a41419669079bf6d5b6a340334efc8dfe57245ecc';
 
 interface ExportMetadata {
     fileMetadata?: { android?: { bundle: string; assets: { path: string; ext: string }[] } };
@@ -93,6 +97,12 @@ async function assertReleaseKey(apk: string): Promise<void> {
         .quiet()
         .text();
     if (certs.includes('CN=Android Debug')) fail(`${apk} is signed with the debug key`);
+    const digest = certs.match(/certificate SHA-256 digest: ([0-9a-f]{64})/)?.[1];
+    if (digest !== RELEASE_CERT_SHA256) {
+        fail(
+            `${apk} is signed with certificate ${digest ?? '(none found)'}, not the Lustre release key ${RELEASE_CERT_SHA256}. Phones on the current APK could not install it.`,
+        );
+    }
     say(certs.split('\n').find((line) => line.includes('certificate DN')) ?? certs);
 }
 
@@ -120,6 +130,17 @@ async function buildApk(): Promise<void> {
     const apk = join(APK_OUTPUTS, element.outputFile);
     await assertReleaseKey(apk);
 
+    // The Settings banner offers only a strictly higher build, so a build that is
+    // not higher than the one already staged would reach no phone.
+    const staged = JSON.parse(
+        await readFile(join(OUT_DIR, 'android/latest.json'), 'utf8').catch(() => 'null'),
+    ) as { versionCode?: number } | null;
+    if (staged?.versionCode && element.versionCode <= staged.versionCode) {
+        fail(
+            `build ${element.versionCode} is not higher than the staged build ${staged.versionCode}. Rebuild, or set ORG_GRADLE_PROJECT_LUSTRE_VERSION_CODE above it.`,
+        );
+    }
+
     const runtimeVersion = await resolvedRuntimeVersion();
     const bytes = new Uint8Array(await readFile(apk));
     await atomicWrite(join(OUT_DIR, 'android/lustre.apk'), bytes);
@@ -131,6 +152,8 @@ async function buildApk(): Promise<void> {
                 version: element.versionName,
                 runtimeVersion,
                 sha256: createHash('sha256').update(bytes).digest('hex'),
+                // The server offers the APK only once a file of this size is beside it.
+                size: bytes.length,
                 updatesUrl: url,
                 builtAt: new Date().toISOString(),
             },

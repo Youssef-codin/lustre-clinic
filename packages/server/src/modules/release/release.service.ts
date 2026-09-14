@@ -2,7 +2,7 @@
  * SPEC §15. What the operator's release script (`packages/app/scripts/release.ts`)
  * stages in `RELEASES_DIR`, and the ansible `releases` tag copies to the clinic:
  *
- *   android/latest.json                 { versionCode, version, runtimeVersion }
+ *   android/latest.json                 { versionCode, version, size, … }
  *   android/lustre.apk
  *   updates/<runtime>/latest.json       { id } — the update that runtime gets
  *   updates/<runtime>/<id>/manifest.json, signature, and the exported files
@@ -11,10 +11,18 @@
  * private key never reaches this server, and it is served byte for byte because
  * the signature covers those bytes.
  *
+ * A copy to the clinic lands file by file, in no order the server can rely on,
+ * and can be interrupted. So nothing is offered until everything it needs is
+ * here: an APK whose size matches its metadata, and an update whose signature
+ * and every file its manifest names are present. Offered early, a phone would
+ * download the previous APK under the new build number, or fail an update's
+ * download on every launch.
+ *
  * Nothing here throws. No releases at all is where every fresh install starts,
  * and a phone reads "nothing newer" and "no answer" the same way.
  */
 import { join, resolve } from 'node:path';
+import { UPDATES_ASSETS_PATH } from '@lustre/shared';
 import type { BunFile } from 'bun';
 import { z } from 'zod';
 import { config } from '../../config.ts';
@@ -24,16 +32,22 @@ const APK_FILE = 'lustre.apk';
 const apkMetadata = z.object({
     versionCode: z.number().int().positive(),
     version: z.string().min(1),
+    size: z.number().int().positive().optional(),
 });
 
 const updatePointer = z.object({ id: z.uuid() });
 
-type LatestApk = z.infer<typeof apkMetadata>;
+const manifestFiles = z.object({
+    launchAsset: z.object({ url: z.string() }),
+    assets: z.array(z.object({ url: z.string() })),
+});
+
+type LatestApk = { versionCode: number; version: string };
 
 interface PublishedUpdate {
     id: string;
     manifest: string;
-    signature: string | null;
+    signature: string;
 }
 
 // Runtime versions are fingerprint hashes, ids are UUIDs and asset paths are
@@ -57,11 +71,32 @@ async function readJson(path: string): Promise<unknown> {
     return file ? file.json().catch(() => null) : null;
 }
 
+/** Whether every file the manifest points at is in `updateDir`, under the URL prefix it was published with. */
+async function allFilesPresent(updateDir: string, prefix: string, manifest: unknown): Promise<boolean> {
+    const parsed = manifestFiles.safeParse(manifest);
+    if (!parsed.success) return false;
+
+    const paths: string[] = [];
+    for (const { url } of [parsed.data.launchAsset, ...parsed.data.assets]) {
+        const at = url.indexOf(prefix);
+        if (at === -1) return false;
+        const path = url.slice(at + prefix.length);
+        if (!path.split('/').every(isSafeSegment)) return false;
+        paths.push(path);
+    }
+
+    const found = await Promise.all(paths.map((path) => Bun.file(join(updateDir, path)).exists()));
+    return found.every(Boolean);
+}
+
 export const releaseService = {
     async latestApk(): Promise<LatestApk | null> {
         const android = join(releasesDir(), 'android');
         const metadata = apkMetadata.safeParse(await readJson(join(android, 'latest.json')));
-        if (!metadata.success || !(await existing(join(android, APK_FILE)))) return null;
+        if (!metadata.success) return null;
+
+        const apk = await existing(join(android, APK_FILE));
+        if (!apk || (metadata.data.size !== undefined && apk.size !== metadata.data.size)) return null;
         return { versionCode: metadata.data.versionCode, version: metadata.data.version };
     },
 
@@ -77,15 +112,23 @@ export const releaseService = {
         const pointer = updatePointer.safeParse(await readJson(join(runtimeDir, 'latest.json')));
         if (!pointer.success) return null;
 
-        const manifest = await existing(join(runtimeDir, pointer.data.id, 'manifest.json'));
-        if (!manifest) return null;
-        const signature = await existing(join(runtimeDir, pointer.data.id, 'signature'));
+        const { id } = pointer.data;
+        const updateDir = join(runtimeDir, id);
+        const [manifest, signatureFile] = await Promise.all([
+            existing(join(updateDir, 'manifest.json')),
+            existing(join(updateDir, 'signature')),
+        ]);
+        if (!manifest || !signatureFile) return null;
 
-        return {
-            id: pointer.data.id,
-            manifest: await manifest.text(),
-            signature: signature ? (await signature.text()).trim() : null,
-        };
+        // Release builds refuse a manifest without a valid signature, so an
+        // unsigned one is no update rather than a failed download every launch.
+        const signature = (await signatureFile.text()).trim();
+        if (!signature) return null;
+
+        const prefix = `${UPDATES_ASSETS_PATH}/${runtimeVersion}/${id}/`;
+        if (!(await allFilesPresent(updateDir, prefix, await manifest.json().catch(() => null)))) return null;
+
+        return { id, manifest: await manifest.text(), signature };
     },
 
     /** `segments` is `<runtime>/<id>/<path inside the export>`. */

@@ -138,8 +138,10 @@ cd infra/ansible && ansible-playbook site.yml -K --tags releases
 `LUSTRE_UPDATES_URL` is the prod stack's address, the one `health.check`
 reports. It is baked into the APK as the place to ask for OTA updates, so use
 the same value every time. The build is arm64 only; `LUSTRE_APK_ABIS=arm64-v8a,x86_64`
-adds the emulator's ABI. Every release build gets a higher `versionCode` (build
-minutes since 2026-01-01 UTC, see `plugins/withReleaseVersionCode.js`).
+adds the emulator's ABI. Every release build gets a higher `versionCode` (tens
+of seconds since 2026-01-01 UTC, see `plugins/withReleaseVersionCode.js`), and
+`release:apk` refuses to stage a build that is not higher than the one already
+staged, or one signed with any certificate but the release keystore's.
 
 Check the server has it: `curl http://<clinic>:3000/trpc/release.latestApk`.
 
@@ -164,8 +166,11 @@ runtime differs, which means something native changed and it needs
 Phones pick it up on launch and run it on the next cold start: swipe the app
 away and open it twice. Settings → App → Version shows the update's short id.
 
-- **An update that crashes on start** rolls itself back: expo-updates marks it
-  failed and the phone relaunches on the previous bundle.
+- **An update that crashes before its first screen draws** rolls itself back:
+  expo-updates marks it failed and relaunches on the previous bundle. That
+  relaunch can come up blank; closing and reopening the app clears it. A crash
+  after the first screen has drawn, such as one behind a button, is not caught
+  and does not roll back: fix forward by publishing a corrected update.
 - **An update with a bug that does not crash**: check out the last good commit
   and run `release:update` again. It gets a new id and becomes the latest.
 - Dev builds load Metro and demo builds have updates switched off, so neither

@@ -26,20 +26,33 @@ async function put(path: string, contents: string): Promise<void> {
     await writeFile(join(dir, path), contents);
 }
 
+const APK_BYTES = 'PK-not-really-an-apk';
+
 async function publishApk(versionCode = 525_600): Promise<void> {
     await put(
         'android/latest.json',
-        JSON.stringify({ versionCode, version: '1.0.0', runtimeVersion: RUNTIME }),
+        JSON.stringify({ versionCode, version: '1.0.0', runtimeVersion: RUNTIME, size: APK_BYTES.length }),
     );
-    await put('android/lustre.apk', 'PK-not-really-an-apk');
+    await put('android/lustre.apk', APK_BYTES);
 }
 
-const MANIFEST = JSON.stringify({ id: UPDATE_ID, runtimeVersion: RUNTIME });
+const UPDATE_DIR = `updates/${RUNTIME}/${UPDATE_ID}`;
+const ASSET_BASE = `http://clinic.tail.ts.net:3000${UPDATES_ASSETS_PATH}/${RUNTIME}/${UPDATE_ID}`;
+const BUNDLE = '_expo/static/js/android/index-1a2b.hbc';
+const FONT = 'assets/5d41402abc4b2a76b9719d911017c592';
+
+const MANIFEST = JSON.stringify({
+    id: UPDATE_ID,
+    runtimeVersion: RUNTIME,
+    launchAsset: { url: `${ASSET_BASE}/${BUNDLE}` },
+    assets: [{ url: `${ASSET_BASE}/${FONT}` }],
+});
 
 async function publishUpdate(): Promise<void> {
-    await put(`updates/${RUNTIME}/${UPDATE_ID}/manifest.json`, MANIFEST);
-    await put(`updates/${RUNTIME}/${UPDATE_ID}/signature`, `${SIGNATURE}\n`);
-    await put(`updates/${RUNTIME}/${UPDATE_ID}/_expo/static/js/android/index-1a2b.hbc`, 'bundle bytes');
+    await put(`${UPDATE_DIR}/manifest.json`, MANIFEST);
+    await put(`${UPDATE_DIR}/signature`, `${SIGNATURE}\n`);
+    await put(`${UPDATE_DIR}/${BUNDLE}`, 'bundle bytes');
+    await put(`${UPDATE_DIR}/${FONT}`, 'font bytes');
     await put(`updates/${RUNTIME}/latest.json`, JSON.stringify({ id: UPDATE_ID }));
 }
 
@@ -93,6 +106,13 @@ describe('release.latestApk', () => {
 
         await put('android/lustre.apk', 'PK');
         await put('android/latest.json', '{ not json');
+        expect(await server.client.release.latestApk.query()).toBeNull();
+    });
+
+    test('is null while the APK beside the metadata is not the one it describes', async () => {
+        await publishApk();
+        // A copy that has landed the new metadata but not yet the new APK.
+        await put('android/lustre.apk', 'PK-the-previous-apk-which-is-longer');
         expect(await server.client.release.latestApk.query()).toBeNull();
     });
 });
@@ -150,6 +170,21 @@ describe(UPDATES_MANIFEST_PATH, () => {
     test('does not read a runtime version as a path', async () => {
         await publishUpdate();
         expect((await askForUpdate({ 'expo-runtime-version': '..' })).status).toBe(204);
+    });
+
+    test('offers nothing until every file the manifest names has arrived', async () => {
+        await publishUpdate();
+        await rm(join(dir, UPDATE_DIR, FONT));
+        expect((await askForUpdate()).status).toBe(204);
+    });
+
+    test('offers nothing without a signature, since release builds refuse an unsigned manifest', async () => {
+        await publishUpdate();
+        await put(`${UPDATE_DIR}/signature`, '  \n');
+        expect((await askForUpdate()).status).toBe(204);
+
+        await rm(join(dir, UPDATE_DIR, 'signature'));
+        expect((await askForUpdate()).status).toBe(204);
     });
 });
 
