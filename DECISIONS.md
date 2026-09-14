@@ -117,6 +117,86 @@ Real accounts would be a schema change and a genuine permission boundary, not a
 settings row. The reasoning lives in `components/RoleSwitchSheet.tsx`, which
 replaced an entire Users pane with a confirm sheet on the settings index.
 
+## The secretary books; the doctor records procedures — defaults taken without the dentist
+
+The dentist asked on 12 Sep 2026 that the secretary stop entering procedures.
+The task left four questions for him, and he could not be reached the night it
+was built, so each was answered with the cheapest default to reverse. **Each
+entry below is a default, not his answer.** Overturn any of them without
+touching the others.
+
+### Who records procedures is a clinic setting, defaulting to doctor only
+
+`settings.procedures_recorded_by` (`0009`), `doctor` or `both`, set in
+Settings → Clinic. The task asked for an in-between option for clinics where the
+desk does enter the work; a setting is that. `both` gives the desk back exactly
+the flow it had before this change.
+
+It lives on the clinic's row rather than on the phone because both handsets have
+to agree, and it is read through React Query (`day/useProcedureRecorder.ts`) so
+`/ws` carries a change to the other phone. A server that predates the column
+answers nothing, which the client reads as `doctor` — the narrower answer.
+
+**To reverse:** set it to `both` in Settings, or change the column default. The
+one decision function is `canRecordProcedures` in `day/recording.ts`.
+
+### The desk's check-in marks arrival, with no procedure step
+
+Under `doctor`, Check in calls `visit.checkIn` from the row and offers Book next,
+the same as confirming the arrival screen did. The server still seeds the visit
+from the booking's plan plus the checkup line, as it always has, so the doctor
+opens on the plan rather than a blank list.
+
+**To reverse:** `checkInFrom` in `DayScreen.tsx` — the `deskRecords` branch is
+the old path.
+
+### Planned procedures at booking stay
+
+`ProcedurePlan` on `BookingScreen` is untouched. A plan is what the patient is
+booked *for*, not a record of work, and the desk is the one on the phone when
+it is decided. Nothing prices at booking.
+
+**To reverse:** gate the `ProcedurePlan` mount in `BookingScreen` on
+`canRecordProcedures`.
+
+### The doctor sets line prices; the desk can discount at payment
+
+The doctor's editor is `VisitScreen`, which already edits prices per line. The
+desk no longer reaches it, so `VisitPaymentScreen` grew a Discount field that
+takes an amount off the charge the lines add up to, and checkout is sent the
+lower `chargedTotal`. It cannot go below what has already been paid.
+
+Two costs, both accepted for now: the discount is not stored as a discount —
+only the lower charge is — so reports cannot tell a discounted visit from a
+cheap one; and if the doctor edits the lines afterwards, `setProcedures`
+recomputes the charge and the discount has to be given again.
+
+A finished visit's money is now corrected straight from the read-only page
+("Correct payment") without the editor, so the reopen that `amend` used to do
+moved into `closeVisit` for this path.
+
+**To reverse:** remove the Discount block and pass `visit.chargedTotal` again.
+
+### The doctor's editor is `VisitScreen`, pushed over his day
+
+`DoctorVisitSheet` gains "Record what was done" once the patient has arrived
+(checked in, at the desk, or done). It pushes `VisitScreen` in `checkout` mode
+with the queue's standing. Confirm saves and returns to the day; Send to desk is
+there for the patient in the chair. The doctor never reaches payment.
+
+Editing a finished visit leaves it reopened with the appointment still `done`,
+as an abandoned correction already could. The desk closes it through Correct
+payment. Nothing prompts them to.
+
+The patient record's visit page follows the same gate: the doctor gets Edit
+visit, the desk under `doctor` gets Correct payment.
+
+### UI only
+
+`CLIENT_ROLES` stays a client-side preference. The server accepts
+`visit.setProcedures` from any caller, as the task said; this is about which
+screens each phone draws, and the role remains switchable by whoever holds it.
+
 ---
 
 # Client architecture
@@ -508,6 +588,39 @@ went as a PR against `main` and not as a screen-local decision. The setup screen
 keeps the field as a manual fallback: a server that reports nothing must not
 wipe an address that works, and an older build that does not send the field is
 indistinguishable from one that has not been configured.
+
+## Prod builds are Tailscale only, and `__DEV__` is what says prod
+
+The clinic server listens only on Tailscale and its firewall drops the API port
+from the wifi, so a LAN address cannot answer a prod build: it was a 0.5 s probe
+that always failed and a setup field that confused whoever filled it in. Demo
+mode on a clinic phone put a fake register one tap from the real one.
+
+So a prod build has neither. It probes the MagicDNS hostname alone, setup shows
+that one field and no demo button, and on boot it deletes a stored LAN address
+and a stored `lustre.demo` flag, so a phone upgraded from a dev or demo install
+comes up on Tailscale and not in the demo.
+
+**Why `__DEV__`, not an `extra.channel` or the EAS profile.** Metro sets it false
+in every release bundle whatever `app.json` says, and nothing needs to be
+remembered to get it right. A config value is a flag somebody forgets to flip
+before a release; there is no EAS config in this repo to hang a profile on.
+`extra.demo: true` on a release build still makes a demo build, which keeps the
+demo that is handed to someone, and a prod build cannot be one because prod is
+defined as not shipping it.
+
+Dev builds keep the LAN field and demo mode: the emulator and a cable-attached
+phone reach the dev server through `localhost`.
+
+**Release builds could not use HTTP at all until this.** Android blocks cleartext
+traffic from a release build unless the main manifest allows it, and only the
+debug manifest Expo generates did. `android.usesCleartextTraffic` in `app.json`
+was never a key Expo reads, so every release build failed to reach any server —
+it showed as "That address did not answer" for an address that answers from the
+same machine. `plugins/withCleartextTraffic.js` sets it on the main manifest,
+app-wide rather than per host: Tailscale is the security boundary (SPEC §1), and
+a network security config cannot name the `100.64.0.0/10` range a raw tailnet
+address comes from.
 
 ---
 

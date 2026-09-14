@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import {
+    allowsLan,
+    BUILD_VARIANT,
+    isTailnetAddress,
     reprobe,
     type ServerAddresses,
     serverAddresses,
@@ -8,6 +11,7 @@ import {
     trpcClient,
     useDemoMode,
 } from '../api';
+import { hydratingSubscribe } from './hydratingSubscribe';
 
 // Where the addresses collected by setup are kept. `api/config` holds no
 // storage of its own by design (§14, "persisting what onboarding collected
@@ -51,7 +55,6 @@ let state: SetupState = {
     reconfiguring: false,
 };
 const listeners = new Set<() => void>();
-let hydrating = false;
 
 function emit(next: SetupState): void {
     state = next;
@@ -74,15 +77,29 @@ async function hydrate(): Promise<void> {
         if (key === TAILSCALE_KEY) restored.tailscale = value || null;
     }
 
+    // A LAN address saved by an earlier dev install is not this phone's answer
+    // on a prod build: it can never be probed, and counting it as stored would
+    // skip setup for a phone that has no Tailscale address at all.
+    if (!allowsLan(BUILD_VARIANT)) {
+        restored.lan = null;
+        await AsyncStorage.removeItem(LAN_KEY).catch(() => undefined);
+    }
+
     // A stored pair is this phone's own answer and is never second-guessed: if
     // it stops working that is the offline screen's business, not setup's.
     // Re-running the probe here would send a phone whose clinic is merely
     // switched off back to a screen asking it to retype an address that was
     // already right.
+    //
+    // A prod build also drops a stored address that is not on the tailnet
+    // (`api/variant.ts`), and one that leaves nothing behind is not a setup.
     if (restored.lan || restored.tailscale) {
         applyAddresses(restored);
-        emit({ ...state, hydrated: true, addresses: serverAddresses(), stored: true });
-        return;
+        const kept = serverAddresses();
+        if (kept.lan || kept.tailscale) {
+            emit({ ...state, hydrated: true, addresses: kept, stored: true });
+            return;
+        }
     }
 
     const fallback = serverAddresses();
@@ -120,22 +137,18 @@ async function hydrate(): Promise<void> {
 //
 // A server that reports nothing leaves whatever is already stored alone — an
 // older build that does not send the field must not wipe an address that works.
+//
+// A prod build keeps it only if it is a tailnet address: the server's report is
+// configuration on the clinic PC, and it must not be able to point a phone
+// back at the wifi.
 export async function learnTailnetAddress(): Promise<string | null> {
     const report = await trpcClient.health.check.query().catch(() => null);
     const reported = report?.tailscale?.trim();
-    return reported ? reported : null;
+    if (!reported) return null;
+    return allowsLan(BUILD_VARIANT) || isTailnetAddress(reported) ? reported : null;
 }
 
-function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    if (!hydrating) {
-        hydrating = true;
-        void hydrate();
-    }
-    return () => {
-        listeners.delete(listener);
-    };
-}
+const subscribe = hydratingSubscribe(listeners, hydrate);
 
 function getSnapshot(): SetupState {
     return state;

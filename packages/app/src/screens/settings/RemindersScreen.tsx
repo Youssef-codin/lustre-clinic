@@ -69,7 +69,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     // a tap is already a whole decision.
     const [template, setTemplate] = useState<string | null>(null);
 
-    const refreshControl = usePullToRefresh(settings.refetch, settings.isFetching);
+    const pull = usePullToRefresh(settings.refetch, settings.isFetching);
 
     const data = settings.data;
     const text = template ?? data?.reminderTemplate ?? '';
@@ -91,7 +91,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const write = save.mutate;
 
     return (
-        <Pane title="Reminders" onBack={onBack} refreshControl={refreshControl} testID="settings-reminders">
+        <Pane title="Reminders" onBack={onBack} pull={pull} testID="settings-reminders">
             {settings.isLoading ? <SkeletonRows count={3} trailing /> : null}
 
             {settings.error ? (

@@ -6,7 +6,7 @@
  * and get the same shapes back.
  */
 export { subscribeToDemoEvents } from './events';
-export { enableDemoMode, isDemoMode, useDemoMode } from './flag';
+export { disableDemoMode, enableDemoMode, isDemoMode, useDemoMode } from './flag';
 export { demoLink } from './link';
 
 import { noteDataReset } from '../dataReset';

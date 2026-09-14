@@ -8,6 +8,9 @@
     ],
     // Props types are exported beside their component by convention; unused ones are not worth blocking on.
     "rules": { "unused-types": "warn" },
+    // The demo backend copies server rules on purpose so the app can run a clinic with no server. It is
+    // temporary and goes as a folder, so its copies are not duplication worth consolidating.
+    "duplicates": { "ignore": ["packages/app/src/api/demo/**"] },
     // Metro loads it through require.resolve in metro.config.js, never an import.
     "ignoreDependencies": ["react-native-svg-transformer"],
     "ignoreExports": [

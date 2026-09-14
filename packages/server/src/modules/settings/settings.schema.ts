@@ -9,7 +9,12 @@
  * `setDay` would silently shift it; both are zero-padded, so comparing them as
  * strings orders them by time.
  */
-import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@lustre/shared';
+import {
+    MAX_DURATION_MINUTES,
+    MAX_PATIENT_REF,
+    MIN_DURATION_MINUTES,
+    procedureRecorderSchema,
+} from '@lustre/shared';
 import { z } from 'zod';
 
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'expected HH:MM');
@@ -34,6 +39,15 @@ export const updateSettingsInput = z
             .min(1)
             .max(24 * 60),
         reminderTemplate: z.string().trim().min(1).max(1000),
+        // One below the column's maximum, so the next registration still has a
+        // number. Below the highest numbered ref on file is refused by the
+        // service, which is the only side that can see the patients.
+        patientRefLast: z
+            .number()
+            .int()
+            .min(0)
+            .max(MAX_PATIENT_REF - 1),
+        proceduresRecordedBy: procedureRecorderSchema,
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

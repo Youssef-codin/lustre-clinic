@@ -10,6 +10,9 @@
  * failed. A clinic whose server is off gets the offline screen, which is the
  * truth, rather than a working-looking app over invented patients.
  *
+ * A prod build has no way in at all (`../variant`), and clears a flag an
+ * earlier dev or demo install left in storage rather than obeying it.
+ *
  * The getter is synchronous because the tRPC link asks it per request and a
  * link is not a component. Hydration is started by the first subscriber, the
  * same shape as `shell/serverStore.ts`, so nothing touches the native module
@@ -18,7 +21,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useSyncExternalStore } from 'react';
+import { BUILD_VARIANT } from '../config';
 import { noteDataReset } from '../dataReset';
+import { allowsDemo } from '../variant';
 
 const DEMO_KEY = 'lustre.demo';
 
@@ -64,6 +69,12 @@ function getSnapshot(): DemoState {
 }
 
 async function hydrate(): Promise<void> {
+    if (!allowsDemo(BUILD_VARIANT)) {
+        await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
+        emit({ hydrated: true, enabled: false });
+        return;
+    }
+
     const before = transitions;
     const stored = await AsyncStorage.getItem(DEMO_KEY).catch(() => null);
     if (transitions !== before) return;
@@ -92,6 +103,7 @@ export function useDemoMode(): DemoMode {
 }
 
 export async function enableDemoMode(): Promise<void> {
+    if (!allowsDemo(BUILD_VARIANT)) return;
     transitions += 1;
     emit({ hydrated: true, enabled: true });
     noteDataReset();
@@ -102,10 +114,14 @@ export async function enableDemoMode(): Promise<void> {
  * A build that shipped `extra.demo` stays a demo: clearing the flag would leave
  * it pointed at a server it was never given an address for.
  */
-async function disableDemoMode(): Promise<void> {
+export async function disableDemoMode(): Promise<void> {
     if (shipped) return;
     transitions += 1;
     emit({ hydrated: true, enabled: false });
     noteDataReset();
-    await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
+    // A removal that fails would leave `on` behind and the next launch back in
+    // the demo, so the key is overwritten instead; hydration reads only `on`.
+    await AsyncStorage.removeItem(DEMO_KEY)
+        .catch(() => AsyncStorage.setItem(DEMO_KEY, 'off'))
+        .catch(() => undefined);
 }

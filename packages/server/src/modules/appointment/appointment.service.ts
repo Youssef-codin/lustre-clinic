@@ -381,17 +381,22 @@ function dayKeyOf(at: Date, offsetMinutes: number): string {
     return new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
 }
 
+/** Appointments with the three patient fields every list shows. The filter and order are the caller's. */
+function selectWithPatient() {
+    return db
+        .select({
+            appointment: appointments,
+            patient: { id: patients.id, name: patients.name, phone: patients.phone },
+        })
+        .from(appointments)
+        .innerJoin(patients, eq(appointments.patientId, patients.id));
+}
+
 export const appointmentService = {
     async byDate(input: ByDateInput): Promise<AppointmentWithPatient[]> {
         const { from, to } = dayRange(input.date, input.offsetMinutes);
 
-        const rows = await db
-            .select({
-                appointment: appointments,
-                patient: { id: patients.id, name: patients.name, phone: patients.phone },
-            })
-            .from(appointments)
-            .innerJoin(patients, eq(appointments.patientId, patients.id))
+        const rows = await selectWithPatient()
             .where(
                 and(
                     gte(appointments.startsAt, from),
@@ -410,15 +415,7 @@ export const appointmentService = {
     },
 
     async byId(id: string): Promise<AppointmentWithPatient> {
-        const [row] = await db
-            .select({
-                appointment: appointments,
-                patient: { id: patients.id, name: patients.name, phone: patients.phone },
-            })
-            .from(appointments)
-            .innerJoin(patients, eq(appointments.patientId, patients.id))
-            .where(eq(appointments.id, id))
-            .limit(1);
+        const [row] = await selectWithPatient().where(eq(appointments.id, id)).limit(1);
 
         if (!row) throw AppError.notFound('appointment');
         const byAppointment = await loadProcedures([row.appointment.id]);
@@ -430,13 +427,7 @@ export const appointmentService = {
     },
 
     async missed(input: MissedInput = { limit: 100 }): Promise<AppointmentWithPatient[]> {
-        const rows = await db
-            .select({
-                appointment: appointments,
-                patient: { id: patients.id, name: patients.name, phone: patients.phone },
-            })
-            .from(appointments)
-            .innerJoin(patients, eq(appointments.patientId, patients.id))
+        const rows = await selectWithPatient()
             .where(
                 and(
                     eq(appointments.status, 'booked'),

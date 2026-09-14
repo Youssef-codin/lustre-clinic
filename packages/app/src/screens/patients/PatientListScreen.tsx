@@ -89,7 +89,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // when it is opened, and the other tabs are refreshed by their own pull. A
     // refresh while searching re-runs the search, not the whole list — the term
     // is the query key, so this is the list on screen.
-    const refreshControl = usePullToRefresh(() => {
+    const pull = usePullToRefresh(() => {
         list.refetch();
         balances.refetch();
     }, list.loading || balances.loading);
@@ -117,7 +117,8 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                 ref={scroller}
                 contentContainerStyle={[styles.content, { paddingBottom: space[12] + keyboard }]}
                 keyboardShouldPersistTaps="handled"
-                refreshControl={refreshControl}
+                refreshControl={pull.refreshControl}
+                {...pull.scrollProps}
             >
                 <ListHeader
                     total={recent.data?.total}

@@ -157,7 +157,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     // Not while reordering: the rows are being dragged against the order this
     // would replace, and a price list that reshuffles under a finger is worse
     // than a stale one.
-    const refreshControl = usePullToRefresh(() => {
+    const pull = usePullToRefresh(() => {
         if (!reordering) void tree.refetch();
     }, tree.isFetching);
 
@@ -166,7 +166,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
             <Pane
                 title="Procedures & prices"
                 onBack={reordering ? () => setReordering(false) : onBack}
-                refreshControl={refreshControl}
+                pull={pull}
                 trailing={
                     empty ? null : (
                         <Button

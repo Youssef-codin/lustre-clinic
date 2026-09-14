@@ -68,13 +68,13 @@ export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
 
     // Both reads: a day names a branch, so a stale branch list draws a day
     // against "Unknown branch".
-    const refreshControl = usePullToRefresh(reload, schedule.isFetching || branches.isFetching);
+    const pull = usePullToRefresh(reload, schedule.isFetching || branches.isFetching);
 
     return (
         <Pane
             title="Working hours"
             onBack={onBack}
-            refreshControl={refreshControl}
+            pull={pull}
             overlay={
                 <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
             }

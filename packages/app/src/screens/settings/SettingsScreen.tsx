@@ -30,7 +30,7 @@ import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
-import { DataEntryIcon, ResetDemoIcon, SettingsIcon } from './components/icons';
+import { DataEntryIcon, LeaveDemoIcon, ResetDemoIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
@@ -242,6 +242,20 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                         void resetDemoData();
                                     }}
                                     testID="settings-reset-demo"
+                                />
+                                <CardDivider />
+                                {/* The way back from the setup screen's demo
+                                    button. Without it a phone that took the
+                                    demo by mistake keeps writing into the fake
+                                    register until its app data is cleared. */}
+                                <SettingsRow
+                                    icon={<LeaveDemoIcon />}
+                                    label="Leave demo"
+                                    sub="Connect to the clinic server instead"
+                                    onPress={() => {
+                                        void demo.disable();
+                                    }}
+                                    testID="settings-leave-demo"
                                 />
                             </Group>
                         ) : null}

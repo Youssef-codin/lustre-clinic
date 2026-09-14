@@ -1,7 +1,7 @@
 /**
- * SPEC §13/§14. The client probes this on both the LAN address and the
- * Tailscale hostname and uses whichever answers first, so it must be cheap and
- * must not throw — an unreachable database is a reportable state, not an error.
+ * SPEC §13/§14. The client probes this on the Tailscale hostname, and a dev
+ * build on its LAN address first, so it must be cheap and must not throw — an
+ * unreachable database is a reportable state, not an error.
  */
 import { sql as raw } from 'drizzle-orm';
 import { tailnetAddress } from '../../config.ts';

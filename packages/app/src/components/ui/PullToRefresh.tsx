@@ -19,28 +19,61 @@
  * A `busy` that never goes false leaves the spinner up. That is deliberate —
  * every query hook in the app settles on both paths — and it is the honest
  * state for a read still crossing the tunnel.
+ *
+ * **A pull only counts when the list was already at the top when it started.**
+ * Android's `SwipeRefreshLayout` stops listening while the list can still scroll
+ * up, and it records where the finger went down only while it is listening. A
+ * drag begun halfway down the list scrolled back to the top and then became a
+ * pull measured from some earlier touch, so scrolling up to read the first rows
+ * refreshed the screen. `scrollProps` is what lets the hook see the list: the
+ * control is switched off for the whole of a drag that started below the top.
  */
 // biome-ignore lint/style/noRestrictedImports: clears the floor `setTimeout` on unmount — an external timer, and the only effect left here
 import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshControl, type RefreshControlProps, ScrollView, StyleSheet } from 'react-native';
+import {
+    type NativeScrollEvent,
+    type NativeSyntheticEvent,
+    RefreshControl,
+    type RefreshControlProps,
+    ScrollView,
+    StyleSheet,
+} from 'react-native';
 import { color } from '../../theme';
 
 const MIN_VISIBLE_MS = 600;
 
-/** What `ScrollView`'s `refreshControl` accepts — the type a component passing
- * its parent's gesture down should declare. */
+/** What `ScrollView`'s `refreshControl` accepts. */
 export type RefreshControlElement = ReactElement<RefreshControlProps>;
 
+type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
+
+/** Spread onto the `ScrollView` that carries `refreshControl`. */
+export type PullScrollProps = {
+    onScroll: (event: ScrollEvent) => void;
+    onScrollBeginDrag: (event: ScrollEvent) => void;
+    onScrollEndDrag: (event: ScrollEvent) => void;
+    scrollEventThrottle: number;
+};
+
+/** The whole gesture — the type a component passing its parent's pull down should declare. */
+export type PullToRefresh = {
+    refreshControl: RefreshControlElement;
+    scrollProps: PullScrollProps;
+};
+
 /**
- * Returns the `refreshControl` element for a `ScrollView`. `refresh` is read
- * through a ref, so an inline arrow at the call site is fine.
+ * `refresh` is read through a ref, so an inline arrow at the call site is fine.
  */
-export function usePullToRefresh(refresh: () => void, busy: boolean): RefreshControlElement {
+export function usePullToRefresh(refresh: () => void, busy: boolean): PullToRefresh {
     const [refreshing, setRefreshing] = useState(false);
     const [floor, setFloor] = useState(false);
+    const [enabled, setEnabled] = useState(true);
 
     const refreshRef = useRef(refresh);
     refreshRef.current = refresh;
+
+    const atTop = useRef(true);
+    const dragging = useRef(false);
 
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(
@@ -62,25 +95,46 @@ export function usePullToRefresh(refresh: () => void, busy: boolean): RefreshCon
         refreshRef.current();
     }, []);
 
+    const onScroll = useCallback((event: ScrollEvent) => {
+        atTop.current = event.nativeEvent.contentOffset.y <= 0;
+        // Mid-drag the answer is the one the drag started with; reaching the top
+        // under the finger is exactly what must not arm the pull.
+        if (!dragging.current) setEnabled(atTop.current);
+    }, []);
+
+    const onScrollBeginDrag = useCallback((event: ScrollEvent) => {
+        dragging.current = true;
+        setEnabled(event.nativeEvent.contentOffset.y <= 0);
+    }, []);
+
+    const onScrollEndDrag = useCallback(() => {
+        dragging.current = false;
+        setEnabled(atTop.current);
+    }, []);
+
     // Adjusted during render rather than in an effect: the spinner going down is
     // a fact about `busy` and `floor`, not a thing that happens to them, and an
     // effect would paint one frame of a spinner that has already finished.
     if (refreshing && !busy && !floor) setRefreshing(false);
 
-    return (
-        <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={color.ink}
-            colors={[color.ink]}
-            progressBackgroundColor={color.surface}
-        />
-    );
+    return {
+        refreshControl: (
+            <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                enabled={enabled}
+                tintColor={color.ink}
+                colors={[color.ink]}
+                progressBackgroundColor={color.surface}
+            />
+        ),
+        scrollProps: { onScroll, onScrollBeginDrag, onScrollEndDrag, scrollEventThrottle: 16 },
+    };
 }
 
 export type RefreshViewProps = {
     /** Optional so a component can take one from its parent and pass it on. */
-    refreshControl?: RefreshControlElement;
+    pull?: PullToRefresh;
     children: ReactNode;
     testID?: string;
 };
@@ -92,12 +146,13 @@ export type RefreshViewProps = {
  * added. Without this, the states that most need a refresh — the ones with no
  * content — are the ones that cannot be pulled.
  */
-export function RefreshView({ refreshControl, children, testID }: RefreshViewProps) {
+export function RefreshView({ pull, children, testID }: RefreshViewProps) {
     return (
         <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.content}
-            refreshControl={refreshControl}
+            refreshControl={pull?.refreshControl}
+            {...pull?.scrollProps}
             showsVerticalScrollIndicator={false}
             testID={testID}
         >

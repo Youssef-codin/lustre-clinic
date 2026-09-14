@@ -17,11 +17,15 @@
                 "backgroundImage": "./assets/android-icon-background.png",
                 "monochromeImage": "./assets/android-icon-monochrome.png"
             },
-            "predictiveBackGestureEnabled": false,
-            "softwareKeyboardLayoutMode": "resize",
-            "usesCleartextTraffic": true
+            "predictiveBackGestureEnabled": true,
+            "softwareKeyboardLayoutMode": "resize"
         },
-        "plugins": ["expo-font", "./plugins/withBuildTuning", "@react-native-community/datetimepicker"],
+        "plugins": [
+            "expo-font",
+            "./plugins/withBuildTuning",
+            "./plugins/withCleartextTraffic",
+            "@react-native-community/datetimepicker"
+        ],
         "extra": {
             "server": {
                 "lan": null,

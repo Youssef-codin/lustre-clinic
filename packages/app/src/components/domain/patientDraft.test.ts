@@ -10,6 +10,7 @@ import {
     birthDateError,
     birthDateIso,
     birthDateOf,
+    calendarIsoOf,
     emailError,
     GENDERS,
     orNull,
@@ -102,6 +103,28 @@ describe('orNull', () => {
         expect(orNull('')).toBeNull();
         expect(orNull('   ')).toBeNull();
         expect(orNull('  Nadia  ')).toBe('Nadia');
+    });
+});
+
+describe('calendarIsoOf', () => {
+    test('reads DDMMYYYY into a date the calendar has', () => {
+        expect(calendarIsoOf('29022024')).toBe('2024-02-29');
+        expect(calendarIsoOf('29022023')).toBeNull();
+    });
+
+    // `Number('aa')` is NaN and passes every range check, so the shape is checked first.
+    test('refuses anything that is not eight digits', () => {
+        for (const bad of [
+            'aa012020',
+            '01aa2020',
+            '0101abcd',
+            '1.012020',
+            ' 1012020',
+            '0101202',
+            '010120201',
+        ]) {
+            expect(calendarIsoOf(bad)).toBeNull();
+        }
     });
 });
 

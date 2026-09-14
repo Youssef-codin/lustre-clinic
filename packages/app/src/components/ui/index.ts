@@ -52,7 +52,12 @@ export type { MenuAnchor, MenuItem, PopoverMenuProps } from './PopoverMenu';
 export { MenuSurface, PopoverMenu } from './PopoverMenu';
 export type { ProgressBarProps, ProgressTone } from './ProgressBar';
 export { ProgressBar } from './ProgressBar';
-export type { RefreshControlElement, RefreshViewProps } from './PullToRefresh';
+export type {
+    PullScrollProps,
+    PullToRefresh,
+    RefreshControlElement,
+    RefreshViewProps,
+} from './PullToRefresh';
 export { RefreshView, usePullToRefresh } from './PullToRefresh';
 export type { PushViewProps } from './PushView';
 export { PushView } from './PushView';

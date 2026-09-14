@@ -13,11 +13,18 @@
  * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
  * violation.
  */
-import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@lustre/shared';
-import { asc, eq } from 'drizzle-orm';
-import { db } from '../../db/index.ts';
-import { clinicDays, settings } from '../../db/schema.ts';
+import {
+    DEFAULT_CLINIC_NAME,
+    DEFAULT_REMINDER_TEMPLATE,
+    ERROR_CODE,
+    type ProcedureRecorder,
+    WS_EVENT,
+} from '@lustre/shared';
+import { asc, eq, sql } from 'drizzle-orm';
+import { db, type Executor } from '../../db/index.ts';
+import { clinicDays, patients, settings } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
+import { highestNumericRef } from '../../util/ref.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
 import type { SetClinicDayInput, UpdateSettingsInput } from './settings.schema.ts';
@@ -32,6 +39,9 @@ interface Settings {
     reminderRepeatMinutes: number;
     reminderDismissedOn: string | null;
     reminderTemplate: string;
+    /** The last patient number handed out. The next registration gets one more. */
+    patientRefLast: number;
+    proceduresRecordedBy: ProcedureRecorder;
     updatedAt: Date;
 }
 
@@ -48,6 +58,8 @@ function toSettings(row: SettingsRow): Settings {
         reminderRepeatMinutes: row.reminderRepeatMinutes,
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
+        patientRefLast: row.patientRefLast,
+        proceduresRecordedBy: row.proceduresRecordedBy,
         updatedAt: row.updatedAt,
     };
 }
@@ -64,6 +76,49 @@ async function readRow(): Promise<SettingsRow> {
     const [seeded] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
     if (!seeded) throw AppError.internal('settings row could not be seeded');
     return seeded;
+}
+
+/** Every write to the row stamps `updatedAt`. */
+async function updateRow(
+    values: Partial<typeof settings.$inferInsert>,
+    executor: Executor = db,
+): Promise<SettingsRow> {
+    const [updated] = await executor
+        .update(settings)
+        .set({ ...values, updatedAt: new Date() })
+        .where(eq(settings.id, 1))
+        .returning();
+
+    if (!updated) throw AppError.notFound('settings');
+    return updated;
+}
+
+/** A write, then the handsets are told to refetch. */
+async function writeRow(values: Partial<typeof settings.$inferInsert>): Promise<Settings> {
+    const updated = await updateRow(values);
+    broadcast(WS_EVENT.SETTINGS_UPDATED);
+    return toSettings(updated);
+}
+
+/**
+ * Refuses a patient counter below the highest all-digit ref on file: the next
+ * registration would be handed a number a patient already has. Old random codes
+ * count when they happen to be all digits (`2345`).
+ */
+async function assertPatientRefLast(value: number, executor: Executor): Promise<void> {
+    const taken = await executor
+        .select({ ref: patients.ref })
+        .from(patients)
+        .where(sql`${patients.ref} ~ '^[0-9]+$'`);
+
+    const highest = highestNumericRef(taken.map((row) => row.ref));
+    if (value < highest) {
+        throw new AppError(
+            ERROR_CODE.PATIENT_REF_BELOW_EXISTING,
+            `patientRefLast must not be below ${highest}, the highest patient ref in use`,
+            422,
+        );
+    }
 }
 
 interface ClinicDay {
@@ -109,18 +164,19 @@ export const settingsService = {
             );
         }
 
-        const [updated] = await db
-            .update(settings)
-            .set({
-                ...input,
-                durationOptions,
-                defaultDuration,
-                updatedAt: new Date(),
-            })
-            .where(eq(settings.id, 1))
-            .returning();
+        if (input.patientRefLast === undefined) {
+            return writeRow({ ...input, durationOptions, defaultDuration });
+        }
 
-        if (!updated) throw AppError.notFound('settings');
+        const patientRefLast = input.patientRefLast;
+        const updated = await db.transaction(async (tx) => {
+            // The row lock comes first, so a registration already numbering
+            // itself either commits before the refs are read or waits until
+            // this has been written.
+            await tx.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)).for('update');
+            await assertPatientRefLast(patientRefLast, tx);
+            return updateRow({ ...input, durationOptions, defaultDuration }, tx);
+        });
 
         broadcast(WS_EVENT.SETTINGS_UPDATED);
         return toSettings(updated);
@@ -161,16 +217,6 @@ export const settingsService = {
 
     async dismissRemindersFor(date: string): Promise<Settings> {
         await readRow();
-
-        const [updated] = await db
-            .update(settings)
-            .set({ reminderDismissedOn: date, updatedAt: new Date() })
-            .where(eq(settings.id, 1))
-            .returning();
-
-        if (!updated) throw AppError.notFound('settings');
-
-        broadcast(WS_EVENT.SETTINGS_UPDATED);
-        return toSettings(updated);
+        return writeRow({ reminderDismissedOn: date });
     },
 };

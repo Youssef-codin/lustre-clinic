@@ -104,7 +104,7 @@ export function PatientRecordScreen({
 
     // The record is one payload, so a pull is one round trip — plus the
     // question list, which is what decides whether an answer is a gap.
-    const refreshControl = usePullToRefresh(() => {
+    const pull = usePullToRefresh(() => {
         record.refetch();
         questions.refetch();
     }, record.loading || questions.loading);
@@ -144,7 +144,7 @@ export function PatientRecordScreen({
             {record.loading && !record.data ? (
                 <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : record.error && !record.data ? (
-                <RefreshView refreshControl={refreshControl}>
+                <RefreshView pull={pull}>
                     <EmptyState
                         title="Could not open this record"
                         body={errorText(record.error)}
@@ -157,7 +157,8 @@ export function PatientRecordScreen({
                 <ScrollView
                     contentContainerStyle={styles.content}
                     keyboardShouldPersistTaps="handled"
-                    refreshControl={refreshControl}
+                    refreshControl={pull.refreshControl}
+                    {...pull.scrollProps}
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.top}>

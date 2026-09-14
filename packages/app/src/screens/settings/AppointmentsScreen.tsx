@@ -51,7 +51,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
         }),
     );
 
-    const refreshControl = usePullToRefresh(settings.refetch, settings.isFetching);
+    const pull = usePullToRefresh(settings.refetch, settings.isFetching);
 
     const data = settings.data;
     const durations = data?.durationOptions ?? [];
@@ -91,12 +91,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     }
 
     return (
-        <Pane
-            title="Appointments"
-            onBack={onBack}
-            refreshControl={refreshControl}
-            testID="settings-appointments"
-        >
+        <Pane title="Appointments" onBack={onBack} pull={pull} testID="settings-appointments">
             {settings.isLoading ? <SkeletonRows count={5} /> : null}
 
             {settings.error ? (

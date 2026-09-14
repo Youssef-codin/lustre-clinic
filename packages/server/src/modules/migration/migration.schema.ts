@@ -10,17 +10,11 @@
  */
 import { MAX_AMOUNT_PIASTRES } from '@lustre/shared';
 import { z } from 'zod';
+import { createPatientInput } from '../patient/patient.schema.ts';
 
-export const enterPatientInput = z
-    .object({
-        name: z.string().trim().min(1).max(160),
-        phone: z.string().trim().min(5).max(32),
-        email: z.email().max(200).nullish(),
-        birthDate: z.iso.date().nullish(),
-        gender: z.string().trim().max(40).nullish(),
-        notes: z.string().trim().max(4000).nullish(),
-        /** The old system's number, off the paper file. Whatever that system used — this one never generates it. */
-        legacyRef: z.string().trim().max(64).nullish(),
+export const enterPatientInput = createPatientInput
+    .omit({ custom: true })
+    .extend({
         /** What the patient owed at the cutoff. Zero is not a balance, it is the absence of one. */
         openingBalance: z.number().int().positive().max(MAX_AMOUNT_PIASTRES).optional(),
         branchId: z.uuid().optional(),

@@ -29,6 +29,7 @@
 // registering someone lands on the record that now exists, and correcting one
 // returns to the record it was opened from with `read` bumped, so the screen
 // remounts and re-reads rather than showing what it held before the write.
+import type { ClientRole } from '@lustre/shared';
 import { memo, useRef, useState } from 'react';
 import { PushView } from '../../components/ui';
 import { beneath, isOpen, isTop, rendered, useRouteStack } from '../../navigation';
@@ -71,9 +72,11 @@ type PatientsClusterProps = {
      */
     onBook?: (patient: PatientTarget) => void;
     onWalkIn?: (patient: PatientTarget) => void;
+    /** Handed on to a visit opened from the history, which gates its editor on it. */
+    role: ClientRole;
 };
 
-function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
+function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn, role }: PatientsClusterProps) {
     const [seen, setSeen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
     /** The editor, mid-write. A tab tap must not take the screen out from under it. */
@@ -212,6 +215,7 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
                             key={`visit:${route.visitId}`}
                             appointmentId={route.appointmentId}
                             visitId={route.visitId}
+                            role={role}
                             onClose={routes.pop}
                             // The record's totals move with the visit, so it is
                             // re-read rather than left showing what it held. The

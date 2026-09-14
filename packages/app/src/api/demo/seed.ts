@@ -429,6 +429,9 @@ function emptyDb(): DemoDb {
             reminderRepeatMinutes: DEFAULT_REMINDER_REPEAT_MINUTES,
             reminderDismissedOn: null,
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
+            // The server's patient counter. The demo still draws random refs,
+            // so this only fills the field.
+            patientRefLast: 0,
             updatedAt: new Date(),
         },
     };

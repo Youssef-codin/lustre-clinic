@@ -297,6 +297,23 @@ export async function amend(input: {
     return api.setProcedures({ visitId: input.visitId, procedures: input.procedures });
 }
 
+/**
+ * Close a visit on what the desk charged. A finished visit whose money is
+ * corrected without going through the editor was never reopened by `amend`,
+ * and checkout refuses a closed visit — so the reopen happens here, re-reading
+ * the state first for the reason `amend` does.
+ */
+export async function closeVisit(
+    input: Parameters<typeof api.checkOut>[0] & { closed: boolean },
+): Promise<Visit> {
+    const { closed, ...checkOut } = input;
+    if (closed) {
+        const current = await api.visitById(checkOut.visitId);
+        if (current.completedAt) await api.reopenVisit(checkOut.visitId);
+    }
+    return api.checkOut(checkOut);
+}
+
 const visitIds = new Map<string, string>();
 
 function rememberVisit(appointmentId: string, visitId: string): void {

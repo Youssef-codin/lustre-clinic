@@ -1,10 +1,13 @@
 import { TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
 import Constants from 'expo-constants';
+import { type BuildVariant, usableAddresses, variantOf } from './variant';
 
 // Server addressing lives entirely here (SPEC §14). The server is a PC in the
-// clinic behind Tailscale, so the address is not a property of the build: try
-// the LAN address first (direct, no relay, when the phone is on clinic wifi),
-// then the MagicDNS hostname (anywhere on the tailnet). Both are configured
+// clinic that listens only on Tailscale, so a prod build has one address: the
+// MagicDNS hostname. Dev and demo builds also keep a LAN address, tried first,
+// because the emulator and a cable-attached phone reach the dev server through
+// `localhost`. `usableAddresses` drops the LAN side on prod however it arrived —
+// shipped, typed, or restored from an older build. Addresses are configured
 // during onboarding via `setServerAddresses`; `app.json` `extra.server` is the
 // boot default, and this module deliberately holds no storage of its own.
 //
@@ -18,15 +21,16 @@ import Constants from 'expo-constants';
 // `normalize` takes `unknown` on purpose: an unconfigured address arrives as
 // JSON `null` (or `{}` through the manifest), so a declared `string | null` is
 // not one at runtime. The timing values sum to roughly ten seconds before a
-// definite "the server is not there": a 0.5s LAN probe, a 3s tailnet probe, a
-// 5s request cap, and reads retry once while writes never retry.
+// definite "the server is not there": a 3s tailnet probe (after a 0.5s LAN
+// probe on dev), a 5s request cap, and reads retry once while writes never retry.
 export interface ServerAddresses {
     lan: string | null;
     tailscale: string | null;
 }
 
-interface ServerExtra {
+interface BuildExtra {
     server?: Partial<ServerAddresses>;
+    demo?: unknown;
 }
 
 function normalize(address: unknown): string | null {
@@ -35,22 +39,24 @@ function normalize(address: unknown): string | null {
     return trimmed ? trimmed : null;
 }
 
-const extra = (Constants.expoConfig?.extra ?? {}) as ServerExtra;
+const extra = (Constants.expoConfig?.extra ?? {}) as BuildExtra;
 
-let addresses: ServerAddresses = {
+export const BUILD_VARIANT: BuildVariant = variantOf({ dev: __DEV__, shippedDemo: extra.demo === true });
+
+let addresses: ServerAddresses = usableAddresses(BUILD_VARIANT, {
     lan: normalize(extra.server?.lan),
     tailscale: normalize(extra.server?.tailscale),
-};
+});
 
 export function serverAddresses(): ServerAddresses {
     return addresses;
 }
 
 export function setServerAddresses(next: Partial<ServerAddresses>): void {
-    addresses = {
+    addresses = usableAddresses(BUILD_VARIANT, {
         lan: normalize(next.lan ?? addresses.lan),
         tailscale: normalize(next.tailscale ?? addresses.tailscale),
-    };
+    });
 }
 
 export const timing = {

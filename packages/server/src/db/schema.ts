@@ -44,6 +44,7 @@ import {
     DEFAULT_REMINDER_NOTIFY_AT,
     DEFAULT_REMINDER_REPEAT_MINUTES,
     PAYMENT_METHODS,
+    PROCEDURE_RECORDERS,
     QUESTION_KINDS,
     REMINDER_STATUSES,
     TEETH,
@@ -291,6 +292,12 @@ export const settings = pgTable(
             .default(DEFAULT_REMINDER_REPEAT_MINUTES),
         reminderDismissedOn: date('reminder_dismissed_on'),
         reminderTemplate: text('reminder_template').notNull(),
+        // The last patient ref handed out. Incremented in the same transaction
+        // as the patient insert, so two registrations at once cannot share one.
+        patientRefLast: integer('patient_ref_last').notNull().default(0),
+        proceduresRecordedBy: text('procedures_recorded_by', { enum: PROCEDURE_RECORDERS })
+            .notNull()
+            .default('doctor'),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],

@@ -14,7 +14,7 @@
  */
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import type { RefreshControlElement } from '../../../components/ui';
+import type { PullToRefresh } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { BackIcon } from './icons';
 
@@ -28,7 +28,7 @@ export type PaneProps = {
     overlay?: ReactNode;
     /** `usePullToRefresh` from the pane's own screen — settings are read once
      * on open, so this is the only way to see what the other phone changed. */
-    refreshControl?: RefreshControlElement;
+    pull?: PullToRefresh;
     testID?: string;
 };
 export function Pane({
@@ -39,7 +39,7 @@ export function Pane({
     children,
     footer,
     overlay,
-    refreshControl,
+    pull,
     testID,
 }: PaneProps) {
     return (
@@ -74,7 +74,8 @@ export function Pane({
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
-                refreshControl={refreshControl}
+                refreshControl={pull?.refreshControl}
+                {...pull?.scrollProps}
             >
                 {children}
             </ScrollView>

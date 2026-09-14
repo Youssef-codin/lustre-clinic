@@ -65,6 +65,8 @@ export const ERROR_CODE = {
     CUSTOM_QUESTION_REQUIRED: 'CUSTOM_QUESTION_REQUIRED',
     /** A custom question `key` is already in use. */
     DUPLICATE_KEY: 'DUPLICATE_KEY',
+    /** The patient number was set below a patient ref already handed out. */
+    PATIENT_REF_BELOW_EXISTING: 'PATIENT_REF_BELOW_EXISTING',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
