@@ -206,7 +206,14 @@ export function PatientRecordScreen({
                     </View>
 
                     {tab === 'visits' ? (
-                        <History history={history} chairId={chair.data ?? null} onOpenVisit={onOpenVisit} />
+                        <History
+                            history={history}
+                            // With no row checked in today there is nobody to
+                            // place, so that is known. With one, the chair is
+                            // unknown until the queue read succeeds.
+                            chairId={arrived ? chair.data : null}
+                            onOpenVisit={onOpenVisit}
+                        />
                     ) : (
                         <Details
                             answers={patient.custom}
@@ -404,8 +411,11 @@ function History({
     onOpenVisit,
 }: {
     history: PatientHistoryEntry[];
-    /** The appointment in the chair today, when this patient has one checked in. */
-    chairId: string | null;
+    /**
+     * The appointment in the chair today, when this patient has one checked in.
+     * `undefined` while the queue has not been read, or could not be.
+     */
+    chairId: string | null | undefined;
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 }) {
     const years = useMemo(() => groupByYear(history), [history]);
@@ -450,7 +460,7 @@ function History({
                         <HistoryRow
                             key={entry.appointmentId}
                             entry={entry}
-                            inChair={entry.appointmentId === chairId}
+                            inChair={chairId === undefined ? undefined : entry.appointmentId === chairId}
                             onOpen={onOpenVisit}
                         />
                     ))}
