@@ -172,6 +172,21 @@ export function settleBookingDay({ date, farDay, workingDays, openDays }: Settle
     return { date, strip: [...openDays] };
 }
 
+/**
+ * The fetched days with the appointment being moved taken out of them. It does
+ * not hold a slot against itself: both backends leave the row out of its own
+ * overlap check, so a 30-minute visit may move on by 15 minutes into its own
+ * span. A grid that counted it would refuse a time the server accepts, and
+ * would offer the desk nothing near the time the patient already has.
+ */
+export function withoutAppointment(
+    fetched: readonly (readonly Appointment[])[] | undefined,
+    id: string | undefined,
+): readonly (readonly Appointment[])[] | undefined {
+    if (!fetched || !id) return fetched;
+    return fetched.map((day) => day.filter((row) => row.id !== id));
+}
+
 export interface Fortnight {
     slotsByDay: Map<string, Slot[]>;
     /** Only the days with room left for a visit this long — what a strip may offer. */

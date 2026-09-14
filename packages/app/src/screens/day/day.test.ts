@@ -17,6 +17,7 @@ import {
     slotIsFree,
     slotsFor,
     timeLabel,
+    withoutAppointment,
     workingDaysIn,
 } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair';
@@ -940,6 +941,17 @@ describe('the fortnight a booking is offered', () => {
 
         expect(openDays).toEqual([MONDAY, NEXT_MONDAY]);
         expect(slotsByDay.get(MONDAY)?.[0]?.state).toBe('free');
+    });
+
+    // Both backends let a row move into its own span, so the appointment being
+    // rescheduled must not hold its own time against itself.
+    it('frees the time held by the appointment being moved, and only that one', () => {
+        const moving = booked(MONDAY, 600, 'b');
+        const other = booked(MONDAY, 660, 'b');
+        const { slotsByDay } = fortnight(withoutAppointment([[moving, other], []], moving.id));
+
+        expect(slotsByDay.get(MONDAY)?.map((slot) => slot.state)).toEqual(['free', 'free', 'taken', 'free']);
+        expect(withoutAppointment(undefined, moving.id)).toBeUndefined();
     });
 
     /**
