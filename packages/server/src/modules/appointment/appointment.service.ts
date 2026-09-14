@@ -307,15 +307,22 @@ async function retryOnStaleDay<T>(run: () => Promise<T>): Promise<T> {
  * moved, and `appointments_no_overlap` — which is not deferrable — would refuse
  * the write halfway through a legal rearrangement.
  *
- * Cancelled and no-show rows hold no slot and are left where they are. The
- * cascade is bounded to the walk-in's own day: a clinic that runs to midnight
- * pushes nothing into tomorrow.
+ * Cancelled and no-show rows hold no slot and are left where they are.
+ *
+ * The cascade has no day boundary, only the chain of rows it runs into. It
+ * reads just the rows starting before the cursor, moves them, and reads again
+ * from where the last read ended; the first read that comes back empty is the
+ * gap that ends it. A queue that runs past midnight therefore still sees the
+ * walk-ins it pushed there earlier, and a booking just after midnight that the
+ * walk-in runs into moves rather than refusing it. Tomorrow behind a gap is
+ * never read, so it is never touched. A row across the UTC day falls in the
+ * next `lockDay` bucket, so a push can still race a booking there; that 23P01
+ * is mapped like the insert's, and `retryOnStaleDay` re-plans.
  */
 export async function makeRoomForWalkIn(
     tx: Executor,
     at: Date,
     durationMinutes: number,
-    offsetMinutes: number,
 ): Promise<WalkInRoom> {
     const [running] = await tx
         .select({
@@ -336,49 +343,47 @@ export async function makeRoomForWalkIn(
 
     const startsAt = running ? new Date(running.startsAt.getTime() + running.durationMinutes * 60_000) : at;
 
-    const { to } = dayRange(dayKeyOf(at, offsetMinutes), offsetMinutes);
-
-    const later = await tx
-        .select({
-            id: appointments.id,
-            startsAt: appointments.startsAt,
-            durationMinutes: appointments.durationMinutes,
-        })
-        .from(appointments)
-        .where(
-            and(
-                gte(appointments.startsAt, startsAt),
-                lt(appointments.startsAt, to),
-                inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
-            ),
-        )
-        .orderBy(asc(appointments.startsAt));
-
+    let readFrom = startsAt;
     let cursor = startsAt.getTime() + durationMinutes * 60_000;
     const moves: Moved[] = [];
 
-    for (const row of later) {
-        const start = row.startsAt.getTime();
+    for (;;) {
+        // Rows cannot overlap each other, so everything starting before the
+        // cursor is in the walk-in's way, and nothing else is yet.
+        const inTheWay = await tx
+            .select({
+                id: appointments.id,
+                startsAt: appointments.startsAt,
+                durationMinutes: appointments.durationMinutes,
+            })
+            .from(appointments)
+            .where(
+                and(
+                    gte(appointments.startsAt, readFrom),
+                    lt(appointments.startsAt, new Date(cursor)),
+                    inArray(appointments.status, [...SLOT_HOLDING_STATUSES]),
+                ),
+            )
+            .orderBy(asc(appointments.startsAt));
 
-        if (start >= cursor) {
-            cursor = start + row.durationMinutes * 60_000;
-            continue;
+        if (inTheWay.length === 0) break;
+
+        readFrom = new Date(cursor);
+        for (const row of inTheWay) {
+            moves.push({ id: row.id, from: row.startsAt, to: new Date(cursor) });
+            cursor += row.durationMinutes * 60_000;
         }
-
-        moves.push({ id: row.id, from: row.startsAt, to: new Date(cursor) });
-        cursor += row.durationMinutes * 60_000;
     }
 
     for (const move of [...moves].reverse()) {
-        await tx.update(appointments).set({ startsAt: move.to }).where(eq(appointments.id, move.id));
+        await tx
+            .update(appointments)
+            .set({ startsAt: move.to })
+            .where(eq(appointments.id, move.id))
+            .catch(mapWriteError);
     }
 
     return { startsAt, moved: moves };
-}
-
-/** Which calendar day a moment falls on, in the clinic's offset. */
-function dayKeyOf(at: Date, offsetMinutes: number): string {
-    return new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
 }
 
 /** Appointments with the three patient fields every list shows. The filter and order are the caller's. */
@@ -496,12 +501,7 @@ export const appointmentService = {
                 // Before the insert, not after: the walk-in cannot be written into
                 // a slot something else still holds. This also decides when it
                 // starts — now, or when the chair frees.
-                const { startsAt, moved } = await makeRoomForWalkIn(
-                    tx,
-                    arrivedAt,
-                    durationMinutes,
-                    input.offsetMinutes,
-                );
+                const { startsAt, moved } = await makeRoomForWalkIn(tx, arrivedAt, durationMinutes);
 
                 const appointment = await insertWithRef(
                     tx,

@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeAll, beforeEach, describe, expect, setSystemTime, test } from 'bun:test';
 import { ERROR_CODE } from '@lustre/shared';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
@@ -123,6 +123,10 @@ describe('appointment.create', () => {
 });
 
 describe('appointment.walkIn', () => {
+    afterEach(() => {
+        setSystemTime();
+    });
+
     test('a second walk-in queues behind the first rather than being refused', async () => {
         // The widest transaction in the app: four tables, plus the seeded
         // checkup line. `starts_at` is now, so the first walk-in is still in the
@@ -161,7 +165,14 @@ describe('appointment.walkIn', () => {
     // COMMITTED they plan against the same committed day and all but one lose
     // the insert to `appointments_no_overlap`; the loser's answer is stale, not
     // wrong, so it re-reads and queues rather than turning a patient away.
-    test('walk-ins taken at the same moment queue instead of refusing each other', async () => {
+    // The clock is pinned, both ways: at midday the queue fits in the day, and
+    // just before midnight it runs past it, which is where a cascade bounded to
+    // its own day stopped seeing the walk-ins it had already pushed there.
+    test.each([
+        ['at midday', '2026-03-10T12:00:00.000Z'],
+        ['just before midnight', '2026-03-10T23:50:00.000Z'],
+    ])('walk-ins taken at the same moment queue instead of refusing each other, %s', async (_when, now) => {
+        setSystemTime(new Date(now));
         const fixtures = await clinic();
 
         // `allSettled`, not `all`: a rejection must not let the test return

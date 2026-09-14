@@ -174,12 +174,15 @@ export function insertAppointment(
  * so a slot still running when the patient arrives cannot be pushed aside
  * without interrupting a procedure in progress: that row stays, and the walk-in
  * starts when it ends.
+ *
+ * There is no day boundary, only the chain of rows the walk-in runs into, so a
+ * queue past midnight still sees the rows an earlier walk-in pushed there.
+ * The first gap ends the ripple, which is what leaves tomorrow alone.
  */
 function makeRoomForWalkIn(
     branchId: string,
     at: Date,
     durationMinutes: number,
-    offsetMinutes: number,
 ): { startsAt: Date; moved: Dated<RouterOutput['appointment']['walkIn']['moved']> } {
     const db = getDb();
 
@@ -193,18 +196,9 @@ function makeRoomForWalkIn(
 
     const startsAt = running ? new Date(endOf(running)) : at;
 
-    // Bounded to the walk-in's own day: a clinic that runs to midnight pushes
-    // nothing into tomorrow.
-    const dayKey = new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
-    const { to } = dayRange(dayKey, offsetMinutes);
-
     const later = db.appointments
         .filter(
-            (row) =>
-                row.branchId === branchId &&
-                HOLDS_SLOT.includes(row.status) &&
-                row.startsAt >= startsAt &&
-                row.startsAt < to,
+            (row) => row.branchId === branchId && HOLDS_SLOT.includes(row.status) && row.startsAt >= startsAt,
         )
         .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
 
@@ -212,10 +206,9 @@ function makeRoomForWalkIn(
     const moved: Dated<RouterOutput['appointment']['walkIn']['moved']> = [];
 
     for (const row of later) {
-        if (row.startsAt.getTime() >= cursor) {
-            cursor = endOf(row);
-            continue;
-        }
+        // Rows cannot overlap each other, so the first one clear of the
+        // cursor is a gap, and nothing after it is in the way.
+        if (row.startsAt.getTime() >= cursor) break;
 
         moved.push({ id: row.id, from: row.startsAt, to: new Date(cursor) });
         cursor += row.durationMinutes * 60_000;
@@ -309,12 +302,7 @@ export const appointmentHandlers = {
         // Before the insert, not after: the walk-in cannot be written into a
         // slot something else still holds, and this is also what decides when it
         // starts — now, or when the chair frees.
-        const { startsAt, moved } = makeRoomForWalkIn(
-            input.branchId,
-            arrivedAt,
-            durationMinutes,
-            offsetMinutes,
-        );
+        const { startsAt, moved } = makeRoomForWalkIn(input.branchId, arrivedAt, durationMinutes);
 
         const appointment = insertAppointment(
             {

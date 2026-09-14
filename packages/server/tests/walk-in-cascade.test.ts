@@ -51,7 +51,7 @@ async function startOf(id: string): Promise<number> {
 }
 
 const room = (startMinutes: number, durationMinutes: number) =>
-    makeRoomForWalkIn(db, at(startMinutes), durationMinutes, 0);
+    makeRoomForWalkIn(db, at(startMinutes), durationMinutes);
 
 /** Who moved. Most of these are about the cascade, not about where the walk-in landed. */
 const makeRoom = async (startMinutes: number, durationMinutes: number) =>
@@ -182,13 +182,38 @@ describe('a walk-in making room', () => {
         expect(await startOf(cancelled)).toBe(-10);
     });
 
-    test('never pushes anything into tomorrow', async () => {
+    test('leaves tomorrow alone when a gap stands before it', async () => {
         const tomorrow = await book(24 * 60 + 30, 30);
 
-        // 23:50 tonight for 30 minutes: it runs past midnight itself, but the
-        // cascade is bounded to its own day.
+        // 23:50 tonight for 30 minutes: it runs past midnight itself, but
+        // nothing tomorrow is in its way.
         expect(await makeRoom(14 * 60 + 50, 30)).toEqual([]);
         expect(await startOf(tomorrow)).toBe(24 * 60 + 30);
+    });
+
+    // Midnight is 15 hours after BASE. The queue does not know where the day
+    // ends, only which rows it runs into; a row the ripple cannot see is a row
+    // the next push lands on, and the constraint refuses that with 23P01.
+    const MIDNIGHT = 15 * 60;
+
+    test('sees a row an earlier walk-in already pushed past midnight', async () => {
+        const lateTonight = await book(MIDNIGHT - 20, 30);
+        const pastMidnight = await book(MIDNIGHT + 10, 30);
+
+        const moved = await makeRoom(MIDNIGHT - 30, 30);
+
+        expect(moved.map((move) => move.id)).toEqual([lateTonight, pastMidnight]);
+        expect(await startOf(lateTonight)).toBe(MIDNIGHT);
+        expect(await startOf(pastMidnight)).toBe(MIDNIGHT + 30);
+    });
+
+    test('pushes a booking just past midnight that the walk-in runs into', async () => {
+        const justAfter = await book(MIDNIGHT + 10, 30);
+
+        const moved = await makeRoom(MIDNIGHT - 10, 30);
+
+        expect(moved.map((move) => move.id)).toEqual([justAfter]);
+        expect(await startOf(justAfter)).toBe(MIDNIGHT + 20);
     });
 
     test('leaves the day untouched when there is nothing after the walk-in', async () => {
