@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "procedures_recorded_by" text DEFAULT 'doctor' NOT NULL;

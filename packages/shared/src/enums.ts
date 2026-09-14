@@ -118,6 +118,15 @@ export const CLIENT_ROLES = ['secretary', 'doctor'] as const;
 export const clientRoleSchema = z.enum(CLIENT_ROLES);
 export type ClientRole = z.infer<typeof clientRoleSchema>;
 
+/**
+ * Who writes what was done on a visit. `doctor` leaves the desk booking,
+ * checking in and taking money; `both` gives the desk the procedure editor too.
+ * Like the role, it shapes the UI and is not enforced by the server.
+ */
+export const PROCEDURE_RECORDERS = ['doctor', 'both'] as const;
+export const procedureRecorderSchema = z.enum(PROCEDURE_RECORDERS);
+export type ProcedureRecorder = z.infer<typeof procedureRecorderSchema>;
+
 /** §14. English is primary; Arabic mirrors the layout. */
 export const LOCALES = ['en', 'ar'] as const;
 export const localeSchema = z.enum(LOCALES);

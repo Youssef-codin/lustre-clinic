@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useConnection } from '../api';
+import { allowsLan, BUILD_VARIANT, useConnection } from '../api';
 import { Button } from '../components/ui';
 import { color, radius, space, Text } from '../theme';
 import { requestReconfigure } from './serverStore';
@@ -35,8 +35,9 @@ export function OfflineScreen() {
 
                 <Text variant="title3">No connection to the clinic</Text>
                 <Text variant="subhead" tone="muted" style={styles.body}>
-                    The app cannot reach the clinic computer. Check that you are on the clinic wifi or
-                    Tailscale, then try again.
+                    The app cannot reach the clinic computer. Check that you are{' '}
+                    {allowsLan(BUILD_VARIANT) ? 'on the clinic wifi or Tailscale' : 'signed in to Tailscale'},
+                    then try again.
                 </Text>
 
                 <Button

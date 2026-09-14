@@ -25,7 +25,7 @@ import type { ViewStyle } from 'react-native';
 import { I18nManager, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
-import { type Appointment, api, useLocalMutation, type Visit } from '../data';
+import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
 import { amountDue, formatAmount, formatMoney, poundsEntry } from '../money';
 import { dateKey, formatLongDate } from '../time';
@@ -46,6 +46,12 @@ export type VisitPaymentScreenProps = {
     onBack: () => void;
     /** The visit is closed; the day view takes it from here. */
     onClosed: (message: string) => void;
+    /**
+     * The money is being written. The caller holds the hardware back for the
+     * span, because a correction is two writes and leaving between them strands
+     * a reopened visit.
+     */
+    onWritingChange?: (writing: boolean) => void;
 };
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -77,15 +83,22 @@ export function VisitPaymentScreen({
     correcting = false,
     onBack,
     onClosed,
+    onWritingChange,
 }: VisitPaymentScreenProps) {
     const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
-    const due = amountDue(visit.chargedTotal, collected);
+    // The desk's discount comes off the total the lines add up to, and never
+    // below what has already been paid — that money stays paid.
+    const [discount, setDiscount] = useState('');
+    const maxDiscount = Math.max(visit.chargedTotal - collected, 0);
+    const discountPiastres = Math.min(toPiastres(discount), maxDiscount);
+    const charged = visit.chargedTotal - discountPiastres;
+    const due = amountDue(charged, collected);
     // What the field means, and so the most it can hold: money being taken now
     // cannot exceed what is owed, but a *total* collected is measured against
     // the whole charge — which is the figure a correction has to be free to
     // move up and down.
-    const ceiling = correcting ? visit.chargedTotal : due;
+    const ceiling = correcting ? charged : due;
 
     // The mock opens on the full amount, already filled in: paid in full is what
     // happens at the desk almost every time, and the exception is the one worth
@@ -98,7 +111,7 @@ export function VisitPaymentScreen({
     const [toast, setToast] = useState<string | null>(null);
     const [done, setDone] = useState<Done | null>(null);
 
-    const checkOut = useLocalMutation(api.checkOut);
+    const checkOut = useLocalMutation(closeVisit);
     const setPaidTotal = useLocalMutation(api.setPaid);
 
     const paidPiastres = toPiastres(paid);
@@ -137,6 +150,19 @@ export function VisitPaymentScreen({
         setPaid(digits);
     }
 
+    function changeDiscount(entry: string) {
+        const digits = poundsEntry(entry);
+        const over = toPiastres(digits) > maxDiscount;
+        if (over) setToast('The discount cannot be more than is left to pay');
+        setDiscount(over ? toPounds(maxDiscount) : digits);
+
+        const nextCharged = visit.chargedTotal - Math.min(toPiastres(digits), maxDiscount);
+        const nextCeiling = correcting ? nextCharged : amountDue(nextCharged, collected);
+        // Paying in full stays paying in full as the total moves; a figure
+        // someone typed stays, unless it is now more than can be paid.
+        if (paidPiastres === ceiling || paidPiastres > nextCeiling) setPaid(toPounds(nextCeiling));
+    }
+
     function methodText(): string {
         if (method !== 'other') return METHOD_LABEL[method].toLowerCase();
         return methodNote.trim() ? methodNote.trim().toLowerCase() : 'other method';
@@ -148,6 +174,8 @@ export function VisitPaymentScreen({
      * there is none — so the checkout that follows takes no payment of its own.
      */
     function confirm() {
+        if (checkOut.pending || setPaidTotal.pending) return;
+        onWritingChange?.(true);
         if (!correcting) {
             close(paidPiastres);
             return;
@@ -160,7 +188,7 @@ export function VisitPaymentScreen({
                 method,
                 methodNote: method === 'other' ? methodNote.trim() : null,
             },
-            { onSuccess: () => close(0) },
+            { onSuccess: () => close(0), onError: () => onWritingChange?.(false) },
         );
     }
 
@@ -169,13 +197,16 @@ export function VisitPaymentScreen({
         checkOut.mutate(
             {
                 visitId: visit.id,
-                chargedTotal: visit.chargedTotal,
+                closed: visit.completedAt !== null,
+                chargedTotal: charged,
                 paidTotal: paying,
                 method,
                 methodNote: method === 'other' ? methodNote.trim() : null,
             },
             {
+                onError: () => onWritingChange?.(false),
                 onSuccess: (closed) => {
+                    onWritingChange?.(false);
                     if (correcting) {
                         setDone({
                             tone: closed.balance > 0 ? 'owing' : 'settled',
@@ -256,7 +287,9 @@ export function VisitPaymentScreen({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Back to the visit"
-                    disabled={checkOut.pending}
+                    // A correction is two writes, the money and then the close;
+                    // leaving between them strands a reopened visit.
+                    disabled={checkOut.pending || setPaidTotal.pending}
                     onPress={onBack}
                     style={({ pressed }) => [styles.back, pressed && styles.backPressed]}
                 >
@@ -356,6 +389,31 @@ export function VisitPaymentScreen({
                         </View>
                     ) : null}
                 </View>
+
+                <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
+                    DISCOUNT
+                </Text>
+                <View style={styles.discountField}>
+                    <Text variant="footnote" weight="bold" tone="muted">
+                        EGP
+                    </Text>
+                    <TextInput
+                        value={discount}
+                        onChangeText={changeDiscount}
+                        placeholder="0"
+                        placeholderTextColor={color.muted}
+                        keyboardType="number-pad"
+                        accessibilityLabel="Discount"
+                        selectTextOnFocus
+                        style={styles.discountInput}
+                        testID="visit-payment-discount"
+                    />
+                </View>
+                {discountPiastres > 0 ? (
+                    <Text variant="footnote" tone="muted" style={styles.hint}>
+                        {`${formatMoney(discountPiastres)} off the ${formatMoney(visit.chargedTotal)} the procedures add up to.`}
+                    </Text>
+                ) : null}
 
                 <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
                     {correcting ? 'TOTAL PAID' : 'AMOUNT PAID'}
@@ -662,6 +720,28 @@ const styles = StyleSheet.create({
         textAlign: END_ALIGN,
         color: color.ink,
         ...type.figure,
+        fontFamily: font.mono.medium,
+    },
+
+    discountField: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[2.5],
+        height: size.control,
+        marginHorizontal: size.gutter,
+        paddingHorizontal: space[4],
+        borderRadius: radius.lg,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
+    discountInput: {
+        flex: 1,
+        minWidth: 0,
+        padding: 0,
+        textAlign: END_ALIGN,
+        color: color.ink,
+        ...type.body,
         fontFamily: font.mono.medium,
     },
 

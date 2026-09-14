@@ -12,13 +12,25 @@
  * the one after. It is only sent when it was changed: the server refuses a value
  * below a number a patient already has, and resending an untouched one would
  * race a registration made while the pane was open.
+ *
+ * Who records procedures is the clinic's, not the phone's, so it lives here
+ * rather than beside the role switch: every handset reads the same answer.
  */
-import { MAX_PATIENT_REF } from '@lustre/shared';
+import { MAX_PATIENT_REF, type ProcedureRecorder } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useTRPC } from '../../api';
-import { ActionBar, Callout, Card, NumericField, SectionLabel, TextField, Toast } from '../../components/ui';
+import {
+    ActionBar,
+    Callout,
+    Card,
+    NumericField,
+    SectionLabel,
+    SegmentedControl,
+    TextField,
+    Toast,
+} from '../../components/ui';
 import { space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -41,6 +53,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const [name, setName] = useState<string>();
     const [phone, setPhone] = useState<string>();
     const [patientNumber, setPatientNumber] = useState<string>();
+    const [recorder, setRecorder] = useState<ProcedureRecorder>();
     const [submitted, setSubmitted] = useState(false);
     const [toast, setToast] = useState(false);
 
@@ -48,6 +61,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const nameValue = name ?? data?.clinicName ?? '';
     const phoneValue = phone ?? data?.clinicPhone ?? '';
     const patientNumberValue = patientNumber ?? (data ? String(data.patientRefLast) : '');
+    const recorderValue: ProcedureRecorder = recorder ?? data?.proceduresRecordedBy ?? 'doctor';
 
     const nameError = submitted && nameValue.trim() === '' ? 'The clinic needs a name.' : undefined;
     const phoneError = submitted && phoneValue.trim() === '' ? 'The clinic needs a phone number.' : undefined;
@@ -67,12 +81,16 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                 clinicName: nameValue.trim(),
                 clinicPhone: phoneValue.trim(),
                 ...(patientRefLast !== data?.patientRefLast ? { patientRefLast } : {}),
+                ...(recorderValue !== data?.proceduresRecordedBy
+                    ? { proceduresRecordedBy: recorderValue }
+                    : {}),
             },
             {
                 onSuccess: () => {
                     setName(undefined);
                     setPhone(undefined);
                     setPatientNumber(undefined);
+                    setRecorder(undefined);
                     setSubmitted(false);
                     setToast(true);
                 },
@@ -162,6 +180,24 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
                         The next patient registered gets the number after this one.
+                    </Text>
+
+                    <SectionLabel inset={false}>WHO RECORDS PROCEDURES</SectionLabel>
+
+                    <SegmentedControl<ProcedureRecorder>
+                        accessibilityLabel="Who records procedures"
+                        value={recorderValue}
+                        onChange={setRecorder}
+                        segments={[
+                            { value: 'doctor', label: 'Doctor only' },
+                            { value: 'both', label: 'Doctor and desk' },
+                        ]}
+                    />
+
+                    <Text variant="footnote" tone="muted" style={styles.hint}>
+                        {recorderValue === 'doctor'
+                            ? 'The desk books, checks in and takes payment. The doctor records what was done and its prices.'
+                            : 'The desk can also pick procedures and prices at check-in and at checkout.'}
                     </Text>
                 </>
             ) : null}
