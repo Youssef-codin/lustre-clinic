@@ -53,6 +53,12 @@ export function describeError(error: RequestError, context: ErrorContext = 'gene
         case ERROR_CODE.VISIT_ALREADY_EXISTS:
             return { title: 'This patient is already checked in' };
 
+        case ERROR_CODE.CHECK_IN_NOT_TODAY:
+            return {
+                title: 'This appointment is not today',
+                body: 'A patient is checked in on the day of their appointment. Move it to today first if they are here now.',
+            };
+
         case ERROR_CODE.VISIT_ALREADY_COMPLETED:
             return { title: 'This visit is already checked out' };
 

@@ -12,12 +12,17 @@ import { canTransition, ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PaymentRow, save, type VisitProcedureRow, type VisitRow } from '../db';
 import { broadcast } from '../events';
-import { computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
+import { clinicDayOf, computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 import { procedureHandlers } from './procedure';
 
 type Visit = Dated<RouterOutput['visit']['byId']>;
 type VisitLine = Visit['procedures'][number];
+type ClinicDay = ReturnType<typeof clinicDayOf>;
+
+function onDay(at: Date, day: ClinicDay): boolean {
+    return at >= day.from && at < day.to;
+}
 
 function requireVisit(id: string): VisitRow {
     const row = getDb().visits.find((visit) => visit.id === id);
@@ -53,14 +58,19 @@ function recompute(visitId: string): number {
 /**
  * "In the chair" is a stamp, not a position in a queue: `inChairAt` set and the
  * appointment still `checked_in`. Once they go to the desk or are checked out
- * the status moves on and the chair reads empty again.
+ * the status moves on and the chair reads empty again. Asked of one clinic day,
+ * so a patient nobody checked out yesterday does not hold today's chair.
  */
-function chairIsTaken(branchId: string): boolean {
+function chairIsTaken(branchId: string, day: ClinicDay): boolean {
     const db = getDb();
     return db.visits.some((visit) => {
         if (!visit.inChairAt) return false;
         const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
-        return appointment?.branchId === branchId && appointment.status === 'checked_in';
+        return (
+            appointment?.branchId === branchId &&
+            appointment.status === 'checked_in' &&
+            onDay(appointment.startsAt, day)
+        );
     });
 }
 
@@ -70,16 +80,21 @@ function chairIsTaken(branchId: string): boolean {
  * Called from both ways out of the chair — to the desk (`awaitPayment`) and
  * straight to checkout — because the patient who has been waiting since 08:24
  * began their visit when the person ahead of them got up, not when they
- * arrived. The day view's bar measures from `inChairAt` for exactly this.
+ * arrived. The day view's bar measures from `inChairAt` for exactly this. The
+ * queue is the leaving appointment's own day, never an earlier day's leftovers.
  */
-export function seatNextInChair(branchId: string, now: Date): void {
+export function seatNextInChair(branchId: string, day: ClinicDay, now: Date): void {
     const db = getDb();
 
     const next = db.visits
         .filter((visit) => {
             if (visit.inChairAt) return false;
             const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
-            return appointment?.branchId === branchId && appointment.status === 'checked_in';
+            return (
+                appointment?.branchId === branchId &&
+                appointment.status === 'checked_in' &&
+                onDay(appointment.startsAt, day)
+            );
         })
         .sort((a, b) => a.checkedInAt.getTime() - b.checkedInAt.getTime())[0];
 
@@ -151,10 +166,21 @@ export const visitHandlers = {
         }
 
         const now = new Date();
+        const today = clinicDayOf(now, input.offsetMinutes ?? 0);
+
+        // Only on the day they are booked for. From another day's list it is a
+        // mis-tap, and the visit would sit checked in with nobody to close it.
+        if (!onDay(appointment.startsAt, today)) {
+            throw new DemoError(
+                ERROR_CODE.CHECK_IN_NOT_TODAY,
+                "cannot check in an appointment that is not on today's clinic day",
+                422,
+            );
+        }
 
         // Walking into an empty chair is the common case at a quiet clinic, and
         // it is the one where arriving and being seated are the same moment.
-        const waiting = chairIsTaken(appointment.branchId);
+        const waiting = chairIsTaken(appointment.branchId, today);
 
         const visit: VisitRow = {
             id: uuidv7(),
@@ -318,7 +344,13 @@ export const visitHandlers = {
             // Reclosing a corrected visit does not empty the chair — that
             // patient left long ago, and seating someone off it would restart a
             // bar that is already running.
-            if (wasInChair) seatNextInChair(appointment.branchId, now);
+            if (wasInChair) {
+                seatNextInChair(
+                    appointment.branchId,
+                    clinicDayOf(appointment.startsAt, input.offsetMinutes ?? 0),
+                    now,
+                );
+            }
         }
 
         save();

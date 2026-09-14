@@ -11,7 +11,13 @@ import { z } from 'zod';
 
 const amount = z.number().int().min(0).max(MAX_AMOUNT_PIASTRES);
 
-export const checkInInput = z.object({ appointmentId: z.uuid() });
+/**
+ * The client's UTC offset. Check-in and checkout decide "today" and who holds
+ * the chair within one clinic day, and a day is only ever a day for somebody.
+ */
+const offsetMinutes = z.number().int().min(-840).max(840).default(0);
+
+export const checkInInput = z.object({ appointmentId: z.uuid(), offsetMinutes });
 
 export const visitByIdInput = z.object({ id: z.uuid() });
 
@@ -50,6 +56,7 @@ export const checkOutInput = z
         visitId: z.uuid(),
         chargedTotal: amount,
         paidTotal: amount.default(0),
+        offsetMinutes,
         ...payment,
     })
     .refine((v) => v.paidTotal === 0 || v.method !== 'other' || !!v.methodNote?.trim(), {
@@ -84,10 +91,11 @@ export const recordPaymentInput = z
         path: ['methodNote'],
     });
 
-export type CheckInInput = z.infer<typeof checkInInput>;
+/** Input, not output: `offsetMinutes` defaults to 0, and a caller inside the server may leave it off. */
+export type CheckInInput = z.input<typeof checkInInput>;
 export type SetProceduresInput = z.infer<typeof setProceduresInput>;
 export type SetPriceInput = z.infer<typeof setPriceInput>;
 export type ReopenInput = z.infer<typeof reopenInput>;
-export type CheckOutInput = z.infer<typeof checkOutInput>;
+export type CheckOutInput = z.input<typeof checkOutInput>;
 export type SetPaidInput = z.infer<typeof setPaidInput>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentInput>;

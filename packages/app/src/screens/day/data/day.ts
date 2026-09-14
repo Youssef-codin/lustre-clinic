@@ -19,7 +19,7 @@
  */
 import type { PaymentMethod, Tooth } from '@lustre/shared';
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
-import { offsetForDate } from '../time';
+import { localOffsetMinutes, offsetForDate } from '../time';
 import { RequestError } from './client';
 import type {
     Appointment,
@@ -142,8 +142,13 @@ export const api = {
     searchPatients: (q: string): Promise<Patient[]> =>
         wrap(() => trpcClient.patient.search.query({ q, limit: 8 })),
 
+    /**
+     * Check-in, sending to the desk and checkout happen now, so they carry the
+     * offset in force now: the server refuses a check-in off today's clinic day
+     * and keeps the chair's queue to one day.
+     */
     checkIn: (appointmentId: string): Promise<VisitRow> =>
-        wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId })),
+        wrap(() => trpcClient.visit.checkIn.mutate({ appointmentId, offsetMinutes: localOffsetMinutes() })),
 
     walkIn: (input: {
         patient: PatientRef;
@@ -170,7 +175,7 @@ export const api = {
         wrap(() => trpcClient.appointment.update.mutate({ id, status: 'no_show' })),
 
     awaitPayment: (id: string): Promise<AppointmentRow> =>
-        wrap(() => trpcClient.appointment.awaitPayment.mutate({ id })),
+        wrap(() => trpcClient.appointment.awaitPayment.mutate({ id, offsetMinutes: localOffsetMinutes() })),
 
     /**
      * Replaces the visit's whole list — the procedure does not patch a line
@@ -195,7 +200,8 @@ export const api = {
         paidTotal: number;
         method: PaymentMethod;
         methodNote?: string | null;
-    }): Promise<Visit> => wrap(() => trpcClient.visit.checkOut.mutate(input)),
+    }): Promise<Visit> =>
+        wrap(() => trpcClient.visit.checkOut.mutate({ ...input, offsetMinutes: localOffsetMinutes() })),
 
     /**
      * What the visit was paid, in total, rather than another payment on top —

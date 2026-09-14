@@ -24,7 +24,7 @@ import {
     visitForAppointment,
 } from '../data';
 import { describeError } from '../errors';
-import { formatSpan, minutesOfDay } from '../time';
+import { dateKey, formatSpan, minutesOfDay, todayKey } from '../time';
 import { PlanSummary } from './PlanSummary';
 
 export type AppointmentDetailSheetProps = {
@@ -201,7 +201,11 @@ function PrimaryAction({
 }) {
     switch (appointment.status) {
         case 'booked':
-            return <Button label="Check in" block loading={checkingIn} onPress={onCheckIn} />;
+            // Only on the appointment's own day. From another day's list it is a
+            // mis-tap, and the server refuses it anyway.
+            return dateKey(new Date(appointment.startsAt)) === todayKey() ? (
+                <Button label="Check in" block loading={checkingIn} onPress={onCheckIn} />
+            ) : null;
 
         case 'checked_in':
         case 'awaiting_payment':

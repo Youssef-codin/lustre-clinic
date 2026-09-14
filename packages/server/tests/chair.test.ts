@@ -4,8 +4,8 @@ import { db } from '../src/db/index.ts';
 import { visits } from '../src/db/schema.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
-import { setupDatabase, truncateAll } from './helpers/db.ts';
-import { bookedAppointment, clinic, slot } from './helpers/factories.ts';
+import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
+import { bookedAppointment, type Clinic, clinic, todaySlot } from './helpers/factories.ts';
 
 /**
  * `visits.in_chair_at` — arriving and being seated are two events, and the
@@ -40,7 +40,7 @@ async function seatStamp(visitId: string): Promise<Date | null> {
 describe('who is in the chair', () => {
     test('walking into an empty chair is arriving and being seated at once', async () => {
         const { visit } = await (async () => {
-            const booked = await bookedAppointment();
+            const booked = await bookedAppointment(todaySlot());
             return { visit: await visitService.checkIn({ appointmentId: booked.appointment.id }) };
         })();
 
@@ -56,13 +56,13 @@ describe('who is in the chair', () => {
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const second = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(60),
+            startsAt: todaySlot(60),
             offsetMinutes: 0,
         });
 
@@ -78,19 +78,19 @@ describe('who is in the chair', () => {
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const second = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(60),
+            startsAt: todaySlot(60),
             offsetMinutes: 0,
         });
         const third = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(120),
+            startsAt: todaySlot(120),
             offsetMinutes: 0,
         });
 
@@ -116,13 +116,13 @@ describe('who is in the chair', () => {
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const second = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(60),
+            startsAt: todaySlot(60),
             offsetMinutes: 0,
         });
 
@@ -139,7 +139,7 @@ describe('who is in the chair', () => {
     });
 
     test('an empty waiting room leaves the chair empty rather than reseating anyone', async () => {
-        const booked = await bookedAppointment();
+        const booked = await bookedAppointment(todaySlot());
         const only = await visitService.checkIn({ appointmentId: booked.appointment.id });
         const before = await seatStamp(only.id);
 
@@ -155,13 +155,13 @@ describe('who is in the chair', () => {
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const second = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(60),
+            startsAt: todaySlot(60),
             offsetMinutes: 0,
         });
 
@@ -176,5 +176,88 @@ describe('who is in the chair', () => {
         });
 
         expect(await seatStamp(waiting.id)).not.toBeNull();
+    });
+});
+
+/**
+ * A patient nobody checked out is still `checked_in` the next morning. Who is in
+ * the chair, and who is seated next, is decided within one clinic day, or one
+ * forgotten checkout holds the chair, and jumps the queue, on every day after.
+ */
+describe('the chair belongs to one clinic day', () => {
+    function book(fixtures: Clinic, minutes: number) {
+        return appointmentService.create({
+            patient: { kind: 'existing', patientId: fixtures.patient.id },
+            branchId: fixtures.branch.id,
+            startsAt: todaySlot(minutes),
+            offsetMinutes: 0,
+        });
+    }
+
+    /** As though this patient was checked in yesterday and never checked out. */
+    async function leftOverFromYesterday(appointmentId: string): Promise<void> {
+        await sql`UPDATE appointments SET starts_at = starts_at - interval '1 day' WHERE id = ${appointmentId}`;
+        await sql`
+            UPDATE visits
+            SET checked_in_at = checked_in_at - interval '1 day',
+                in_chair_at = in_chair_at - interval '1 day'
+            WHERE appointment_id = ${appointmentId}
+        `;
+    }
+
+    test("yesterday's patient left in the chair does not keep today's first patient waiting", async () => {
+        const fixtures = await clinic();
+
+        const stale = await book(fixtures, 0);
+        await visitService.checkIn({ appointmentId: stale.id });
+        await leftOverFromYesterday(stale.id);
+
+        const today = await book(fixtures, 60);
+        const first = await visitService.checkIn({ appointmentId: today.id });
+
+        expect(await seatStamp(first.id)).not.toBeNull();
+    });
+
+    test("going to the desk today does not seat yesterday's queue", async () => {
+        const fixtures = await clinic();
+
+        const leaving = await book(fixtures, 0);
+        const stale = await book(fixtures, 60);
+        await visitService.checkIn({ appointmentId: leaving.id });
+        const staleVisit = await visitService.checkIn({ appointmentId: stale.id });
+        await leftOverFromYesterday(stale.id);
+
+        const next = await book(fixtures, 120);
+        const waiting = await visitService.checkIn({ appointmentId: next.id });
+
+        await appointmentService.awaitPayment(leaving.id, 0);
+
+        // Yesterday's patient has waited longest by the clock, and is not here.
+        expect(await seatStamp(waiting.id)).not.toBeNull();
+        expect(await seatStamp(staleVisit.id)).toBeNull();
+    });
+
+    test("checking out from the chair today does not seat yesterday's queue", async () => {
+        const fixtures = await clinic();
+
+        const leaving = await book(fixtures, 0);
+        const stale = await book(fixtures, 60);
+        const inChair = await visitService.checkIn({ appointmentId: leaving.id });
+        const staleVisit = await visitService.checkIn({ appointmentId: stale.id });
+        await leftOverFromYesterday(stale.id);
+
+        const next = await book(fixtures, 120);
+        const waiting = await visitService.checkIn({ appointmentId: next.id });
+
+        await visitService.checkOut({
+            visitId: inChair.id,
+            chargedTotal: 0,
+            paidTotal: 0,
+            method: 'cash',
+            offsetMinutes: 0,
+        });
+
+        expect(await seatStamp(waiting.id)).not.toBeNull();
+        expect(await seatStamp(staleVisit.id)).toBeNull();
     });
 });

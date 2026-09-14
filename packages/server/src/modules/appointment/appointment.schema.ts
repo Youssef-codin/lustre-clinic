@@ -90,7 +90,7 @@ export const updateAppointmentInput = z.object({
 
 export const cancelAppointmentInput = z.object({ id: z.uuid() });
 
-export const awaitPaymentInput = z.object({ id: z.uuid() });
+export const awaitPaymentInput = z.object({ id: z.uuid(), offsetMinutes });
 
 export const missedInput = z
     .object({

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
-import { CHECKUP_PRICE, ROOT_CANAL_PRICE, slot } from './helpers/factories.ts';
+import { CHECKUP_PRICE, ROOT_CANAL_PRICE, todaySlot } from './helpers/factories.ts';
 import {
     captureWsEvents,
     expectTrpcError,
@@ -160,7 +160,7 @@ describe('a full visit, end to end', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         expect(appointment.status).toBe('booked');
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z2-9]{4}$/);
@@ -224,7 +224,7 @@ describe('a full visit, end to end', () => {
     test('the day view embeds the patient the client renders', async () => {
         const { client } = api;
         const { branch, patient } = await clinicViaApi();
-        const startsAt = slot();
+        const startsAt = todaySlot();
 
         await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
@@ -248,7 +248,7 @@ describe('a full visit, end to end', () => {
         const first = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
 
         const pending = await client.reminder.pending.query({ dueOnly: false });
@@ -258,7 +258,7 @@ describe('a full visit, end to end', () => {
         const second = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: new Date(Date.parse(slot()) + 3_600_000).toISOString(),
+            startsAt: new Date(Date.parse(todaySlot()) + 3_600_000).toISOString(),
         });
         const stillPending = await client.reminder.pending.query({ dueOnly: false });
         await client.reminder.markSkipped.mutate({ id: stillPending[0]?.id ?? '' });
@@ -297,7 +297,7 @@ describe('input validation', () => {
                 api.client.appointment.create.mutate({
                     patient: { kind: 'existing', patientId: patient.id },
                     branchId: branch.id,
-                    startsAt: slot(),
+                    startsAt: todaySlot(),
                     durationMinutes,
                 }),
             );
@@ -317,7 +317,7 @@ describe('input validation', () => {
                 // biome-ignore lint/suspicious/noExplicitAny: deliberately malformed
                 patient: { kind: 'new', name: 'No Phone' } as any,
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
             }),
         );
         await expectValidationError(() =>
@@ -325,7 +325,7 @@ describe('input validation', () => {
                 // biome-ignore lint/suspicious/noExplicitAny: deliberately malformed
                 patient: { kind: 'nonsense', patientId: Bun.randomUUIDv7() } as any,
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
             }),
         );
     });
@@ -336,7 +336,7 @@ describe('input validation', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
 
@@ -357,7 +357,7 @@ describe('input validation', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
 
@@ -417,7 +417,7 @@ describe('error mapping', () => {
     test('an overlapping booking is 409 SLOT_OVERLAP', async () => {
         const { client } = api;
         const { branch, patient } = await clinicViaApi();
-        const startsAt = slot();
+        const startsAt = todaySlot();
 
         await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
@@ -441,7 +441,7 @@ describe('error mapping', () => {
             api.client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 durationMinutes: 37,
             }),
         );
@@ -453,7 +453,7 @@ describe('error mapping', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         await client.appointment.cancel.mutate({ id: appointment.id });
 
@@ -468,7 +468,7 @@ describe('error mapping', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
 
@@ -489,7 +489,7 @@ describe('error mapping', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
         await client.visit.checkOut.mutate({
@@ -561,7 +561,7 @@ describe('websocket broadcasts', () => {
             api.client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
             }),
         );
 
@@ -574,7 +574,7 @@ describe('websocket broadcasts', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
 
         const { result, events } = await captureWsEvents(api.wsUrl, () =>
@@ -594,7 +594,7 @@ describe('websocket broadcasts', () => {
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
         });
         await client.visit.checkIn.mutate({ appointmentId: appointment.id });
 
@@ -616,7 +616,7 @@ describe('websocket broadcasts', () => {
     test('a failed mutation broadcasts nothing', async () => {
         const { client } = api;
         const { branch, patient } = await clinicViaApi();
-        const startsAt = slot();
+        const startsAt = todaySlot();
         await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
@@ -644,7 +644,7 @@ describe('websocket broadcasts', () => {
             const appointment = await client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
             });
             const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
             await client.visit.checkOut.mutate({

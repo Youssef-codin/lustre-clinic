@@ -8,7 +8,7 @@ import { reminderService } from '../src/modules/reminder/reminder.service.ts';
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
-import { bookedAppointment, clinic, expectAppError, slot } from './helpers/factories.ts';
+import { bookedAppointment, clinic, expectAppError, slot, todaySlot } from './helpers/factories.ts';
 
 /**
  * SPEC §7 — rescheduling and manual resolution. `appointment.update` is the one
@@ -194,7 +194,7 @@ describe('status transitions', () => {
     });
 
     test('refuses no_show on a checked-in appointment', async () => {
-        const { appointment } = await bookedAppointment();
+        const { appointment } = await bookedAppointment(todaySlot());
         await visitService.checkIn({ appointmentId: appointment.id });
 
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>

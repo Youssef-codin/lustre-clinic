@@ -102,6 +102,12 @@ export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Dat
     return { from, to: new Date(from.getTime() + 86_400_000) };
 }
 
+/** The clinic day a moment falls on, as the same half-open range `dayRange` returns. */
+export function clinicDayOf(at: Date, offsetMinutes = 0): { from: Date; to: Date } {
+    const key = new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
+    return dayRange(key, offsetMinutes);
+}
+
 export function ageFromBirthDate(birthDate: string | null, on: Date = new Date()): number | null {
     if (!birthDate) return null;
 

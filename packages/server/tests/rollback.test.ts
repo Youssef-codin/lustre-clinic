@@ -4,7 +4,7 @@ import { appointmentService } from '../src/modules/appointment/appointment.servi
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
-import { clinic, expectAppError, slot } from './helpers/factories.ts';
+import { clinic, expectAppError, todaySlot } from './helpers/factories.ts';
 
 /**
  * SPEC §7, §13 — the calls that write to several tables at once. `create` builds
@@ -48,7 +48,7 @@ beforeEach(async () => {
 describe('appointment.create', () => {
     test('an overlap rolls back the patient it was about to create', async () => {
         const fixtures = await clinic();
-        const startsAt = slot();
+        const startsAt = todaySlot();
         await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
@@ -79,7 +79,7 @@ describe('appointment.create', () => {
             appointmentService.create({
                 patient: { kind: 'new', name: 'Ghost Patient', phone: '01088888888' },
                 branchId: Bun.randomUUIDv7(),
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 offsetMinutes: 0,
             }),
         ).rejects.toThrow();
@@ -95,7 +95,7 @@ describe('appointment.create', () => {
             appointmentService.create({
                 patient: { kind: 'existing', patientId: Bun.randomUUIDv7() },
                 branchId: fixtures.branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 offsetMinutes: 0,
             }),
         );
@@ -110,7 +110,7 @@ describe('appointment.create', () => {
         await appointmentService.create({
             patient: { kind: 'new', name: 'New Patient', phone: '01077777777' },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -251,7 +251,7 @@ describe('visit.checkIn', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         await appointmentService.cancel(appointment.id);
@@ -271,7 +271,7 @@ describe('visit.checkIn', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -307,7 +307,7 @@ describe('visit.setProcedures', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });

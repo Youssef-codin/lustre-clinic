@@ -17,7 +17,7 @@
  * desk), and zero paid is a valid checkout — the balance is derived (§10).
  */
 import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
     appointmentProcedures,
@@ -29,6 +29,7 @@ import {
 } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { computeTotal } from '../../util/money.ts';
+import { clinicDayOf } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
 import { procedureService } from '../procedure/procedure.service.ts';
@@ -43,6 +44,8 @@ import type {
 } from './visit.schema.ts';
 
 type VisitRow = typeof visits.$inferSelect;
+
+type ClinicDay = ReturnType<typeof clinicDayOf>;
 
 interface VisitLine {
     id: string;
@@ -100,8 +103,11 @@ async function recompute(executor: Executor, visitId: string): Promise<number> {
  * the appointment still `checked_in`. Once they go to the desk or are checked
  * out the status moves on and the chair reads empty again, which is what makes
  * this safe to ask before seating someone.
+ *
+ * Asked of one clinic day. A patient nobody checked out yesterday is still
+ * `checked_in`, and without the bound they held the chair on every day after.
  */
-async function chairIsTaken(tx: Executor, branchId: string): Promise<boolean> {
+async function chairIsTaken(tx: Executor, branchId: string, day: ClinicDay): Promise<boolean> {
     const [seated] = await tx
         .select({ id: visits.id })
         .from(visits)
@@ -110,6 +116,8 @@ async function chairIsTaken(tx: Executor, branchId: string): Promise<boolean> {
             and(
                 eq(appointments.branchId, branchId),
                 eq(appointments.status, 'checked_in'),
+                gte(appointments.startsAt, day.from),
+                lt(appointments.startsAt, day.to),
                 sql`${visits.inChairAt} is not null`,
             ),
         )
@@ -131,8 +139,16 @@ async function chairIsTaken(tx: Executor, branchId: string): Promise<boolean> {
  * Longest wait wins, which is the same order the day view queues people in, so
  * the screen and the stamp cannot name different patients. Nobody waiting is
  * the ordinary case and does nothing — the next arrival seats themselves.
+ *
+ * The queue is the day of the appointment leaving the chair. A patient left
+ * checked in on an earlier day has waited longest by the clock, and is not here.
  */
-export async function seatNextInChair(tx: Executor, branchId: string, now: Date): Promise<void> {
+export async function seatNextInChair(
+    tx: Executor,
+    branchId: string,
+    day: ClinicDay,
+    now: Date,
+): Promise<void> {
     const [next] = await tx
         .select({ visitId: visits.id })
         .from(visits)
@@ -141,6 +157,8 @@ export async function seatNextInChair(tx: Executor, branchId: string, now: Date)
             and(
                 eq(appointments.branchId, branchId),
                 eq(appointments.status, 'checked_in'),
+                gte(appointments.startsAt, day.from),
+                lt(appointments.startsAt, day.to),
                 isNull(visits.inChairAt),
             ),
         )
@@ -172,12 +190,24 @@ export const visitService = {
             }
 
             const now = new Date();
+            const today = clinicDayOf(now, input.offsetMinutes);
+
+            // A patient is checked in on the day they are booked for. Anywhere
+            // else it is a tap on another day's list, and the visit it made
+            // would sit checked in on that day with nobody there to close it.
+            if (appointment.startsAt < today.from || appointment.startsAt >= today.to) {
+                throw new AppError(
+                    ERROR_CODE.CHECK_IN_NOT_TODAY,
+                    "cannot check in an appointment that is not on today's clinic day",
+                    422,
+                );
+            }
 
             // Walking into an empty chair is the common case at a quiet clinic,
             // and it is the one where arriving and being seated are the same
             // moment. With someone already in it this patient is queueing, and
             // `in_chair_at` stays null until they get up.
-            const waiting = await chairIsTaken(tx, appointment.branchId);
+            const waiting = await chairIsTaken(tx, appointment.branchId, today);
 
             let visit: VisitRow | undefined;
             try {
@@ -423,8 +453,9 @@ export const visitService = {
                 })
                 .where(eq(visits.id, visit.id));
 
-            if (input.paidTotal > 0) {
-                await insertPayment(tx, visit.id, input.paidTotal, input.method, input.methodNote ?? null);
+            const paidTotal = input.paidTotal ?? 0;
+            if (paidTotal > 0) {
+                await insertPayment(tx, visit.id, paidTotal, input.method, input.methodNote ?? null);
             }
 
             if (!reclosing) {
@@ -438,7 +469,12 @@ export const visitService = {
                 // seating someone off it would restart a bar that is already
                 // running.
                 if (appointment.status === 'checked_in') {
-                    await seatNextInChair(tx, appointment.branchId, now);
+                    await seatNextInChair(
+                        tx,
+                        appointment.branchId,
+                        clinicDayOf(appointment.startsAt, input.offsetMinutes),
+                        now,
+                    );
                 }
             }
         });

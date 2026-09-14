@@ -31,6 +31,8 @@ export const ERROR_CODE = {
     // --- visits -------------------------------------------------------------
     /** Check-in was attempted on an appointment that already has a visit. */
     VISIT_ALREADY_EXISTS: 'VISIT_ALREADY_EXISTS',
+    /** Check-in was attempted on an appointment that is not on today's clinic day. */
+    CHECK_IN_NOT_TODAY: 'CHECK_IN_NOT_TODAY',
     /** The visit is already checked out. */
     VISIT_ALREADY_COMPLETED: 'VISIT_ALREADY_COMPLETED',
     /** A category row was selected; only leaf procedures are selectable (§5). */

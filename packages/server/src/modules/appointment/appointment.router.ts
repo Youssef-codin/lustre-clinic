@@ -34,5 +34,5 @@ export const appointmentRouter = router({
 
     awaitPayment: publicProcedure
         .input(awaitPaymentInput)
-        .mutation(({ input }) => appointmentService.awaitPayment(input.id)),
+        .mutation(({ input }) => appointmentService.awaitPayment(input.id, input.offsetMinutes)),
 });

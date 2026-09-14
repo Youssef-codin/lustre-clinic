@@ -229,6 +229,9 @@ describe('a visit, end to end', () => {
         expect(appointment.status).toBe('booked');
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z0-9]{4}$/);
 
+        // Check-in is refused off the appointment's own day. Booked clear of the
+        // seed's week above, then brought to now by hand for the visit.
+        appointment.startsAt = new Date();
         const visit = visitHandlers.checkIn({ appointmentId: appointment.id });
         const detail = visitHandlers.byId({ id: visit.id });
 
