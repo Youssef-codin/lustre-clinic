@@ -33,6 +33,8 @@ export type DoctorVisitSheetProps = {
     /** The visit behind the row is being read on the way to the editor. */
     recording?: boolean;
     onClosed?: () => void;
+    /** Whether this patient heads the arrival queue. `checked_in` alone cannot tell the chair from the waiting room. */
+    inChair?: boolean;
 };
 
 export function DoctorVisitSheet({
@@ -43,6 +45,7 @@ export function DoctorVisitSheet({
     onRecord,
     recording = false,
     onClosed,
+    inChair = false,
 }: DoctorVisitSheetProps) {
     const arrived =
         appointment?.status === 'checked_in' ||
@@ -84,7 +87,7 @@ export function DoctorVisitSheet({
         >
             {appointment ? (
                 <>
-                    <Identity appointment={appointment} />
+                    <Identity appointment={appointment} inChair={inChair} />
 
                     <PlanSummary procedures={appointment.procedures} label="IN FOR" />
 
@@ -111,7 +114,7 @@ export function DoctorVisitSheet({
  * the day and both ends of the slot, so the hour was the one thing on the tile
  * said twice, and how long he has is the thing it was not saying at all.
  */
-function Identity({ appointment }: { appointment: Appointment }) {
+function Identity({ appointment, inChair }: { appointment: Appointment; inChair: boolean }) {
     return (
         <View style={styles.identity}>
             <View style={styles.tile}>
@@ -131,7 +134,7 @@ function Identity({ appointment }: { appointment: Appointment }) {
                     {slotLabel(appointment)}
                 </Text>
                 <View style={styles.status}>
-                    <StatusPill status={appointment.status} withDot />
+                    <StatusPill status={appointment.status} inChair={inChair} withDot />
                 </View>
             </View>
         </View>

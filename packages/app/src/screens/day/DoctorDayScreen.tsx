@@ -288,6 +288,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                     <ClosedDay
                         dateKey={dateKey}
                         appointments={appointments}
+                        chairId={isToday ? (chair?.id ?? null) : null}
                         onSelect={openVisit}
                         pull={pull}
                     />
@@ -357,6 +358,8 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
             <DoctorVisitSheet
                 visible={opened.sheet}
                 appointment={opened.appointment}
+                // The queue's head, as `standingOf` reads it: off today there is no chair.
+                inChair={isToday && chair !== null && chair.id === opened.appointment?.id}
                 onClose={() => setOpened((current) => ({ ...current, sheet: false }))}
                 // The sheet goes as the record arrives: two layers, one of them a
                 // modal, is a back button with two meanings. The record itself is

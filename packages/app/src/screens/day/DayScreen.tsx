@@ -674,6 +674,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                     <ClosedDay
                         dateKey={dateKey}
                         appointments={appointments}
+                        chairId={isToday ? (chair?.id ?? null) : null}
                         onSelect={openDetail}
                         pull={pull}
                     />
