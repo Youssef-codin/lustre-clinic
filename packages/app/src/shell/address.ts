@@ -24,6 +24,11 @@ export function toCandidate(typed: ServerCandidate, lanAllowed: boolean): Server
     return { lan: lanAllowed ? toBase(typed.lan) : '', tailscale: toBase(typed.tailscale) };
 }
 
+// Said before probing, because a wifi address typed into the one field a prod
+// build has would otherwise fail as "did not answer" — true, and no help.
+export const NOT_ON_TAILNET =
+    "That is not a Tailscale address. Use the clinic computer's name ending in .ts.net, or its 100.x address.";
+
 export function nothingEntered(lanAllowed: boolean): string {
     return lanAllowed ? 'Enter at least one address.' : 'Enter the Tailscale address.';
 }

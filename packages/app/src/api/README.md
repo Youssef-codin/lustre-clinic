@@ -118,7 +118,10 @@ Tailscale, so `lan` can never answer there. `variant.ts` calls a build prod when
 `__DEV__` is false and `extra.demo` is not `true`; `config.ts` drops the LAN
 side on prod however it arrives, `shell/serverStore.ts` deletes one an older
 install saved, and `demo/flag.ts` clears a stored demo flag. Setup on prod shows
-the Tailscale field alone and no demo button. Dev builds keep both, because the
+the Tailscale field alone and no demo button, and the Tailscale side must be a
+tailnet address — a `.ts.net` name, a 100.64.0.0/10 IP or Tailscale's IPv6 range
+(`isTailnetAddress`) — whether it was typed, stored, shipped or reported by the
+server. Dev builds keep both, because the
 emulator and a cable-attached phone reach the dev server through `localhost`. A
 release build that ships `extra.demo: true` is a demo build, not prod.
 

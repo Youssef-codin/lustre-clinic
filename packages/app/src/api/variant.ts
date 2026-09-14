@@ -28,6 +28,37 @@ export function allowsDemo(variant: BuildVariant): boolean {
     return variant !== 'prod';
 }
 
+// The shapes a tailnet address comes in: a MagicDNS name under `.ts.net`, an
+// IPv4 address in Tailscale's 100.64.0.0/10 (the range the server itself checks
+// `TAILSCALE_IP` against), or its fd7a:115c:a1e0::/48 IPv6 range. A bare short
+// name is refused: it could as easily be the wifi router's name for the PC.
+export function isTailnetAddress(address: string): boolean {
+    const host = hostOf(address);
+    if (host.endsWith('.ts.net') || host.startsWith('fd7a:115c:a1e0:')) return true;
+    const octets = host.split('.');
+    if (octets.length !== 4 || !octets.every((octet) => /^\d{1,3}$/.test(octet))) return false;
+    const [first, second] = octets.map(Number);
+    return first === 100 && second !== undefined && second >= 64 && second <= 127;
+}
+
+function hostOf(address: string): string {
+    const rest = address
+        .trim()
+        .toLowerCase()
+        .replace(/^[a-z]+:\/\//, '');
+    const authority = rest.split(/[/?#]/)[0] ?? '';
+    const hostAndPort = authority.slice(authority.lastIndexOf('@') + 1);
+    const bracketed = hostAndPort.match(/^\[([^\]]+)\]/);
+    if (bracketed?.[1]) return bracketed[1];
+    if ((hostAndPort.match(/:/g) ?? []).length > 1) return hostAndPort;
+    return (hostAndPort.split(':')[0] ?? '').replace(/\.$/, '');
+}
+
+// On prod the Tailscale side must be a tailnet address too, however it arrived:
+// typed into setup, restored from storage, shipped, or reported by the server.
+// Otherwise the one field a prod build has is a way back onto the wifi.
 export function usableAddresses(variant: BuildVariant, addresses: ServerAddresses): ServerAddresses {
-    return allowsLan(variant) ? addresses : { ...addresses, lan: null };
+    if (allowsLan(variant)) return addresses;
+    const { tailscale } = addresses;
+    return { lan: null, tailscale: tailscale && isTailnetAddress(tailscale) ? tailscale : null };
 }

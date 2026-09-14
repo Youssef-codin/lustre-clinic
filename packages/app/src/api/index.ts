@@ -12,4 +12,4 @@ export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
 export type { RouterOutput } from './types';
 export { useConnection } from './useConnection';
 export type { BuildVariant } from './variant';
-export { allowsDemo, allowsLan } from './variant';
+export { allowsDemo, allowsLan, isTailnetAddress } from './variant';

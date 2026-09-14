@@ -7,13 +7,14 @@ import {
     BUILD_VARIANT,
     enableDemoMode,
     getConnectionState,
+    isTailnetAddress,
     reprobe,
     serverAddresses,
 } from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
 import { color, radius, space, Text } from '../theme';
-import { noAnswer, nothingEntered, toCandidate } from './address';
+import { NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
 // First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
@@ -56,6 +57,10 @@ export function SetupScreen() {
         const candidate = toCandidate({ lan, tailscale }, LAN_ALLOWED);
         if (!candidate.lan && !candidate.tailscale) {
             setAttempt({ ok: false, message: nothingEntered(LAN_ALLOWED) });
+            return;
+        }
+        if (!LAN_ALLOWED && !isTailnetAddress(candidate.tailscale)) {
+            setAttempt({ ok: false, message: NOT_ON_TAILNET });
             return;
         }
 
