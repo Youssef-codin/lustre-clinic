@@ -170,7 +170,9 @@ export const visitHandlers = {
 
         // Only on the day they are booked for. From another day's list it is a
         // mis-tap, and the visit would sit checked in with nobody to close it.
-        if (!onDay(appointment.startsAt, today)) {
+        // A walk-in is checked in by the call that creates it, and a queue
+        // running past midnight can start it on the next day, so it is exempt.
+        if (appointment.channel !== 'walk_in' && !onDay(appointment.startsAt, today)) {
             throw new DemoError(
                 ERROR_CODE.CHECK_IN_NOT_TODAY,
                 "cannot check in an appointment that is not on today's clinic day",

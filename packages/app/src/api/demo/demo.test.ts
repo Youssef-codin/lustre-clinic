@@ -266,14 +266,18 @@ describe('a visit, end to end', () => {
         const patient = db.patients[1];
         if (!branch || !patient) throw new Error('the seed is missing its fixtures');
 
-        const startsAt = new Date(Date.now() + 10 * 24 * 3_600_000);
         const appointment = appointmentHandlers.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: startsAt.toISOString(),
+            startsAt: new Date(Date.now() + 10 * 24 * 3_600_000).toISOString(),
             durationMinutes: 30,
             offsetMinutes: 0,
         });
+
+        // Check-in is refused off the appointment's own day. Booked clear of the
+        // seed's week, then brought to now by hand, as the visit above does.
+        appointment.startsAt = new Date();
+        const startsAt = appointment.startsAt;
         visitHandlers.checkIn({ appointmentId: appointment.id });
 
         const later = new Date(startsAt.getTime() + 60 * 60_000).toISOString();

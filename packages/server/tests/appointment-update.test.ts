@@ -203,9 +203,9 @@ describe('status transitions', () => {
     });
 
     test('refuses to move an appointment that is no longer booked, and leaves it where it was', async () => {
-        const { appointment } = await bookedAppointment();
+        const { appointment } = await bookedAppointment(todaySlot());
         await visitService.checkIn({ appointmentId: appointment.id });
-        const moved = new Date(Date.parse(slot()) + 24 * 3_600_000).toISOString();
+        const moved = new Date(appointment.startsAt.getTime() + 24 * 3_600_000).toISOString();
 
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
             appointmentService.update({ id: appointment.id, startsAt: moved }),

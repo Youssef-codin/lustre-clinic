@@ -195,7 +195,13 @@ export const visitService = {
             // A patient is checked in on the day they are booked for. Anywhere
             // else it is a tap on another day's list, and the visit it made
             // would sit checked in on that day with nobody there to close it.
-            if (appointment.startsAt < today.from || appointment.startsAt >= today.to) {
+            // A walk-in is checked in by the call that creates it, with the
+            // patient at the desk, and a queue running past midnight can start
+            // it on the next clinic day — so it is never a mis-tap.
+            if (
+                appointment.channel !== 'walk_in' &&
+                (appointment.startsAt < today.from || appointment.startsAt >= today.to)
+            ) {
                 throw new AppError(
                     ERROR_CODE.CHECK_IN_NOT_TODAY,
                     "cannot check in an appointment that is not on today's clinic day",
