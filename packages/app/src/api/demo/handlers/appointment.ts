@@ -351,6 +351,19 @@ export const appointmentHandlers = {
             );
         }
 
+        // As the server: only a booking still to come can move.
+        const moves =
+            requestedStart !== undefined ||
+            patch.durationMinutes !== undefined ||
+            patch.branchId !== undefined;
+        if (moves && current.status !== 'booked') {
+            throw new DemoError(
+                ERROR_CODE.INVALID_STATUS_TRANSITION,
+                `cannot move an appointment that is ${current.status}`,
+                409,
+            );
+        }
+
         const durationMinutes =
             patch.durationMinutes === undefined ? undefined : resolveDuration(patch.durationMinutes);
         const startsAt = requestedStart ? new Date(requestedStart) : undefined;

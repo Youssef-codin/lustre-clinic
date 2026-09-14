@@ -557,6 +557,21 @@ export const appointmentService = {
             );
         }
 
+        // Only a booking still to come can move. Past check-in the span is the
+        // chair's record of the visit, and a reschedule page left open while
+        // the patient arrived must not drag it, or its reminder, elsewhere.
+        const moves =
+            input.startsAt !== undefined ||
+            patch.durationMinutes !== undefined ||
+            patch.branchId !== undefined;
+        if (moves && current.status !== 'booked') {
+            throw new AppError(
+                ERROR_CODE.INVALID_STATUS_TRANSITION,
+                `cannot move an appointment that is ${current.status}`,
+                409,
+            );
+        }
+
         const durationMinutes =
             patch.durationMinutes === undefined ? undefined : await resolveDuration(patch.durationMinutes);
         const startsAt = input.startsAt ? new Date(input.startsAt) : undefined;
@@ -577,12 +592,23 @@ export const appointmentService = {
                         ...(durationMinutes ? { durationMinutes } : {}),
                         updatedAt: new Date(),
                     })
-                    .where(eq(appointments.id, id))
+                    // The status is repeated here for the check-in that lands
+                    // between the read above and this write, as in `awaitPayment`.
+                    .where(
+                        and(eq(appointments.id, id), ...(moves ? [eq(appointments.status, 'booked')] : [])),
+                    )
                     .returning();
             } catch (err) {
                 mapWriteError(err);
             }
 
+            if (!updated && moves) {
+                throw new AppError(
+                    ERROR_CODE.INVALID_STATUS_TRANSITION,
+                    'the appointment stopped being booked before the move landed',
+                    409,
+                );
+            }
             if (!updated) throw AppError.notFound('appointment');
 
             if (resolved) await replaceProcedures(tx, id, resolved);

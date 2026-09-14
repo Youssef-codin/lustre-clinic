@@ -260,6 +260,36 @@ describe('a visit, end to end', () => {
         expect(visitHandlers.byId({ id: visit.id }).balance).toBe(0);
     });
 
+    it('refuses to move an appointment once it is checked in, as the server does', () => {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        const startsAt = new Date(Date.now() + 10 * 24 * 3_600_000);
+        const appointment = appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: startsAt.toISOString(),
+            durationMinutes: 30,
+            offsetMinutes: 0,
+        });
+        visitHandlers.checkIn({ appointmentId: appointment.id });
+
+        const later = new Date(startsAt.getTime() + 60 * 60_000).toISOString();
+        let code: string | undefined;
+        try {
+            appointmentHandlers.update({ id: appointment.id, startsAt: later });
+        } catch (error) {
+            code = (error as { code?: string }).code;
+        }
+
+        expect(code).toBe('INVALID_STATUS_TRANSITION');
+        expect(db.appointments.find((row) => row.id === appointment.id)?.startsAt.getTime()).toBe(
+            startsAt.getTime(),
+        );
+    });
+
     it('empties the chair into the longest wait when the patient goes to the desk', () => {
         const db = getDb();
 
