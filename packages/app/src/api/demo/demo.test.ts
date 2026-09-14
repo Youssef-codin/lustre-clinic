@@ -14,7 +14,7 @@
  * it is mocked to nothing — persistence is the one part of `db.ts` this cannot
  * reach.
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock, setSystemTime } from 'bun:test';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -282,6 +282,47 @@ describe('a visit, end to end', () => {
         // their bar starts here rather than at the time they arrived.
         expect(next.inChairAt).toBeInstanceOf(Date);
         expect(next.inChairAt?.getTime()).toBeGreaterThan(next.checkedInAt.getTime());
+    });
+});
+
+describe('a walk-in, when the queue runs past midnight', () => {
+    afterEach(() => {
+        setSystemTime();
+    });
+
+    // The clock is pinned to a night past anything the seed booked, so the
+    // only rows in the way are the two written here, and the test fails the
+    // same way whatever time it is run.
+    it('pushes a booking already past midnight instead of landing on it', () => {
+        setSystemTime(new Date('2030-01-15T23:40:00.000Z'));
+
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        const walkUp = db.patients[2];
+        if (!branch || !patient || !walkUp) throw new Error('the seed is missing its fixtures');
+
+        const book = (startsAt: string) =>
+            appointmentHandlers.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt,
+                durationMinutes: 30,
+                offsetMinutes: 0,
+            });
+
+        const lateTonight = book('2030-01-15T23:50:00.000Z');
+        const pastMidnight = book('2030-01-16T00:20:00.000Z');
+
+        appointmentHandlers.walkIn({
+            patient: { kind: 'existing', patientId: walkUp.id },
+            branchId: branch.id,
+            durationMinutes: 30,
+            offsetMinutes: 0,
+        });
+
+        expect(lateTonight.startsAt.toISOString()).toBe('2030-01-16T00:10:00.000Z');
+        expect(pastMidnight.startsAt.toISOString()).toBe('2030-01-16T00:40:00.000Z');
     });
 });
 
