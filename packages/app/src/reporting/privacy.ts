@@ -287,6 +287,26 @@ function debugMeta(value: ErrorEvent['debug_meta']): ErrorEvent['debug_meta'] {
 }
 
 /**
+ * Every JS crumb is also synced to the native SDK, and on Android the RN SDK
+ * merges that native copy back into the event, sorted by time, with a timestamp
+ * a few milliseconds off. A crumb that repeats the one before it within 50ms is
+ * that copy. Two real taps are never that close.
+ */
+function withoutNativeCopies(crumbs: Breadcrumb[]): Breadcrumb[] {
+    const kept: Breadcrumb[] = [];
+    for (const crumb of crumbs) {
+        const last = kept[kept.length - 1];
+        const copy =
+            last !== undefined &&
+            last.category === crumb.category &&
+            JSON.stringify(last.data) === JSON.stringify(crumb.data) &&
+            Math.abs((crumb.timestamp ?? 0) - (last.timestamp ?? 0)) < 0.05;
+        if (!copy) kept.push(crumb);
+    }
+    return kept;
+}
+
+/**
  * A new event with only the allowed fields. Null when nothing reportable is
  * left: no exception and no "Report a problem" message.
  */
@@ -295,9 +315,9 @@ export function allowEvent(event: ErrorEvent): ErrorEvent | null {
     const message = event.message === PROBLEM_REPORT ? PROBLEM_REPORT : undefined;
     if (values.length === 0 && message === undefined) return null;
 
-    const breadcrumbs = (event.breadcrumbs ?? [])
-        .map(allowBreadcrumb)
-        .filter((crumb): crumb is Breadcrumb => crumb !== null);
+    const breadcrumbs = withoutNativeCopies(
+        (event.breadcrumbs ?? []).map(allowBreadcrumb).filter((crumb): crumb is Breadcrumb => crumb !== null),
+    );
 
     const sdk = event.sdk;
 

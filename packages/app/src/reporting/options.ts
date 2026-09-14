@@ -11,7 +11,13 @@
  */
 import type { BuildVariant } from '../api/variant';
 
-export const MAX_BREADCRUMBS = 100;
+/**
+ * The trail keeps about a hundred steps. The SDK is told twice that: on Android
+ * each crumb reaches the event twice, once from JS and once from its native
+ * copy, before `beforeSend` drops the copy (`privacy.ts`).
+ */
+export const TRAIL_LENGTH = 100;
+export const MAX_BREADCRUMBS = TRAIL_LENGTH * 2;
 
 export function dsnOf(extra: unknown): string | null {
     if (extra === null || typeof extra !== 'object') return null;

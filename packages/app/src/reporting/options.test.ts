@@ -37,6 +37,7 @@ describe('what the SDK collects (§17)', () => {
             sampleRate: 1,
             maxBreadcrumbs: MAX_BREADCRUMBS,
         });
-        expect(MAX_BREADCRUMBS).toBe(100);
+        // A hundred steps of trail, held twice over for the native copy of each crumb.
+        expect(MAX_BREADCRUMBS).toBe(200);
     });
 });

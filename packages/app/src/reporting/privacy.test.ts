@@ -358,3 +358,44 @@ describe('allowBreadcrumb', () => {
         }
     });
 });
+
+describe('the native merge on Android', () => {
+    // As an event arrived from Waydroid: the RN SDK's device-context step puts the
+    // native copy of every JS crumb next to it, a few milliseconds apart, along
+    // with Android's own crumbs, before `beforeSend` sees any of it.
+    it('keeps one of each crumb and none of the native-only ones', () => {
+        const tap = allowBreadcrumb(touch([{ name: 'Pressable', label: 'tab-patients' }])) as Breadcrumb;
+        const api = allowBreadcrumb(apiCrumb('/trpc/health.check', 200, 24)) as Breadcrumb;
+
+        const event = allowEvent({
+            type: undefined,
+            exception: { values: [{ type: 'Error' }] },
+            breadcrumbs: [
+                { ...api, timestamp: 1789416508.4 },
+                { ...api, timestamp: 1789416508.405 },
+                {
+                    category: 'ui.lifecycle',
+                    type: 'navigation',
+                    data: { screen: 'MainActivity', state: 'resumed' },
+                },
+                { category: 'network.event', type: 'system', data: { action: 'NETWORK_AVAILABLE' } },
+                {
+                    category: 'ui.click',
+                    type: 'user',
+                    data: { view_id: 'patient-name', view_class: 'TextView' },
+                },
+                { ...tap, timestamp: 1789416546.897 },
+                { ...tap, timestamp: 1789416546.898 },
+                // The same tap again a second later is a second tap, not a copy.
+                { ...tap, timestamp: 1789416547.9 },
+                { ...tap, timestamp: 1789416547.901 },
+            ],
+        });
+
+        expect(event?.breadcrumbs?.map((crumb) => [crumb.category, crumb.timestamp])).toEqual([
+            ['api', 1789416508.4],
+            ['ui.tap', 1789416546.897],
+            ['ui.tap', 1789416547.9],
+        ]);
+    });
+});
