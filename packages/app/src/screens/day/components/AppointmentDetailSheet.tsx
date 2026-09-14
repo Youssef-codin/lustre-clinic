@@ -45,6 +45,12 @@ export type AppointmentDetailSheetProps = {
      * sheet is off the screen. See `Sheet`'s `onClosed`.
      */
     onClosed?: () => void;
+    /**
+     * Whether this patient heads the arrival queue. `checked_in` is everyone
+     * who has arrived, so the pill needs the queue to tell the chair from the
+     * waiting room.
+     */
+    inChair?: boolean;
 };
 
 type Confirming = 'cancel' | 'no-show' | null;
@@ -64,6 +70,7 @@ export function AppointmentDetailSheet({
     onCheckOut,
     onCheckIn,
     onClosed,
+    inChair = false,
 }: AppointmentDetailSheetProps) {
     const [confirming, setConfirming] = useState<Confirming>(null);
 
@@ -131,7 +138,7 @@ export function AppointmentDetailSheet({
             }
         >
             <View style={styles.headline}>
-                <StatusPill status={appointment.status} withDot />
+                <StatusPill status={appointment.status} inChair={inChair} withDot />
                 {appointment.channel === 'walk_in' ? <Tag tone="muted">WALK-IN</Tag> : null}
                 <Text variant="footnote" script="mono" weight="medium" tone="muted">
                     {appointment.ref}
