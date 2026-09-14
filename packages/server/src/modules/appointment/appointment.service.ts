@@ -32,7 +32,7 @@ import { db, type Executor } from '../../db/index.ts';
 import { appointmentProcedures, appointments, patients, procedureTypes } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { buildRef } from '../../util/ref.ts';
-import { dayRange } from '../../util/time.ts';
+import { clinicDayOf, dayRange } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { patientService } from '../patient/patient.service.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
@@ -521,7 +521,10 @@ export const appointmentService = {
                 await reminderService.scheduleFor(tx, appointment, reminderLeadHours);
                 await reminderService.skipFor(tx, appointment.id);
 
-                const visit = await visitService.checkIn({ appointmentId: appointment.id }, tx);
+                const visit = await visitService.checkIn(
+                    { appointmentId: appointment.id, offsetMinutes: input.offsetMinutes },
+                    tx,
+                );
 
                 const [current] = await tx
                     .select()
@@ -622,7 +625,7 @@ export const appointmentService = {
         return row;
     },
 
-    async awaitPayment(id: string): Promise<AppointmentRow> {
+    async awaitPayment(id: string, offsetMinutes = 0): Promise<AppointmentRow> {
         const current = await requireRow(id);
 
         if (!canTransition(current.status, 'awaiting_payment')) {
@@ -647,7 +650,7 @@ export const appointmentService = {
                 .where(and(eq(appointments.id, id), eq(appointments.status, 'checked_in')))
                 .returning();
 
-            if (row) await seatNextInChair(tx, row.branchId, now);
+            if (row) await seatNextInChair(tx, row.branchId, clinicDayOf(row.startsAt, offsetMinutes), now);
             return row;
         });
 

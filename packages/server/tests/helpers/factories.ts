@@ -81,6 +81,17 @@ export function slot(offsetMinutes = 0): string {
     return new Date(at.getTime() + offsetMinutes * 60_000).toISOString();
 }
 
+/**
+ * Today at 00:30 UTC, shifted by `offsetMinutes`. Check-in is refused off the
+ * appointment's own clinic day and `slot()` is tomorrow, so anything a test
+ * checks in is booked here. It may be in the past, which check-in does not mind.
+ */
+export function todaySlot(offsetMinutes = 0): string {
+    const at = new Date();
+    at.setUTCHours(0, 30, 0, 0);
+    return new Date(at.getTime() + offsetMinutes * 60_000).toISOString();
+}
+
 export async function bookedAppointment(startsAt = slot()) {
     const fixtures = await clinic();
     const appointment = await appointmentService.create({
@@ -92,7 +103,7 @@ export async function bookedAppointment(startsAt = slot()) {
     return { ...fixtures, appointment };
 }
 
-export async function checkedInVisit(startsAt = slot()) {
+export async function checkedInVisit(startsAt = todaySlot()) {
     const booked = await bookedAppointment(startsAt);
     const visit = await visitService.checkIn({ appointmentId: booked.appointment.id });
     return { ...booked, visit };

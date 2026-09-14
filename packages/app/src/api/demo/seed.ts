@@ -567,8 +567,8 @@ export function seedDemoDb(): DemoDb {
         },
     ];
 
-    const seated = arrivals.map((arrival) => {
-        const appointment = appointmentHandlers.create({
+    const booked = arrivals.map((arrival) =>
+        appointmentHandlers.create({
             patient: { kind: 'existing', patientId: patient(arrival.patientIndex).id },
             branchId: main.id,
             startsAt: at(arrival.slotMinutes).toISOString(),
@@ -579,10 +579,20 @@ export function seedDemoDb(): DemoDb {
                 tooth: line.tooth ?? null,
             })),
             offsetMinutes: 0,
-        });
+        }),
+    );
 
+    // Check-in is refused off the appointment's own day and the chair is kept to
+    // one day, but a seed run just after midnight books its earlier arrivals onto
+    // yesterday. So while the handlers run every arrival sits on today's clock —
+    // only once all of them are booked, or the overlap rule sees them stacked —
+    // and each slot goes back in the pass below, with the stamps.
+    const checkInAt = new Date();
+    const seated = booked.map((appointment) => {
+        const bookedAt = appointment.startsAt;
+        appointment.startsAt = checkInAt;
         const visit = visitHandlers.checkIn({ appointmentId: appointment.id });
-        return { appointment, visit };
+        return { appointment, visit, bookedAt };
     });
 
     // A second pass, not woven into the first: the desk sends a patient on only
@@ -609,6 +619,7 @@ export function seedDemoDb(): DemoDb {
         // that null is what the chair's bar reads to know they have not started.
         const seatedAt = arrival.seatedMinutesAgo === undefined ? null : at(-arrival.seatedMinutesAgo);
 
+        appointment.startsAt = row.bookedAt;
         visit.checkedInAt = arrivedAt;
         if (seatedAt) visit.inChairAt = seatedAt;
         appointment.updatedAt = seatedAt ?? arrivedAt;

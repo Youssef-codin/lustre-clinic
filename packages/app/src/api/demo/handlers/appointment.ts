@@ -15,7 +15,15 @@ import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, WS_EVENT } from '@lus
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, save } from '../db';
 import { broadcast } from '../events';
-import { assignDefined, buildRef, DemoError, dayRange, resolveProcedureLines, uuidv7 } from '../rules';
+import {
+    assignDefined,
+    buildRef,
+    clinicDayOf,
+    DemoError,
+    dayRange,
+    resolveProcedureLines,
+    uuidv7,
+} from '../rules';
 import type { Dated } from '../wire';
 import { createMinimalPatient, requirePatient } from './patient';
 import { rescheduleReminder, scheduleReminderFor, skipReminderFor } from './reminder';
@@ -334,7 +342,7 @@ export const appointmentHandlers = {
         scheduleReminderFor(appointment, reminderLeadHours);
         skipReminderFor(appointment.id);
 
-        const visit = visitHandlers.checkIn({ appointmentId: appointment.id });
+        const visit = visitHandlers.checkIn({ appointmentId: appointment.id, offsetMinutes });
 
         save();
         broadcast(WS_EVENT.APPOINTMENT_CREATED);
@@ -433,7 +441,9 @@ export const appointmentHandlers = {
 
         current.status = 'awaiting_payment';
         current.updatedAt = now;
-        if (wasInChair) seatNextInChair(current.branchId, now);
+        if (wasInChair) {
+            seatNextInChair(current.branchId, clinicDayOf(current.startsAt, input.offsetMinutes ?? 0), now);
+        }
 
         save();
         broadcast(WS_EVENT.APPOINTMENT_UPDATED);

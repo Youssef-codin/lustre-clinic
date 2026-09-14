@@ -14,6 +14,7 @@ import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
 import { setProceduresInput } from '../src/modules/visit/visit.schema.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
+import { clinicDayOf } from '../src/util/time.ts';
 import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
 import {
     CHECKUP_PRICE,
@@ -23,6 +24,7 @@ import {
     clinic as fixtures,
     ROOT_CANAL_PRICE,
     slot,
+    todaySlot,
 } from './helpers/factories.ts';
 
 /**
@@ -1176,7 +1178,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -1193,7 +1195,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'new', name: 'Walk-up Wael', phone: '01099999999' },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -1221,7 +1223,7 @@ describe('appointment', () => {
                 notes: 'Anxious about the drill.',
             },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -1237,7 +1239,7 @@ describe('appointment', () => {
 
     test('reports an overlap as SLOT_OVERLAP rather than a database error', async () => {
         const { branch, patient } = await fixtures();
-        const startsAt = slot();
+        const startsAt = todaySlot();
 
         await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -1263,7 +1265,7 @@ describe('appointment', () => {
             appointmentService.create({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 durationMinutes: 37,
                 offsetMinutes: 0,
             }),
@@ -1272,7 +1274,7 @@ describe('appointment', () => {
 
     test('the day view embeds the patient', async () => {
         const { branch, patient } = await fixtures();
-        const startsAt = slot();
+        const startsAt = todaySlot();
 
         await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -1293,7 +1295,7 @@ describe('appointment', () => {
 
     test('cancelling frees the slot and skips the reminder', async () => {
         const { branch, patient } = await fixtures();
-        const startsAt = slot();
+        const startsAt = todaySlot();
 
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -1322,7 +1324,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -1388,7 +1390,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         await visitService.checkIn({ appointmentId: appointment.id });
@@ -1402,7 +1404,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
 
@@ -1416,7 +1418,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         await visitService.checkIn({ appointmentId: appointment.id });
@@ -1432,7 +1434,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         await appointmentService.cancel(appointment.id);
@@ -1447,7 +1449,7 @@ describe('appointment', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         await visitService.checkIn({ appointmentId: appointment.id });
@@ -1467,7 +1469,7 @@ describe('appointment', () => {
 
     test('an appointment awaiting payment frees its slot for a new booking', async () => {
         const { branch, patient } = await fixtures();
-        const startsAt = slot();
+        const startsAt = todaySlot();
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
@@ -1509,7 +1511,7 @@ describe('appointment procedures', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
             procedures: [
                 { procedureId: rootCanal.id, quantity: 1 },
@@ -1526,7 +1528,7 @@ describe('appointment procedures', () => {
 
     test('the day view carries each booking its own procedures', async () => {
         const { branch, patient, rootCanal } = await fixtures();
-        const startsAt = slot();
+        const startsAt = todaySlot();
 
         await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -1538,7 +1540,7 @@ describe('appointment procedures', () => {
         await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(60),
+            startsAt: todaySlot(60),
             offsetMinutes: 0,
         });
 
@@ -1557,7 +1559,7 @@ describe('appointment procedures', () => {
             appointmentService.create({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 offsetMinutes: 0,
                 procedures: [{ procedureId: extraction.id, quantity: 1 }],
             }),
@@ -1571,7 +1573,7 @@ describe('appointment procedures', () => {
             appointmentService.create({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 offsetMinutes: 0,
                 procedures: [{ procedureId: rootCanal.id, quantity: 1, tooth: 'UL6' }],
             }),
@@ -1585,7 +1587,7 @@ describe('appointment procedures', () => {
             appointmentService.create({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 offsetMinutes: 0,
                 procedures: [
                     { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
@@ -1597,7 +1599,7 @@ describe('appointment procedures', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
             procedures: [
                 { procedureId: extraction.id, quantity: 1, tooth: 'UL6' },
@@ -1624,7 +1626,7 @@ describe('appointment procedures', () => {
             appointmentService.create({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
-                startsAt: slot(),
+                startsAt: todaySlot(),
                 offsetMinutes: 0,
                 procedures: [{ procedureId: category.id, quantity: 1 }],
             }),
@@ -1637,7 +1639,7 @@ describe('appointment procedures', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
             procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
@@ -1664,7 +1666,7 @@ describe('appointment procedures', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
             procedures: [
                 { procedureId: rootCanal.id, quantity: 1 },
@@ -1697,7 +1699,7 @@ describe('appointment procedures', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
             procedures: [{ procedureId: checkup.id, quantity: 1 }],
         });
@@ -1781,7 +1783,7 @@ describe('visit', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
@@ -1803,6 +1805,47 @@ describe('visit', () => {
         await expectAppError(ERROR_CODE.INVALID_STATUS_TRANSITION, () =>
             visitService.checkIn({ appointmentId: appointment.id }),
         );
+    });
+
+    test('refuses a check-in for an appointment on another day, and writes nothing', async () => {
+        const f = await fixtures();
+        const tomorrow = await appointmentService.create({
+            patient: { kind: 'existing', patientId: f.patient.id },
+            branchId: f.branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+
+        await expectAppError(ERROR_CODE.CHECK_IN_NOT_TODAY, () =>
+            visitService.checkIn({ appointmentId: tomorrow.id, offsetMinutes: 0 }),
+        );
+
+        expect((await appointmentService.byId(tomorrow.id)).status).toBe('booked');
+        expect(await visitService.byAppointment(tomorrow.id)).toBeNull();
+    });
+
+    test("today is the clinic's day, not the server's", async () => {
+        const f = await fixtures();
+        const offsetMinutes = 180;
+        const { from } = clinicDayOf(new Date(), offsetMinutes);
+
+        const book = (at: number) =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: f.patient.id },
+                branchId: f.branch.id,
+                startsAt: new Date(at).toISOString(),
+                offsetMinutes,
+            });
+
+        // Half an hour either side of the clinic's midnight.
+        const lastNight = await book(from.getTime() - 30 * 60_000);
+        const thisMorning = await book(from.getTime() + 30 * 60_000);
+
+        await expectAppError(ERROR_CODE.CHECK_IN_NOT_TODAY, () =>
+            visitService.checkIn({ appointmentId: lastNight.id, offsetMinutes }),
+        );
+        const visit = await visitService.checkIn({ appointmentId: thisMorning.id, offsetMinutes });
+        expect(visit.appointmentId).toBe(thisMorning.id);
     });
 
     test('adding a procedure waives the checkup', async () => {
@@ -2263,7 +2306,7 @@ describe('balance', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
@@ -2366,7 +2409,7 @@ describe('stats', () => {
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
-            startsAt: slot(),
+            startsAt: todaySlot(),
             offsetMinutes: 0,
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });

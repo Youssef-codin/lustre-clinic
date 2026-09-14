@@ -30,6 +30,12 @@ export function dayRange(date: string, offsetMinutes = 0): { from: Date; to: Dat
     return { from, to };
 }
 
+/** The clinic day a moment falls on, as the same half-open range `dayRange` returns. */
+export function clinicDayOf(at: Date, offsetMinutes = 0): { from: Date; to: Date } {
+    const key = new Date(at.getTime() + offsetMinutes * 60_000).toISOString().slice(0, 10);
+    return dayRange(key, offsetMinutes);
+}
+
 export function refDatePart(at: Date, offsetMinutes = 0): string {
     const local = new Date(at.getTime() + offsetMinutes * 60_000);
     const dd = String(local.getUTCDate()).padStart(2, '0');

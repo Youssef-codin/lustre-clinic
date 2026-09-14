@@ -5,7 +5,7 @@ import { balanceService } from '../src/modules/balance/balance.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll, uuid } from './helpers/db.ts';
-import { expectAppError, clinic as fixtures, slot } from './helpers/factories.ts';
+import { expectAppError, clinic as fixtures, todaySlot } from './helpers/factories.ts';
 
 /**
  * The three period figures the money dashboard draws that `summary` did not
@@ -24,7 +24,7 @@ function isoDate(at: Date): string {
     return at.toISOString().slice(0, 10);
 }
 
-/** Today through tomorrow, which contains `slot()` — tomorrow at 09:00 UTC. */
+/** Today through tomorrow, which contains `todaySlot()` — tomorrow at 09:00 UTC. */
 function thisPeriod() {
     return {
         from: isoDate(new Date()),
@@ -79,11 +79,11 @@ beforeEach(async () => {
 const KAREEM = { oldest: 585_000, middle: 20_000, newest: 350_000 };
 const KAREEM_OWES = KAREEM.oldest + KAREEM.middle + KAREEM.newest;
 
-/** Three unsettled visits, oldest first — `slot(n)` is tomorrow 09:00 plus n minutes. */
+/** Three unsettled visits, oldest first — `todaySlot(n)` is tomorrow 09:00 plus n minutes. */
 async function threeDebts(patientId: string, branchId: string) {
-    const oldest = await checkedOut(patientId, branchId, slot(), KAREEM.oldest, 0);
-    const middle = await checkedOut(patientId, branchId, slot(60), KAREEM.middle, 0);
-    const newest = await checkedOut(patientId, branchId, slot(120), KAREEM.newest, 0);
+    const oldest = await checkedOut(patientId, branchId, todaySlot(), KAREEM.oldest, 0);
+    const middle = await checkedOut(patientId, branchId, todaySlot(60), KAREEM.middle, 0);
+    const newest = await checkedOut(patientId, branchId, todaySlot(120), KAREEM.newest, 0);
     return { oldest, middle, newest };
 }
 
@@ -159,12 +159,12 @@ describe('balance.settle — allocation', () => {
      */
     test('allocates against an opening balance before this clinic’s own work', async () => {
         const f = await fixtures();
-        const carried = await checkedOut(f.patient.id, f.branch.id, slot(), 400_000, 0);
+        const carried = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 400_000, 0);
         await sql`
             UPDATE appointments SET is_opening_balance = true
             WHERE id = (SELECT appointment_id FROM visits WHERE id = ${carried.id})
         `;
-        const recent = await checkedOut(f.patient.id, f.branch.id, slot(60), 100_000, 0);
+        const recent = await checkedOut(f.patient.id, f.branch.id, todaySlot(60), 100_000, 0);
 
         const report = await balanceService.settle({
             patientId: f.patient.id,
@@ -196,7 +196,7 @@ describe('balance.settle — what it refuses', () => {
 
     test('refuses a patient who owes nothing', async () => {
         const f = await fixtures();
-        await checkedOut(f.patient.id, f.branch.id, slot(), 100_000, 100_000);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(), 100_000, 100_000);
 
         await expectAppError(ERROR_CODE.NOTHING_OUTSTANDING, () =>
             balanceService.settle({ patientId: f.patient.id, amount: 10_000, method: 'cash' }),
@@ -350,9 +350,9 @@ describe('balance.settle — the rows it writes are ordinary payments', () => {
 
     test('a slice against an older visit counts as older money collected', async () => {
         const f = await fixtures();
-        const old = await checkedOut(f.patient.id, f.branch.id, slot(), 200_000, 0);
+        const old = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 200_000, 0);
         await backdate(old.id, 30);
-        await checkedOut(f.patient.id, f.branch.id, slot(60), 100_000, 0);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(60), 100_000, 0);
 
         await balanceService.settle({ patientId: f.patient.id, amount: 250_000, method: 'cash' });
 
@@ -373,9 +373,9 @@ describe('balance.summary — duePatients', () => {
             custom: {},
         });
 
-        await checkedOut(f.patient.id, f.branch.id, slot(), 100_000, 0);
-        await checkedOut(f.patient.id, f.branch.id, slot(60), 50_000, 0);
-        await checkedOut(second.id, f.branch.id, slot(120), 40_000, 0);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(), 100_000, 0);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(60), 50_000, 0);
+        await checkedOut(second.id, f.branch.id, todaySlot(120), 40_000, 0);
 
         const summary = await balanceService.summary(thisPeriod());
 
@@ -384,7 +384,7 @@ describe('balance.summary — duePatients', () => {
 
     test('a patient who paid in full is not due', async () => {
         const f = await fixtures();
-        await checkedOut(f.patient.id, f.branch.id, slot(), 100_000, 100_000);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(), 100_000, 100_000);
 
         const summary = await balanceService.summary(thisPeriod());
 
@@ -397,11 +397,11 @@ describe('balance.summary — older visits', () => {
     test('collects money paid in the period against a visit charged before it', async () => {
         const f = await fixtures();
 
-        const old = await checkedOut(f.patient.id, f.branch.id, slot(), 200_000, 0);
+        const old = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 200_000, 0);
         await backdate(old.id, 30);
         await visitService.recordPayment({ visitId: old.id, amount: 80_000, method: 'cash' });
 
-        await checkedOut(f.patient.id, f.branch.id, slot(60), 100_000, 25_000);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(60), 100_000, 25_000);
 
         const summary = await balanceService.summary(thisPeriod());
 
@@ -414,11 +414,11 @@ describe('balance.summary — older visits', () => {
     test('diverges from collected minus charged, which is why it is a join', async () => {
         const f = await fixtures();
 
-        const old = await checkedOut(f.patient.id, f.branch.id, slot(), 200_000, 0);
+        const old = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 200_000, 0);
         await backdate(old.id, 30);
         await visitService.recordPayment({ visitId: old.id, amount: 80_000, method: 'cash' });
 
-        await checkedOut(f.patient.id, f.branch.id, slot(60), 100_000, 25_000);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(60), 100_000, 25_000);
 
         const summary = await balanceService.summary(thisPeriod());
 
@@ -429,7 +429,7 @@ describe('balance.summary — older visits', () => {
     test('one visit paid twice in the period is one older visit', async () => {
         const f = await fixtures();
 
-        const old = await checkedOut(f.patient.id, f.branch.id, slot(), 200_000, 0);
+        const old = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 200_000, 0);
         await backdate(old.id, 30);
         await visitService.recordPayment({ visitId: old.id, amount: 40_000, method: 'cash' });
         await visitService.recordPayment({ visitId: old.id, amount: 30_000, method: 'visa' });
@@ -442,7 +442,7 @@ describe('balance.summary — older visits', () => {
 
     test("this period's own work is not older", async () => {
         const f = await fixtures();
-        await checkedOut(f.patient.id, f.branch.id, slot(), 100_000, 40_000);
+        await checkedOut(f.patient.id, f.branch.id, todaySlot(), 100_000, 40_000);
 
         const summary = await balanceService.summary(thisPeriod());
 
@@ -467,7 +467,7 @@ describe('a range that crosses a DST changeover', () => {
 
     async function payAt(paidAt: string, amount: number) {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 1_000_000, 0);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 1_000_000, 0);
         await sql`
             INSERT INTO payments (id, visit_id, amount, method, paid_at)
             VALUES (${uuid()}, ${visit.id}, ${amount}, 'cash', ${paidAt}::timestamptz)
@@ -526,7 +526,7 @@ describe('a range that crosses a DST changeover', () => {
 describe('balance.takings', () => {
     test('splits what was collected by method, largest first', async () => {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 500_000, 0);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 500_000, 0);
 
         await visitService.recordPayment({ visitId: visit.id, amount: 100_000, method: 'cash' });
         await visitService.recordPayment({ visitId: visit.id, amount: 60_000, method: 'cash' });
@@ -543,7 +543,7 @@ describe('balance.takings', () => {
 
     test('a method nobody used is absent, not a zero row', async () => {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 100_000, 0);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 100_000, 0);
         await visitService.recordPayment({ visitId: visit.id, amount: 20_000, method: 'instapay' });
 
         const takings = await balanceService.takings(thisPeriod());
@@ -553,7 +553,7 @@ describe('balance.takings', () => {
 
     test('totals the same money as summary.collected', async () => {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 300_000, 50_000);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 300_000, 50_000);
         await visitService.recordPayment({
             visitId: visit.id,
             amount: 70_000,
@@ -586,7 +586,7 @@ describe('balance.takings', () => {
      */
     test('reports a method that refunded more than it took as negative', async () => {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 300_000, 0);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 300_000, 0);
 
         await visitService.recordPayment({ visitId: visit.id, amount: 200_000, method: 'cash' });
         await visitService.recordPayment({ visitId: visit.id, amount: 40_000, method: 'visa' });
@@ -612,7 +612,7 @@ describe('balance.takings', () => {
      */
     test('sums past the 32-bit ceiling instead of throwing', async () => {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 1_000_000, 0);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 1_000_000, 0);
 
         const each = 1_000_000_000;
         for (let i = 0; i < 3; i++) {
@@ -635,8 +635,8 @@ describe('balance.takings', () => {
 
     test('carries an outstanding balance past the same ceiling', async () => {
         const f = await fixtures();
-        const first = await checkedOut(f.patient.id, f.branch.id, slot(), 1_000_000, 0);
-        const second = await checkedOut(f.patient.id, f.branch.id, slot(60), 1_000_000, 0);
+        const first = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 1_000_000, 0);
+        const second = await checkedOut(f.patient.id, f.branch.id, todaySlot(60), 1_000_000, 0);
 
         const each = 2_000_000_000;
         await sql`UPDATE visits SET charged_total = ${each} WHERE id IN (${first.id}, ${second.id})`;
@@ -650,7 +650,7 @@ describe('balance.takings', () => {
 
     test('can net to zero with real movements on it', async () => {
         const f = await fixtures();
-        const visit = await checkedOut(f.patient.id, f.branch.id, slot(), 300_000, 0);
+        const visit = await checkedOut(f.patient.id, f.branch.id, todaySlot(), 300_000, 0);
 
         await visitService.recordPayment({ visitId: visit.id, amount: 100_000, method: 'cash' });
         await visitService.setPaid({ visitId: visit.id, paidTotal: 0, method: 'cash' });
