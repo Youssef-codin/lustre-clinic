@@ -22,8 +22,11 @@ mock.module('@react-native-async-storage/async-storage', () => ({
 
 mock.module('expo-constants', () => ({ default: { expoConfig: { extra: { demo: false } } } }));
 
-// `./flag`, not the demo barrel: the barrel reaches `api/config.ts`, which reads
-// React Native's `__DEV__` at import and throws under `bun test`.
+// `api/config.ts` reads React Native's `__DEV__` at import, which `bun test` does
+// not define. The flag only needs the build variant from it, and a dev build is
+// one that allows the demo.
+mock.module('../config', () => ({ BUILD_VARIANT: 'dev' }));
+
 const demo = await import('./flag');
 
 beforeEach(() => {
