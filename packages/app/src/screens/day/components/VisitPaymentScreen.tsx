@@ -46,6 +46,12 @@ export type VisitPaymentScreenProps = {
     onBack: () => void;
     /** The visit is closed; the day view takes it from here. */
     onClosed: (message: string) => void;
+    /**
+     * The money is being written. The caller holds the hardware back for the
+     * span, because a correction is two writes and leaving between them strands
+     * a reopened visit.
+     */
+    onWritingChange?: (writing: boolean) => void;
 };
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -77,6 +83,7 @@ export function VisitPaymentScreen({
     correcting = false,
     onBack,
     onClosed,
+    onWritingChange,
 }: VisitPaymentScreenProps) {
     const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
@@ -167,6 +174,8 @@ export function VisitPaymentScreen({
      * there is none — so the checkout that follows takes no payment of its own.
      */
     function confirm() {
+        if (checkOut.pending || setPaidTotal.pending) return;
+        onWritingChange?.(true);
         if (!correcting) {
             close(paidPiastres);
             return;
@@ -179,7 +188,7 @@ export function VisitPaymentScreen({
                 method,
                 methodNote: method === 'other' ? methodNote.trim() : null,
             },
-            { onSuccess: () => close(0) },
+            { onSuccess: () => close(0), onError: () => onWritingChange?.(false) },
         );
     }
 
@@ -195,7 +204,9 @@ export function VisitPaymentScreen({
                 methodNote: method === 'other' ? methodNote.trim() : null,
             },
             {
+                onError: () => onWritingChange?.(false),
                 onSuccess: (closed) => {
+                    onWritingChange?.(false);
                     if (correcting) {
                         setDone({
                             tone: closed.balance > 0 ? 'owing' : 'settled',

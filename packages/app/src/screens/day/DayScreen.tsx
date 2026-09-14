@@ -152,6 +152,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * over the day.
      */
     const [registering, setRegistering] = useState(false);
+    /** The payment page, mid-write. Back is held for the same reason as above. */
+    const [paying, setPaying] = useState(false);
     const [seenOpen, setSeenOpen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
@@ -215,7 +217,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * The schedule is the root, so a press with nothing pushed goes on to the
      * shell — which on the day tab means leaving the app.
      */
-    const routes = useRouteStack<Route>({ locked: registering });
+    const routes = useRouteStack<Route>({ locked: registering || paying });
 
     // Both derived during render rather than in an effect, so the page is on
     // screen in the same commit as the tab switch and the pane never paints the
@@ -234,7 +236,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // the editor mid-save leaves `onSaved` to land on whatever is on top by
     // then, replacing a route it was never opened over. `seenHome` is left
     // alone so the tap is answered as soon as the save finishes.
-    if (goHome !== seenHome && !registering) {
+    if (goHome !== seenHome && !registering && !paying) {
         setSeenHome(goHome);
         setTab('day');
         routes.popToRoot();
@@ -935,6 +937,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             // is being corrected, not collected for the first
                             // time.
                             correcting={visit.standing === 'finished'}
+                            onWritingChange={setPaying}
                             onBack={routes.pop}
                             onClosed={(message) => {
                                 routes.popToRoot();

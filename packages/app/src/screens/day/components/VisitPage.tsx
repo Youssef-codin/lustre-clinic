@@ -43,6 +43,8 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: 
     const [edited, setEdited] = useState<Visit | null>(null);
     // A payment corrected without the editor writes too, and never sets `edited`.
     const paid = useRef(false);
+    // The payment page, mid-write: the hardware back is held until it lands.
+    const [paying, setPaying] = useState(false);
     const recordsProcedures = canRecordProcedures(role, useProcedureRecorder());
 
     const appointment = useLocalQuery(`appointment:${appointmentId}`, () =>
@@ -86,6 +88,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: 
      * own Back button does.
      */
     const routes = useRouteStack<Route>({
+        locked: paying,
         atRoot: () => {
             close();
             return true;
@@ -166,6 +169,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: 
                             // Always: this page only ever reaches the money by
                             // way of reopening a visit that was checked out.
                             correcting
+                            onWritingChange={setPaying}
                             onBack={routes.pop}
                             // `close` rather than the two calls it makes: the
                             // money is only reached by way of a confirm, which
