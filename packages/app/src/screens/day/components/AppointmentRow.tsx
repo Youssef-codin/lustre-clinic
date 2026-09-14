@@ -20,9 +20,16 @@ export type AppointmentRowProps = {
      * it — the booked time is what the patient was told on the phone.
      */
     projectedMinutes?: number | null;
+    /** Whether this `checked_in` patient heads the arrival queue; everyone behind them reads Waiting. */
+    inChair?: boolean;
 };
 
-export function AppointmentRow({ appointment, onPress, projectedMinutes = null }: AppointmentRowProps) {
+export function AppointmentRow({
+    appointment,
+    onPress,
+    projectedMinutes = null,
+    inChair = false,
+}: AppointmentRowProps) {
     const past = appointment.status === 'done' || appointment.status === 'cancelled';
     const booked = minutesOfDay(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > booked;
@@ -50,7 +57,7 @@ export function AppointmentRow({ appointment, onPress, projectedMinutes = null }
                     <Text variant="subhead" tone="muted">
                         {appointment.durationMinutes} min
                     </Text>
-                    <StatusPill status={appointment.status} />
+                    <StatusPill status={appointment.status} inChair={inChair} />
                 </View>
             </View>
 

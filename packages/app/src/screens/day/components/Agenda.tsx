@@ -145,7 +145,7 @@ function RowBody({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${time} ${meridiem}, ${appointment.patient.name}, ${statusLabel(appointment.status)}`}
+            accessibilityLabel={`${time} ${meridiem}, ${appointment.patient.name}, ${statusLabel(appointment.status, inChair)}`}
             onPress={onPress}
             style={({ pressed }) => [
                 styles.row,
@@ -311,8 +311,12 @@ export function UpNext({
                                 onCheckIn={onCheckIn}
                             />
                         ) : (
-                            <Text variant="footnote" weight="semibold" tone={statusTone(appointment.status)}>
-                                {statusLabel(appointment.status)}
+                            <Text
+                                variant="footnote"
+                                weight="semibold"
+                                tone={statusTone(appointment.status, appointment.id === chairId)}
+                            >
+                                {statusLabel(appointment.status, appointment.id === chairId)}
                             </Text>
                         )
                     }

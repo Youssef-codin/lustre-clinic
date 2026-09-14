@@ -447,6 +447,76 @@ describe('the refusals a demo runs into', () => {
     });
 });
 
+describe('moving an appointment', () => {
+    function fixtures() {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        const procedure = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
+        if (!branch || !patient || !procedure) throw new Error('the seed is missing its fixtures');
+        return { db, branch, patient, procedure };
+    }
+
+    it('keeps the ref, plan and note, and takes the reminder with it', () => {
+        const { db, branch, patient, procedure } = fixtures();
+        const { reminderLeadHours } = settingsHandlers.get();
+        const startsAt = new Date(Date.now() + 12 * 24 * 3_600_000);
+
+        const booked = appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: startsAt.toISOString(),
+            durationMinutes: 30,
+            procedures: [{ procedureId: procedure.id }],
+            note: 'Sensitive on the left',
+            offsetMinutes: 0,
+        });
+        const ref = booked.ref;
+        expect(db.reminders.some((row) => row.appointmentId === booked.id)).toBe(true);
+
+        // Into its own span: the row does not clash with itself.
+        const later = new Date(startsAt.getTime() + 15 * 60_000);
+        const moved = appointmentHandlers.update({ id: booked.id, startsAt: later.toISOString() });
+
+        expect(moved.id).toBe(booked.id);
+        expect(moved.startsAt.getTime()).toBe(later.getTime());
+        expect(moved.ref).toBe(ref);
+        expect(moved.note).toBe('Sensitive on the left');
+        expect(moved.status).toBe('booked');
+        expect(
+            db.appointmentProcedures
+                .filter((line) => line.appointmentId === booked.id)
+                .map((line) => line.procedureId),
+        ).toEqual([procedure.id]);
+
+        const reminder = db.reminders.find((row) => row.appointmentId === booked.id);
+        expect(reminder?.dueAt.getTime()).toBe(later.getTime() - reminderLeadHours * 3_600_000);
+    });
+
+    it('refuses a move onto another booking with SLOT_OVERLAP', () => {
+        const { branch, patient } = fixtures();
+        const startsAt = new Date(Date.now() + 13 * 24 * 3_600_000);
+        const book = (at: Date) =>
+            appointmentHandlers.create({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+                startsAt: at.toISOString(),
+                durationMinutes: 30,
+                offsetMinutes: 0,
+            });
+
+        book(startsAt);
+        const second = book(new Date(startsAt.getTime() + 60 * 60_000));
+
+        try {
+            appointmentHandlers.update({ id: second.id, startsAt: startsAt.toISOString() });
+            throw new Error('the move was not refused');
+        } catch (error) {
+            expect((error as InstanceType<typeof DemoError>).code).toBe('SLOT_OVERLAP');
+        }
+    });
+});
+
 describe('the dispatch table', () => {
     it('answers every procedure the app can call', () => {
         // A spot check that the table is wired to real functions rather than a

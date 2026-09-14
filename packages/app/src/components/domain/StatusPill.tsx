@@ -17,17 +17,26 @@
  * is accent rather than `live`, which disappears on white.
  *
  * `statusLabel` and `statusTone` are the same mapping without the markup, for
- * an accessibility string or a row that only has room for a word.
+ * an accessibility string or a row that only has room for a word. They live in
+ * `./status` so the choice can be tested without React Native.
+ *
+ * `inChair` is the queue's answer (`screens/day/chair.ts`). `checked_in` covers
+ * the chair and the waiting room alike, so a pill that knows the queue says
+ * Waiting for everyone behind the head, in the day view's colour for it.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { space } from '../../theme';
 import { Dot, Tag } from '../ui';
+import { statusLabel, statusTone } from './status';
 
-export type StatusTone = 'muted' | 'accent' | 'due' | 'success';
+export type { StatusTone } from './status';
+export { statusLabel, statusTone } from './status';
 
 export type StatusPillProps = {
     status: AppointmentStatus;
+    /** Whether this `checked_in` patient heads the queue. Left out, the pill cannot tell. */
+    inChair?: boolean;
     label?: string;
     withDot?: boolean;
     /** Off for a long list, where a dot per row animates once per row. */
@@ -35,41 +44,22 @@ export type StatusPillProps = {
     testID?: string;
 };
 
-const LABEL: Record<AppointmentStatus, string> = {
-    booked: 'Booked',
-    checked_in: 'In the chair',
-    awaiting_payment: 'At the desk',
-    done: 'Done',
-    cancelled: 'Cancelled',
-    no_show: 'No-show',
-};
-
-const TONE = {
-    booked: 'muted',
-    checked_in: 'accent',
-    awaiting_payment: 'due',
-    done: 'success',
-    cancelled: 'muted',
-    no_show: 'due',
-} as const satisfies Record<AppointmentStatus, StatusTone>;
-
-export function statusLabel(status: AppointmentStatus): string {
-    return LABEL[status];
-}
-
-/** The pill's colour without the pill, for rows that only have room for a word. */
-export function statusTone(status: AppointmentStatus): StatusTone {
-    return TONE[status];
-}
-
-export function StatusPill({ status, label, withDot = false, animated = true, testID }: StatusPillProps) {
-    const tone = TONE[status];
+export function StatusPill({
+    status,
+    inChair,
+    label,
+    withDot = false,
+    animated = true,
+    testID,
+}: StatusPillProps) {
+    const tone = statusTone(status, inChair);
+    const seated = status === 'checked_in' && inChair !== false;
 
     return (
         <View style={styles.row} testID={testID}>
             {withDot ? <Dot tone={tone} pulse={animated && status === 'checked_in'} /> : null}
-            <Tag tone={tone} variant={status === 'checked_in' ? 'filled' : 'outline'}>
-                {label ?? LABEL[status]}
+            <Tag tone={tone} variant={seated ? 'filled' : 'outline'}>
+                {label ?? statusLabel(status, inChair)}
             </Tag>
         </View>
     );

@@ -44,13 +44,14 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { border, color, radius, size, space, Text } from '../../theme';
+import { dateKey, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
 import { EditIcon } from './components/icons';
 import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
-import { patientsApi } from './data/api';
+import { chairToday, patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
 import type {
@@ -102,11 +103,25 @@ export function PatientRecordScreen({
     const patient = record.data?.patient;
     const history = record.data?.history ?? [];
 
+    // A patient checked in today is either in the chair or in the queue behind
+    // it, and only the day's queue can say which. Asked only when there is
+    // such a row: a record opened for anyone else costs no extra read.
+    const today = todayKey();
+    const arrived = history.find(
+        (entry) => entry.status === 'checked_in' && dateKey(new Date(entry.startsAt)) === today,
+    );
+    const chair = useQuery(
+        ['chair', today, arrived?.appointmentId ?? 'none'],
+        () => (arrived ? chairToday(arrived.appointmentId) : Promise.resolve(null)),
+        { enabled: arrived !== undefined },
+    );
+
     // The record is one payload, so a pull is one round trip — plus the
     // question list, which is what decides whether an answer is a gap.
     const pull = usePullToRefresh(() => {
         record.refetch();
         questions.refetch();
+        if (arrived) chair.refetch();
     }, record.loading || questions.loading);
 
     const edit = onEdit ?? (() => setToast('Editing a patient is not wired up from here yet.'));
@@ -191,7 +206,14 @@ export function PatientRecordScreen({
                     </View>
 
                     {tab === 'visits' ? (
-                        <History history={history} onOpenVisit={onOpenVisit} />
+                        <History
+                            history={history}
+                            // With no row checked in today there is nobody to
+                            // place, so that is known. With one, the chair is
+                            // unknown until the queue read succeeds.
+                            chairId={arrived ? chair.data : null}
+                            onOpenVisit={onOpenVisit}
+                        />
                     ) : (
                         <Details
                             answers={patient.custom}
@@ -385,9 +407,15 @@ function Pill({ label, onPress, testID }: { label: string; onPress: () => void; 
  */
 function History({
     history,
+    chairId,
     onOpenVisit,
 }: {
     history: PatientHistoryEntry[];
+    /**
+     * The appointment in the chair today, when this patient has one checked in.
+     * `undefined` while the queue has not been read, or could not be.
+     */
+    chairId: string | null | undefined;
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 }) {
     const years = useMemo(() => groupByYear(history), [history]);
@@ -429,7 +457,12 @@ function History({
                         </Text>
                     </View>
                     {rows.map((entry) => (
-                        <HistoryRow key={entry.appointmentId} entry={entry} onOpen={onOpenVisit} />
+                        <HistoryRow
+                            key={entry.appointmentId}
+                            entry={entry}
+                            inChair={chairId === undefined ? undefined : entry.appointmentId === chairId}
+                            onOpen={onOpenVisit}
+                        />
                     ))}
                 </View>
             ))}

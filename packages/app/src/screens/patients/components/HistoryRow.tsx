@@ -29,12 +29,19 @@
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { MoneyValue } from '../../../components/domain';
+import { MoneyValue, statusLabel } from '../../../components/domain';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
 
 export type HistoryRowProps = {
     entry: PatientHistoryEntry;
+    /**
+     * Whether this `checked_in` row heads today's arrival queue. The status is
+     * the same for the chair and the waiting room, so only the queue can say
+     * which. Absent means the queue is not known — still loading, or the read
+     * failed — and the row says Checked in rather than guess either way.
+     */
+    inChair?: boolean;
     /** Absent on a row with no visit behind it — there is nothing to open. */
     onOpen?: (entry: PatientHistoryEntry) => void;
 };
@@ -47,17 +54,23 @@ type Tone = 'ink' | 'success' | 'due' | 'muted';
 // turned up. `booked` is a future appointment sitting in the same list.
 const STATUS: Record<AppointmentStatus, { label: string; tone: Tone }> = {
     booked: { label: 'Booked', tone: 'muted' },
-    checked_in: { label: 'In the chair', tone: 'ink' },
+    checked_in: { label: statusLabel('checked_in', false), tone: 'due' },
     awaiting_payment: { label: 'At the desk', tone: 'ink' },
     done: { label: 'Came', tone: 'success' },
     cancelled: { label: 'Cancelled', tone: 'muted' },
     no_show: { label: 'No-show', tone: 'due' },
 };
 
+/** `checked_in` at the head of the queue. Everyone behind it is `STATUS.checked_in`. */
+const IN_CHAIR: { label: string; tone: Tone } = { label: statusLabel('checked_in', true), tone: 'ink' };
+
+/** `checked_in` with no queue to read: arrived, and nothing claimed about the chair. */
+const CHECKED_IN: { label: string; tone: Tone } = { label: 'Checked in', tone: 'ink' };
+
 /** Not a status the schema has — the row is `done`, and what happened is that nothing did. */
 const CARRIED_OVER: { label: string; tone: Tone } = { label: 'Carried over', tone: 'muted' };
 
-export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
+export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const { day, month } = stamp(entry.startsAt);
     const carried = entry.isOpeningBalance;
     // Debt carried over from the old system has a visit behind it, because that
@@ -65,7 +78,13 @@ export function HistoryRow({ entry, onOpen }: HistoryRowProps) {
     // so it says what it is instead of borrowing the words for a visit. `Came`
     // under a `done` status on a day the clinic never saw them is the record
     // telling the desk something that did not happen.
-    const status = carried ? CARRIED_OVER : STATUS[entry.status];
+    const status = carried
+        ? CARRIED_OVER
+        : entry.status === 'checked_in' && inChair === undefined
+          ? CHECKED_IN
+          : entry.status === 'checked_in' && inChair
+            ? IN_CHAIR
+            : STATUS[entry.status];
     const came = entry.visitId !== null;
     const due = entry.balance > 0;
 

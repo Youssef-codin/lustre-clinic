@@ -20,15 +20,30 @@
  * written until the last step's button. The clinic PC is across Tailscale, so a
  * refusal lands above that button in the words of what was being attempted
  * (§4/§14) — never a toast that slides away while the patient is standing there.
+ *
+ * Rescheduling is this page too (`rescheduling`). A patient who rings to move
+ * used to be cancelled and booked again, which lost the ref, the plan and the
+ * note and wrote a cancellation into their history. A move skips Procedures —
+ * what they are booked for does not change — opens When on the appointment's
+ * own day, branch and length, and its button calls `appointment.update` with
+ * the new start. The reminder moves with it on the server.
  */
 import { type ReactNode, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea, useKeyboardHeight } from '../../../components/ui';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { dayLabel, daysOffered, fortnightSlots, settleBookingDay, slotIsFree, timeLabel } from '../booking';
+import {
+    dayLabel,
+    daysOffered,
+    fortnightSlots,
+    settleBookingDay,
+    slotIsFree,
+    timeLabel,
+    withoutAppointment,
+} from '../booking';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from '../calendar';
-import { api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
+import { type Appointment, api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
@@ -36,8 +51,10 @@ import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '
 import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import {
     addDays,
+    dateKey as dayKeyOf,
     isoAt,
     localOffsetMinutes,
+    minutesOfDay,
     monthShort,
     offsetForDate,
     parseKey,
@@ -47,6 +64,7 @@ import {
 } from '../time';
 import { CalendarSheet } from './CalendarSheet';
 import { CalendarIcon, CheckIcon, DurationIcon, PatientIcon, PinIcon } from './icons';
+import { PlanSummary } from './PlanSummary';
 import { ProcedurePlan } from './ProcedurePlan';
 import { SlotPicker } from './SlotPicker';
 
@@ -61,6 +79,12 @@ export type BookingScreenProps = {
      * FAB wants.
      */
     timing?: Timing;
+    /**
+     * The appointment being moved, when this is a reschedule and not a new
+     * booking. `patient`, `branchId` and `defaultDuration` are expected to be
+     * its own; the day it opens on is its own too, whatever `dateKey` says.
+     */
+    rescheduling?: Appointment;
     branchId: string | null;
     branches: readonly Branch[];
     schedule: readonly ClinicDay[] | undefined;
@@ -92,9 +116,13 @@ const STEPS: { key: Step; label: string }[] = [
     { key: 'confirm', label: 'Confirm' },
 ];
 
+/** A move keeps what the booking is for, so only the last two questions are asked. */
+const MOVE_STEPS = STEPS.filter((step) => step.key !== 'what');
+
 export function BookingScreen({
     patient,
     timing: asked,
+    rescheduling,
     branchId,
     branches,
     schedule,
@@ -109,10 +137,13 @@ export function BookingScreen({
 
     const [index, setIndex] = useState(0);
     const [plan, setPlan] = useState<PlannedProcedure[]>([]);
+    // A move opens on the day the appointment already has, not the day behind.
+    const movingFrom = rescheduling ? dayKeyOf(new Date(rescheduling.startsAt)) : null;
+    const openOn = movingFrom ?? dateKey;
     const [timing, setTiming] = useState<Timing>(
         asked ?? (!isClosed(today, schedule, branchId) && dateKey === today ? 'now' : 'later'),
     );
-    const [date, setDate] = useState(dateKey < today ? today : dateKey);
+    const [date, setDate] = useState(openOn < today ? today : openOn);
     /**
      * A day past the strip's window, asked for by name — seeded from the day
      * the screen behind was on, and replaced whenever the calendar answers.
@@ -123,7 +154,7 @@ export function BookingScreen({
      * was the tile at the top quietly reading today.
      */
     const [farDay, setFarDay] = useState<string | null>(
-        dateKey > addDays(today, STRIP_DAYS - 1) ? dateKey : null,
+        openOn > addDays(today, STRIP_DAYS - 1) ? openOn : null,
     );
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [slotMinutes, setSlotMinutes] = useState<number | null>(null);
@@ -146,15 +177,32 @@ export function BookingScreen({
 
     const walkIn = useLocalMutation(api.walkIn);
     const create = useLocalMutation(api.create);
+    const move = useLocalMutation(api.reschedule);
 
-    const step = STEPS[index]?.key ?? 'confirm';
+    const steps = rescheduling ? MOVE_STEPS : STEPS;
+    const step = steps[index]?.key ?? 'confirm';
     // Picking a branch that is not working today takes the walk-in away under
     // the choice already made, so "now" falls back to a time rather than
     // leaving a booking with no when at all.
-    const scheduled = timing === 'later' || !canWalkIn;
-    const pending = walkIn.pending || create.pending;
-    const error = scheduled ? create.error : walkIn.error;
-    const failure = error ? describeError(error, scheduled ? 'booking' : 'walk-in') : null;
+    // A move is always to a time: a walk-in is a new arrival, not this booking.
+    const scheduled = rescheduling !== undefined || timing === 'later' || !canWalkIn;
+    const pending = walkIn.pending || create.pending || move.pending;
+    const error = rescheduling ? move.error : scheduled ? create.error : walkIn.error;
+    const failure = error
+        ? describeError(error, rescheduling ? 'move' : scheduled ? 'booking' : 'walk-in')
+        : null;
+
+    // The length it was booked for stays offered even if Settings has since
+    // dropped it: a move that only changes the time must not force a new length.
+    const lengths =
+        rescheduling && !durationOptions.includes(rescheduling.durationMinutes)
+            ? [...durationOptions, rescheduling.durationMinutes].sort((a, b) => a - b)
+            : durationOptions;
+    const wasLabel =
+        rescheduling && movingFrom
+            ? `${dayLabel(movingFrom)} · ${timeLabel(minutesOfDay(rescheduling.startsAt))}`
+            : null;
+    const noteShown = rescheduling ? (rescheduling.note ?? '') : note;
 
     const ref = patientRefOf(patient);
     const name = patientNameOf(patient);
@@ -178,7 +226,12 @@ export function BookingScreen({
         { enabled: scheduled && workingDays.length > 0 },
     );
 
-    const fetched = fortnight.data;
+    // The appointment being moved does not hold a slot against itself — see
+    // `withoutAppointment`. Memoized so `fortnightSlots` below keeps its cache.
+    const fetched = useMemo(
+        () => withoutAppointment(fortnight.data, rescheduling?.id),
+        [fortnight.data, rescheduling?.id],
+    );
 
     // `enabled: false` leaves the query at `success` with no data, and a key
     // change clears data a frame before the fetch starts, so neither status
@@ -216,16 +269,43 @@ export function BookingScreen({
     }
 
     const timeIsFree = !scheduled || slotIsFree(slots, slotMinutes);
-    const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
+    // Moving it to where it already is would write nothing.
+    const unchanged =
+        rescheduling !== undefined &&
+        date === movingFrom &&
+        slotMinutes === minutesOfDay(rescheduling.startsAt) &&
+        duration === rescheduling.durationMinutes &&
+        branch === rescheduling.branchId;
+    const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree && !unchanged);
     const ready = ref !== null && branch !== null && whenAnswered;
 
     function reset() {
         walkIn.reset();
         create.reset();
+        move.reset();
     }
 
     function book() {
         if (!ref || !branch || !ready) return;
+
+        if (rescheduling) {
+            if (slotMinutes === null) return;
+            move.mutate(
+                {
+                    id: rescheduling.id,
+                    startsAt: isoAt(date, slotMinutes),
+                    // Only what the move changes: a length Settings has since
+                    // dropped is refused if it is sent back unchanged.
+                    ...(duration === rescheduling.durationMinutes ? {} : { durationMinutes: duration }),
+                    ...(branch === rescheduling.branchId ? {} : { branchId: branch }),
+                },
+                {
+                    onSuccess: () =>
+                        onBooked(`${name} moved to ${dayLabel(date)} at ${timeLabel(slotMinutes)}`),
+                },
+            );
+            return;
+        }
 
         const procedures = bookedProcedures(plan);
         const body = note.trim() || null;
@@ -301,7 +381,7 @@ export function BookingScreen({
                 "45 min" came out as three stacked characters. The width is the
                 cell's; the chip grows to fill it. */}
             <View style={styles.durations}>
-                {durationOptions.map((option) => (
+                {lengths.map((option) => (
                     <View key={option} style={styles.duration}>
                         <Chip
                             label={`${option} min`}
@@ -346,7 +426,7 @@ export function BookingScreen({
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
                 <Text variant="eyebrow" tone="muted">
-                    NEW BOOKING
+                    {rescheduling ? 'RESCHEDULE' : 'NEW BOOKING'}
                 </Text>
             </View>
 
@@ -379,7 +459,9 @@ export function BookingScreen({
                         <Text variant="footnote" weight="bold" tone="ink2">
                             {scheduled
                                 ? slotMinutes === null
-                                    ? `${dayLabel(date)} · no time yet`
+                                    ? wasLabel
+                                        ? `Booked ${wasLabel}`
+                                        : `${dayLabel(date)} · no time yet`
                                     : `${dayLabel(date)} · ${timeLabel(slotMinutes)}`
                                 : 'Walk-in · starting now'}
                         </Text>
@@ -387,7 +469,7 @@ export function BookingScreen({
                 </View>
             </View>
 
-            <Steps index={index} />
+            <Steps index={index} steps={steps} />
 
             <ScrollView
                 style={styles.scroll}
@@ -442,43 +524,54 @@ export function BookingScreen({
                                 />
                             ) : null}
 
-                            <View style={styles.row}>
-                                <Chip
-                                    label="Now — walk-in"
-                                    grow
-                                    selected={!scheduled}
-                                    disabled={!canWalkIn}
-                                    onPress={() => {
-                                        setTiming('now');
-                                        reset();
-                                    }}
-                                />
-                                <Chip
-                                    label="Another time"
-                                    grow
-                                    selected={scheduled}
-                                    onPress={() => {
-                                        setTiming('later');
-                                        reset();
-                                    }}
-                                />
-                            </View>
-
-                            {!canWalkIn ? (
-                                <Text variant="caption" tone="muted">
-                                    {branchName ?? 'The clinic'} is not working today, so there is no walk-in
-                                    to take.
-                                </Text>
-                            ) : !scheduled && dateKey !== today ? (
-                                <Text variant="caption" tone="muted">
-                                    A walk-in starts now, so it lands on today — not the day on screen.
-                                </Text>
-                            ) : !scheduled ? (
+                            {rescheduling ? (
                                 <Text variant="subhead" tone="muted">
-                                    Booked and checked in at once, the same as anyone already in the waiting
-                                    room.
+                                    {unchanged
+                                        ? 'That is the time it already has. Pick another one.'
+                                        : `Booked ${wasLabel}. The patient, what they are booked for and the note stay as they are, and the reminder moves with it.`}
                                 </Text>
-                            ) : null}
+                            ) : (
+                                <>
+                                    <View style={styles.row}>
+                                        <Chip
+                                            label="Now — walk-in"
+                                            grow
+                                            selected={!scheduled}
+                                            disabled={!canWalkIn}
+                                            onPress={() => {
+                                                setTiming('now');
+                                                reset();
+                                            }}
+                                        />
+                                        <Chip
+                                            label="Another time"
+                                            grow
+                                            selected={scheduled}
+                                            onPress={() => {
+                                                setTiming('later');
+                                                reset();
+                                            }}
+                                        />
+                                    </View>
+
+                                    {!canWalkIn ? (
+                                        <Text variant="caption" tone="muted">
+                                            {branchName ?? 'The clinic'} is not working today, so there is no
+                                            walk-in to take.
+                                        </Text>
+                                    ) : !scheduled && dateKey !== today ? (
+                                        <Text variant="caption" tone="muted">
+                                            A walk-in starts now, so it lands on today — not the day on
+                                            screen.
+                                        </Text>
+                                    ) : !scheduled ? (
+                                        <Text variant="subhead" tone="muted">
+                                            Booked and checked in at once, the same as anyone already in the
+                                            waiting room.
+                                        </Text>
+                                    ) : null}
+                                </>
+                            )}
                         </View>
 
                         {scheduled ? (
@@ -517,6 +610,13 @@ export function BookingScreen({
                                 icon={<CalendarIcon size={17} />}
                                 lead
                             />
+                            {rescheduling && movingFrom ? (
+                                <SummaryRow
+                                    label="Was"
+                                    value={`${relativeDayLabel(movingFrom)} · ${timeLabel(minutesOfDay(rescheduling.startsAt))}`}
+                                    icon={<CalendarIcon size={15} />}
+                                />
+                            ) : null}
                             <SummaryRow label="How long" value={`${duration} min`} icon={<DurationIcon />} />
                             {branches.length > 1 ? (
                                 <SummaryRow
@@ -532,73 +632,81 @@ export function BookingScreen({
                             />
                         </View>
 
-                        <View style={styles.section}>
-                            <View style={styles.head}>
-                                <Text variant="eyebrow" tone="muted">
-                                    WHAT IS PLANNED
-                                </Text>
-                                <Text variant="caption" weight="medium" tone="muted">
-                                    {plan.length === 0
-                                        ? 'Nothing yet'
-                                        : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
-                                </Text>
+                        {/* A move sends no plan: what it is booked for is the
+                            appointment's, drawn the way the desk's sheet draws it. */}
+                        {rescheduling && rescheduling.procedures.length > 0 ? (
+                            <View style={styles.section}>
+                                <PlanSummary procedures={rescheduling.procedures} label="BOOKED FOR" />
                             </View>
-
-                            {plan.length === 0 ? (
-                                <View style={styles.emptyPlan}>
-                                    <Text variant="subhead" tone="muted">
-                                        No procedures planned — it will be decided in the chair.
+                        ) : (
+                            <View style={styles.section}>
+                                <View style={styles.head}>
+                                    <Text variant="eyebrow" tone="muted">
+                                        WHAT IS PLANNED
+                                    </Text>
+                                    <Text variant="caption" weight="medium" tone="muted">
+                                        {plan.length === 0
+                                            ? 'Nothing yet'
+                                            : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
                                     </Text>
                                 </View>
-                            ) : (
-                                <View style={styles.groups}>
-                                    {groupByTooth(plan).map((group) => (
-                                        <ToothGroupCard
-                                            key={group.tooth ?? 'none'}
-                                            tooth={group.tooth}
-                                            position={toothPosition(group.tooth)}
-                                            subtotal={
-                                                <MoneyValue
-                                                    piastres={group.subtotal}
-                                                    variant="headline"
-                                                    weight="bold"
-                                                />
-                                            }
-                                            lines={group.items.map((item) => ({
-                                                id: item.id,
-                                                name: item.name,
-                                                detail: item.variant,
-                                                money: (
-                                                    <MoneyValue
-                                                        piastres={item.price}
-                                                        variant="body"
-                                                        weight="bold"
-                                                    />
-                                                ),
-                                            }))}
-                                        />
-                                    ))}
 
-                                    <View style={styles.total}>
+                                {plan.length === 0 ? (
+                                    <View style={styles.emptyPlan}>
                                         <Text variant="subhead" tone="muted">
-                                            Estimated total
-                                        </Text>
-                                        <Text variant="title3" weight="bold">
-                                            {formatMoney(totalOf(plan))}
+                                            No procedures planned — it will be decided in the chair.
                                         </Text>
                                     </View>
-                                </View>
-                            )}
-                        </View>
+                                ) : (
+                                    <View style={styles.groups}>
+                                        {groupByTooth(plan).map((group) => (
+                                            <ToothGroupCard
+                                                key={group.tooth ?? 'none'}
+                                                tooth={group.tooth}
+                                                position={toothPosition(group.tooth)}
+                                                subtotal={
+                                                    <MoneyValue
+                                                        piastres={group.subtotal}
+                                                        variant="headline"
+                                                        weight="bold"
+                                                    />
+                                                }
+                                                lines={group.items.map((item) => ({
+                                                    id: item.id,
+                                                    name: item.name,
+                                                    detail: item.variant,
+                                                    money: (
+                                                        <MoneyValue
+                                                            piastres={item.price}
+                                                            variant="body"
+                                                            weight="bold"
+                                                        />
+                                                    ),
+                                                }))}
+                                            />
+                                        ))}
 
-                        {note.trim() ? (
+                                        <View style={styles.total}>
+                                            <Text variant="subhead" tone="muted">
+                                                Estimated total
+                                            </Text>
+                                            <Text variant="title3" weight="bold">
+                                                {formatMoney(totalOf(plan))}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+
+                        {noteShown.trim() ? (
                             <View style={styles.section}>
                                 <Text variant="eyebrow" tone="muted">
                                     NOTE
                                 </Text>
                                 <View style={styles.noteCard}>
                                     <Text variant="callout" tone="ink2">
-                                        {note.trim()}
+                                        {noteShown.trim()}
                                     </Text>
                                 </View>
                             </View>
@@ -645,7 +753,15 @@ export function BookingScreen({
 
                 <View style={styles.bar}>
                     <Button
-                        label={last ? (scheduled ? 'Book it' : 'Start the visit') : 'Next'}
+                        label={
+                            last
+                                ? rescheduling
+                                    ? 'Move it'
+                                    : scheduled
+                                      ? 'Book it'
+                                      : 'Start the visit'
+                                : 'Next'
+                        }
                         block
                         loading={pending}
                         disabled={barIdle}
@@ -695,14 +811,14 @@ export function BookingScreen({
 }
 
 /** Which of the three questions this is — the page's own progress. */
-function Steps({ index }: { index: number }) {
+function Steps({ index, steps }: { index: number; steps: typeof STEPS }) {
     return (
         <View
-            accessibilityLabel={`Step ${index + 1} of ${STEPS.length}`}
+            accessibilityLabel={`Step ${index + 1} of ${steps.length}`}
             style={styles.steps}
             testID="booking-steps"
         >
-            {STEPS.map((step, at) => {
+            {steps.map((step, at) => {
                 const done = at < index;
                 const here = at === index;
 

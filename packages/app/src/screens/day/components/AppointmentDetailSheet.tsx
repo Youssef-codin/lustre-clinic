@@ -41,10 +41,22 @@ export type AppointmentDetailSheetProps = {
      */
     onCheckIn: (appointment: Appointment) => void;
     /**
-     * Both of those open a page over the day, so neither may draw until this
+     * Handed up for the same reason: picking the new time happens on the
+     * booking page's When step, which the day view pushes. Nothing is written
+     * until that page's button.
+     */
+    onReschedule: (appointment: Appointment) => void;
+    /**
+     * All three of those open a page over the day, so neither may draw until this
      * sheet is off the screen. See `Sheet`'s `onClosed`.
      */
     onClosed?: () => void;
+    /**
+     * Whether this patient heads the arrival queue. `checked_in` is everyone
+     * who has arrived, so the pill needs the queue to tell the chair from the
+     * waiting room.
+     */
+    inChair?: boolean;
 };
 
 type Confirming = 'cancel' | 'no-show' | null;
@@ -63,7 +75,9 @@ export function AppointmentDetailSheet({
     onChanged,
     onCheckOut,
     onCheckIn,
+    onReschedule,
     onClosed,
+    inChair = false,
 }: AppointmentDetailSheetProps) {
     const [confirming, setConfirming] = useState<Confirming>(null);
 
@@ -131,7 +145,7 @@ export function AppointmentDetailSheet({
             }
         >
             <View style={styles.headline}>
-                <StatusPill status={appointment.status} withDot />
+                <StatusPill status={appointment.status} inChair={inChair} withDot />
                 {appointment.channel === 'walk_in' ? <Tag tone="muted">WALK-IN</Tag> : null}
                 <Text variant="footnote" script="mono" weight="medium" tone="muted">
                     {appointment.ref}
@@ -179,6 +193,10 @@ export function AppointmentDetailSheet({
                 onSendToDesk={() => awaitPayment.mutate(appointment.id, { onSuccess: after })}
                 onCancel={() => cancel.mutate(appointment.id, { onSuccess: after })}
                 onNoShow={() => noShow.mutate(appointment.id, { onSuccess: after })}
+                onReschedule={() => {
+                    close();
+                    onReschedule(appointment);
+                }}
             />
         </Sheet>
     );
@@ -234,6 +252,7 @@ function SecondaryActions({
     onSendToDesk,
     onCancel,
     onNoShow,
+    onReschedule,
 }: {
     appointment: Appointment;
     confirming: Confirming;
@@ -244,6 +263,7 @@ function SecondaryActions({
     onSendToDesk: () => void;
     onCancel: () => void;
     onNoShow: () => void;
+    onReschedule: () => void;
 }) {
     const status = appointment.status;
 
@@ -309,6 +329,17 @@ function SecondaryActions({
 
     return (
         <Group>
+            {/* First, because it is the one of the three that keeps the
+                appointment: a patient who rings to move is the common case,
+                and cancelling and booking again loses the ref and the plan. */}
+            <Button
+                label="Reschedule"
+                variant="secondary"
+                size="md"
+                block
+                onPress={onReschedule}
+                testID="appointment-reschedule"
+            />
             <Button
                 label="Mark no-show"
                 variant="secondary"

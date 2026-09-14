@@ -89,6 +89,12 @@ type Route =
           /** Set only when the booking was asked for from outside, which says which button it was. */
           timing?: 'now' | 'later';
       }
+    /**
+     * Moving an appointment already on the book: the booking page opened on
+     * its When step. Not `booking`, because it lights nothing in the shell —
+     * the appointment is the day's, and the desk stays on the Day tab.
+     */
+    | { name: 'reschedule'; appointment: Appointment }
     | { name: 'view' }
     | { name: 'treatment' }
     | { name: 'payment' }
@@ -674,6 +680,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                     <ClosedDay
                         dateKey={dateKey}
                         appointments={appointments}
+                        chairId={isToday ? (chair?.id ?? null) : null}
                         onSelect={openDetail}
                         pull={pull}
                     />
@@ -768,11 +775,16 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 key={`detail:${selected.appointment?.id ?? 'none'}`}
                 visible={selected.open}
                 appointment={selected.appointment}
+                // The queue's head, as `UpNext` reads it: off today there is no chair.
+                inChair={isToday && chair !== null && chair.id === selected.appointment?.id}
                 onClose={() => setSelected((current) => ({ ...current, open: false }))}
                 onChanged={day.refetch}
                 // The sheet closes itself on the way into a check-in, so this
                 // only says what the page is; `onCheckOut` has to close it too.
                 onCheckIn={(appointment) => detailDone.after(() => checkInFrom(appointment))}
+                onReschedule={(appointment) =>
+                    detailDone.after(() => pushPage({ name: 'reschedule', appointment }))
+                }
                 onCheckOut={(appointment, loaded) => {
                     setSelected((current) => ({ ...current, open: false }));
                     detailDone.after(() => openVisit(appointment, loaded));
@@ -860,6 +872,26 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             schedule={schedule.data}
                             durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
                             defaultDuration={settings.data?.defaultDuration ?? 30}
+                            dateKey={dateKey}
+                            nowMinutes={nowMinutes}
+                            onBack={routes.pop}
+                            onBooked={(message) => {
+                                routes.pop();
+                                setToast(message);
+                                day.refetch();
+                            }}
+                        />
+                    ) : null}
+
+                    {route.name === 'reschedule' ? (
+                        <BookingScreen
+                            patient={draftFor(route.appointment.patient)}
+                            rescheduling={route.appointment}
+                            branchId={route.appointment.branchId}
+                            branches={branches.data ?? []}
+                            schedule={schedule.data}
+                            durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
+                            defaultDuration={route.appointment.durationMinutes}
                             dateKey={dateKey}
                             nowMinutes={nowMinutes}
                             onBack={routes.pop}

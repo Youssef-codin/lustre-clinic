@@ -174,6 +174,21 @@ export const api = {
     markNoShow: (id: string): Promise<AppointmentRow> =>
         wrap(() => trpcClient.appointment.update.mutate({ id, status: 'no_show' })),
 
+    /**
+     * Move a booked appointment to another time. It is the same row, so the
+     * ref, the booked procedures and the note stay put, and the history shows
+     * no cancellation that never happened. Both backends move the pending
+     * reminder with `startsAt`, and both leave the row out of its own overlap
+     * check, so a move by one step inside its current span is not refused.
+     * The length and branch are sent only when the move changes them.
+     */
+    reschedule: (input: {
+        id: string;
+        startsAt: string;
+        durationMinutes?: number;
+        branchId?: string;
+    }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.update.mutate(input)),
+
     awaitPayment: (id: string): Promise<AppointmentRow> =>
         wrap(() => trpcClient.appointment.awaitPayment.mutate({ id, offsetMinutes: localOffsetMinutes() })),
 

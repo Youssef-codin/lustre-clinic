@@ -18,9 +18,11 @@ export type ClosedDayProps = {
     onSelect: (appointment: Appointment) => void;
     /** The day screen's pull-to-refresh, so a closed day is pullable too. */
     pull?: PullToRefresh;
+    /** The queue's head today, so a patient checked in anyway reads In the chair or Waiting correctly. */
+    chairId?: string | null;
 };
 
-export function ClosedDay({ dateKey, appointments, onSelect, pull }: ClosedDayProps) {
+export function ClosedDay({ dateKey, appointments, onSelect, pull, chairId = null }: ClosedDayProps) {
     return (
         <ScrollView
             contentContainerStyle={styles.content}
@@ -50,6 +52,7 @@ export function ClosedDay({ dateKey, appointments, onSelect, pull }: ClosedDayPr
                             <AppointmentRow
                                 key={appointment.id}
                                 appointment={appointment}
+                                inChair={appointment.id === chairId}
                                 onPress={() => onSelect(appointment)}
                             />
                         ))}
