@@ -1,7 +1,7 @@
 /**
- * Settings → App: the two things that are about this phone rather than about
- * the clinic — what language it draws in, and which way it is reaching the
- * server.
+ * Settings → App: the things that are about this phone rather than about the
+ * clinic — what language it draws in, which way it is reaching the server, and
+ * which build it runs, for reading out when someone asks over the phone.
  *
  * There is no server picker, and that is the design's point, not an omission:
  * the clinic has one server. A prod build reaches it over Tailscale only; a dev
@@ -17,6 +17,8 @@ import { Button, Card, Dot, SectionLabel } from '../../components/ui';
 import { color, radius, space, Text } from '../../theme';
 import { ReprobeIcon } from './components/icons';
 import { Pane } from './components/Pane';
+import { installedVersion } from './data/appUpdate';
+import { updateLabel } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 
 const LANGUAGES: readonly { value: Locale; label: string }[] = [
@@ -25,6 +27,8 @@ const LANGUAGES: readonly { value: Locale; label: string }[] = [
 ];
 
 const LANGUAGE_NAME: Record<Locale, string> = { en: 'English', ar: 'العربية' };
+
+const INSTALLED = installedVersion();
 
 export type AppScreenProps = {
     locale: Locale;
@@ -121,7 +125,34 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                         : 'Lustre reaches the clinic server over Tailscale. Re-probe if it has stopped answering.'}
                 </Text>
             </View>
+
+            <View style={styles.section}>
+                <SectionLabel inset={false}>VERSION</SectionLabel>
+
+                <Card padded style={styles.versionCard} testID="settings-app-version">
+                    <VersionRow label="Version" value={INSTALLED.version ?? '—'} />
+                    <VersionRow label="Build" value={INSTALLED.build ?? '—'} />
+                    <VersionRow label="Update" value={updateLabel(INSTALLED)} />
+                </Card>
+
+                <Text variant="footnote" tone="muted" style={styles.hint}>
+                    Updates download by themselves and apply the next time Lustre is opened from closed.
+                </Text>
+            </View>
         </Pane>
+    );
+}
+
+function VersionRow({ label, value }: { label: string; value: string }) {
+    return (
+        <View style={styles.versionRow}>
+            <Text variant="subhead" tone="muted">
+                {label}
+            </Text>
+            <Text variant="subhead" weight="semibold" script="mono">
+                {value}
+            </Text>
+        </View>
     );
 }
 
@@ -181,4 +212,7 @@ const styles = StyleSheet.create({
     stamp: { flex: 1 },
 
     hint: { paddingHorizontal: space[0.5] },
+
+    versionCard: { gap: space[2] },
+    versionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space[3] },
 });

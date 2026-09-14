@@ -53,6 +53,11 @@ const envSchema = z.object({
     BACKUP_STALE_AFTER_HOURS: z.coerce.number().positive().default(48),
     PG_BIN_DIR: z.string().optional(),
 
+    // The release APK and OTA updates the phones download (§15), staged by
+    // `packages/app/scripts/release.ts` and copied here by the ansible
+    // `releases` tag. Read on every request, so a new release needs no restart.
+    RELEASES_DIR: z.string().default('./releases'),
+
     BACKUP_DRIVE_FOLDER_ID: z.string().optional(),
     BACKUP_DRIVE_CLIENT_EMAIL: z.string().optional(),
     BACKUP_DRIVE_PRIVATE_KEY: z.string().optional(),

@@ -1,0 +1,34 @@
+# Release artefacts for one stack (`stack`): the APK Settings offers and the OTA
+# updates release builds fetch, staged in dist/releases by `bun release:apk` and
+# `bun release:update` (infra/README.md, "Releases"). The server reads them on
+# each request, so nothing restarts.
+#
+# Additive on purpose: an update a phone may still be downloading is never
+# deleted from under it. The copy lands file by file in no particular order,
+# which is safe because the server offers nothing until it is complete: an APK
+# whose size matches its metadata, an update whose signature and every file
+# its manifest names are present (`modules/release/release.service.ts`).
+
+- name: "{{ stack.name }}: staged releases"
+  become: false
+  delegate_to: localhost
+  ansible.builtin.stat:
+    path: "{{ repo_root }}/dist/releases"
+  register: staged_releases
+
+- name: "{{ stack.name }}: releases directory"
+  ansible.builtin.file:
+    path: /opt/lustre-{{ stack.name }}/releases
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: "{{ stack.name }}: copy releases"
+  become: false
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/dist/releases/"
+    dest: /opt/lustre-{{ stack.name }}/releases/
+    mode: "0644"
+    directory_mode: "0755"
+  when: staged_releases.stat.isdir | default(false)

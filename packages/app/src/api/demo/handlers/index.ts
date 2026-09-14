@@ -16,6 +16,7 @@ import { healthHandlers } from './health';
 import { migrationHandlers } from './migration';
 import { patientHandlers } from './patient';
 import { procedureHandlers } from './procedure';
+import { releaseHandlers } from './release';
 import { reminderHandlers } from './reminder';
 import { settingsHandlers } from './settings';
 import { statsHandlers } from './stats';
@@ -35,6 +36,8 @@ type Path = {
 
 const handlers = {
     'health.check': healthHandlers.check,
+
+    'release.latestApk': releaseHandlers.latestApk,
 
     'settings.get': settingsHandlers.get,
     'settings.update': settingsHandlers.update,

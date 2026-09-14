@@ -12,6 +12,7 @@ dist/
 
 # runtime state
 backups/
+releases/
 
 # expo
 .expo/

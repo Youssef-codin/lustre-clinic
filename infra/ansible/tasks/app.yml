@@ -43,6 +43,8 @@
   loop:
     - { path: "{{ stack_dir }}", mode: "0750" }
     - { path: "{{ stack_dir }}/dist", mode: "0750" }
+    # Bind-mounted by compose, so it has to exist before the stack starts.
+    - { path: "{{ stack_dir }}/releases", mode: "0755" }
     - { path: "{{ stack_dir }}/infra", mode: "0755" }
     - { path: "{{ stack_dir }}/infra/postgres", mode: "0755" }
     - { path: "{{ stack_dir }}/infra/postgres/init", mode: "0755" }

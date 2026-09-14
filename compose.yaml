@@ -90,8 +90,11 @@ services:
             BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
             BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
             BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+            # The APK and OTA updates, copied in by the ansible `releases` tag (§15).
+            RELEASES_DIR: /app/releases
         volumes:
             - ./backups:/app/backups
+            - ./releases:/app/releases:ro
         # Bound to the Tailscale interface only — Tailscale is the security
         # boundary (SPEC §1). Set TAILSCALE_IP in .env. API_PORT is 3000 for
         # production and 3001 for the dev stack.

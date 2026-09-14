@@ -84,3 +84,14 @@
         loop_var: stack
         label: "{{ stack.name }}"
       tags: [app]
+
+    - name: Release APK and OTA updates
+      ansible.builtin.include_tasks:
+        file: tasks/releases.yml
+        apply:
+          tags: [app, releases]
+      loop: "{{ lustre_stacks }}"
+      loop_control:
+        loop_var: stack
+        label: "{{ stack.name }}"
+      tags: [app, releases]
