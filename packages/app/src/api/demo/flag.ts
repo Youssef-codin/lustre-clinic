@@ -107,5 +107,9 @@ export async function disableDemoMode(): Promise<void> {
     transitions += 1;
     emit({ hydrated: true, enabled: false });
     noteDataReset();
-    await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
+    // A removal that fails would leave `on` behind and the next launch back in
+    // the demo, so the key is overwritten instead; hydration reads only `on`.
+    await AsyncStorage.removeItem(DEMO_KEY)
+        .catch(() => AsyncStorage.setItem(DEMO_KEY, 'off'))
+        .catch(() => undefined);
 }

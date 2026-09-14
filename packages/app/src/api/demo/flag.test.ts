@@ -7,12 +7,14 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
+let removeFails = false;
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
         getItem: (key: string) => Promise.resolve(stored.get(key) ?? null),
         setItem: (key: string, value: string) => Promise.resolve(void stored.set(key, value)),
-        removeItem: (key: string) => Promise.resolve(void stored.delete(key)),
+        removeItem: (key: string) =>
+            removeFails ? Promise.reject(new Error('storage')) : Promise.resolve(void stored.delete(key)),
         multiGet: () => Promise.resolve([]),
         multiSet: () => Promise.resolve(),
     },
@@ -24,6 +26,7 @@ const demo = await import('./index');
 
 beforeEach(() => {
     stored.clear();
+    removeFails = false;
 });
 
 describe('leaving demo mode', () => {
@@ -36,5 +39,14 @@ describe('leaving demo mode', () => {
 
         expect(demo.isDemoMode()).toBe(false);
         expect(stored.has('lustre.demo')).toBe(false);
+    });
+
+    it('does not come back on the next launch when the key cannot be removed', async () => {
+        await demo.enableDemoMode();
+        removeFails = true;
+
+        await demo.disableDemoMode();
+
+        expect(stored.get('lustre.demo')).not.toBe('on');
     });
 });
