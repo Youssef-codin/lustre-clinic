@@ -1,0 +1,209 @@
+/**
+ * Stages a release for the clinic server (§15, infra/README.md "Releases").
+ *
+ *   bun release:apk      prebuild, build and sign the release APK
+ *   bun release:update   export the JavaScript and sign it as an OTA update
+ *
+ * Both write into `dist/releases` (or LUSTRE_RELEASES_DIR) in the layout
+ * `server/src/modules/release` serves. Neither touches a server: the ansible
+ * `releases` tag copies the directory to the clinic.
+ *
+ * Both need LUSTRE_UPDATES_URL, the clinic server's tailnet address. The APK
+ * bakes it in and an update's asset URLs point at it. Build and publish with the
+ * same value from the same app.json, or the runtime versions differ and no phone
+ * takes the update.
+ */
+import { createHash, randomUUID } from 'node:crypto';
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { $ } from 'bun';
+import { type ExportedFile, manifestFor, signManifest } from './updateManifest';
+
+const APP_DIR = resolve(import.meta.dir, '..');
+const OUT_DIR = resolve(process.env.LUSTRE_RELEASES_DIR ?? join(APP_DIR, '../../dist/releases'));
+const APK_OUTPUTS = join(APP_DIR, 'android/app/build/outputs/apk/release');
+
+interface ExportMetadata {
+    fileMetadata?: { android?: { bundle: string; assets: { path: string; ext: string }[] } };
+}
+
+interface ApkOutputMetadata {
+    elements?: { versionCode?: number; versionName?: string; outputFile?: string }[];
+}
+
+function say(line: string): void {
+    process.stdout.write(`${line}\n`);
+}
+
+function fail(line: string): never {
+    process.stderr.write(`release: ${line}\n`);
+    process.exit(1);
+}
+
+function updatesUrl(): string {
+    const url = process.env.LUSTRE_UPDATES_URL?.trim().replace(/\/+$/, '');
+    if (!url || !/^https?:\/\/[^/]+$/.test(url)) {
+        fail(
+            'set LUSTRE_UPDATES_URL to the clinic server, scheme and port included, e.g. http://smilemakers.tailad17f9.ts.net:3000. An APK built without it can never take an OTA update.',
+        );
+    }
+    return url;
+}
+
+/** The environment first, then `~/.gradle/gradle.properties`, the same places Gradle reads the keystore from. */
+async function gradleProperty(name: string): Promise<string | undefined> {
+    const fromEnv = process.env[name] ?? process.env[`ORG_GRADLE_PROJECT_${name}`];
+    if (fromEnv) return fromEnv;
+
+    const home = process.env.GRADLE_USER_HOME ?? join(homedir(), '.gradle');
+    const text = await readFile(join(home, 'gradle.properties'), 'utf8').catch(() => '');
+    for (const line of text.split('\n')) {
+        const match = line.match(/^\s*([^#!=:\s]+)\s*[=:]\s*(.*)$/);
+        if (match?.[1] === name) return match[2]?.trim();
+    }
+    return undefined;
+}
+
+/** Written beside the target and renamed over it, so the server never reads half a file. */
+async function atomicWrite(path: string, contents: string | Uint8Array): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    const temporary = `${path}.${process.pid}.tmp`;
+    await writeFile(temporary, contents);
+    await rename(temporary, path);
+}
+
+async function resolvedRuntimeVersion(): Promise<string> {
+    const output = await $`bunx expo-updates runtimeversion:resolve --platform android`
+        .cwd(APP_DIR)
+        .quiet()
+        .text();
+    const parsed = JSON.parse(output.slice(output.indexOf('{'))) as { runtimeVersion?: unknown };
+    if (typeof parsed.runtimeVersion !== 'string') fail(`could not resolve the runtime version:\n${output}`);
+    return parsed.runtimeVersion;
+}
+
+async function assertReleaseKey(apk: string): Promise<void> {
+    const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? '/opt/android-sdk';
+    const versions = await readdir(join(sdk, 'build-tools')).catch(() => []);
+    const latest = versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1);
+    if (!latest) fail(`no Android build-tools under ${sdk} to check the APK's signature with`);
+
+    const certs = await $`${join(sdk, 'build-tools', latest, 'apksigner')} verify --print-certs ${apk}`
+        .quiet()
+        .text();
+    if (certs.includes('CN=Android Debug')) fail(`${apk} is signed with the debug key`);
+    say(certs.split('\n').find((line) => line.includes('certificate DN')) ?? certs);
+}
+
+async function buildApk(): Promise<void> {
+    const url = updatesUrl();
+
+    await $`bunx expo prebuild --platform android --no-install`.cwd(APP_DIR);
+    // Clinic phones are arm64. Add x86_64 for the emulator or Waydroid.
+    const abis = process.env.LUSTRE_APK_ABIS ?? 'arm64-v8a';
+    await $`./gradlew assembleRelease`
+        .cwd(join(APP_DIR, 'android'))
+        .env({ ...process.env, ORG_GRADLE_PROJECT_reactNativeArchitectures: abis });
+
+    const outputs = JSON.parse(
+        await readFile(join(APK_OUTPUTS, 'output-metadata.json'), 'utf8'),
+    ) as ApkOutputMetadata;
+    const element = outputs.elements?.[0];
+    if (!element?.versionCode || !element.versionName || !element.outputFile) {
+        fail('the build wrote no release APK metadata');
+    }
+    const apk = join(APK_OUTPUTS, element.outputFile);
+    await assertReleaseKey(apk);
+
+    const runtimeVersion = await resolvedRuntimeVersion();
+    const bytes = new Uint8Array(await readFile(apk));
+    await atomicWrite(join(OUT_DIR, 'android/lustre.apk'), bytes);
+    await atomicWrite(
+        join(OUT_DIR, 'android/latest.json'),
+        `${JSON.stringify(
+            {
+                versionCode: element.versionCode,
+                version: element.versionName,
+                runtimeVersion,
+                sha256: createHash('sha256').update(bytes).digest('hex'),
+                updatesUrl: url,
+                builtAt: new Date().toISOString(),
+            },
+            null,
+            4,
+        )}\n`,
+    );
+
+    say(`Staged Lustre ${element.versionName} (build ${element.versionCode}, ${abis}) in ${OUT_DIR}/android`);
+    say(`Runtime version ${runtimeVersion}. Updates from ${url}`);
+}
+
+async function publishUpdate(): Promise<void> {
+    const url = updatesUrl();
+    const keyPath = await gradleProperty('LUSTRE_UPDATES_PRIVATE_KEY');
+    if (!keyPath) {
+        fail(
+            'LUSTRE_UPDATES_PRIVATE_KEY is not set in the environment or ~/.gradle/gradle.properties (infra/README.md, Release signing)',
+        );
+    }
+    const privateKey = await readFile(keyPath, 'utf8').catch(() =>
+        fail(`cannot read the update signing key at ${keyPath}`),
+    );
+
+    const runtimeVersion = await resolvedRuntimeVersion();
+    const staging = await mkdtemp(join(tmpdir(), 'lustre-update-'));
+    await $`bunx expo export --platform android --output-dir ${staging}`.cwd(APP_DIR);
+
+    const exported = JSON.parse(await readFile(join(staging, 'metadata.json'), 'utf8')) as ExportMetadata;
+    const android = exported.fileMetadata?.android;
+    if (!android) fail('expo export wrote no Android bundle');
+    // What the running app reads as `Constants.expoConfig` once it is on this update.
+    const expoClient = JSON.parse(
+        await $`bunx expo config --type public --json`.cwd(APP_DIR).quiet().text(),
+    ) as Record<string, unknown>;
+
+    const load = async (path: string, ext: string): Promise<ExportedFile> => ({
+        path,
+        ext,
+        bytes: new Uint8Array(await readFile(join(staging, path))),
+    });
+    const bundle = await load(android.bundle, 'bundle');
+    const assets = await Promise.all(android.assets.map((asset) => load(asset.path, asset.ext)));
+
+    const id = randomUUID();
+    const createdAt = new Date();
+    const body = JSON.stringify(
+        manifestFor({ id, createdAt, runtimeVersion, serverUrl: url, bundle, assets, expoClient }),
+    );
+
+    const target = join(OUT_DIR, 'updates', runtimeVersion, id);
+    for (const file of [bundle, ...assets]) {
+        await mkdir(dirname(join(target, file.path)), { recursive: true });
+        await copyFile(join(staging, file.path), join(target, file.path));
+    }
+    await writeFile(join(target, 'manifest.json'), body);
+    await writeFile(join(target, 'signature'), `${signManifest(body, privateKey)}\n`);
+    // Last, so the pointer never names an update whose files are still landing.
+    await atomicWrite(
+        join(OUT_DIR, 'updates', runtimeVersion, 'latest.json'),
+        `${JSON.stringify({ id, createdAt: createdAt.toISOString() })}\n`,
+    );
+    await rm(staging, { recursive: true, force: true });
+
+    say(`Staged update ${id} for runtime ${runtimeVersion} in ${target}`);
+
+    const apk = JSON.parse(
+        await readFile(join(OUT_DIR, 'android/latest.json'), 'utf8').catch(() => 'null'),
+    ) as { runtimeVersion?: string; version?: string; versionCode?: number } | null;
+    if (apk?.runtimeVersion && apk.runtimeVersion !== runtimeVersion) {
+        say(
+            `Warning: the staged APK (${apk.version}, build ${apk.versionCode}) is runtime ${apk.runtimeVersion}. Phones on it will not take this update; something native changed, so ship an APK with \`bun release:apk\`.`,
+        );
+    }
+}
+
+const command = process.argv[2];
+if (command === 'apk') await buildApk();
+else if (command === 'update') await publishUpdate();
+else fail('usage: bun packages/app/scripts/release.ts apk|update');

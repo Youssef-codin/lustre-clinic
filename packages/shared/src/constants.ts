@@ -104,3 +104,14 @@ export type WsEvent = (typeof WS_EVENT)[keyof typeof WS_EVENT];
 export const TRPC_ENDPOINT = '/trpc';
 /** Path the websocket upgrade is handled at (§4). */
 export const WS_PATH = '/ws';
+
+// --- releases (§15) ---------------------------------------------------------
+
+/** The latest release APK, served beside `/trpc` on the tailnet address. */
+export const APK_PATH = '/app/android.apk';
+/** Where a release build's expo-updates asks for a manifest. */
+export const UPDATES_MANIFEST_PATH = '/updates/manifest';
+/** Prefix of an update's bundle and assets: `<prefix>/<runtime>/<id>/<path>`. */
+export const UPDATES_ASSETS_PATH = '/updates/assets';
+/** The one channel the server publishes to. Dev and demo builds never ask. */
+export const UPDATES_CHANNEL = 'production';

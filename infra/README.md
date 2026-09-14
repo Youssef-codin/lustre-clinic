@@ -72,6 +72,116 @@ docker compose run --rm server backup
 
 `lustre seed` refuses the production database, whatever its connection string.
 
+## Releases
+
+The phones get new code two ways (SPEC §15), both from the clinic server over
+Tailscale, with nothing hosted anywhere else:
+
+- **A JavaScript update (OTA)** covers any change that is only JavaScript. A
+  release build asks the server on every launch, downloads in the background,
+  and runs the update on the next cold start. It never reloads mid-screen and
+  never waits on the network at launch, so a power cut starts the app on the
+  last bundle it had.
+- **A new APK** is needed for anything native: a new native dependency, an
+  `app.json` change, a config plugin change. Settings shows a banner when the
+  server has a higher build than the phone; tapping it downloads the APK in the
+  browser and Android's installer takes over.
+
+Both are staged into `dist/releases` on the operator's machine and copied to
+`/opt/lustre-<stack>/releases` by the `releases` tag, which the `app` tag also
+runs. The server reads them on each request; nothing restarts.
+
+### Release signing
+
+Two keys, both on the operator's machine only, never in the repo and never on
+the clinic server:
+
+| What | File | Gradle property |
+|---|---|---|
+| APK keystore (PKCS12, alias `lustre-clinic`) | `~/.local/share/lustre/signing/lustre-clinic-release.jks` | `LUSTRE_RELEASE_STORE_FILE`, `LUSTRE_RELEASE_KEY_ALIAS`, `LUSTRE_RELEASE_STORE_PASSWORD`, `LUSTRE_RELEASE_KEY_PASSWORD` |
+| OTA update signing key (RSA) | `~/.local/share/lustre/signing/updates/private-key.pem` | `LUSTRE_UPDATES_PRIVATE_KEY` |
+
+The paths and passwords live in `~/.gradle/gradle.properties` (or the same names
+in the environment). The keystore's SHA-256 certificate fingerprint is
+`A1:FE:DF:AA:3E:BC:51:7C:82:9C:68:0A:41:41:96:69:07:9B:F6:D5:B6:A3:40:33:4E:FC:8D:FE:57:24:5E:CC`.
+The update key's public certificate is committed at
+`packages/app/certs/certificate.pem`.
+
+**Back up both files and the passwords**: a password manager, plus one off-site
+copy. Losing the keystore means every phone has to uninstall before it can take
+another APK, and an uninstall wipes the saved server address, the role and the
+cached schedule. Losing the update key means no more OTA updates until a new
+APK carrying a new certificate is installed on every phone.
+
+On another build machine, copy both files and add the properties, with absolute
+paths:
+
+```properties
+LUSTRE_RELEASE_STORE_FILE=/home/<you>/.local/share/lustre/signing/lustre-clinic-release.jks
+LUSTRE_RELEASE_KEY_ALIAS=lustre-clinic
+LUSTRE_RELEASE_STORE_PASSWORD=<from the password manager>
+LUSTRE_RELEASE_KEY_PASSWORD=<same as the store password>
+LUSTRE_UPDATES_PRIVATE_KEY=/home/<you>/.local/share/lustre/signing/updates/private-key.pem
+```
+
+A release build without them fails and names what is missing. It never falls
+back to the debug key. Debug builds do not need them.
+
+### Shipping a new APK
+
+```sh
+# expo.version in packages/app/app.json is the name the doctor reads out: bump it.
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:apk
+cd infra/ansible && ansible-playbook site.yml -K --tags releases
+```
+
+`LUSTRE_UPDATES_URL` is the prod stack's address, the one `health.check`
+reports. It is baked into the APK as the place to ask for OTA updates, so use
+the same value every time. The build is arm64 only; `LUSTRE_APK_ABIS=arm64-v8a,x86_64`
+adds the emulator's ABI. Every release build gets a higher `versionCode` (build
+minutes since 2026-01-01 UTC, see `plugins/withReleaseVersionCode.js`).
+
+Check the server has it: `curl http://<clinic>:3000/trpc/release.latestApk`.
+
+**Once per phone, at handover**: allow the browser to install apps (Android
+Settings → Apps → Chrome → Install unknown apps). The first install is over the
+cable with `adb install`; after that, Settings → Download, then Install. The
+role and saved address survive because the APK is signed with the same key.
+
+### Publishing a JavaScript update
+
+```sh
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:update
+cd infra/ansible && ansible-playbook site.yml -K --tags releases
+```
+
+Publish from the same `app.json` and the same `LUSTRE_UPDATES_URL` the APK was
+built with. An update is only offered to APKs with the same runtime version,
+a fingerprint of everything native; the script warns when the staged APK's
+runtime differs, which means something native changed and it needs
+`release:apk` instead.
+
+Phones pick it up on launch and run it on the next cold start: swipe the app
+away and open it twice. Settings → App → Version shows the update's short id.
+
+- **An update that crashes on start** rolls itself back: expo-updates marks it
+  failed and the phone relaunches on the previous bundle.
+- **An update with a bug that does not crash**: check out the last good commit
+  and run `release:update` again. It gets a new id and becomes the latest.
+- Dev builds load Metro and demo builds have updates switched off, so neither
+  ever takes a production update.
+
+The manifest is signed on this machine when it is published; the server only
+serves the signed bytes. To see what a phone would get:
+
+```sh
+curl -i http://<clinic>:3000/updates/manifest \
+  -H 'expo-protocol-version: 1' -H 'expo-platform: android' \
+  -H 'expo-channel-name: production' -H 'expo-runtime-version: <runtime>'
+```
+
+A `204` means nothing is published for that runtime.
+
 ## Off-site backups on the operator's machine
 
 The server dumps, restore-verifies and prunes its own backups (SPEC §16). The

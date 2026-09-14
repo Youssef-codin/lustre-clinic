@@ -14,12 +14,19 @@
  */
 import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
-import Constants from 'expo-constants';
 import { memo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
-import { Card, CardDivider, PushView, ScreenHeader, SectionLabel, useAfterSheet } from '../../components/ui';
+import {
+    Button,
+    Card,
+    CardDivider,
+    PushView,
+    ScreenHeader,
+    SectionLabel,
+    useAfterSheet,
+} from '../../components/ui';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
@@ -34,6 +41,8 @@ import { DataEntryIcon, LeaveDemoIcon, ResetDemoIcon, SettingsIcon } from './com
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
+import { installedVersion, useApkUpdate } from './data/appUpdate';
+import { versionLine } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 import { errorText } from './data/errors';
 import { minutesFromTime } from './data/reminders';
@@ -103,6 +112,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
 
     const summary = useSummary();
     const connection = useConnectionView();
+    const apkUpdate = useApkUpdate();
 
     const isDoctor = role === 'doctor';
 
@@ -125,6 +135,29 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
             />
 
             <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+                {/* A card in Settings, never a modal over the day: installing
+                    leaves the app, and that is the doctor's call to make
+                    between patients. The browser downloads it over the
+                    tailnet and Android's installer takes it from there. */}
+                {apkUpdate ? (
+                    <Card padded style={styles.update} testID="settings-apk-update">
+                        <View style={styles.updateText}>
+                            <Text variant="body" weight="semibold">
+                                New version ready
+                            </Text>
+                            <Text variant="footnote" tone="muted">
+                                {`Lustre ${apkUpdate.version} (build ${apkUpdate.versionCode}). Download it, then tap Install.`}
+                            </Text>
+                        </View>
+                        <Button
+                            label="Download"
+                            size="md"
+                            onPress={() => void Linking.openURL(apkUpdate.url)}
+                            testID="settings-apk-download"
+                        />
+                    </Card>
+                ) : null}
+
                 {summary.loading ? <SkeletonRows count={3} /> : null}
 
                 {summary.error ? (
@@ -141,7 +174,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                             <SettingsRow
                                 icon={<SettingsIcon glyph="app" />}
                                 label="App"
-                                sub="Language, server connection"
+                                sub="Language, server connection, version"
                                 onPress={() => routes.push('app')}
                                 testID="settings-app-row"
                             />
@@ -264,7 +297,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                             <SettingsRow
                                 icon={<SettingsIcon glyph="about" />}
                                 label="About"
-                                sub={`Version ${VERSION}`}
+                                sub={`Version ${INSTALLED.version ?? '0.0.0'}`}
                                 onPress={() => {}}
                                 testID="settings-about"
                             />
@@ -403,9 +436,10 @@ function summarize({ settings, schedule, branches, procedures, questions }: Summ
     };
 }
 
-const VERSION = Constants.expoConfig?.version ?? '0.0.0';
-const BUILD = Constants.nativeBuildVersion;
-const VERSION_LINE = BUILD ? `Lustre ${VERSION} (build ${BUILD})` : `Lustre ${VERSION}`;
+// The APK's own version, not `expoConfig.version`, which an OTA update's
+// manifest supplies.
+const INSTALLED = installedVersion();
+const VERSION_LINE = versionLine(INSTALLED);
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
@@ -418,4 +452,6 @@ const styles = StyleSheet.create({
     },
     group: { gap: space[2] },
     version: { textAlign: 'center' },
+    update: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+    updateText: { flex: 1, gap: space[0.5] },
 });

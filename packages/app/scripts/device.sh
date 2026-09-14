@@ -117,9 +117,11 @@ esac
 # app in that state measures the dev bundle.
 #
 # So: assemble, install, and start the launcher activity by name. No bundler,
-# nothing to reload, and it exits when the app is up. Signed with the debug
-# keystore (`android/app/build.gradle` points the release config at it), so
-# there is no signing setup for a test build; it is not a store artefact.
+# nothing to reload, and it exits when the app is up. Signed with the release
+# keystore (`plugins/withReleaseSigning.js`), so the build fails on a machine
+# without it; see infra/README.md, "Release signing". A phone that has a debug
+# build installed has to uninstall it first. `bun release:apk` is the build that
+# goes to the clinic.
 if [ "$mode" = "release" ]; then
     apk="android/app/build/outputs/apk/release/app-release.apk"
 

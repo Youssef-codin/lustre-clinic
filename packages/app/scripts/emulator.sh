@@ -179,9 +179,8 @@ fi
 
 # A release APK carries its own bundle, so there is no Metro to start and no
 # `--dev-client` to attach: the app is installed and runs on its own. It is
-# signed with the debug keystore (`android/app/build.gradle` points the release
-# signing config at it), which is fine for a device in reach and not for
-# anything that leaves this machine.
+# signed with the release keystore (`plugins/withReleaseSigning.js`), and fails
+# to build on a machine without one; see infra/README.md, "Release signing".
 if [ "$mode" = "release" ]; then
     exec bunx expo run:android --device "$avd" --variant release
 fi
