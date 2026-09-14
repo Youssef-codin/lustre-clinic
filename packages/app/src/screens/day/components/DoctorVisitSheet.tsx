@@ -4,11 +4,12 @@
  * desk writes he must not press (check in, no-show, cancel) and never drew the
  * one thing he opens a row to see: `appointment.procedures`.
  *
- * So this sheet is a read. Its only action leaves it — "Open patient record" —
- * and the sheet exists because that record is the wrong first answer: standing
- * over the chair, the question is "what am I doing to this person", not "what
- * did we do in 2023". The plan is two taps closer than the history now, and the
- * history is still one tap away.
+ * So this sheet is mostly a read. Once the patient has arrived it also opens
+ * `VisitScreen` over the doctor's day, because recording what was done is his.
+ * "Open patient record" is the other way out, and the sheet exists because that
+ * record is the wrong first answer: standing over the chair, the question is
+ * "what am I doing to this person", not "what did we do in 2023". The plan is
+ * two taps closer than the history now, and the history is still one tap away.
  *
  * The plan itself is `PlanSummary`, which the desk's appointment sheet draws
  * too, so both roles read what a booking is for the same way.
@@ -25,24 +26,59 @@ export type DoctorVisitSheetProps = {
     visible: boolean;
     appointment: Appointment | null;
     onClose: () => void;
-    /** The record for this patient — the sheet's one way out that is not "close". */
+    /** The record for this patient. */
     onOpenRecord: (appointment: Appointment) => void;
+    /** The procedure editor for this visit. Offered once the patient has arrived. */
+    onRecord: (appointment: Appointment) => void;
+    /** The visit behind the row is being read on the way to the editor. */
+    recording?: boolean;
+    onClosed?: () => void;
 };
 
-export function DoctorVisitSheet({ visible, appointment, onClose, onOpenRecord }: DoctorVisitSheetProps) {
+export function DoctorVisitSheet({
+    visible,
+    appointment,
+    onClose,
+    onOpenRecord,
+    onRecord,
+    recording = false,
+    onClosed,
+}: DoctorVisitSheetProps) {
+    const arrived =
+        appointment?.status === 'checked_in' ||
+        appointment?.status === 'awaiting_payment' ||
+        appointment?.status === 'done';
+
     return (
         <Sheet
             visible={visible}
             onClose={onClose}
+            onClosed={onClosed}
             testID="doctor-visit-sheet"
             footer={
                 appointment ? (
-                    <Button
-                        label="Open patient record"
-                        block
-                        onPress={() => onOpenRecord(appointment)}
-                        testID="open-record"
-                    />
+                    <View style={styles.footer}>
+                        {arrived ? (
+                            <Button
+                                label={
+                                    appointment.status === 'done'
+                                        ? 'Edit what was done'
+                                        : 'Record what was done'
+                                }
+                                block
+                                loading={recording}
+                                onPress={() => onRecord(appointment)}
+                                testID="doctor-record"
+                            />
+                        ) : null}
+                        <Button
+                            label="Open patient record"
+                            variant={arrived ? 'ghost' : undefined}
+                            block
+                            onPress={() => onOpenRecord(appointment)}
+                            testID="open-record"
+                        />
+                    </View>
                 ) : null
             }
         >
@@ -110,6 +146,7 @@ function slotLabel(appointment: Appointment): string {
 }
 
 const styles = StyleSheet.create({
+    footer: { gap: space[2] },
     identity: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3.5] },
     tile: {
         width: 64,

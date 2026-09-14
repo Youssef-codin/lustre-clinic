@@ -117,6 +117,86 @@ Real accounts would be a schema change and a genuine permission boundary, not a
 settings row. The reasoning lives in `components/RoleSwitchSheet.tsx`, which
 replaced an entire Users pane with a confirm sheet on the settings index.
 
+## The secretary books; the doctor records procedures — defaults taken without the dentist
+
+The dentist asked on 12 Sep 2026 that the secretary stop entering procedures.
+The task left four questions for him, and he could not be reached the night it
+was built, so each was answered with the cheapest default to reverse. **Each
+entry below is a default, not his answer.** Overturn any of them without
+touching the others.
+
+### Who records procedures is a clinic setting, defaulting to doctor only
+
+`settings.procedures_recorded_by` (`0009`), `doctor` or `both`, set in
+Settings → Clinic. The task asked for an in-between option for clinics where the
+desk does enter the work; a setting is that. `both` gives the desk back exactly
+the flow it had before this change.
+
+It lives on the clinic's row rather than on the phone because both handsets have
+to agree, and it is read through React Query (`day/useProcedureRecorder.ts`) so
+`/ws` carries a change to the other phone. A server that predates the column
+answers nothing, which the client reads as `doctor` — the narrower answer.
+
+**To reverse:** set it to `both` in Settings, or change the column default. The
+one decision function is `canRecordProcedures` in `day/recording.ts`.
+
+### The desk's check-in marks arrival, with no procedure step
+
+Under `doctor`, Check in calls `visit.checkIn` from the row and offers Book next,
+the same as confirming the arrival screen did. The server still seeds the visit
+from the booking's plan plus the checkup line, as it always has, so the doctor
+opens on the plan rather than a blank list.
+
+**To reverse:** `checkInFrom` in `DayScreen.tsx` — the `deskRecords` branch is
+the old path.
+
+### Planned procedures at booking stay
+
+`ProcedurePlan` on `BookingScreen` is untouched. A plan is what the patient is
+booked *for*, not a record of work, and the desk is the one on the phone when
+it is decided. Nothing prices at booking.
+
+**To reverse:** gate the `ProcedurePlan` mount in `BookingScreen` on
+`canRecordProcedures`.
+
+### The doctor sets line prices; the desk can discount at payment
+
+The doctor's editor is `VisitScreen`, which already edits prices per line. The
+desk no longer reaches it, so `VisitPaymentScreen` grew a Discount field that
+takes an amount off the charge the lines add up to, and checkout is sent the
+lower `chargedTotal`. It cannot go below what has already been paid.
+
+Two costs, both accepted for now: the discount is not stored as a discount —
+only the lower charge is — so reports cannot tell a discounted visit from a
+cheap one; and if the doctor edits the lines afterwards, `setProcedures`
+recomputes the charge and the discount has to be given again.
+
+A finished visit's money is now corrected straight from the read-only page
+("Correct payment") without the editor, so the reopen that `amend` used to do
+moved into `closeVisit` for this path.
+
+**To reverse:** remove the Discount block and pass `visit.chargedTotal` again.
+
+### The doctor's editor is `VisitScreen`, pushed over his day
+
+`DoctorVisitSheet` gains "Record what was done" once the patient has arrived
+(checked in, at the desk, or done). It pushes `VisitScreen` in `checkout` mode
+with the queue's standing. Confirm saves and returns to the day; Send to desk is
+there for the patient in the chair. The doctor never reaches payment.
+
+Editing a finished visit leaves it reopened with the appointment still `done`,
+as an abandoned correction already could. The desk closes it through Correct
+payment. Nothing prompts them to.
+
+The patient record's visit page follows the same gate: the doctor gets Edit
+visit, the desk under `doctor` gets Correct payment.
+
+### UI only
+
+`CLIENT_ROLES` stays a client-side preference. The server accepts
+`visit.setProcedures` from any caller, as the task said; this is about which
+screens each phone draws, and the role remains switchable by whoever holds it.
+
 ---
 
 # Client architecture

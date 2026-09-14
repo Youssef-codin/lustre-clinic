@@ -12,10 +12,15 @@
  * modal of buttons he must not press is worse than no modal at all. Check-out
  * goes with it: taking payment is the desk's, and it happens on
  * `VisitPaymentScreen`, which this screen never opens. What is mounted here is
- * `DoctorVisitSheet`, which is a read: tapping a row
- * asks what this patient is in for, and the answer is today's plan, with the
- * record one further tap away for the history. That tap leaves this screen —
- * `onOpenRecord` asks the shell, which opens it on the Patients tab.
+ * `DoctorVisitSheet`: tapping a row asks what this patient is in for, and the
+ * answer is today's plan, with the record one further tap away for the history.
+ * That tap leaves this screen — `onOpenRecord` asks the shell, which opens it on
+ * the Patients tab.
+ *
+ * The sheet's other button is the doctor's second write: once the patient is
+ * through the door, `VisitScreen` pushes over the day and he records what was
+ * done and what it costs. Confirm saves and comes back here; the money stays
+ * the desk's.
  *
  * `arrivals` is keyed by the checked-in ids rather than the date, so the queue's
  * order is re-asked when somebody arrives or leaves the chair and not on every
@@ -23,11 +28,20 @@
  */
 import { memo, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Banner, Button, RefreshView, Toast, usePullToRefresh } from '../../components/ui';
+import {
+    Banner,
+    Button,
+    PushView,
+    RefreshView,
+    Toast,
+    useAfterSheet,
+    usePullToRefresh,
+} from '../../components/ui';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { color, size, space } from '../../theme';
 import { procedureLabel } from './agenda';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
-import { splitDoctorDay } from './chair';
+import { type Standing, splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ChairCard, type ChairCardKind, ChairStrip } from './components/Chair';
@@ -36,9 +50,19 @@ import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
-import { type Appointment, api, checkInTimes, useLocalMutation, useLocalQuery } from './data';
+import { VisitScreen } from './components/VisitScreen';
+import {
+    type Appointment,
+    api,
+    checkInTimes,
+    useLocalMutation,
+    useLocalQuery,
+    type Visit,
+    visitForAppointment,
+} from './data';
 import { describeError } from './errors';
 import { isClosed } from './hours';
+import { formatMoney } from './money';
 import { busiestBranch, holdsSlot } from './month';
 import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
@@ -66,11 +90,25 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
         sheet: false,
     });
     const [toast, setToast] = useState<string | null>(null);
+    /**
+     * The visit the editor is about. Never cleared, only replaced, so it
+     * outlives the page's exit slide — the same rule `DayScreen` keeps.
+     */
+    const [editing, setEditing] = useState<{
+        appointment: Appointment;
+        visit: Visit;
+        standing: Standing;
+        seq: number;
+    } | null>(null);
+    const routes = useRouteStack<'treatment'>();
+    const loadVisit = useLocalMutation(visitForAppointment);
+    const sheetDone = useAfterSheet();
 
     if (goHome !== seenHome) {
         setSeenHome(goHome);
         setOpened((current) => ({ ...current, sheet: false }));
         setCalendar(closeCalendar);
+        routes.popToRoot();
     }
 
     const nowMinutes = useNowMinutes();
@@ -162,6 +200,33 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
         if (nextBranch) setBranchId(nextBranch);
     };
 
+    /** The queue's answer, as `DayScreen.standingOf` gives it; the status alone cannot tell the chair from the queue. */
+    function standingOf(appointment: Appointment): Standing {
+        if (appointment.status === 'done' || !isToday) return 'finished';
+        if (appointment.status === 'awaiting_payment') return 'desk';
+        return chair?.id === appointment.id ? 'chair' : 'waiting';
+    }
+
+    function recordVisit(appointment: Appointment) {
+        if (loadVisit.pending) return;
+        loadVisit.mutate(appointment.id, {
+            onSuccess: (loaded) => {
+                if (!loaded) {
+                    setToast('This visit could not be found');
+                    return;
+                }
+                setEditing((current) => ({
+                    appointment,
+                    visit: loaded,
+                    standing: standingOf(appointment),
+                    seq: (current?.seq ?? 0) + 1,
+                }));
+                setOpened((current) => ({ ...current, sheet: false }));
+                sheetDone.after(() => routes.resetTo('treatment'));
+            },
+        });
+    }
+
     function finishVisit(appointment: Appointment) {
         setFinishing(appointment.id);
         finish.mutate(appointment.id, {
@@ -205,6 +270,12 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                 />
             ) : null}
             {finish.error ? <Banner tone="warning" message={describeError(finish.error).title} /> : null}
+            {loadVisit.error ? (
+                <Banner
+                    tone="warning"
+                    message={`${describeError(loadVisit.error).title} — the visit could not be opened.`}
+                />
+            ) : null}
 
             <View style={styles.body}>
                 {day.status === 'loading' ? (
@@ -296,7 +367,40 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                     setOpened((current) => ({ ...current, sheet: false }));
                     onOpenRecord(appointment.patientId);
                 }}
+                onRecord={recordVisit}
+                recording={loadVisit.pending}
+                onClosed={sheetDone.closed}
             />
+
+            {rendered(routes.stack).map(({ id }, index) => (
+                <PushView
+                    key={id}
+                    visible={isOpen(routes.stack, index)}
+                    onClosed={routes.settled}
+                    testID="doctor-treatment-page"
+                >
+                    {editing ? (
+                        <VisitScreen
+                            key={`visit:${editing.seq}`}
+                            appointment={editing.appointment}
+                            visit={editing.visit}
+                            mode="checkout"
+                            standing={editing.standing}
+                            onBack={routes.pop}
+                            onConfirm={(priced) => {
+                                routes.popToRoot();
+                                setToast(`Saved · ${formatMoney(priced.chargedTotal)}`);
+                                day.refetch();
+                            }}
+                            onSentToDesk={(message) => {
+                                routes.popToRoot();
+                                setToast(message);
+                                day.refetch();
+                            }}
+                        />
+                    ) : null}
+                </PushView>
+            ))}
 
             <Toast
                 visible={toast !== null}
