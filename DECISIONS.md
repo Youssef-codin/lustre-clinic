@@ -162,6 +162,18 @@ changes only the plan keeps its time.
 `DoctorVisitSheet` offers "Edit booking" on a booked appointment, which pushes
 the same reschedule page over the doctor's day.
 
+### The doctor books from a patient's record
+
+The record's Book and Walk-in work on both roles. The shell routes them to
+whichever day screen is mounted, and `DoctorDayScreen` opens the same
+`BookingScreen` the desk's does. The server never gated booking by role, so the
+desk-only rule lived in the client and nowhere else. The doctor's day still has
+no FAB; the record is his way in.
+
+A booking opened from a record returns to that record, both from Back and once
+it is booked, because the record is where the user came from. The day under the
+page is where the shell happened to mount it.
+
 ### The desk can discount at payment
 
 `VisitPaymentScreen` has a Discount field that takes an amount off the charge

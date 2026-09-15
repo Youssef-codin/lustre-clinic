@@ -83,8 +83,13 @@ type Route =
     | {
           name: 'booking';
           patient: PatientDraft;
-          /** Set only when the booking was asked for from outside, which says which button it was. */
+          /** Which button asked for it — the record's two, or book-next's `later`. */
           timing?: 'now' | 'later';
+          /**
+           * Opened from a patient's record, so Back and Booked both return to
+           * that record rather than to this day, which the desk never came from.
+           */
+          from?: 'record';
       }
     /**
      * Moving an appointment already on the book: the booking page opened on
@@ -135,6 +140,12 @@ type DayScreenProps = {
     /** A booking pushed in from another cluster — the patient record's two openers. */
     open?: OpenBookingRequest;
     /**
+     * Back to the record `open` came from. The record is still on the Patients
+     * tab, so the shell only has to bring that tab up; `said` is a finished
+     * booking's toast, raised up there for the same reason `onOpenRecord`'s is.
+     */
+    onReturn?: (said?: string) => void;
+    /**
      * Bumped by the shell when the Day tab is tapped while it is already up.
      * Home is the schedule: whatever is pushed over it closes, and the date and
      * branch stay where they were — they are what the desk chose, not a route.
@@ -142,7 +153,7 @@ type DayScreenProps = {
     goHome?: number;
 };
 
-function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayScreenProps = {}) {
+function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome = 0 }: DayScreenProps = {}) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
@@ -157,7 +168,10 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     const [registering, setRegistering] = useState(false);
     /** The payment page, mid-write. Back is held for the same reason as above. */
     const [paying, setPaying] = useState(false);
-    const [seenOpen, setSeenOpen] = useState(0);
+    // Seeded from the request already standing: the shell swaps this screen for
+    // the doctor's on a role change, and a fresh mount must not replay a booking
+    // the other one has already opened and closed.
+    const [seenOpen, setSeenOpen] = useState(open?.seq ?? 0);
     const [seenHome, setSeenHome] = useState(goHome);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
@@ -220,7 +234,22 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * The schedule is the root, so a press with nothing pushed goes on to the
      * shell — which on the day tab means leaving the app.
      */
-    const routes = useRouteStack<Route>({ locked: registering || paying });
+    const routes = useRouteStack<Route>({
+        locked: registering || paying,
+        backFrom: (route) => route.name === 'booking' && route.from === 'record' && returnToRecord(),
+    });
+
+    /**
+     * Leaves a booking the record opened, for the record. The stack goes to the
+     * root without a slide, because the shell hides this pane in the same
+     * commit — and a Day tab opened later shows the schedule, not a stale page.
+     */
+    function returnToRecord(said?: string): boolean {
+        if (!onReturn) return false;
+        routes.clear();
+        onReturn(said);
+        return true;
+    }
 
     // Both derived during render rather than in an effect, so the page is on
     // screen in the same commit as the tab switch and the pane never paints the
@@ -228,7 +257,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     if (open && open.seq !== seenOpen) {
         setSeenOpen(open.seq);
         setBooking((current) => ({ ...current, open: false }));
-        routes.resetTo({ name: 'booking', patient: draftFor(open.patient), timing: open.timing });
+        routes.resetTo({
+            name: 'booking',
+            patient: draftFor(open.patient),
+            timing: open.timing,
+            from: 'record',
+        });
     }
 
     // Everything pushed over the schedule comes down. The shell drops the
@@ -841,11 +875,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             defaultDuration={settings.data?.defaultDuration ?? 30}
                             dateKey={dateKey}
                             nowMinutes={nowMinutes}
-                            onBack={routes.pop}
+                            onBack={routes.back}
                             onBooked={(message) => {
+                                day.refetch();
+                                if (route.from === 'record' && returnToRecord(message)) return;
                                 routes.pop();
                                 setToast(message);
-                                day.refetch();
                             }}
                         />
                     ) : null}
