@@ -173,6 +173,10 @@ away and open it twice. Settings → App → Version shows the update's short id
   and does not roll back: fix forward by publishing a corrected update.
 - **An update with a bug that does not crash**: check out the last good commit
   and run `release:update` again. It gets a new id and becomes the latest.
+- **Which update a crash came from**: GlitchTip's release is the APK version,
+  which an update leaves alone. Every report carries an `update` tag (the id,
+  or `embedded` for the APK's own bundle) and a `runtime` tag; filter on
+  `update` to see whether the newest update is the one crashing.
 - Dev builds load Metro and demo builds have updates switched off, so neither
   ever takes a production update.
 

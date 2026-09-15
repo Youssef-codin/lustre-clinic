@@ -75,6 +75,7 @@ const IDENTIFIER = /^[A-Za-z_$][\w$.]*$/;
 const WORD = /^[a-z][a-z0-9_.-]*$/;
 const VERSION = /^[\w.@+-]+$/;
 const HEX_ID = /^[0-9a-f]{32}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FILE = /^[\w@./:?&=%~+#-]+$/;
 const FRAME_FUNCTION = /^[\w$.<>?[\] -]+$/;
 const COMPONENT_STACK = /^[\w\s()@./:?&=%~+#$<>,[\]-]*$/;
@@ -199,6 +200,9 @@ const TAGS: Record<string, (value: unknown) => boolean> = {
     error_code: isErrorCode,
     procedure: (value) => text(value, PROCEDURE, 80) !== undefined,
     report: (value) => value === 'problem',
+    // Which OTA bundle crashed, so a bad update can be told from a bad APK.
+    update: (value) => value === 'embedded' || (typeof value === 'string' && UUID.test(value)),
+    runtime: (value) => text(value, VERSION, 64) !== undefined,
     'event.origin': (value) => text(value, WORD, 40) !== undefined,
     'event.environment': (value) => text(value, WORD, 40) !== undefined,
 };

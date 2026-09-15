@@ -69,8 +69,8 @@ type PatientsClusterProps = {
      * more — the sheet opens on the record itself, because the server allocates
      * a patient-level payment and there is no longer a visit to go and pick.
      */
-    onBook?: (patient: PatientTarget) => void;
-    onWalkIn?: (patient: PatientTarget) => void;
+    onBook: (patient: PatientTarget) => void;
+    onWalkIn: (patient: PatientTarget) => void;
 };
 
 function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {

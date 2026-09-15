@@ -9,6 +9,7 @@
 import type { ClientRole } from '@lustre/shared';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
+import * as Updates from 'expo-updates';
 import type { ErrorInfo } from 'react';
 import { AppState } from 'react-native';
 import { BUILD_VARIANT } from '../api/config';
@@ -40,6 +41,15 @@ export function startCrashReports(): void {
         beforeBreadcrumb: (crumb) => (isDemoMode() ? null : allowBreadcrumb(crumb)),
         beforeSend: (event) => (isDemoMode() ? null : allowEvent(event)),
     });
+
+    // `release` is the APK's version and an OTA update leaves it alone, so
+    // without these a crash in a bad update reads as one in the APK.
+    if (Updates.isEnabled) {
+        Sentry.setTags({
+            update: Updates.isEmbeddedLaunch || !Updates.updateId ? 'embedded' : Updates.updateId,
+            runtime: Updates.runtimeVersion ?? 'unknown',
+        });
+    }
 
     setTrailSink((crumb) => Sentry.addBreadcrumb(crumb));
     AppState.addEventListener('change', (state) => Sentry.addBreadcrumb(lifecycleCrumb(state)));

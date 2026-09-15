@@ -9,7 +9,7 @@ import { useReminderNudges } from '../notifications';
 import { noteScreen, renderErrorReporter, useCrashReportRole } from '../reporting';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
-import { type OpenRecordRequest, PatientsCluster } from '../screens/patients';
+import { type OpenRecordRequest, PatientsCluster, useInvalidatePatients } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
@@ -52,8 +52,10 @@ import { BackStackContext } from './useBackHandler';
 // Patients tab and the tab bar moves with it, because that is the screen's home
 // and a record drawn inside the Day tab left the highlight on a day nobody was
 // looking at. The patient record's two openers go the other way, into the day
-// cluster. All of them travel as requests (`shell/routes.ts`) and the
-// destination decides which of its screens that means.
+// cluster, for either role — and Back from the booking page they open comes
+// back to the record, not to the day underneath it. All of them travel as
+// requests (`shell/routes.ts`) and the destination decides which of its screens
+// that means.
 //
 // Record payment was a third opener and is not routed at all any more. The
 // server allocates a payment across a patient's unsettled visits, so there is
@@ -190,6 +192,24 @@ export function AppShell() {
         [reveal],
     );
 
+    /**
+     * The way back out of that booking page, whether it was left or finished.
+     * The record never went anywhere — the Patients tab kept it — so going back
+     * is bringing that tab up. Its data is the Patients cluster's own cache,
+     * which no server event touches, so it is marked stale here or a booking
+     * just made would be missing from the record it returns to.
+     */
+    const invalidatePatients = useInvalidatePatients();
+    const returnToRecord = useCallback(
+        (said?: string) => {
+            reveal('patients');
+            setBooking(false);
+            invalidatePatients();
+            if (said) setToast(said);
+        },
+        [reveal, invalidatePatients],
+    );
+
     // One per pane, rather than the arrow each `<Pane>` used to be written with.
     // The clusters are memoised and a tab switch changes none of their props, so
     // the switch costs a re-render of this component and nothing below it — but
@@ -254,7 +274,13 @@ export function AppShell() {
                     back={stacks.day}
                 >
                     {role === 'doctor' ? (
-                        <DoctorDayScreen key="doctor" goHome={home.day} onOpenRecord={openFromDoctorDay} />
+                        <DoctorDayScreen
+                            key="doctor"
+                            open={booked}
+                            goHome={home.day}
+                            onOpenRecord={openFromDoctorDay}
+                            onReturn={returnToRecord}
+                        />
                     ) : (
                         <DayScreen
                             key="secretary"
@@ -262,6 +288,7 @@ export function AppShell() {
                             goHome={home.day}
                             onBookingChange={setBooking}
                             onOpenRecord={openFromDay}
+                            onReturn={returnToRecord}
                         />
                     )}
                 </Pane>
@@ -275,12 +302,8 @@ export function AppShell() {
                     <PatientsCluster
                         open={record}
                         goHome={home.patients}
-                        // Booking is the desk's, and the doctor's day view has no
-                        // booking on it to reach — so on his phone the record's
-                        // two openers keep the screen's own fallback, which says
-                        // where the flow lives instead of failing silently.
-                        onBook={role === 'secretary' ? bookLater : undefined}
-                        onWalkIn={role === 'secretary' ? bookNow : undefined}
+                        onBook={bookLater}
+                        onWalkIn={bookNow}
                     />
                 </Pane>
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
     beneath,
     canPop,
+    clear,
     emptyStack,
     isOpen,
     isTop,
@@ -204,10 +205,18 @@ describe('routeStack', () => {
         });
     });
 
+    it('drops open and leaving routes together on clear', () => {
+        const cleared = clear(pop(stackOf('record', 'edit')));
+
+        expect(drawn(cleared)).toEqual([]);
+        expect(canPop(cleared)).toBe(false);
+    });
+
     it('never mutates the stack it was given', () => {
         const stack = stackOf('record', 'edit');
         const before = drawn(stack);
 
+        clear(stack);
         pop(stack);
         popToRoot(stack);
         push(stack, 'visit');

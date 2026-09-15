@@ -93,6 +93,16 @@ export function resetTo<T>(stack: RouteStack<T>, route: T): RouteStack<T> {
     return { open: [{ id: nextId(stack), route }], leaving: [] };
 }
 
+/**
+ * Back to the root with nothing left to watch leave. For a page that returns to
+ * another tab: the pane it covers is hidden in the same commit, so a slide out
+ * would play to nobody and its `onClosed` is not something to wait on.
+ */
+export function clear<T>(stack: RouteStack<T>): RouteStack<T> {
+    if (stack.open.length === 0 && stack.leaving.length === 0) return stack;
+    return emptyStack<T>();
+}
+
 /** Everything with a pane on screen, bottom first. Open ones, then leaving. */
 export function rendered<T>(stack: RouteStack<T>): readonly StackEntry<T>[] {
     return [...stack.open, ...stack.leaving];

@@ -75,8 +75,8 @@ export type PatientRecordScreenProps = {
      * this cluster cannot reach — the shell routes them (`shell/routes.ts`), and
      * they carry the patient because the booking page names and dials them.
      */
-    onBook?: (patient: Patient) => void;
-    onWalkIn?: (patient: Patient) => void;
+    onBook: (patient: Patient) => void;
+    onWalkIn: (patient: Patient) => void;
     /** A history row that became a visit — the cluster above opens it. */
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 };
@@ -179,12 +179,7 @@ export function PatientRecordScreen({
                     <View style={styles.top}>
                         <PatientHeader patient={patient} onFailed={setToast} />
 
-                        <Openers
-                            patient={patient}
-                            onBook={onBook}
-                            onWalkIn={onWalkIn}
-                            onUnavailable={setToast}
-                        />
+                        <Openers patient={patient} onBook={onBook} onWalkIn={onWalkIn} />
 
                         <Outstanding
                             amount={outstanding}
@@ -302,37 +297,31 @@ function RecordBar({
 
 /**
  * The two things a record is opened to start. Both belong to the day cluster,
- * which this screen cannot reach on its own — the shell routes them. Without a
- * handler the button still says where the flow lives instead of failing
- * silently: that is a gallery or a test, and on the doctor's phone, where the
- * day view has no booking on it to open.
+ * which this screen cannot reach on its own — the shell routes them, for both
+ * roles.
  */
 function Openers({
     patient,
     onBook,
     onWalkIn,
-    onUnavailable,
 }: {
     patient: Patient;
-    onBook?: (patient: Patient) => void;
-    onWalkIn?: (patient: Patient) => void;
-    onUnavailable: (message: string) => void;
+    onBook: (patient: Patient) => void;
+    onWalkIn: (patient: Patient) => void;
 }) {
-    const elsewhere = () => onUnavailable('Booking opens from the Day tab for now.');
-
     return (
         <View style={styles.openers}>
             <Button
                 label="Book appointment"
                 size="md"
-                onPress={onBook ? () => onBook(patient) : elsewhere}
+                onPress={() => onBook(patient)}
                 style={styles.opener}
             />
             <Button
                 label="Walk-in today"
                 variant="secondary"
                 size="md"
-                onPress={onWalkIn ? () => onWalkIn(patient) : elsewhere}
+                onPress={() => onWalkIn(patient)}
                 style={styles.opener}
             />
         </View>

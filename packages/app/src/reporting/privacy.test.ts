@@ -318,6 +318,27 @@ describe('"Report a problem"', () => {
         expect(event.breadcrumbs?.map((crumb) => crumb.category)).toEqual(['navigation', 'ui.tap']);
     });
 
+    it('names the OTA update and runtime it ran on, and nothing posing as them', async () => {
+        getCurrentScope().setTags({
+            update: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+            runtime: '3f8a2b1c9d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a',
+        });
+        captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
+
+        const [json = ''] = await eventsSent();
+        expect((JSON.parse(json) as Event).tags).toEqual({
+            report: 'problem',
+            update: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+            runtime: '3f8a2b1c9d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a',
+        });
+
+        getCurrentScope().setTags({ update: PATIENT.name, runtime: PATIENT.note });
+        captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
+        const [, second = ''] = await eventsSent();
+        expectNoPatientData(second);
+        expect((JSON.parse(second) as Event).tags).toEqual({ report: 'problem' });
+    });
+
     it('sends nothing for any other message, since a message can say anything', async () => {
         addBreadcrumb(screenCrumb('patients'));
         captureMessage(`${PATIENT.name} could not be found`);

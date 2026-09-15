@@ -23,6 +23,10 @@
  * the desk's. Before they arrive, the same sheet opens the booking page on the
  * appointment, so he can change what they are booked for, or when.
  *
+ * New bookings are not started here — there is still no FAB — but a patient's
+ * record can ask for one, and the shell routes it to this screen the way it does
+ * the desk's. That page returns to the record it came from.
+ *
  * `arrivals` is keyed by the checked-in ids rather than the date, so the queue's
  * order is re-asked when somebody arrives or leaves the chair and not on every
  * tick of the clock.
@@ -53,6 +57,7 @@ import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
 import { VisitScreen } from './components/VisitScreen';
+import type { OpenBookingRequest } from './DayScreen';
 import {
     type Appointment,
     api,
@@ -73,6 +78,10 @@ import { useNowMinutes } from './useNow';
 type DoctorDayScreenProps = {
     /** A patient's record is the Patients tab's screen; the shell switches to it. */
     onOpenRecord: (patientId: string) => void;
+    /** A booking the patient record's Book or Walk-in asked for — see `DayScreen`. */
+    open?: OpenBookingRequest;
+    /** Back to the record `open` came from, with a finished booking's toast. */
+    onReturn?: (said?: string) => void;
     /**
      * Bumped by the shell when the Day tab is tapped while it is already up.
      * This screen's stack is one sheet deep, so home is that sheet closed; the
@@ -81,7 +90,7 @@ type DoctorDayScreenProps = {
     goHome?: number;
 };
 
-function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps) {
+function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
     const [branchId, setBranchId] = useState<string | null>(null);
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
@@ -105,9 +114,29 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
     } | null>(null);
     /** The booking being edited, kept past the page's exit slide for the same reason. */
     const [moving, setMoving] = useState<Appointment | null>(null);
-    const routes = useRouteStack<'treatment' | 'reschedule'>();
+    // Seeded from the request already standing, so swapping roles does not
+    // replay a booking the desk's screen has already been through.
+    const [seenOpen, setSeenOpen] = useState(open?.seq ?? 0);
+    // Every booking here came from a record, so every one of them goes back to it.
+    const routes = useRouteStack<'treatment' | 'reschedule' | 'booking'>({
+        backFrom: (route) => route === 'booking' && returnToRecord(),
+    });
     const loadVisit = useLocalMutation(visitForAppointment);
     const sheetDone = useAfterSheet();
+
+    /** See `DayScreen.returnToRecord`: no slide out, the shell hides this pane in the same commit. */
+    function returnToRecord(said?: string): boolean {
+        if (!onReturn) return false;
+        routes.clear();
+        onReturn(said);
+        return true;
+    }
+
+    if (open && open.seq !== seenOpen) {
+        setSeenOpen(open.seq);
+        setOpened((current) => ({ ...current, sheet: false }));
+        routes.resetTo('booking');
+    }
 
     if (goHome !== seenHome) {
         setSeenHome(goHome);
@@ -396,6 +425,27 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                     onClosed={routes.settled}
                     testID={`doctor-${route}-page`}
                 >
+                    {route === 'booking' && open ? (
+                        <BookingScreen
+                            patient={draftFor(open.patient)}
+                            timing={open.timing}
+                            branchId={branch}
+                            branches={branches.data ?? []}
+                            schedule={schedule.data}
+                            durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
+                            defaultDuration={settings.data?.defaultDuration ?? 30}
+                            dateKey={dateKey}
+                            nowMinutes={nowMinutes}
+                            onBack={routes.back}
+                            onBooked={(message) => {
+                                day.refetch();
+                                if (returnToRecord(message)) return;
+                                routes.popToRoot();
+                                setToast(message);
+                            }}
+                        />
+                    ) : null}
+
                     {route === 'reschedule' && moving ? (
                         <BookingScreen
                             key={`reschedule:${moving.id}`}
