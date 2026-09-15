@@ -23,9 +23,10 @@
  * `appointment.create` either way, and that screen already lands the exclusion
  * constraint's answer above the button that caused it (§4/§14).
  *
- * Dismissing is the common case and costs nothing: the scrim, the hardware back
- * and Book later all land exactly where confirming an arrival landed before this
- * sheet existed. Nothing here writes, so nothing here can refuse to close.
+ * Book later is an answer: it lands where confirming an arrival landed before
+ * this sheet existed, the patient's record. The scrim and the hardware back are
+ * not answers, so they only close the sheet and leave the desk on the day.
+ * Nothing here writes, so nothing here can refuse to close.
  */
 import { Button, Sheet } from '../../../components/ui';
 
@@ -35,7 +36,9 @@ export type BookNextSheetProps = {
     patientName: string;
     /** Into `BookingScreen`, with this patient already answered. */
     onBookNow: () => void;
-    /** Scrim, hardware back and Book later all arrive here. */
+    /** Book later: on to the patient's record. */
+    onLater: () => void;
+    /** The scrim or the hardware back: the sheet closes and the day stays. */
     onDismiss: () => void;
     /**
      * Both answers land somewhere else, so neither is acted on here: the
@@ -45,7 +48,14 @@ export type BookNextSheetProps = {
     onClosed: () => void;
 };
 
-export function BookNextSheet({ visible, patientName, onBookNow, onDismiss, onClosed }: BookNextSheetProps) {
+export function BookNextSheet({
+    visible,
+    patientName,
+    onBookNow,
+    onLater,
+    onDismiss,
+    onClosed,
+}: BookNextSheetProps) {
     return (
         <Sheet
             visible={visible}
@@ -61,7 +71,7 @@ export function BookNextSheet({ visible, patientName, onBookNow, onDismiss, onCl
                         label="Book later"
                         variant="text"
                         block
-                        onPress={onDismiss}
+                        onPress={onLater}
                         testID="book-next-dismiss"
                     />
                 </>

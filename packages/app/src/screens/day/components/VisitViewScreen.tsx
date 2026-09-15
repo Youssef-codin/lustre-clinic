@@ -30,8 +30,6 @@ export type VisitViewScreenProps = {
     onBack: () => void;
     /** Open the editor over this page. Nothing has been written to the visit. */
     onEdit: (visit: Visit) => void;
-    /** What the button opens, when it is not the procedure editor. */
-    editLabel?: string;
 };
 
 type Panel = 'treatment' | 'payment';
@@ -54,13 +52,7 @@ function monthOf(iso: string): string {
     return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
 }
 
-export function VisitViewScreen({
-    appointment,
-    visit,
-    onBack,
-    onEdit,
-    editLabel = 'Edit visit',
-}: VisitViewScreenProps) {
+export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitViewScreenProps) {
     const [panel, setPanel] = useState<Panel>('treatment');
 
     const groups = toothGroupsOf(visit.procedures);
@@ -310,7 +302,7 @@ export function VisitViewScreen({
             </ScrollView>
 
             <View style={styles.bar}>
-                <Button label={editLabel} block onPress={() => onEdit(visit)} testID="visit-view-edit" />
+                <Button label="Edit visit" block onPress={() => onEdit(visit)} testID="visit-view-edit" />
             </View>
         </View>
     );

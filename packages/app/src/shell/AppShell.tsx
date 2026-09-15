@@ -281,7 +281,6 @@ export function AppShell() {
                         // where the flow lives instead of failing silently.
                         onBook={role === 'secretary' ? bookLater : undefined}
                         onWalkIn={role === 'secretary' ? bookNow : undefined}
-                        role={role}
                     />
                 </Pane>
 
@@ -306,9 +305,9 @@ export function AppShell() {
                     <SettingsScreen role={role} goHome={home.settings} onChangeRole={setRole} />
                 </Pane>
 
-                {/* Inside the body rather than at the root, so it rides above
-                    the tab bar on the default offset — the same place a
-                    cluster's own toast lands, since the panes end here too.
+                {/* Inside the body rather than at the root, so it lands where a
+                    cluster's own toast does: the top of the panes, clear of
+                    the tab bar and every screen's bottom buttons.
                     It has nothing to say on the disconnected route: what it
                     reports happened on a tab, and no tab is up. */}
                 <Toast

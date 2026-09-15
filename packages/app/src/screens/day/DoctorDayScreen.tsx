@@ -20,7 +20,8 @@
  * The sheet's other button is the doctor's second write: once the patient is
  * through the door, `VisitScreen` pushes over the day and he records what was
  * done and what it costs. Confirm saves and comes back here; the money stays
- * the desk's.
+ * the desk's. Before they arrive, the same sheet opens the booking page on the
+ * appointment, so he can change what they are booked for, or when.
  *
  * `arrivals` is keyed by the checked-in ids rather than the date, so the queue's
  * order is re-asked when somebody arrives or leaves the chair and not on every
@@ -43,6 +44,7 @@ import { procedureLabel } from './agenda';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from './calendar';
 import { type Standing, splitDoctorDay } from './chair';
 import { BeforeThis } from './components/Agenda';
+import { BookingScreen } from './components/BookingScreen';
 import { CalendarSheet } from './components/CalendarSheet';
 import { ChairCard, type ChairCardKind, ChairStrip } from './components/Chair';
 import { ClosedDay } from './components/ClosedDay';
@@ -64,6 +66,7 @@ import { describeError } from './errors';
 import { isClosed } from './hours';
 import { formatMoney } from './money';
 import { busiestBranch, holdsSlot } from './month';
+import { draftFor } from './patientDraft';
 import { todayKey } from './time';
 import { useNowMinutes } from './useNow';
 
@@ -100,7 +103,9 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
         standing: Standing;
         seq: number;
     } | null>(null);
-    const routes = useRouteStack<'treatment'>();
+    /** The booking being edited, kept past the page's exit slide for the same reason. */
+    const [moving, setMoving] = useState<Appointment | null>(null);
+    const routes = useRouteStack<'treatment' | 'reschedule'>();
     const loadVisit = useLocalMutation(visitForAppointment);
     const sheetDone = useAfterSheet();
 
@@ -115,6 +120,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
 
     const schedule = useLocalQuery('schedule', api.schedule);
     const branches = useLocalQuery('branches', api.branches);
+    const settings = useLocalQuery('settings', api.settings);
     // Fetched for the whole clinic and split here, so the screen opens on the
     // branch holding most of the day rather than on `branches[0]` — see
     // `DayScreen`. A branch the user picked wins over the count.
@@ -159,7 +165,8 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
     const seatFor = (id: string) => arrivals.data?.inChairAt.get(id) ?? arrivals.data?.checkedInAt.get(id);
 
     // This screen's reads only — see `DayScreen`. The doctor has no reminders
-    // tab and no settings read, so it is four queries rather than six.
+    // tab, and settings are only read for the booking page's lengths, so a pull
+    // re-asks four queries rather than six.
     const reads = [day, schedule, branches, arrivals];
     const pull = usePullToRefresh(
         () => {
@@ -225,6 +232,12 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                 sheetDone.after(() => routes.resetTo('treatment'));
             },
         });
+    }
+
+    function editBooking(appointment: Appointment) {
+        setMoving(appointment);
+        setOpened((current) => ({ ...current, sheet: false }));
+        sheetDone.after(() => routes.resetTo('reschedule'));
     }
 
     function finishVisit(appointment: Appointment) {
@@ -371,18 +384,40 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                     onOpenRecord(appointment.patientId);
                 }}
                 onRecord={recordVisit}
+                onEditBooking={editBooking}
                 recording={loadVisit.pending}
                 onClosed={sheetDone.closed}
             />
 
-            {rendered(routes.stack).map(({ id }, index) => (
+            {rendered(routes.stack).map(({ id, route }, index) => (
                 <PushView
                     key={id}
                     visible={isOpen(routes.stack, index)}
                     onClosed={routes.settled}
-                    testID="doctor-treatment-page"
+                    testID={`doctor-${route}-page`}
                 >
-                    {editing ? (
+                    {route === 'reschedule' && moving ? (
+                        <BookingScreen
+                            key={`reschedule:${moving.id}`}
+                            patient={draftFor(moving.patient)}
+                            rescheduling={moving}
+                            branchId={moving.branchId}
+                            branches={branches.data ?? []}
+                            schedule={schedule.data}
+                            durationOptions={settings.data?.durationOptions ?? [15, 30, 45]}
+                            defaultDuration={moving.durationMinutes}
+                            dateKey={dateKey}
+                            nowMinutes={nowMinutes}
+                            onBack={routes.pop}
+                            onBooked={(message) => {
+                                routes.popToRoot();
+                                setToast(message);
+                                day.refetch();
+                            }}
+                        />
+                    ) : null}
+
+                    {route === 'treatment' && editing ? (
                         <VisitScreen
                             key={`visit:${editing.seq}`}
                             appointment={editing.appointment}
@@ -405,12 +440,7 @@ function DoctorDayScreenView({ onOpenRecord, goHome = 0 }: DoctorDayScreenProps)
                 </PushView>
             ))}
 
-            <Toast
-                visible={toast !== null}
-                message={toast ?? ''}
-                onDismiss={() => setToast(null)}
-                offset={space[6]}
-            />
+            <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
 }

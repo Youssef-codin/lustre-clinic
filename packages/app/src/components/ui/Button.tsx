@@ -48,18 +48,6 @@ export type ButtonProps = {
     icon?: ReactNode;
     block?: boolean;
     pressLockMs?: number;
-    /**
-     * Whether `disabled` is allowed to change how the button looks. `dim` is the
-     * default and is right almost everywhere: the fill lightens, the label
-     * darkens, and the control reads as not yet available.
-     *
-     * `solid` keeps the enabled fill and label while staying just as inert. It
-     * is for the one button on a screen that is always the way forward — a
-     * stepper's Next, where the step above it already says what is missing, and
-     * grey-ing the only action on the bar reads as the screen having nothing to
-     * offer rather than as a question still open.
-     */
-    disabledLook?: 'dim' | 'solid';
     style?: StyleProp<ViewStyle>;
     testID?: string;
 };
@@ -115,15 +103,14 @@ export function Button({
     icon,
     block = false,
     pressLockMs = 500,
-    disabledLook = 'dim',
     style,
     testID,
 }: ButtonProps) {
     const lockedUntil = useRef(0);
     const inert = disabled || loading;
-    // Inertness and appearance are separate questions: `solid` refuses the press
-    // exactly as `dim` does, and only declines to say so in the fill.
-    const dimmed = disabled && disabledLook === 'dim';
+    // A button that refuses the press always looks it. One that kept its fill
+    // while disabled read as a screen that had frozen, not as a step unfinished.
+    const dimmed = disabled;
 
     function handlePress() {
         if (inert || !onPress) return;
