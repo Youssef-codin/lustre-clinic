@@ -1778,13 +1778,19 @@ describe('appointment procedures', () => {
 });
 
 describe('visit', () => {
-    async function checkedIn() {
+    /**
+     * A visit checked in today. `withWork` books a root canal first, so the
+     * visit opens with a line and checkout will take it; a test about an empty
+     * visit, or one that sets its own lines, leaves it off.
+     */
+    async function checkedIn({ withWork = false }: { withWork?: boolean } = {}) {
         const f = await fixtures();
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            ...(withWork ? { procedures: [{ procedureId: f.rootCanal.id, quantity: 1 }] } : {}),
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
         return { ...f, appointment, visit };
@@ -1956,6 +1962,18 @@ describe('visit', () => {
         expect(reclosed.completedAt).not.toBeNull();
         expect(reclosed.paidTotal).toBe(charged);
         expect((await appointmentService.byId(appointment.id)).status).toBe('done');
+    });
+
+    test('refuses to check out a visit with no procedures on it', async () => {
+        const { visit, appointment } = await checkedIn();
+
+        await expectAppError(ERROR_CODE.VISIT_HAS_NO_PROCEDURES, () =>
+            visitService.checkOut({ visitId: visit.id, chargedTotal: 0, paidTotal: 0, method: 'cash' }),
+        );
+
+        // Nothing closed: the visit stays open and the patient stays checked in.
+        expect((await visitService.byId(visit.id)).completedAt).toBeNull();
+        expect((await appointmentService.byId(appointment.id)).status).toBe('checked_in');
     });
 
     test('still refuses to check out a visit that is closed', async () => {
@@ -2168,7 +2186,7 @@ describe('visit', () => {
     });
 
     test('refuses to re-price a visit that is already checked out', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
         await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 100_000,
@@ -2186,7 +2204,7 @@ describe('visit', () => {
     });
 
     test('checks out with a partial payment and leaves a balance', async () => {
-        const { visit, appointment } = await checkedIn();
+        const { visit, appointment } = await checkedIn({ withWork: true });
 
         const done = await visitService.checkOut({
             visitId: visit.id,
@@ -2204,7 +2222,7 @@ describe('visit', () => {
     });
 
     test('checks out a patient the doctor sent to the desk', async () => {
-        const { visit, appointment } = await checkedIn();
+        const { visit, appointment } = await checkedIn({ withWork: true });
         await appointmentService.awaitPayment(appointment.id);
 
         const done = await visitService.checkOut({
@@ -2234,7 +2252,7 @@ describe('visit', () => {
     });
 
     test('checks out with nothing paid', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
 
         const done = await visitService.checkOut({
             visitId: visit.id,
@@ -2248,7 +2266,7 @@ describe('visit', () => {
     });
 
     test('refuses to check out twice', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
         await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 1_000,
@@ -2267,7 +2285,7 @@ describe('visit', () => {
     });
 
     test('records a later payment against the balance', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
         await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 100_000,
@@ -2303,11 +2321,13 @@ describe('visit', () => {
 describe('balance', () => {
     async function owing(amount: number, paid: number) {
         const f = await fixtures();
+        // Booked with a line, because checkout refuses a visit with none.
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            procedures: [{ procedureId: f.rootCanal.id, quantity: 1 }],
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
         await visitService.checkOut({

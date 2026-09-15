@@ -297,6 +297,16 @@ export const visitHandlers = {
         const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
         if (!appointment) throw DemoError.notFound('appointment');
 
+        // As the server: an ordinary visit needs a line to be closed, and an
+        // opening balance never has one.
+        if (!appointment.isOpeningBalance && linesOf(visit.id).length === 0) {
+            throw new DemoError(
+                ERROR_CODE.VISIT_HAS_NO_PROCEDURES,
+                'cannot check out a visit with no procedures',
+                422,
+            );
+        }
+
         // Closing a visit that was reopened to be corrected: the appointment
         // never left `done`, so there is no transition to make.
         const reclosing = appointment.status === 'done';

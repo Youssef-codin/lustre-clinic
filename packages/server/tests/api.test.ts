@@ -487,11 +487,12 @@ describe('error mapping', () => {
 
     test('a second checkout is 409 VISIT_ALREADY_COMPLETED', async () => {
         const { client } = api;
-        const { branch, patient } = await clinicViaApi();
+        const { branch, patient, rootCanal } = await clinicViaApi();
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
             startsAt: todaySlot(),
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
         await client.visit.checkOut.mutate({
@@ -640,13 +641,14 @@ describe('websocket broadcasts', () => {
 
     test('no payload ever carries patient data', async () => {
         const { client } = api;
-        const { branch, patient } = await clinicViaApi();
+        const { branch, patient, rootCanal } = await clinicViaApi();
 
         const { events } = await captureWsEvents(api.wsUrl, async () => {
             const appointment = await client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
                 startsAt: todaySlot(),
+                procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
             });
             const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
             await client.visit.checkOut.mutate({

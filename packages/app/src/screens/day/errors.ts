@@ -62,6 +62,12 @@ export function describeError(error: RequestError, context: ErrorContext = 'gene
         case ERROR_CODE.VISIT_ALREADY_COMPLETED:
             return { title: 'This visit is already checked out' };
 
+        case ERROR_CODE.VISIT_HAS_NO_PROCEDURES:
+            return {
+                title: 'Add what was done first',
+                body: 'A visit needs at least one procedure before it can be checked out.',
+            };
+
         case ERROR_CODE.NOT_FOUND:
             return {
                 title: context === 'day' ? 'That day could not be loaded' : 'That is no longer there',

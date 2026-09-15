@@ -336,15 +336,12 @@ export function BookingScreen({
     }
 
     const timeIsFree = !scheduled || slotIsFree(slots, slotMinutes);
-    // The time it already has, still picked: an edit to the plan or the note
-    // alone, not a move, and nothing about the time to write.
-    const unchanged =
-        rescheduling !== undefined &&
-        date === movingFrom &&
-        slotMinutes === bookedAt &&
-        duration === rescheduling.durationMinutes &&
-        branch === rescheduling.branchId;
-    const moves = rescheduling !== undefined && !unchanged;
+    // What a reschedule changed, each on its own. Only a new day or time is a
+    // move: a longer visit at the same start, or the same time at another
+    // branch, is sent as that and not reported as moving to where it already is.
+    const timeChanged = rescheduling !== undefined && (date !== movingFrom || slotMinutes !== bookedAt);
+    const lengthChanged = rescheduling !== undefined && duration !== rescheduling.durationMinutes;
+    const branchChanged = rescheduling !== undefined && branch !== rescheduling.branchId;
     const planChanged = rescheduling !== undefined && planSeeded && !samePlan(plan, rescheduling.procedures);
     const noteChanged = rescheduling !== undefined && (note.trim() || null) !== (rescheduling.note ?? null);
     const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
@@ -364,10 +361,10 @@ export function BookingScreen({
         if (!ref || !branch || !ready) return;
 
         if (rescheduling) {
-            const at = moves ? slotMinutes : null;
-            if (moves && at === null) return;
+            const at = slotMinutes;
+            if (at === null) return;
             // Nothing the server holds has changed, so there is nothing to write.
-            if (at === null && !planChanged && !noteChanged) {
+            if (!timeChanged && !lengthChanged && !branchChanged && !planChanged && !noteChanged) {
                 onBooked(`${name}'s booking is unchanged`);
                 return;
             }
@@ -376,22 +373,16 @@ export function BookingScreen({
                     id: rescheduling.id,
                     // Only what the edit changes: a length Settings has since
                     // dropped is refused if it is sent back unchanged.
-                    ...(at === null
-                        ? {}
-                        : {
-                              startsAt: isoAt(date, at),
-                              ...(duration === rescheduling.durationMinutes
-                                  ? {}
-                                  : { durationMinutes: duration }),
-                              ...(branch === rescheduling.branchId ? {} : { branchId: branch }),
-                          }),
+                    ...(timeChanged ? { startsAt: isoAt(date, at) } : {}),
+                    ...(lengthChanged ? { durationMinutes: duration } : {}),
+                    ...(branchChanged ? { branchId: branch } : {}),
                     ...(planChanged ? { procedures: bookedProcedures(plan) } : {}),
                     ...(noteChanged ? { note: note.trim() || null } : {}),
                 },
                 {
                     onSuccess: () =>
                         onBooked(
-                            at === null
+                            !timeChanged
                                 ? `${name}'s booking updated`
                                 : `${name} moved to ${dayLabel(date)} at ${timeLabel(at)}`,
                         ),
@@ -835,7 +826,7 @@ export function BookingScreen({
                         label={
                             last
                                 ? rescheduling
-                                    ? moves
+                                    ? timeChanged
                                         ? 'Move it'
                                         : 'Save changes'
                                     : scheduled

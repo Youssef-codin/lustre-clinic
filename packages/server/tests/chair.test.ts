@@ -152,11 +152,13 @@ describe('who is in the chair', () => {
     test('checking out straight from the chair hands it on too', async () => {
         const fixtures = await clinic();
 
+        // Booked with a line, because checkout refuses a visit with none.
         const first = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            procedures: [{ procedureId: fixtures.rootCanal.id, quantity: 1 }],
         });
         const second = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
@@ -249,6 +251,11 @@ describe('the chair belongs to one clinic day', () => {
         const next = await book(fixtures, 120);
         const waiting = await visitService.checkIn({ appointmentId: next.id });
 
+        // Something was done, or checkout would refuse an empty visit.
+        await visitService.setProcedures({
+            visitId: inChair.id,
+            procedures: [{ procedureId: fixtures.rootCanal.id, quantity: 1 }],
+        });
         await visitService.checkOut({
             visitId: inChair.id,
             chargedTotal: 0,

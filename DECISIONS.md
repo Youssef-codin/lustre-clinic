@@ -137,7 +137,9 @@ Booking, check-in and a patient still waiting may all have an empty list: what
 is done is decided in the chair. Checkout is the one place a visit needs at
 least one line, because there is nothing to charge without it. `VisitScreen`
 refuses Confirm and Send to desk on an empty list once the patient is in the
-chair or past it. The server does not enforce this.
+chair or past it, and `visit.checkOut` refuses it too (`VISIT_HAS_NO_PROCEDURES`),
+on the server and in the demo, so no other caller can close an empty visit. An
+opening balance is exempt: it stands for carried-over debt and never has lines.
 
 ### Check-in adds no consultation
 

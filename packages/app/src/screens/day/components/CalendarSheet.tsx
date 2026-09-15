@@ -270,7 +270,10 @@ export function CalendarSheet({
                                 phone. Mounting a view is always drawn. */}
                             <View style={[styles.cellBox, !picked && closed && styles.closedEdge]}>
                                 <View style={[styles.fill, { backgroundColor: fillTone }]} />
-                                {!picked && day === today ? (
+                                {/* Not on a closed day either: the ring would hide
+                                    the dashed closed edge, and in booking mode
+                                    dress a day that cannot be picked as live. */}
+                                {!picked && !closed && day === today ? (
                                     <View pointerEvents="none" style={styles.todayRing} />
                                 ) : null}
 

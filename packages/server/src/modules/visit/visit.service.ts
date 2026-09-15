@@ -434,6 +434,25 @@ export const visitService = {
                 );
             }
 
+            // Check-in adds nothing of its own, so a visit can reach checkout
+            // empty, and closing one would bill for work nobody recorded. The
+            // list may be empty until now. An opening balance is the one visit
+            // that never has lines: it stands for debt, not for a sitting.
+            if (!appointment.isOpeningBalance) {
+                const [line] = await tx
+                    .select({ id: visitProcedures.id })
+                    .from(visitProcedures)
+                    .where(eq(visitProcedures.visitId, visit.id))
+                    .limit(1);
+                if (!line) {
+                    throw new AppError(
+                        ERROR_CODE.VISIT_HAS_NO_PROCEDURES,
+                        'cannot check out a visit with no procedures',
+                        422,
+                    );
+                }
+            }
+
             const now = new Date();
 
             await tx

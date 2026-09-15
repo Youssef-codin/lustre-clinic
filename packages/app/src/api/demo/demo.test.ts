@@ -174,9 +174,9 @@ describe('the seeded day', () => {
                 expect(performedIds).toContain(line.procedureId);
             }
 
-            // Check-in adds nothing of its own, so a booked visit carries no extra
-            // line until someone picks one in the chair.
-            expect(performed.length).toBeGreaterThanOrEqual(planned.length);
+            // Check-in adds nothing of its own, so a booked visit carries exactly
+            // its plan. A line check-in slipped in again would fail here.
+            expect(performed.length).toBe(planned.length);
         }
     });
 

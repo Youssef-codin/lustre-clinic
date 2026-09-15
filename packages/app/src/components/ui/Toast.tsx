@@ -56,6 +56,18 @@ export function Toast({
     // caller's current callback rather than the first render's.
     const dismiss = useRef(onDismiss);
     dismiss.current = onDismiss;
+    // The same for the motion preference: a swipe let go short of dismissing
+    // springs back, and with reduced motion it jumps back instead.
+    const reduced = useRef(reducedMotion);
+    reduced.current = reducedMotion;
+
+    function restore() {
+        if (reduced.current) {
+            drag.setValue({ x: 0, y: 0 });
+            return;
+        }
+        Animated.spring(drag, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
+    }
 
     const pan = useRef(
         PanResponder.create({
@@ -69,10 +81,9 @@ export function Toast({
                     dismiss.current();
                     return;
                 }
-                Animated.spring(drag, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
+                restore();
             },
-            onPanResponderTerminate: () =>
-                Animated.spring(drag, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start(),
+            onPanResponderTerminate: () => restore(),
         }),
     ).current;
 
