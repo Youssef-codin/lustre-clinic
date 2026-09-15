@@ -255,25 +255,24 @@ export function CalendarSheet({
                             onPress={() => setPending(day)}
                             style={styles.cell}
                         >
-                            {/* A cell carries one edge or none. The pick is the
-                                fill, and an absolutely positioned child insets
-                                to the padding box — so a border under it stops
-                                the fill at its inner edge and leaves a ring of
-                                canvas between the two, which is what
-                                today-and-selected used to draw. Suppressing the
-                                edge rather than insetting the fill is also the
-                                answer to the design question underneath it:
-                                `fillOf` already rules that a picked day is a
-                                pick before it is anything else, and two markers
-                                on one cell say the same thing twice. */}
-                            <View
-                                style={[
-                                    styles.cellBox,
-                                    !picked && closed && styles.closedEdge,
-                                    !picked && day === today && styles.todayEdge,
-                                ]}
-                            >
+                            {/* A cell carries one edge or none, and a picked day
+                                carries none: `fillOf` already rules that a pick
+                                is a pick before it is anything else, and two
+                                markers on one cell say the same thing twice.
+
+                                Today's ring is its own view over the fill, not a
+                                border on the cell. A border switched on after
+                                the first draw, on a view with a radius and
+                                `overflow: hidden`, is not repainted on Android:
+                                today opens picked with no edge, so picking any
+                                other day left today with no marker at all. iOS
+                                repainted it, which is why it only showed on the
+                                phone. Mounting a view is always drawn. */}
+                            <View style={[styles.cellBox, !picked && closed && styles.closedEdge]}>
                                 <View style={[styles.fill, { backgroundColor: fillTone }]} />
+                                {!picked && day === today ? (
+                                    <View pointerEvents="none" style={styles.todayRing} />
+                                ) : null}
 
                                 <Text
                                     variant="callout"
@@ -433,8 +432,17 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
     closedEdge: { borderWidth: border.hair, borderStyle: 'dashed', borderColor: color.line },
-    todayEdge: { borderWidth: border.thick, borderColor: color.ink },
     fill: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0 },
+    todayRing: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        start: 0,
+        end: 0,
+        borderWidth: border.thick,
+        borderColor: color.ink,
+        borderRadius: radius.md,
+    },
     load: { height: 3, borderRadius: radius.full, overflow: 'hidden' },
     legend: { flexDirection: 'row', alignItems: 'center', gap: space[4], marginTop: space[4] },
     legendItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
