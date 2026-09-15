@@ -70,9 +70,8 @@ flush() {
     url=$(webhook)
     [[ -n $url ]] || return 0
     # Discord's webhooks are HTTPS. Anything else is a misconfigured .env, and
-    # the alert stays queued rather than going out in the clear. Loopback is
-    # allowed so the script can be exercised against a local listener.
-    if [[ $url != https://* && $url != http://127.0.0.1[:/]* ]]; then
+    # the alert stays queued rather than sending the webhook token in the clear.
+    if [[ $url != https://* ]]; then
         log "DISCORD_WEBHOOK_URL is not https; alerts stay queued"
         return 0
     fi
