@@ -20,12 +20,17 @@
  * ruled apart, so the eye runs down the money column. A white row on a grey page
  * stripes the list and turns each line into an object.
  *
- * The amount drops `EGP` — the column is money and says so once, at the top —
- * and the line under it is what the number means, which is where the currency
- * comes back for a balance still owed. One deviation: the mock draws an amount
- * on a no-show, because its fixture carries one. Real data has no visit there
- * and so no money; `EGP 0` under a name reads as a free appointment, so that
- * slot stays empty and only the line under it is drawn.
+ * The big number is what the desk has to act on. A visit with money still owed
+ * leads with what is owed, in the due colour, and the total sits small under it
+ * ("of 2,200"). It used to be the other way round, and a visit that had been
+ * paid in part read as though the payment had not been taken at all. A settled
+ * visit leads with its total and says "Paid in full" in green under it.
+ *
+ * The amount drops `EGP` — the column is money and says so once, at the top.
+ * One deviation: the mock draws an amount on a no-show, because its fixture
+ * carries one. Real data has no visit there and so no money; `EGP 0` under a
+ * name reads as a free appointment, so that slot stays empty and only the line
+ * under it is drawn.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -132,13 +137,26 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
             </View>
 
             <View style={styles.amounts}>
-                {came ? (
+                {came && due ? (
+                    <View style={styles.meaning}>
+                        <MoneyValue
+                            piastres={entry.balance}
+                            variant="callout"
+                            weight="bold"
+                            showCurrency={false}
+                            tone="due"
+                        />
+                        <Text variant="caption" weight="bold" tone="due">
+                            due
+                        </Text>
+                    </View>
+                ) : came ? (
                     <MoneyValue
                         piastres={entry.chargedTotal}
                         variant="callout"
                         weight="bold"
                         showCurrency={false}
-                        tone={due ? 'due' : 'ink'}
+                        tone="ink"
                     />
                 ) : null}
                 <Meaning entry={entry} />
@@ -198,16 +216,21 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
     if (entry.balance > 0) {
         return (
             <View style={styles.meaning}>
-                <MoneyValue piastres={entry.balance} variant="caption" tone="due" showCurrency={false} />
-                <Text variant="caption" tone="due">
-                    due
+                <Text variant="caption" tone="muted">
+                    of
                 </Text>
+                <MoneyValue
+                    piastres={entry.chargedTotal}
+                    variant="caption"
+                    tone="muted"
+                    showCurrency={false}
+                />
             </View>
         );
     }
 
     return (
-        <Text variant="caption" tone="muted">
+        <Text variant="caption" weight="medium" tone="success">
             Paid in full
         </Text>
     );
