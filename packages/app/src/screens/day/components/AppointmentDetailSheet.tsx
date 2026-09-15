@@ -278,9 +278,6 @@ function SecondaryActions({
                     loading={sendingToDesk}
                     onPress={onSendToDesk}
                 />
-                <Text variant="caption" tone="muted">
-                    The chair is free while they pay. It does not settle anything.
-                </Text>
             </Group>
         );
     }

@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# Tells Discord when the clinic server loses mains power, when it gets it back,
+# and when the battery is about to force the clean poweroff (tasks/power.yml).
+#
+# A power cut usually takes the clinic's router down with it, so an alert can
+# rarely be sent the moment it happens. Every alert is written to an outbox
+# first, stamped with the time it happened, and the outbox is retried on every
+# tick until Discord takes it. "On battery at 14:02" still arrives, late, once
+# the network is back.
+#
+# The webhook is the prod stack's, read from its generated .env on every send,
+# so this holds no secret of its own and follows a rotated URL. Discord gets
+# the clinic, a code and a fixed sentence, as operator/lib.sh sends.
+set -uo pipefail
+
+CLINIC=${LUSTRE_CLINIC:?set LUSTRE_CLINIC}
+ENV_FILE=${LUSTRE_ENV_FILE:-/opt/lustre-prod/.env}
+SUPPLY_DIR=${LUSTRE_POWER_SUPPLY_DIR:-/sys/class/power_supply}
+STATE_DIR=${LUSTRE_POWER_STATE_DIR:-/var/lib/lustre-power}
+INTERVAL=${LUSTRE_POWER_INTERVAL:-15}
+# UPower's PercentageCritical and PercentageAction in tasks/power.yml.
+LOW_AT=${LUSTRE_POWER_LOW_AT:-40}
+OFF_AT=${LUSTRE_POWER_OFF_AT:-35}
+
+OUTBOX="$STATE_DIR/outbox"
+mkdir -p "$OUTBOX"
+
+log() {
+    printf '%s\n' "$*" >&2
+}
+
+# The first mains supply's `online`, 1 or 0. Empty when the machine has none.
+mains_online() {
+    local supply
+    for supply in "$SUPPLY_DIR"/*; do
+        [[ -r $supply/type && $(<"$supply/type") == Mains ]] || continue
+        cat "$supply/online" 2>/dev/null
+        return
+    done
+}
+
+# The first battery's charge in percent. Empty when the machine has none.
+battery_percent() {
+    local supply
+    for supply in "$SUPPLY_DIR"/*; do
+        [[ -r $supply/type && $(<"$supply/type") == Battery ]] || continue
+        cat "$supply/capacity" 2>/dev/null
+        return
+    done
+}
+
+queue() {
+    local code=$1 summary=$2 temporary="$OUTBOX/.queue.$$"
+    log "ALERT $code: $summary"
+    # Written beside its final name and renamed over it, so flush never reads a
+    # record that is still being written. The glob in flush skips dotfiles.
+    printf '%s\n%s\n' "$code" "$summary" >"$temporary" &&
+        mv "$temporary" "$OUTBOX/$(date +%s%N)-$code"
+}
+
+webhook() {
+    [[ -r $ENV_FILE ]] || return
+    sed -n 's/^DISCORD_WEBHOOK_URL=//p' "$ENV_FILE" | tail -n 1
+}
+
+# Oldest first, stopping at the first failure so the order Discord shows is
+# the order it happened in.
+flush() {
+    local url message code summary
+    url=$(webhook)
+    [[ -n $url ]] || return 0
+    # Discord's webhooks are HTTPS. Anything else is a misconfigured .env, and
+    # the alert stays queued rather than sending the webhook token in the clear.
+    if [[ $url != https://* ]]; then
+        log "DISCORD_WEBHOOK_URL is not https; alerts stay queued"
+        return 0
+    fi
+    for message in "$OUTBOX"/*; do
+        [[ -e $message ]] || return 0
+        code=
+        summary=
+        # A record that is not two non-empty lines would stop every alert
+        # behind it from ever going out, so it is dropped rather than retried.
+        if ! { read -r code && read -r summary; } <"$message" || [[ -z $code || -z $summary ]]; then
+            log "dropping unreadable alert record $message"
+            rm -f "$message"
+            continue
+        fi
+        if curl -fsS --max-time 10 -H 'content-type: application/json' \
+            -d "{\"content\":\"**$CLINIC** \`$code\`\\n$summary\"}" \
+            "$url" >/dev/null 2>&1; then
+            rm -f "$message"
+        else
+            return 0
+        fi
+    done
+}
+
+duration() {
+    local seconds=$1
+    if ((seconds < 3600)); then
+        printf '%d min' $(((seconds + 59) / 60))
+    else
+        printf '%dh %02dmin' $((seconds / 3600)) $((seconds % 3600 / 60))
+    fi
+}
+
+# What the last tick saw, kept across restarts so a boot after the battery ran
+# out is told apart from a boot on mains. The boot id is what tells a reboot
+# from this service merely restarting while the cut goes on.
+BOOT_ID=$(cat "${LUSTRE_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}")
+last_state=
+since=
+warned=
+boot=
+if [[ -r $STATE_DIR/state ]]; then
+    read -r last_state since warned boot <"$STATE_DIR/state"
+fi
+
+save() {
+    printf '%s %s %s %s\n' "$last_state" "$since" "${warned:--}" "$BOOT_ID" >"$STATE_DIR/state"
+}
+[[ $warned == - ]] && warned=
+
+if [[ $last_state == battery && $boot != "$BOOT_ID" ]]; then
+    queue power_restored_after_shutdown \
+        "Server is back up. It was on battery since $(date -d "@$since" +%H:%M) and powered off before power returned."
+    last_state=
+fi
+
+while true; do
+    online=$(mains_online)
+    percent=$(battery_percent)
+    now=$(date +%s)
+
+    if [[ $online == 0 ]]; then
+        if [[ $last_state != battery ]]; then
+            last_state=battery
+            since=$now
+            warned=
+            queue on_battery "Mains power lost at $(date +%H:%M). Running on battery${percent:+ at $percent%}."
+            save
+        fi
+        if [[ -n $percent && -z $warned ]] && ((percent <= LOW_AT)); then
+            warned=1
+            queue battery_low "Battery at $percent% after $(duration $((now - since))) without power. The server powers off cleanly at $OFF_AT%."
+            save
+        fi
+    elif [[ $online == 1 && $last_state != ac ]]; then
+        if [[ $last_state == battery ]]; then
+            queue power_back "Mains power back at $(date +%H:%M) after $(duration $((now - since))) on battery${percent:+, battery at $percent%}."
+        fi
+        last_state=ac
+        since=$now
+        warned=
+        save
+    fi
+
+    flush
+    sleep "$INTERVAL"
+done

@@ -44,9 +44,9 @@ async function hasChildren(id: string): Promise<boolean> {
 }
 
 /**
- * The checkup is held by exactly one procedure (§8/§9): it is the line seeded on
- * check-in and waived when other work is done, and two of them would make which
- * one gets waived a matter of `sortOrder`. Taking the flag hands it over rather
+ * The checkup is held by exactly one procedure (§8/§9): it is the line waived
+ * when other work is done, and two of them would make which one gets waived a
+ * matter of `sortOrder`. Taking the flag hands it over rather
  * than sharing it, in the same transaction as the write that took it.
  */
 async function clearOtherCheckups(tx: Executor, keep: string): Promise<void> {

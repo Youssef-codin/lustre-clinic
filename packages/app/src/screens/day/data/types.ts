@@ -12,13 +12,7 @@
  * message and a `wa.me` URL, and the user marks it sent or skipped, because
  * delivery cannot be confirmed.
  */
-import type {
-    AppointmentChannel,
-    AppointmentStatus,
-    PaymentMethod,
-    ProcedureRecorder,
-    Tooth,
-} from '@lustre/shared';
+import type { AppointmentChannel, AppointmentStatus, PaymentMethod, Tooth } from '@lustre/shared';
 
 export interface EmbeddedPatient {
     id: string;
@@ -178,6 +172,4 @@ export interface ClinicSettings {
     clinicName: string;
     durationOptions: number[];
     defaultDuration: number;
-    /** Absent from a server that predates the setting, which means `doctor`. */
-    proceduresRecordedBy?: ProcedureRecorder;
 }

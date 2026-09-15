@@ -246,10 +246,12 @@ describe('period summaries', () => {
     /** A visit completed now, so it lands in whatever period covers today. */
     async function completedVisit(chargedTotal: number, paidTotal: number) {
         const fixtures = await clinic();
+        // With a line on it, because checkout refuses a visit with none.
         const { visitId } = await appointmentService.walkIn({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
             branchId: fixtures.branch.id,
             offsetMinutes: 0,
+            procedures: [{ procedureId: fixtures.rootCanal.id, quantity: 1 }],
         });
         await visitService.checkOut({ visitId, chargedTotal, paidTotal, method: 'cash' });
         return fixtures;

@@ -174,8 +174,9 @@ describe('the seeded day', () => {
                 expect(performedIds).toContain(line.procedureId);
             }
 
-            // The checkup seeded at check-in is the one permitted extra.
-            expect(performed.length).toBeLessThanOrEqual(planned.length + 1);
+            // Check-in adds nothing of its own, so a booked visit carries exactly
+            // its plan. A line check-in slipped in again would fail here.
+            expect(performed.length).toBe(planned.length);
         }
     });
 
@@ -235,9 +236,8 @@ describe('a visit, end to end', () => {
         const visit = visitHandlers.checkIn({ appointmentId: appointment.id });
         const detail = visitHandlers.byId({ id: visit.id });
 
-        // The cleaning, plus the checkup line check-in seeds — and the checkup
-        // is waived because other work was done.
-        expect(detail.procedures).toHaveLength(2);
+        // The cleaning, and nothing else: check-in adds no consultation.
+        expect(detail.procedures).toHaveLength(1);
         expect(detail.chargedTotal).toBe(cleaning.defaultPrice);
 
         const closed = visitHandlers.checkOut({

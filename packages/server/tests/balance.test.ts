@@ -40,11 +40,18 @@ async function checkedOut(
     chargedTotal: number,
     paidTotal: number,
 ) {
+    // Checkout refuses a visit with no procedures, so the visit is booked with
+    // the fixture clinic's root canal. The charge is still `chargedTotal`.
+    const [work] = await sql<
+        { id: string }[]
+    >`SELECT id FROM procedure_types WHERE name = 'Root canal' LIMIT 1`;
+    if (!work) throw new Error('the fixture clinic has no root canal');
     const appointment = await appointmentService.create({
         patient: { kind: 'existing', patientId },
         branchId,
         startsAt,
         offsetMinutes: 0,
+        procedures: [{ procedureId: work.id, quantity: 1 }],
     });
     const visit = await visitService.checkIn({ appointmentId: appointment.id });
     await visitService.checkOut({ visitId: visit.id, chargedTotal, paidTotal, method: 'cash' });

@@ -23,10 +23,11 @@
  *
  * Rescheduling is this page too (`rescheduling`). A patient who rings to move
  * used to be cancelled and booked again, which lost the ref, the plan and the
- * note and wrote a cancellation into their history. A move skips Procedures —
- * what they are booked for does not change — opens When on the appointment's
- * own day, branch and length, and its button calls `appointment.update` with
- * the new start. The reminder moves with it on the server.
+ * note and wrote a cancellation into their history. A move asks the same three
+ * questions, seeded from the appointment: its plan and note, then When on its
+ * own day, branch and length. The time may be kept, so an edit to what they are
+ * booked for is not forced to be a move. Its button calls `appointment.update`
+ * with only what changed, and the reminder moves with a new start on the server.
  */
 import { type ReactNode, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -43,7 +44,15 @@ import {
     withoutAppointment,
 } from '../booking';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from '../calendar';
-import { type Appointment, api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
+import {
+    type Appointment,
+    api,
+    type Branch,
+    type ClinicDay,
+    type ProcedureCategory,
+    useLocalMutation,
+    useLocalQuery,
+} from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
@@ -64,7 +73,6 @@ import {
 } from '../time';
 import { CalendarSheet } from './CalendarSheet';
 import { CalendarIcon, CheckIcon, DurationIcon, PatientIcon, PinIcon } from './icons';
-import { PlanSummary } from './PlanSummary';
 import { ProcedurePlan } from './ProcedurePlan';
 import { SlotPicker } from './SlotPicker';
 
@@ -116,8 +124,39 @@ const STEPS: { key: Step; label: string }[] = [
     { key: 'confirm', label: 'Confirm' },
 ];
 
-/** A move keeps what the booking is for, so only the last two questions are asked. */
-const MOVE_STEPS = STEPS.filter((step) => step.key !== 'what');
+/**
+ * What an appointment is booked for, as the plan editor holds it. The booking
+ * stores the procedure and no price, so the heading, the variant and the price
+ * are read off the catalogue — the same place a fresh pick gets them from.
+ */
+function planFrom(
+    booked: Appointment['procedures'],
+    categories: readonly ProcedureCategory[],
+): PlannedProcedure[] {
+    return booked.map((line) => {
+        const base = { id: line.id, procedureId: line.procedureId, tooth: line.tooth };
+        for (const category of categories) {
+            if (category.id === line.procedureId) {
+                return { ...base, name: category.name, variant: null, price: category.defaultPrice };
+            }
+            const child = category.children.find((row) => row.id === line.procedureId);
+            if (child)
+                return { ...base, name: category.name, variant: child.name, price: child.defaultPrice };
+        }
+        return { ...base, name: line.name, variant: null, price: 0 };
+    });
+}
+
+/** Whether the plan still says what the appointment is booked for. */
+function samePlan(plan: readonly PlannedProcedure[], booked: Appointment['procedures']): boolean {
+    return (
+        plan.length === booked.length &&
+        plan.every(
+            (line, i) =>
+                line.procedureId === booked[i]?.procedureId && line.tooth === (booked[i]?.tooth ?? null),
+        )
+    );
+}
 
 export function BookingScreen({
     patient,
@@ -137,6 +176,9 @@ export function BookingScreen({
 
     const [index, setIndex] = useState(0);
     const [plan, setPlan] = useState<PlannedProcedure[]>([]);
+    // A move's plan is the appointment's, filled in once the catalogue can
+    // price it. Until then there is nothing to compare, so nothing has changed.
+    const [planSeeded, setPlanSeeded] = useState(rescheduling === undefined);
     // A move opens on the day the appointment already has, not the day behind.
     const movingFrom = rescheduling ? dayKeyOf(new Date(rescheduling.startsAt)) : null;
     const openOn = movingFrom ?? dateKey;
@@ -157,9 +199,13 @@ export function BookingScreen({
         openOn > addDays(today, STRIP_DAYS - 1) ? openOn : null,
     );
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
-    const [slotMinutes, setSlotMinutes] = useState<number | null>(null);
+    // A move opens with the time it already has picked, so the grid shows where
+    // the booking is now rather than an empty question it would answer anyway.
+    const [slotMinutes, setSlotMinutes] = useState<number | null>(
+        rescheduling ? minutesOfDay(rescheduling.startsAt) : null,
+    );
     const [duration, setDuration] = useState(defaultDuration);
-    const [note, setNote] = useState('');
+    const [note, setNote] = useState(rescheduling?.note ?? '');
     const [branch, setBranch] = useState<string | null>(branchId);
     // The dock floats over the scroll, so the body reserves its height — and that
     // height is not a constant. A warning above the bar wraps to as many lines as
@@ -179,8 +225,7 @@ export function BookingScreen({
     const create = useLocalMutation(api.create);
     const move = useLocalMutation(api.reschedule);
 
-    const steps = rescheduling ? MOVE_STEPS : STEPS;
-    const step = steps[index]?.key ?? 'confirm';
+    const step = STEPS[index]?.key ?? 'confirm';
     // Picking a branch that is not working today takes the walk-in away under
     // the choice already made, so "now" falls back to a time rather than
     // leaving a booking with no when at all.
@@ -202,12 +247,18 @@ export function BookingScreen({
         rescheduling && movingFrom
             ? `${dayLabel(movingFrom)} · ${timeLabel(minutesOfDay(rescheduling.startsAt))}`
             : null;
-    const noteShown = rescheduling ? (rescheduling.note ?? '') : note;
 
     const ref = patientRefOf(patient);
     const name = patientNameOf(patient);
 
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
+
+    // Set during render rather than in an effect, as `VisitScreen` seeds its
+    // checkup: the plan is on screen in the commit the catalogue lands in.
+    if (!planSeeded && rescheduling && catalogue.data) {
+        setPlanSeeded(true);
+        setPlan(planFrom(rescheduling.procedures, catalogue.data));
+    }
 
     // Every day the branch works in the fortnight ahead, not just the one on
     // screen: "which days can take a 45-minute visit" cannot be answered from a
@@ -254,7 +305,23 @@ export function BookingScreen({
         [fetched, workingDays, schedule, branch, duration, today, nowMinutes],
     );
 
-    const slots = slotsByDay.get(date) ?? [];
+    // The grid steps from opening time by the visit's length, so the time a
+    // booking already has is often not one of its cells: a 45-minute visit at
+    // 10:00 on a day opening at 9:00 falls between 9:45 and 10:30. A move puts
+    // its own time back on its own day so the page opens with it picked and
+    // visible, and keeps that day on the strip even when nothing else is free.
+    const bookedAt = rescheduling ? minutesOfDay(rescheduling.startsAt) : null;
+    const daySlots = slotsByDay.get(date) ?? [];
+    const slots =
+        bookedAt !== null && date === movingFrom && !daySlots.some((slot) => slot.minutes === bookedAt)
+            ? [...daySlots, { minutes: bookedAt, state: 'free' as const, runsLate: false }].sort(
+                  (a, b) => a.minutes - b.minutes,
+              )
+            : daySlots;
+    const movable =
+        movingFrom && !openDays.includes(movingFrom) && workingDays.includes(movingFrom)
+            ? [...openDays, movingFrom].sort()
+            : openDays;
 
     // Asking for a longer visit can take the day in hand off the strip, and the
     // booking lands on the first day that can still take it — unless the day
@@ -262,21 +329,26 @@ export function BookingScreen({
     // (`settleBookingDay`). Adjusted during render, not in an effect: `openDays`
     // does not depend on `date`, so this settles in one pass, and an effect
     // would paint a frame of the empty grid before correcting it.
-    const settled = settleBookingDay({ date, farDay, workingDays, openDays });
+    const settled = settleBookingDay({ date, farDay, workingDays, openDays: movable });
     if (settled.date !== date) {
         setDate(settled.date);
         setSlotMinutes(null);
     }
 
     const timeIsFree = !scheduled || slotIsFree(slots, slotMinutes);
-    // Moving it to where it already is would write nothing.
-    const unchanged =
-        rescheduling !== undefined &&
-        date === movingFrom &&
-        slotMinutes === minutesOfDay(rescheduling.startsAt) &&
-        duration === rescheduling.durationMinutes &&
-        branch === rescheduling.branchId;
-    const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree && !unchanged);
+    // What a reschedule changed, each on its own. Only a new day or time is a
+    // move: a longer visit at the same start, or the same time at another
+    // branch, is sent as that and not reported as moving to where it already is.
+    const timeChanged = rescheduling !== undefined && (date !== movingFrom || slotMinutes !== bookedAt);
+    const lengthChanged = rescheduling !== undefined && duration !== rescheduling.durationMinutes;
+    const branchChanged = rescheduling !== undefined && branch !== rescheduling.branchId;
+    const planChanged = rescheduling !== undefined && planSeeded && !samePlan(plan, rescheduling.procedures);
+    const noteChanged = rescheduling !== undefined && (note.trim() || null) !== (rescheduling.note ?? null);
+    const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
+    // Every question answered is enough. A move whose edits the booking cannot
+    // hold — a repriced line, which a plan does not store — or that changed
+    // nothing still saves and closes, rather than leaving Save changes dead with
+    // no word of why.
     const ready = ref !== null && branch !== null && whenAnswered;
 
     function reset() {
@@ -289,19 +361,31 @@ export function BookingScreen({
         if (!ref || !branch || !ready) return;
 
         if (rescheduling) {
-            if (slotMinutes === null) return;
+            const at = slotMinutes;
+            if (at === null) return;
+            // Nothing the server holds has changed, so there is nothing to write.
+            if (!timeChanged && !lengthChanged && !branchChanged && !planChanged && !noteChanged) {
+                onBooked(`${name}'s booking is unchanged`);
+                return;
+            }
             move.mutate(
                 {
                     id: rescheduling.id,
-                    startsAt: isoAt(date, slotMinutes),
-                    // Only what the move changes: a length Settings has since
+                    // Only what the edit changes: a length Settings has since
                     // dropped is refused if it is sent back unchanged.
-                    ...(duration === rescheduling.durationMinutes ? {} : { durationMinutes: duration }),
-                    ...(branch === rescheduling.branchId ? {} : { branchId: branch }),
+                    ...(timeChanged ? { startsAt: isoAt(date, at) } : {}),
+                    ...(lengthChanged ? { durationMinutes: duration } : {}),
+                    ...(branchChanged ? { branchId: branch } : {}),
+                    ...(planChanged ? { procedures: bookedProcedures(plan) } : {}),
+                    ...(noteChanged ? { note: note.trim() || null } : {}),
                 },
                 {
                     onSuccess: () =>
-                        onBooked(`${name} moved to ${dayLabel(date)} at ${timeLabel(slotMinutes)}`),
+                        onBooked(
+                            !timeChanged
+                                ? `${name}'s booking updated`
+                                : `${name} moved to ${dayLabel(date)} at ${timeLabel(at)}`,
+                        ),
                 },
             );
             return;
@@ -469,7 +553,7 @@ export function BookingScreen({
                 </View>
             </View>
 
-            <Steps index={index} steps={steps} />
+            <Steps index={index} steps={STEPS} />
 
             <ScrollView
                 style={styles.scroll}
@@ -524,13 +608,7 @@ export function BookingScreen({
                                 />
                             ) : null}
 
-                            {rescheduling ? (
-                                <Text variant="subhead" tone="muted">
-                                    {unchanged
-                                        ? 'That is the time it already has. Pick another one.'
-                                        : `Booked ${wasLabel}. The patient, what they are booked for and the note stay as they are, and the reminder moves with it.`}
-                                </Text>
-                            ) : (
+                            {rescheduling ? null : (
                                 <>
                                     <View style={styles.row}>
                                         <Chip
@@ -632,81 +710,73 @@ export function BookingScreen({
                             />
                         </View>
 
-                        {/* A move sends no plan: what it is booked for is the
-                            appointment's, drawn the way the desk's sheet draws it. */}
-                        {rescheduling && rescheduling.procedures.length > 0 ? (
-                            <View style={styles.section}>
-                                <PlanSummary procedures={rescheduling.procedures} label="BOOKED FOR" />
+                        <View style={styles.section}>
+                            <View style={styles.head}>
+                                <Text variant="eyebrow" tone="muted">
+                                    WHAT IS PLANNED
+                                </Text>
+                                <Text variant="caption" weight="medium" tone="muted">
+                                    {plan.length === 0
+                                        ? 'Nothing yet'
+                                        : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+                                </Text>
                             </View>
-                        ) : (
-                            <View style={styles.section}>
-                                <View style={styles.head}>
-                                    <Text variant="eyebrow" tone="muted">
-                                        WHAT IS PLANNED
-                                    </Text>
-                                    <Text variant="caption" weight="medium" tone="muted">
-                                        {plan.length === 0
-                                            ? 'Nothing yet'
-                                            : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+
+                            {plan.length === 0 ? (
+                                <View style={styles.emptyPlan}>
+                                    <Text variant="subhead" tone="muted">
+                                        No procedures planned — it will be decided in the chair.
                                     </Text>
                                 </View>
-
-                                {plan.length === 0 ? (
-                                    <View style={styles.emptyPlan}>
-                                        <Text variant="subhead" tone="muted">
-                                            No procedures planned — it will be decided in the chair.
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    <View style={styles.groups}>
-                                        {groupByTooth(plan).map((group) => (
-                                            <ToothGroupCard
-                                                key={group.tooth ?? 'none'}
-                                                tooth={group.tooth}
-                                                position={toothPosition(group.tooth)}
-                                                subtotal={
+                            ) : (
+                                <View style={styles.groups}>
+                                    {groupByTooth(plan).map((group) => (
+                                        <ToothGroupCard
+                                            key={group.tooth ?? 'none'}
+                                            tooth={group.tooth}
+                                            position={toothPosition(group.tooth)}
+                                            subtotal={
+                                                <MoneyValue
+                                                    piastres={group.subtotal}
+                                                    variant="headline"
+                                                    weight="bold"
+                                                />
+                                            }
+                                            lines={group.items.map((item) => ({
+                                                id: item.id,
+                                                name: item.name,
+                                                detail: item.variant,
+                                                money: (
                                                     <MoneyValue
-                                                        piastres={group.subtotal}
-                                                        variant="headline"
+                                                        piastres={item.price}
+                                                        variant="body"
                                                         weight="bold"
                                                     />
-                                                }
-                                                lines={group.items.map((item) => ({
-                                                    id: item.id,
-                                                    name: item.name,
-                                                    detail: item.variant,
-                                                    money: (
-                                                        <MoneyValue
-                                                            piastres={item.price}
-                                                            variant="body"
-                                                            weight="bold"
-                                                        />
-                                                    ),
-                                                }))}
-                                            />
-                                        ))}
+                                                ),
+                                            }))}
+                                        />
+                                    ))}
 
-                                        <View style={styles.total}>
-                                            <Text variant="subhead" tone="muted">
-                                                Estimated total
-                                            </Text>
-                                            <Text variant="title3" weight="bold">
-                                                {formatMoney(totalOf(plan))}
-                                            </Text>
-                                        </View>
+                                    <View style={styles.total}>
+                                        <Text variant="subhead" tone="muted">
+                                            Estimated total
+                                        </Text>
+                                        <Text variant="title3" weight="bold">
+                                            {formatMoney(totalOf(plan))}
+                                        </Text>
                                     </View>
-                                )}
-                            </View>
-                        )}
+                                </View>
+                            )}
+                        </View>
 
-                        {noteShown.trim() ? (
+                        {note.trim() ? (
                             <View style={styles.section}>
                                 <Text variant="eyebrow" tone="muted">
                                     NOTE
                                 </Text>
                                 <View style={styles.noteCard}>
                                     <Text variant="callout" tone="ink2">
-                                        {noteShown.trim()}
+                                        {note.trim()}
                                     </Text>
                                 </View>
                             </View>
@@ -756,7 +826,9 @@ export function BookingScreen({
                         label={
                             last
                                 ? rescheduling
-                                    ? 'Move it'
+                                    ? timeChanged
+                                        ? 'Move it'
+                                        : 'Save changes'
                                     : scheduled
                                       ? 'Book it'
                                       : 'Start the visit'
@@ -764,13 +836,9 @@ export function BookingScreen({
                         }
                         block
                         loading={pending}
+                        // Grey until the step's questions are answered, so a
+                        // press that does nothing never looks like a frozen app.
                         disabled={barIdle}
-                        // The only way forward on the screen, so it keeps its fill
-                        // while the step is still open. The step above already says
-                        // what is missing; a grey slab on a bar with nothing else on
-                        // it read as the screen being finished with, not as a
-                        // question waiting. It still refuses the press.
-                        disabledLook="solid"
                         onPress={() => {
                             if (last) {
                                 book();

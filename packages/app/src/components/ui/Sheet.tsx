@@ -43,6 +43,17 @@ import { useKeyboardHeight } from './useKeyboardHeight';
 
 export type SheetProps = {
     visible: boolean;
+    /**
+     * The sheet is being put away without an answer: a tap on the backdrop, a
+     * drag down, or the hardware back. It closes the sheet and does nothing
+     * else — set the flag that shows it, and at most tidy the sheet's own draft.
+     *
+     * Never navigate, write or treat it as one of the sheet's answers here. A
+     * tap beside a sheet is not a choice, and wiring an answer to it is how the
+     * book-next prompt took the desk to a patient's record when they only
+     * tapped off it. Answers belong on the footer's buttons, and anything that
+     * changes the screen underneath waits for `onClosed`.
+     */
     onClose: () => void;
     /**
      * Fired once the sheet has finished leaving — every close, whoever started

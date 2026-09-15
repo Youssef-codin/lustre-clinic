@@ -4,8 +4,8 @@
  *
  * Check-in creates it and seeds its lines: one per procedure the booking
  * planned, each priced at the catalogue price on the day rather than at
- * booking, plus the checkup line — skipped when the plan already names a
- * checkup, or the visit would open with two. Pricing is not a prerequisite for
+ * booking, and nothing else — the checkup is picked like any other line, as on
+ * the server. Pricing is not a prerequisite for
  * checkout, and zero paid is a valid checkout, because the balance is derived.
  */
 import { canTransition, ERROR_CODE, WS_EVENT } from '@lustre/shared';
@@ -14,7 +14,6 @@ import { getDb, type PaymentRow, save, type VisitProcedureRow, type VisitRow } f
 import { broadcast } from '../events';
 import { clinicDayOf, computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
-import { procedureHandlers } from './procedure';
 
 type Visit = Dated<RouterOutput['visit']['byId']>;
 type VisitLine = Visit['procedures'][number];
@@ -217,23 +216,6 @@ export const visitHandlers = {
             });
         }
 
-        // Skipped when the plan already names one, or the visit opens with two.
-        const checkup = planned.some((line) => isCheckup(line.procedureId))
-            ? null
-            : procedureHandlers.findCheckup();
-
-        if (checkup) {
-            db.visitProcedures.push({
-                id: uuidv7(),
-                visitId: visit.id,
-                procedureId: checkup.id,
-                quantity: 1,
-                unitPrice: checkup.defaultPrice,
-                tooth: null,
-                note: null,
-            });
-        }
-
         visit.chargedTotal = recompute(visit.id);
 
         save();
@@ -314,6 +296,16 @@ export const visitHandlers = {
 
         const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
         if (!appointment) throw DemoError.notFound('appointment');
+
+        // As the server: an ordinary visit needs a line to be closed, and an
+        // opening balance never has one.
+        if (!appointment.isOpeningBalance && linesOf(visit.id).length === 0) {
+            throw new DemoError(
+                ERROR_CODE.VISIT_HAS_NO_PROCEDURES,
+                'cannot check out a visit with no procedures',
+                422,
+            );
+        }
 
         // Closing a visit that was reopened to be corrected: the appointment
         // never left `done`, so there is no transition to make.

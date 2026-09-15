@@ -166,9 +166,11 @@ describe('a full visit, end to end', () => {
         expect(appointment.ref).toMatch(/^\d{6}-[A-Z2-9]{4}$/);
 
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
+        // Nothing was booked and check-in adds no checkup, so it opens at zero.
         const seeded = await client.visit.byId.query({ id: visit.id });
-        expect(seeded.chargedTotal).toBe(CHECKUP_PRICE);
-        expect(seeded.balance).toBe(CHECKUP_PRICE);
+        expect(seeded.procedures).toEqual([]);
+        expect(seeded.chargedTotal).toBe(0);
+        expect(seeded.balance).toBe(0);
 
         const priced = await client.visit.setProcedures.mutate({
             visitId: visit.id,
@@ -218,7 +220,7 @@ describe('a full visit, end to end', () => {
 
         expect(appointment.channel).toBe('walk_in');
         expect(appointment.status).toBe('checked_in');
-        expect((await client.visit.byId.query({ id: visitId })).chargedTotal).toBe(CHECKUP_PRICE);
+        expect((await client.visit.byId.query({ id: visitId })).procedures).toEqual([]);
     });
 
     test('the day view embeds the patient the client renders', async () => {
@@ -485,11 +487,12 @@ describe('error mapping', () => {
 
     test('a second checkout is 409 VISIT_ALREADY_COMPLETED', async () => {
         const { client } = api;
-        const { branch, patient } = await clinicViaApi();
+        const { branch, patient, rootCanal } = await clinicViaApi();
         const appointment = await client.appointment.create.mutate({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
             startsAt: todaySlot(),
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
         const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
         await client.visit.checkOut.mutate({
@@ -638,13 +641,14 @@ describe('websocket broadcasts', () => {
 
     test('no payload ever carries patient data', async () => {
         const { client } = api;
-        const { branch, patient } = await clinicViaApi();
+        const { branch, patient, rootCanal } = await clinicViaApi();
 
         const { events } = await captureWsEvents(api.wsUrl, async () => {
             const appointment = await client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
                 startsAt: todaySlot(),
+                procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
             });
             const visit = await client.visit.checkIn.mutate({ appointmentId: appointment.id });
             await client.visit.checkOut.mutate({

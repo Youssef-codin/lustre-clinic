@@ -5,7 +5,8 @@
  * one thing he opens a row to see: `appointment.procedures`.
  *
  * So this sheet is mostly a read. Once the patient has arrived it also opens
- * `VisitScreen` over the doctor's day, because recording what was done is his.
+ * `VisitScreen` over the doctor's day, because recording what was done is his;
+ * before that, "Edit booking" opens the booking page on the plan and the time.
  * "Open patient record" is the other way out, and the sheet exists because that
  * record is the wrong first answer: standing over the chair, the question is
  * "what am I doing to this person", not "what did we do in 2023". The plan is
@@ -30,6 +31,8 @@ export type DoctorVisitSheetProps = {
     onOpenRecord: (appointment: Appointment) => void;
     /** The procedure editor for this visit. Offered once the patient has arrived. */
     onRecord: (appointment: Appointment) => void;
+    /** The booking page for an appointment still to come: its plan, time and note. */
+    onEditBooking: (appointment: Appointment) => void;
     /** The visit behind the row is being read on the way to the editor. */
     recording?: boolean;
     onClosed?: () => void;
@@ -43,6 +46,7 @@ export function DoctorVisitSheet({
     onClose,
     onOpenRecord,
     onRecord,
+    onEditBooking,
     recording = false,
     onClosed,
     inChair = false,
@@ -51,6 +55,7 @@ export function DoctorVisitSheet({
         appointment?.status === 'checked_in' ||
         appointment?.status === 'awaiting_payment' ||
         appointment?.status === 'done';
+    const booked = appointment?.status === 'booked';
 
     return (
         <Sheet
@@ -74,9 +79,17 @@ export function DoctorVisitSheet({
                                 testID="doctor-record"
                             />
                         ) : null}
+                        {booked ? (
+                            <Button
+                                label="Edit booking"
+                                block
+                                onPress={() => onEditBooking(appointment)}
+                                testID="doctor-edit-booking"
+                            />
+                        ) : null}
                         <Button
                             label="Open patient record"
-                            variant={arrived ? 'ghost' : undefined}
+                            variant={arrived || booked ? 'ghost' : undefined}
                             block
                             onPress={() => onOpenRecord(appointment)}
                             testID="open-record"

@@ -27,6 +27,7 @@
             "expo-font",
             "./plugins/withBuildTuning",
             "./plugins/withCleartextTraffic",
+            "./plugins/withNavigationBarContrast",
             "./plugins/withReleaseSigning",
             "./plugins/withReleaseVersionCode",
             "@react-native-community/datetimepicker",

@@ -175,18 +175,21 @@ export const api = {
         wrap(() => trpcClient.appointment.update.mutate({ id, status: 'no_show' })),
 
     /**
-     * Move a booked appointment to another time. It is the same row, so the
-     * ref, the booked procedures and the note stay put, and the history shows
-     * no cancellation that never happened. Both backends move the pending
-     * reminder with `startsAt`, and both leave the row out of its own overlap
-     * check, so a move by one step inside its current span is not refused.
-     * The length and branch are sent only when the move changes them.
+     * Move a booked appointment to another time, or change what it is booked
+     * for. It is the same row, so the ref stays put and the history shows no
+     * cancellation that never happened. Both backends move the pending reminder
+     * with `startsAt`, and both leave the row out of its own overlap check, so a
+     * move by one step inside its current span is not refused. Everything but
+     * the id is sent only when the edit changes it; `procedures` replaces the
+     * whole plan.
      */
     reschedule: (input: {
         id: string;
-        startsAt: string;
+        startsAt?: string;
         durationMinutes?: number;
         branchId?: string;
+        procedures?: BookedProcedure[];
+        note?: string | null;
     }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.update.mutate(input)),
 
     awaitPayment: (id: string): Promise<AppointmentRow> =>
@@ -254,11 +257,8 @@ export const api = {
  * has arrived and has not.
  *
  * `edited` is what decides whether the list is sent at all. Check-in already
- * seeds the visit from the booking and adds the clinic's checkup line (§9); an
- * untouched list is that same list, and re-sending it would only risk
- * disagreeing with it. When it *was* touched, the checkup the server chose is
- * carried across rather than recomputed here — the waiver rule is the server's
- * and a second copy of it in the client is a copy that drifts.
+ * seeds the visit from the booking; an untouched list is that same list, and
+ * re-sending it would only risk disagreeing with it.
  */
 export async function arrive(input: {
     appointmentId: string;
@@ -269,24 +269,7 @@ export async function arrive(input: {
     rememberVisit(input.appointmentId, row.id);
 
     if (!input.edited) return api.visitById(row.id);
-
-    const seeded = await api.visitById(row.id);
-    const checkup = seeded.procedures.filter(
-        (line) => line.isCheckup && !input.procedures.some((row) => row.procedureId === line.procedureId),
-    );
-
-    return api.setProcedures({
-        visitId: row.id,
-        procedures: [
-            ...input.procedures,
-            ...checkup.map((line) => ({
-                procedureId: line.procedureId,
-                quantity: line.quantity,
-                unitPrice: line.unitPrice,
-                tooth: line.tooth,
-            })),
-        ],
-    });
+    return api.setProcedures({ visitId: row.id, procedures: input.procedures });
 }
 
 /**

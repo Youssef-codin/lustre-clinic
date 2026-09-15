@@ -51,7 +51,6 @@ import { VisitViewScreen } from './components/VisitViewScreen';
 import {
     type Appointment,
     api,
-    arrive,
     checkInTimes,
     type EmbeddedPatient,
     type Patient,
@@ -65,10 +64,8 @@ import { describeError } from './errors';
 import { isClosed } from './hours';
 import { busiestBranch, holdsSlot } from './month';
 import { draftFor, type PatientDraft } from './patientDraft';
-import { canRecordProcedures } from './recording';
 import { relativeDayLabel, todayKey } from './time';
 import { useNowMinutes } from './useNow';
-import { useProcedureRecorder } from './useProcedureRecorder';
 
 type DayTab = 'day' | 'reminders';
 
@@ -314,12 +311,6 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     // tap during a check-in is not swallowed by the other one's in-flight guard.
     const openRow = useLocalMutation(visitForAppointment);
     const noShow = useLocalMutation(api.markNoShow);
-    const checkIn = useLocalMutation(arrive);
-    const [checkingIn, setCheckingIn] = useState<string | null>(null);
-
-    // Doctor only (the default) leaves the desk its own jobs: a check-in marks
-    // arrival and nothing else, and a visit opens on its money, not its lines.
-    const deskRecords = canRecordProcedures('secretary', useProcedureRecorder());
 
     const appointments = clinicDay.filter((row) => row.branchId === branch);
     const closed = isClosed(dateKey, schedule.data, branch);
@@ -427,10 +418,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
      * nothing — the row still has to open.
      */
     function openDetail(appointment: Appointment) {
-        // Without the editor, someone checked in has nothing on a visit page for
-        // the desk: the sheet, with its Check out and Send to the desk, is it.
-        const live =
-            appointment.status === 'awaiting_payment' || (deskRecords && appointment.status === 'checked_in');
+        const live = appointment.status === 'awaiting_payment' || appointment.status === 'checked_in';
         // A finished visit opens read-only: it is history until someone says
         // otherwise, and `Edit visit` on that screen is what says otherwise.
         const finished = appointment.status === 'done';
@@ -450,9 +438,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         });
     }
 
-    // Only the desk's own check-in writes from the row; the arrival screen's
-    // Confirm writes from that screen.
-    const checkingInId = checkIn.pending ? checkingIn : null;
+    // Nothing checks in from the row: the arrival screen's Confirm writes it.
+    const checkingInId = null;
 
     function openVisit(
         appointment: Appointment,
@@ -469,9 +456,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
         // A finished visit opens on the read-only page and the editor pushes on
         // top of it; everything else starts on the editor with the schedule
         // underneath. That is the whole of what `origin === 'view'` decided.
-        // A desk without the editor goes to the money instead.
         if (origin === 'view') resetToPage({ name: 'view' });
-        else if (origin === 'checkout' && !deskRecords && loaded) resetToPage({ name: 'payment' });
         else resetToPage({ name: 'treatment' });
     }
 
@@ -542,30 +527,14 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
     }
 
     /**
-     * With the editor, nothing is written here: the arrival screen opens on
-     * what the booking planned and its Confirm is what checks the patient in,
-     * so a tap on the wrong row costs nothing.
-     *
-     * Without it there is nothing for that screen to ask, so the tap is the
-     * check-in. The server seeds the visit from the booking's plan as it always
-     * has, and what was actually done is the doctor's to record.
+     * Nothing is written here. The arrival screen opens on what the booking
+     * planned and its Confirm is what checks the patient in — so a tap that
+     * turns out to be the wrong row costs nothing, and the day never shows
+     * someone as arrived who was never confirmed. The list may be left empty:
+     * what is done is decided in the chair, and only checkout needs a line.
      */
     function checkInFrom(appointment: Appointment) {
-        if (deskRecords) {
-            openVisit(appointment, null, 'arrival');
-            return;
-        }
-        if (checkIn.pending) return;
-        setCheckingIn(appointment.id);
-        checkIn.mutate(
-            { appointmentId: appointment.id, procedures: [], edited: false },
-            {
-                onSuccess: () => {
-                    day.refetch();
-                    offerBookNext(appointment.patient);
-                },
-            },
-        );
+        openVisit(appointment, null, 'arrival');
     }
 
     /**
@@ -654,12 +623,6 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 />
             ) : null}
             {noShow.error ? <Banner tone="warning" message={describeError(noShow.error).title} /> : null}
-            {checkIn.error ? (
-                <Banner
-                    tone="warning"
-                    message={`${describeError(checkIn.error).title} — they are not checked in.`}
-                />
-            ) : null}
 
             <View style={styles.body}>
                 {tab === 'reminders' ? (
@@ -800,13 +763,17 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                     visible={bookNextOpen}
                     patientName={bookNext.patient.name}
                     onBookNow={() => bookNextOn(bookNext.patient)}
-                    onDismiss={() =>
+                    onLater={() =>
                         landOnRecord(
                             bookNext.patient,
                             `Checked in · ${bookNext.seated}`,
                             `${bookNext.patient.name} is ${bookNext.seated}`,
                         )
                     }
+                    onDismiss={() => {
+                        setBookNextOpen(false);
+                        setToast(`${bookNext.patient.name} is ${bookNext.seated}`);
+                    }}
                     onClosed={bookNextDone.closed}
                 />
             ) : null}
@@ -910,10 +877,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                             visit={visit.visit}
                             onBack={routes.pop}
                             // The editor opens on the visit as it stands; the
-                            // reopen it needs rides along with Confirm. A desk
-                            // without the editor corrects the money alone.
-                            editLabel={deskRecords ? undefined : 'Correct payment'}
-                            onEdit={() => pushPage({ name: deskRecords ? 'treatment' : 'payment' })}
+                            // reopen it needs rides along with Confirm.
+                            onEdit={() => pushPage({ name: 'treatment' })}
                         />
                     ) : null}
 
@@ -981,12 +946,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, goHome = 0 }: DayS
                 </PushView>
             ))}
 
-            <Toast
-                visible={toast !== null}
-                message={toast ?? ''}
-                onDismiss={() => setToast(null)}
-                offset={space[6]}
-            />
+            <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
 }

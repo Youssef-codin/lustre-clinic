@@ -35,6 +35,8 @@ export const ERROR_CODE = {
     CHECK_IN_NOT_TODAY: 'CHECK_IN_NOT_TODAY',
     /** The visit is already checked out. */
     VISIT_ALREADY_COMPLETED: 'VISIT_ALREADY_COMPLETED',
+    /** Checkout of a visit with no procedures on it. An opening balance is exempt. */
+    VISIT_HAS_NO_PROCEDURES: 'VISIT_HAS_NO_PROCEDURES',
     /** A category row was selected; only leaf procedures are selectable (§5). */
     PROCEDURE_NOT_SELECTABLE: 'PROCEDURE_NOT_SELECTABLE',
     /** A `has_quantity: false` procedure appeared more than once on a visit. */

@@ -10,7 +10,6 @@
  * the lines and the payments, and the appointment carries whose visit it is and
  * when. Neither is on the history row.
  */
-import type { ClientRole } from '@lustre/shared';
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
@@ -18,8 +17,6 @@ import { isOpen, rendered, useRouteStack } from '../../../navigation';
 import { color, size, space, Text } from '../../../theme';
 import { api, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
-import { canRecordProcedures } from '../recording';
-import { useProcedureRecorder } from '../useProcedureRecorder';
 import { VisitPaymentScreen } from './VisitPaymentScreen';
 import { VisitScreen } from './VisitScreen';
 import { VisitViewScreen } from './VisitViewScreen';
@@ -30,14 +27,12 @@ export type VisitPageProps = {
     onClose: () => void;
     /** Something was written, so whatever is underneath is now stale. */
     onChanged?: () => void;
-    /** Whose phone this is, which with the clinic's setting decides whether Edit reaches the lines. */
-    role: ClientRole;
 };
 
 /** The pages over the read-only one, which is this component's own root. */
 type Route = 'treatment' | 'payment';
 
-export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: VisitPageProps) {
+export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitPageProps) {
     // The reopened / repriced visit, once a write has moved it on from what was
     // read. Null means "still what the server first said".
     const [edited, setEdited] = useState<Visit | null>(null);
@@ -45,7 +40,6 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: 
     const paid = useRef(false);
     // The payment page, mid-write: the hardware back is held until it lands.
     const [paying, setPaying] = useState(false);
-    const recordsProcedures = canRecordProcedures(role, useProcedureRecorder());
 
     const appointment = useLocalQuery(`appointment:${appointmentId}`, () =>
         api.appointmentById(appointmentId),
@@ -129,8 +123,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged, role }: 
                 onBack={close}
                 // Nothing is written on the way in, so the record underneath is
                 // not stale yet — `onConfirm` is what makes it so.
-                editLabel={recordsProcedures ? undefined : 'Correct payment'}
-                onEdit={() => routes.push(recordsProcedures ? 'treatment' : 'payment')}
+                onEdit={() => routes.push('treatment')}
             />
 
             {rendered(routes.stack).map(({ id, route }, index) => (

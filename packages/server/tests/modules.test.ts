@@ -1346,9 +1346,10 @@ describe('appointment', () => {
         expect(appointment.channel).toBe('walk_in');
         expect(appointment.status).toBe('checked_in');
 
+        // Nothing was asked for, and check-in adds no checkup of its own.
         const visit = await visitService.byId(visitId);
-        expect(visit.procedures.length).toBe(1);
-        expect(visit.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(visit.procedures).toEqual([]);
+        expect(visit.chargedTotal).toBe(0);
     });
 
     test('lists an appointment that has already ended as missed', async () => {
@@ -1681,15 +1682,14 @@ describe('appointment procedures', () => {
         const created = await visitService.checkIn({ appointmentId: appointment.id });
         const visit = await visitService.byId(created.id);
 
+        // Exactly the plan: check-in adds no checkup line on top of it.
         expect(visit.procedures.map((l) => [l.name, l.unitPrice]).sort()).toEqual(
             [
-                ['Checkup', CHECKUP_PRICE],
                 ['Extraction', EXTRACTION_PRICE],
                 ['Root canal', ROOT_CANAL_PRICE + 10_000],
             ].sort(),
         );
-        expect(visit.procedures.filter((l) => l.isCheckup)).toHaveLength(1);
-        // §9 — the checkup is waived once another line is present.
+        expect(visit.procedures.filter((l) => l.isCheckup)).toHaveLength(0);
         expect(visit.computedTotal).toBe(ROOT_CANAL_PRICE + 10_000 + EXTRACTION_PRICE);
     });
 
@@ -1726,7 +1726,7 @@ describe('appointment procedures', () => {
         ]);
 
         const visit = await visitService.byId(visitId);
-        expect(visit.procedures.map((l) => l.name).sort()).toEqual(['Checkup', 'Extraction']);
+        expect(visit.procedures.map((l) => l.name)).toEqual(['Extraction']);
     });
 
     // The chair is occupied at the moment the patient arrives, which is what a
@@ -1778,25 +1778,31 @@ describe('appointment procedures', () => {
 });
 
 describe('visit', () => {
-    async function checkedIn() {
+    /**
+     * A visit checked in today. `withWork` books a root canal first, so the
+     * visit opens with a line and checkout will take it; a test about an empty
+     * visit, or one that sets its own lines, leaves it off.
+     */
+    async function checkedIn({ withWork = false }: { withWork?: boolean } = {}) {
         const f = await fixtures();
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            ...(withWork ? { procedures: [{ procedureId: f.rootCanal.id, quantity: 1 }] } : {}),
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
         return { ...f, appointment, visit };
     }
 
-    test('check-in seeds the checkup line and prices the visit at it', async () => {
+    test('check-in adds no checkup line, so a visit with nothing booked opens at zero', async () => {
         const { visit } = await checkedIn();
         const detail = await visitService.byId(visit.id);
 
-        expect(detail.procedures[0]?.isCheckup).toBe(true);
-        expect(detail.computedTotal).toBe(CHECKUP_PRICE);
-        expect(detail.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(detail.procedures).toEqual([]);
+        expect(detail.computedTotal).toBe(0);
+        expect(detail.chargedTotal).toBe(0);
     });
 
     test('refuses a second check-in for the same appointment', async () => {
@@ -1956,6 +1962,18 @@ describe('visit', () => {
         expect(reclosed.completedAt).not.toBeNull();
         expect(reclosed.paidTotal).toBe(charged);
         expect((await appointmentService.byId(appointment.id)).status).toBe('done');
+    });
+
+    test('refuses to check out a visit with no procedures on it', async () => {
+        const { visit, appointment } = await checkedIn();
+
+        await expectAppError(ERROR_CODE.VISIT_HAS_NO_PROCEDURES, () =>
+            visitService.checkOut({ visitId: visit.id, chargedTotal: 0, paidTotal: 0, method: 'cash' }),
+        );
+
+        // Nothing closed: the visit stays open and the patient stays checked in.
+        expect((await visitService.byId(visit.id)).completedAt).toBeNull();
+        expect((await appointmentService.byId(appointment.id)).status).toBe('checked_in');
     });
 
     test('still refuses to check out a visit that is closed', async () => {
@@ -2168,7 +2186,7 @@ describe('visit', () => {
     });
 
     test('refuses to re-price a visit that is already checked out', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
         await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 100_000,
@@ -2186,7 +2204,7 @@ describe('visit', () => {
     });
 
     test('checks out with a partial payment and leaves a balance', async () => {
-        const { visit, appointment } = await checkedIn();
+        const { visit, appointment } = await checkedIn({ withWork: true });
 
         const done = await visitService.checkOut({
             visitId: visit.id,
@@ -2204,7 +2222,7 @@ describe('visit', () => {
     });
 
     test('checks out a patient the doctor sent to the desk', async () => {
-        const { visit, appointment } = await checkedIn();
+        const { visit, appointment } = await checkedIn({ withWork: true });
         await appointmentService.awaitPayment(appointment.id);
 
         const done = await visitService.checkOut({
@@ -2234,7 +2252,7 @@ describe('visit', () => {
     });
 
     test('checks out with nothing paid', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
 
         const done = await visitService.checkOut({
             visitId: visit.id,
@@ -2248,7 +2266,7 @@ describe('visit', () => {
     });
 
     test('refuses to check out twice', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
         await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 1_000,
@@ -2267,7 +2285,7 @@ describe('visit', () => {
     });
 
     test('records a later payment against the balance', async () => {
-        const { visit } = await checkedIn();
+        const { visit } = await checkedIn({ withWork: true });
         await visitService.checkOut({
             visitId: visit.id,
             chargedTotal: 100_000,
@@ -2303,11 +2321,13 @@ describe('visit', () => {
 describe('balance', () => {
     async function owing(amount: number, paid: number) {
         const f = await fixtures();
+        // Booked with a line, because checkout refuses a visit with none.
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: f.patient.id },
             branchId: f.branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            procedures: [{ procedureId: f.rootCanal.id, quantity: 1 }],
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
         await visitService.checkOut({
@@ -2405,12 +2425,13 @@ describe('reminder', () => {
 
 describe('stats', () => {
     test('counts appointments and money for a period', async () => {
-        const { branch, patient } = await fixtures();
+        const { branch, patient, rootCanal } = await fixtures();
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
         await visitService.checkOut({
@@ -2429,6 +2450,6 @@ describe('stats', () => {
         expect(summary.appointments.completed).toBe(1);
         expect(summary.visits.charged).toBe(100_000);
         expect(summary.visits.collected).toBe(100_000);
-        expect(summary.topProcedures[0]?.name).toBe('Checkup');
+        expect(summary.topProcedures[0]?.name).toBe('Root canal');
     });
 });
