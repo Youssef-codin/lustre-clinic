@@ -125,7 +125,8 @@ esac
 if [ "$mode" = "release" ]; then
     apk="android/app/build/outputs/apk/release/app-release.apk"
 
-    (cd android && ./gradlew assembleRelease)
+    # No source-map upload: it fails the build without a GlitchTip token.
+    (cd android && SENTRY_DISABLE_AUTO_UPLOAD="${SENTRY_DISABLE_AUTO_UPLOAD:-true}" ./gradlew assembleRelease)
 
     echo "Installing $apk"
     adb -s "$serial" install -r "$apk"

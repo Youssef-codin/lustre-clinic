@@ -25,9 +25,11 @@ import {
     PushView,
     ScreenHeader,
     SectionLabel,
+    Toast,
     useAfterSheet,
 } from '../../components/ui';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
+import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
 import { setLocale, useLocale } from '../../shell/localeStore';
@@ -37,7 +39,13 @@ import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
-import { DataEntryIcon, LeaveDemoIcon, ResetDemoIcon, SettingsIcon } from './components/icons';
+import {
+    DataEntryIcon,
+    LeaveDemoIcon,
+    ReportProblemIcon,
+    ResetDemoIcon,
+    SettingsIcon,
+} from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
@@ -120,6 +128,30 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
         setLocalRole(next);
         onChangeRole?.(next);
     }
+
+    const [toast, setToast] = useState<string | null>(null);
+    const reports = CRASH_REPORTS_ON && !demo.enabled;
+
+    function report() {
+        const result = reportProblem();
+        setToast(
+            result.queued ? `Report queued · ref ${result.ref}` : 'Problem reports are off on this build',
+        );
+    }
+
+    // Not behind the summary: a report is most wanted when the server is not
+    // answering and the summary never loads.
+    const problem = (
+        <Group title="HELP">
+            <SettingsRow
+                icon={<ReportProblemIcon />}
+                label="Report a problem"
+                sub={reports ? 'Sends your last taps, never patient details' : 'Off on this build'}
+                onPress={report}
+                testID="settings-report-problem"
+            />
+        </Group>
+    );
 
     return (
         <View style={styles.screen}>
@@ -303,12 +335,23 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                             />
                         </Group>
 
+                        {problem}
+
                         <Text variant="footnote" tone="muted" script="mono" style={styles.version}>
                             {VERSION_LINE}
                         </Text>
                     </>
-                ) : null}
+                ) : (
+                    problem
+                )}
             </ScrollView>
+
+            <Toast
+                visible={toast !== null}
+                message={toast ?? ''}
+                onDismiss={() => setToast(null)}
+                testID="settings-toast"
+            />
 
             <RoleSwitchSheet
                 visible={switching}

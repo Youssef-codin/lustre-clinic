@@ -190,7 +190,8 @@ fi
 # bundle.
 if [ "$mode" = "release" ]; then
     apk="android/app/build/outputs/apk/release/app-release.apk"
-    (cd android && ./gradlew assembleRelease)
+    # No source-map upload: it fails the build without a GlitchTip token.
+    (cd android && SENTRY_DISABLE_AUTO_UPLOAD="${SENTRY_DISABLE_AUTO_UPLOAD:-true}" ./gradlew assembleRelease)
     adb -s "$serial" install -r "$apk"
     adb -s "$serial" shell am start -S -n com.lustre.clinic/.MainActivity
     echo "Launched com.lustre.clinic (release, embedded bundle)."

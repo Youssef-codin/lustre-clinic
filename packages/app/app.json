@@ -29,7 +29,8 @@
             "./plugins/withCleartextTraffic",
             "./plugins/withReleaseSigning",
             "./plugins/withReleaseVersionCode",
-            "@react-native-community/datetimepicker"
+            "@react-native-community/datetimepicker",
+            "@sentry/react-native/expo"
         ],
         "extra": {
             "server": {

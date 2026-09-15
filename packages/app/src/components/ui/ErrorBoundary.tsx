@@ -34,11 +34,10 @@ export type ErrorBoundaryProps = {
      */
     resetKey?: unknown;
     /**
-     * Somewhere to report from. Nothing passes this yet: §17 names GlitchTip
-     * and `api/errors` already marks which failures are reportable, but the app
-     * reports nowhere, and adding that is its own ticket — it brings a
-     * dependency and a network path with it. The allow-list rule will apply
-     * when it lands: IDs and codes, never patient data.
+     * Somewhere to report from. The shell passes `reporting`'s crash reporter
+     * (§17), which sends the stack and the component stack through the
+     * allow-list: IDs and codes, never patient data. Kept as a prop so `ui/`
+     * still knows nothing about Lustre.
      */
     onError?: (error: Error, info: ErrorInfo) => void;
 };

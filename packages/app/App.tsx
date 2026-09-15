@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
+import { renderErrorReporter } from './src/reporting';
 import { AppShell, SetupScreen, useServerSetup } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
@@ -47,6 +48,7 @@ export default function App() {
                         <ErrorBoundary
                             title="The app stopped"
                             message="Something went wrong and the screen could not be drawn. Reload to start again — nothing you saved has been lost."
+                            onError={renderErrorReporter('root')}
                         >
                             <SafeAreaView style={styles.screen} edges={['top']}>
                                 {showSetup ? <SetupScreen /> : <AppShell />}

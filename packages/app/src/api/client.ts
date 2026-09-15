@@ -2,6 +2,8 @@ import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { TRPC_ENDPOINT } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink, splitLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
+// The trail, not the `reporting` barrel, which loads the SDK (see its index).
+import { noteApi } from '../reporting/trail';
 import { timing } from './config';
 import { markOffline, markOnline, resolveBaseUrl } from './connection';
 import { subscribeToDataReset } from './dataReset';
@@ -39,6 +41,7 @@ async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promis
     const target = `${base}${requested.pathname}${requested.search}`;
 
     const { signal, done } = withTimeout(init, timing.requestMs);
+    const started = Date.now();
 
     try {
         const response =
@@ -46,9 +49,11 @@ async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promis
                 ? await fetch(new Request(target, input), { signal })
                 : await fetch(target, { ...init, signal });
         markOnline();
+        noteApi(requested.pathname, response.status, Date.now() - started);
         return response;
     } catch (error) {
         markOffline();
+        noteApi(requested.pathname, null, Date.now() - started);
         throw error;
     } finally {
         done();

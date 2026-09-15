@@ -33,6 +33,7 @@ import {
     ListPlus,
     LogOut,
     MapPin,
+    MessageSquareWarning,
     Pencil,
     Plus,
     Power,
@@ -120,6 +121,9 @@ export const ResetDemoIcon = icon(RotateCcw, ROW);
 
 /** Leaving the demo for the clinic server. No mockup counterpart. */
 export const LeaveDemoIcon = icon(LogOut, ROW);
+
+/** "Report a problem". No mockup counterpart. */
+export const ReportProblemIcon = icon(MessageSquareWarning, ROW);
 
 /** Taking a procedure out of the catalogue. */
 export const HideIcon = icon(EyeOff, { size: 15, stroke: color.ink, width: 2.2 });

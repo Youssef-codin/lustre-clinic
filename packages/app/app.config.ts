@@ -43,11 +43,25 @@ export function updatesConfig(updatesUrl: string | undefined, demo: boolean): Ex
     };
 }
 
+/**
+ * GlitchTip's DSN for crash reports (§17), from `LUSTRE_GLITCHTIP_DSN`. It
+ * points at the clinic server's MagicDNS name and is baked in for the same
+ * reason the updates URL is: a crash before setup still has to know where to
+ * go. Empty turns reports off, which is every dev machine. A demo build never
+ * gets one, because its crashes come from invented patients.
+ */
+export function glitchtipDsn(dsn: string | undefined, demo: boolean): string | null {
+    const trimmed = dsn?.trim();
+    return trimmed && !demo ? trimmed : null;
+}
+
 export default function appConfig({ config }: ConfigContext): ExpoConfig {
+    const demo = config.extra?.demo === true;
     return {
         ...config,
         name: config.name ?? 'Lustre Clinic',
         slug: config.slug ?? 'lustre-clinic',
-        updates: updatesConfig(process.env.LUSTRE_UPDATES_URL, config.extra?.demo === true),
+        updates: updatesConfig(process.env.LUSTRE_UPDATES_URL, demo),
+        extra: { ...config.extra, glitchtipDsn: glitchtipDsn(process.env.LUSTRE_GLITCHTIP_DSN, demo) },
     };
 }
