@@ -23,7 +23,7 @@
 
 - name: Battery monitor
   ansible.builtin.apt:
-    name: upower
+    name: [upower, curl]
     state: present
 
 # The battery rides out short cuts. On a long one, power off while there is
@@ -66,3 +66,44 @@
     - tailscaled
     - ssh
     - upower
+
+# Discord hears about a cut: mains lost, battery near the poweroff, and mains
+# back or the machine back up. The alerts wait on disk while the router is down
+# with the power, and go out once the network returns. The webhook is read from
+# the prod stack's .env when an alert is sent, so this tag needs no URL of its
+# own and sends nothing until the app tag has written one.
+- name: Power alert script
+  ansible.builtin.copy:
+    src: lustre-power-alert
+    dest: /usr/local/bin/lustre-power-alert
+    mode: "0755"
+  notify: Restart power alert
+
+- name: Power alert service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/lustre-power-alert.service
+    content: |
+      [Unit]
+      Description=Discord alerts for mains power loss on the clinic server
+      After=upower.service
+
+      [Service]
+      Environment=LUSTRE_CLINIC={{ inventory_hostname }}
+      ExecStart=/usr/local/bin/lustre-power-alert
+      StateDirectory=lustre-power
+      Restart=always
+      RestartSec=10
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart power alert
+
+- name: Power alert is running
+  ansible.builtin.systemd_service:
+    name: lustre-power-alert
+    enabled: true
+    state: started
+    daemon_reload: true
