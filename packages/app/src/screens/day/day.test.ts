@@ -43,7 +43,6 @@ import {
     type ChargeableLine,
     chargeableTotal,
     checkupIsWaived,
-    checkupToAdd,
     describeProcedure,
     groupByTooth,
     offeredFor,
@@ -1284,45 +1283,6 @@ describe('a day running late', () => {
 
     it('cannot be late on a day the clock has not reached', () => {
         expect(dayDelay([row('chair', 600, 30, 'checked_in')], null)).toEqual(ON_TIME);
-    });
-});
-
-describe('the checkup the arrival screen shows', () => {
-    const tree = (): ProcedureCategory[] =>
-        [
-            {
-                id: 'checkup',
-                name: 'Consultation',
-                defaultPrice: 30_000,
-                isCheckup: true,
-                selectable: true,
-                children: [],
-            },
-            {
-                id: 'filling',
-                name: 'Composite filling',
-                defaultPrice: 0,
-                isCheckup: false,
-                selectable: false,
-                children: [{ id: 'class-i', name: 'Class I', defaultPrice: 70_000, isCheckup: false }],
-            },
-        ] as unknown as ProcedureCategory[];
-
-    it('adds the clinic checkup to a plan that has none', () => {
-        expect(checkupToAdd(tree(), [{ procedureId: 'class-i' }])).toEqual({
-            procedureId: 'checkup',
-            name: 'Consultation',
-            price: 30_000,
-        });
-    });
-
-    it('waives it when the booking already asked for one, as check-in does', () => {
-        expect(checkupToAdd(tree(), [{ procedureId: 'checkup' }])).toBeNull();
-    });
-
-    it('adds nothing when the clinic has no checkup set up', () => {
-        const none = tree().filter((row) => !row.isCheckup);
-        expect(checkupToAdd(none, [])).toBeNull();
     });
 });
 

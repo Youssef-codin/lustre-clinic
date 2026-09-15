@@ -128,8 +128,8 @@ describe('appointment.walkIn', () => {
     });
 
     test('a second walk-in queues behind the first rather than being refused', async () => {
-        // The widest transaction in the app: four tables, plus the seeded
-        // checkup line. `starts_at` is now, so the first walk-in is still in the
+        // The widest transaction in the app: four tables. `starts_at` is now,
+        // so the first walk-in is still in the
         // chair when the second arrives — and §7 says the second is taken
         // anyway, seated at the end of the first, with its whole set of rows
         // written. It is not an overlap, so there is nothing to roll back.
@@ -266,7 +266,7 @@ describe('visit.checkIn', () => {
         expect((await appointmentService.byId(appointment.id)).status).toBe('cancelled');
     });
 
-    test('check-in writes the visit, the status and the checkup line together', async () => {
+    test('check-in writes the visit and the status together, and adds no checkup line', async () => {
         const fixtures = await clinic();
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: fixtures.patient.id },
@@ -279,11 +279,12 @@ describe('visit.checkIn', () => {
         await visitService.checkIn({ appointmentId: appointment.id });
         const after = await snapshot();
 
-        // §8 — the visit and its seeded line arrive in the same transaction as
-        // the status change, so no client ever sees a checked-in appointment
-        // whose visit does not exist yet.
+        // §8 — the visit arrives in the same transaction as the status change,
+        // so no client ever sees a checked-in appointment whose visit does not
+        // exist yet. Nothing was booked, so the visit opens with no lines: the
+        // consultation is picked, never added.
         expect(after.visits).toBe(before.visits + 1);
-        expect(after.visitProcedures).toBe(before.visitProcedures + 1);
+        expect(after.visitProcedures).toBe(before.visitProcedures);
         expect((await appointmentService.byId(appointment.id)).status).toBe('checked_in');
     });
 

@@ -29,7 +29,7 @@ import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
 import { formatAmount, formatMoney, poundsEntry } from '../money';
-import { chargeableTotal, checkupIsWaived, checkupToAdd, toothGroupsOf, toothPosition } from '../procedures';
+import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
@@ -139,9 +139,8 @@ function seed(appointment: Appointment, visit: Visit | undefined): DraftLine[] {
         }));
     }
 
-    // An arrival: the booking's plan, unpriced. Check-in will add the clinic's
-    // checkup line on top — it is the server's rule and is not guessed here, so
-    // the list grows by one on the way through.
+    // An arrival: the booking's plan, unpriced. Check-in seeds exactly this, so
+    // what the screen shows is what the visit opens with.
     return appointment.procedures.map((line) => ({
         id: line.id,
         procedureId: line.procedureId,
@@ -169,12 +168,6 @@ export function VisitScreen({
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
     const [toast, setToast] = useState<string | null>(null);
-    // An arrival's list is the plan; the checkup goes on once the catalogue
-    // says which procedure that is. Set during render rather than in an effect,
-    // the way the shell seeds its route — the list is right in the same commit
-    // the catalogue lands in, so the screen never paints an empty state it is
-    // about to fill.
-    const [checkupSeeded, setCheckupSeeded] = useState(mode === 'checkout');
     // Whether the list still is what it arrived as. An untouched arrival is
     // sent as nothing at all, so check-in's own seeding stands.
     const [edited, setEdited] = useState(false);
@@ -203,11 +196,10 @@ export function VisitScreen({
         return map;
     }, [catalogue.data]);
 
-    // Which procedure holds the checkup flag — the same row `visit.checkIn`
-    // reads, so the waiver below lands on the same line the server waives.
-    // Asked of the catalogue rather than of the line, because a checkup can
-    // reach this list three ways: seeded below, planned by the booking, or
-    // picked out of the sheet in the chair. Only the first would carry a flag.
+    // Which procedure holds the checkup flag, so the waiver below lands on the
+    // same line the server waives. Asked of the catalogue rather than of the
+    // line, because a checkup planned by the booking or picked out of the sheet
+    // in the chair does not carry the flag.
     const checkupIds = useMemo(() => {
         const ids = new Set<string>();
         for (const category of catalogue.data ?? []) {
@@ -217,26 +209,6 @@ export function VisitScreen({
         }
         return ids;
     }, [catalogue.data]);
-
-    if (!checkupSeeded && catalogue.data) {
-        setCheckupSeeded(true);
-        const checkup = checkupToAdd(catalogue.data, lines);
-        if (checkup) {
-            setLines((current) => [
-                ...current,
-                {
-                    id: `checkup-${checkup.procedureId}`,
-                    procedureId: checkup.procedureId,
-                    name: checkup.name,
-                    variant: null,
-                    tooth: null,
-                    unitPrice: null,
-                    quantity: 1,
-                    isCheckup: true,
-                },
-            ]);
-        }
-    }
 
     const priceOf = (line: DraftLine): number => line.unitPrice ?? prices.get(line.procedureId) ?? 0;
     const isCheckupLine = (line: DraftLine): boolean => line.isCheckup || checkupIds.has(line.procedureId);

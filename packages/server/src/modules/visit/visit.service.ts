@@ -3,8 +3,9 @@
  *
  * Check-in creates it and seeds its lines: one per procedure the booking
  * planned (§7), each priced at the catalogue price on the day rather than at
- * booking, plus the checkup line — skipped when the plan already names a
- * checkup, or the visit would open with two. Pricing is not a prerequisite for
+ * booking, and nothing else. The checkup is not added for them: a consultation
+ * is a line someone picks, like any other, and one on every visit buried what
+ * the bookings were actually for. Pricing is not a prerequisite for
  * checkout: `setProcedures` and `setPrice` are optional, may be called in any
  * order, and procedure detail is often entered after the patient has left.
  *
@@ -32,7 +33,6 @@ import { computeTotal } from '../../util/money.ts';
 import { clinicDayOf } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
-import { procedureService } from '../procedure/procedure.service.ts';
 import type {
     CheckInInput,
     CheckOutInput,
@@ -252,7 +252,6 @@ export const visitService = {
                     tooth: appointmentProcedures.tooth,
                     note: appointmentProcedures.note,
                     defaultPrice: procedureTypes.defaultPrice,
-                    isCheckup: procedureTypes.isCheckup,
                 })
                 .from(appointmentProcedures)
                 .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
@@ -271,19 +270,6 @@ export const visitService = {
                         note: line.note,
                     })),
                 );
-            }
-
-            const checkup = planned.some((line) => line.isCheckup)
-                ? null
-                : await procedureService.findCheckup();
-            if (checkup) {
-                await tx.insert(visitProcedures).values({
-                    id: Bun.randomUUIDv7(),
-                    visitId: visit.id,
-                    procedureId: checkup.id,
-                    quantity: 1,
-                    unitPrice: checkup.defaultPrice,
-                });
             }
 
             const computedTotal = await recompute(tx, visit.id);

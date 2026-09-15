@@ -1346,9 +1346,10 @@ describe('appointment', () => {
         expect(appointment.channel).toBe('walk_in');
         expect(appointment.status).toBe('checked_in');
 
+        // Nothing was asked for, and check-in adds no checkup of its own.
         const visit = await visitService.byId(visitId);
-        expect(visit.procedures.length).toBe(1);
-        expect(visit.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(visit.procedures).toEqual([]);
+        expect(visit.chargedTotal).toBe(0);
     });
 
     test('lists an appointment that has already ended as missed', async () => {
@@ -1681,15 +1682,14 @@ describe('appointment procedures', () => {
         const created = await visitService.checkIn({ appointmentId: appointment.id });
         const visit = await visitService.byId(created.id);
 
+        // Exactly the plan: check-in adds no checkup line on top of it.
         expect(visit.procedures.map((l) => [l.name, l.unitPrice]).sort()).toEqual(
             [
-                ['Checkup', CHECKUP_PRICE],
                 ['Extraction', EXTRACTION_PRICE],
                 ['Root canal', ROOT_CANAL_PRICE + 10_000],
             ].sort(),
         );
-        expect(visit.procedures.filter((l) => l.isCheckup)).toHaveLength(1);
-        // §9 — the checkup is waived once another line is present.
+        expect(visit.procedures.filter((l) => l.isCheckup)).toHaveLength(0);
         expect(visit.computedTotal).toBe(ROOT_CANAL_PRICE + 10_000 + EXTRACTION_PRICE);
     });
 
@@ -1726,7 +1726,7 @@ describe('appointment procedures', () => {
         ]);
 
         const visit = await visitService.byId(visitId);
-        expect(visit.procedures.map((l) => l.name).sort()).toEqual(['Checkup', 'Extraction']);
+        expect(visit.procedures.map((l) => l.name)).toEqual(['Extraction']);
     });
 
     // The chair is occupied at the moment the patient arrives, which is what a
@@ -1790,13 +1790,13 @@ describe('visit', () => {
         return { ...f, appointment, visit };
     }
 
-    test('check-in seeds the checkup line and prices the visit at it', async () => {
+    test('check-in adds no checkup line, so a visit with nothing booked opens at zero', async () => {
         const { visit } = await checkedIn();
         const detail = await visitService.byId(visit.id);
 
-        expect(detail.procedures[0]?.isCheckup).toBe(true);
-        expect(detail.computedTotal).toBe(CHECKUP_PRICE);
-        expect(detail.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(detail.procedures).toEqual([]);
+        expect(detail.computedTotal).toBe(0);
+        expect(detail.chargedTotal).toBe(0);
     });
 
     test('refuses a second check-in for the same appointment', async () => {
@@ -2405,12 +2405,13 @@ describe('reminder', () => {
 
 describe('stats', () => {
     test('counts appointments and money for a period', async () => {
-        const { branch, patient } = await fixtures();
+        const { branch, patient, rootCanal } = await fixtures();
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
             branchId: branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
+            procedures: [{ procedureId: rootCanal.id, quantity: 1 }],
         });
         const visit = await visitService.checkIn({ appointmentId: appointment.id });
         await visitService.checkOut({
@@ -2429,6 +2430,6 @@ describe('stats', () => {
         expect(summary.appointments.completed).toBe(1);
         expect(summary.visits.charged).toBe(100_000);
         expect(summary.visits.collected).toBe(100_000);
-        expect(summary.topProcedures[0]?.name).toBe('Checkup');
+        expect(summary.topProcedures[0]?.name).toBe('Root canal');
     });
 });
