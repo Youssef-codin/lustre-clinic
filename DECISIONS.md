@@ -929,6 +929,35 @@ The seed's old guard called hostname `db` local, and `db` is exactly what the
 production database is called inside its stack: `bun db:seed` in the server
 container would have deleted every patient. No flag overrides the marker.
 
+## A release's number comes from the script, and the runtime ignores it
+
+`MAJOR.MINOR.PATCH`: an APK is the next minor, an OTA update the next patch on
+the APK it runs on, and a major is asked for (infra/README.md "Versions"). Until
+this, `expo.version` was meant to be bumped by hand and never was, so every APK
+shipped as `1.0.0`, and every update was a UUID, so "which commit was that
+update" had no answer.
+
+**Why the script and not app.json.** A number typed into a file is a number that
+does not get typed, and it was not. The
+script already knows everything the number depends on (the tags and what is
+staged) and passes it in as `LUSTRE_VERSION`. app.json says `0.0.0`, which is
+what every build that is not a release reads.
+
+**Why the fingerprint skips the version.** `@expo/fingerprint` hashes
+`expo.version` by default, so a numbered update would have landed under a runtime
+no phone has and gone nowhere without an error. `fingerprint.config.js` turns
+that off. The skips are written as names because `require('@expo/fingerprint')`
+fails from `packages/app` in bun's layout, and the fingerprint replaces a config
+that fails to load with an empty one without a word; a first attempt looked like
+it worked and did nothing. Turning the skip on changed the runtime once, so
+the APK staged before it (runtime `2de6fe94…`) takes no update published after
+it: the first numbered release has to be an APK.
+
+**Why tags as well as the staging directory.** The staging directory is what
+shipped; a tag is the code it shipped from. The number is the higher of the two,
+so losing either cannot repeat a number. Rolling back is checking out a tag and
+publishing again as the next patch, never re-using an old number.
+
 ---
 
 # Corrections

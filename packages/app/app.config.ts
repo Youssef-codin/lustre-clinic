@@ -19,6 +19,11 @@
  * Manifests are signed at publish time with a key kept out of the repo and off
  * the server. `certs/certificate.pem` is its public half, and the phone refuses
  * an update that does not verify against it.
+ *
+ * `LUSTRE_VERSION` is the release's number, which `scripts/release.ts` works
+ * out and passes in (infra/README.md "Versions"). It is never written into
+ * app.json: a number bumped by hand is a number somebody forgets. Anything
+ * built without it is `0.0.0`, which is how a dev build reads.
  */
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
@@ -43,6 +48,16 @@ export function updatesConfig(updatesUrl: string | undefined, demo: boolean): Ex
     };
 }
 
+const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+
+export function releaseVersion(version: string | undefined, fallback: string | undefined): string {
+    const trimmed = version?.trim();
+    if (!trimmed) return fallback ?? '0.0.0';
+    // Thrown rather than passed on: Android would take any string as versionName.
+    if (!SEMVER.test(trimmed)) throw new Error(`LUSTRE_VERSION must be MAJOR.MINOR.PATCH, got "${trimmed}"`);
+    return trimmed;
+}
+
 /**
  * GlitchTip's DSN for crash reports (§17), from `LUSTRE_GLITCHTIP_DSN`. It
  * points at the clinic server's MagicDNS name and is baked in for the same
@@ -61,6 +76,7 @@ export default function appConfig({ config }: ConfigContext): ExpoConfig {
         ...config,
         name: config.name ?? 'Lustre Clinic',
         slug: config.slug ?? 'lustre-clinic',
+        version: releaseVersion(process.env.LUSTRE_VERSION, config.version),
         updates: updatesConfig(process.env.LUSTRE_UPDATES_URL, demo),
         extra: { ...config.extra, glitchtipDsn: glitchtipDsn(process.env.LUSTRE_GLITCHTIP_DSN, demo) },
     };

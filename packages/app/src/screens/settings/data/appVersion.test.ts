@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { type InstalledVersion, newerApk, updateLabel, versionLine } from './appVersion';
+import { apkLabel, type InstalledVersion, newerApk, updateLabel, versionLine } from './appVersion';
 
 /**
  * The banner is the only way a phone hears about a new APK. Offered when the
@@ -38,7 +38,8 @@ describe('newerApk', () => {
 });
 
 const installed: InstalledVersion = {
-    version: '1.0.0',
+    version: '1.0.2',
+    apkVersion: '1.0.0',
     build: '525600',
     updateId: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
     updateCreatedAt: new Date('2026-09-14T10:00:00Z'),
@@ -46,9 +47,17 @@ const installed: InstalledVersion = {
 };
 
 describe('versionLine', () => {
-    test('names the version and build the doctor reads out', () => {
-        expect(versionLine(installed)).toBe('Lustre 1.0.0 (build 525600)');
-        expect(versionLine({ version: '1.0.0', build: null })).toBe('Lustre 1.0.0');
+    test('names the release the phone runs, update included, and the build', () => {
+        expect(versionLine(installed)).toBe('Lustre 1.0.2 (build 525600)');
+        expect(versionLine({ version: '1.0.2', build: null })).toBe('Lustre 1.0.2');
+    });
+});
+
+describe('apkLabel', () => {
+    test('names the APK under the update', () => {
+        expect(apkLabel(installed)).toBe('1.0.0 · build 525600');
+        expect(apkLabel({ apkVersion: '1.0.0', build: null })).toBe('1.0.0');
+        expect(apkLabel({ apkVersion: null, build: null })).toBe('—');
     });
 });
 

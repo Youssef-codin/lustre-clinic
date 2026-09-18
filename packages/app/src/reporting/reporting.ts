@@ -8,6 +8,7 @@
  */
 import type { ClientRole } from '@lustre/shared';
 import * as Sentry from '@sentry/react-native';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import type { ErrorInfo } from 'react';
@@ -31,6 +32,10 @@ export function startCrashReports(): void {
 
     Sentry.init({
         ...options,
+        // The release this launch runs, an OTA update's number included, so a
+        // crash is filed under 1.4.2 and not the 1.4.0 APK underneath it.
+        release: `lustre@${Constants.expoConfig?.version ?? '0.0.0'}`,
+        dist: Application.nativeBuildVersion ?? undefined,
         // The stock breadcrumbs integration records console calls and every XHR
         // with its full URL. Both are replaced by the crumbs in `trail.ts`.
         integrations: (defaults) => [
@@ -42,8 +47,8 @@ export function startCrashReports(): void {
         beforeSend: (event) => (isDemoMode() ? null : allowEvent(event)),
     });
 
-    // `release` is the APK's version and an OTA update leaves it alone, so
-    // without these a crash in a bad update reads as one in the APK.
+    // The release names the code; the update id and runtime name the exact
+    // bundle the server published, which is what `release.ts` and the server go by.
     if (Updates.isEnabled) {
         Sentry.setTags({
             update: Updates.isEmbeddedLaunch || !Updates.updateId ? 'embedded' : Updates.updateId,

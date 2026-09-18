@@ -8,8 +8,10 @@ import type { RouterOutput } from '../../../api';
 type LatestApk = NonNullable<RouterOutput['release']['latestApk']>;
 
 export interface InstalledVersion {
-    /** `expo.version` of the installed APK. An OTA update does not change it. */
+    /** The release this launch runs: the update's number, or the APK's when it runs its own bundle. */
     version: string | null;
+    /** `versionName` of the installed APK, `X.Y.0`. An OTA update does not change it. */
+    apkVersion: string | null;
     /** The APK's versionCode. */
     build: string | null;
     /** Null when updates are off: a dev, demo or local build. */
@@ -36,6 +38,12 @@ export function newerApk(
 export function versionLine({ version, build }: Pick<InstalledVersion, 'version' | 'build'>): string {
     const name = `Lustre ${version ?? '0.0.0'}`;
     return build ? `${name} (build ${build})` : name;
+}
+
+/** The installed APK, which an update runs on top of. */
+export function apkLabel({ apkVersion, build }: Pick<InstalledVersion, 'apkVersion' | 'build'>): string {
+    if (!apkVersion) return build ?? '—';
+    return build ? `${apkVersion} · build ${build}` : apkVersion;
 }
 
 /** The JavaScript this launch runs: the bundle in the APK, or an update by its short id and day. */

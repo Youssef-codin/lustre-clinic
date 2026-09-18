@@ -10,13 +10,17 @@
 import { APK_PATH } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as Updates from 'expo-updates';
 import { BUILD_VARIANT, serverAddresses, useTRPC } from '../../../api';
 import { type InstalledVersion, newerApk } from './appVersion';
 
 export function installedVersion(): InstalledVersion {
     return {
-        version: Application.nativeApplicationVersion,
+        // An update's manifest carries the config it was published with, so
+        // this is the update's number on an update and the APK's otherwise.
+        version: Constants.expoConfig?.version ?? null,
+        apkVersion: Application.nativeApplicationVersion,
         build: Application.nativeBuildVersion,
         updateId: Updates.isEnabled ? Updates.updateId : null,
         updateCreatedAt: Updates.createdAt,

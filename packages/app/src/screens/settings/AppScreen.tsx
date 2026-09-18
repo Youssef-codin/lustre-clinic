@@ -18,7 +18,7 @@ import { color, radius, space, Text } from '../../theme';
 import { ReprobeIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { installedVersion } from './data/appUpdate';
-import { updateLabel } from './data/appVersion';
+import { apkLabel, updateLabel } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 
 const LANGUAGES: readonly { value: Locale; label: string }[] = [
@@ -131,7 +131,7 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
 
                 <Card padded style={styles.versionCard} testID="settings-app-version">
                     <VersionRow label="Version" value={INSTALLED.version ?? '—'} />
-                    <VersionRow label="Build" value={INSTALLED.build ?? '—'} />
+                    <VersionRow label="APK" value={apkLabel(INSTALLED)} />
                     <VersionRow label="Update" value={updateLabel(INSTALLED)} />
                 </Card>
 

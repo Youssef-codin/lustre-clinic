@@ -2,7 +2,7 @@
     "expo": {
         "name": "Lustre Clinic",
         "slug": "lustre-clinic",
-        "version": "1.0.0",
+        "version": "0.0.0",
         "runtimeVersion": {
             "policy": "fingerprint"
         },

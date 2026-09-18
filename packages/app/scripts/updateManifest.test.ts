@@ -16,10 +16,11 @@ const manifest = manifestFor({
     id: ID,
     createdAt: new Date('2026-09-14T10:00:00Z'),
     runtimeVersion: '3f1c0de4',
+    version: '1.0.1',
     serverUrl: 'http://clinic.tail.ts.net:3000/',
     bundle: { path: '_expo/static/js/android/index-1a2b.hbc', ext: 'hbc', bytes: bytes('bundle') },
     assets: [{ path: 'assets/5d41402abc4b2a76b9719d911017c592', ext: 'png', bytes: bytes('hello') }],
-    expoClient: { name: 'Lustre Clinic', version: '1.0.0' },
+    expoClient: { name: 'Lustre Clinic', version: '1.0.1' },
 });
 
 describe('manifestFor', () => {
@@ -52,7 +53,8 @@ describe('manifestFor', () => {
             id: ID,
             createdAt: '2026-09-14T10:00:00.000Z',
             runtimeVersion: '3f1c0de4',
-            extra: { expoClient: { name: 'Lustre Clinic', version: '1.0.0' } },
+            metadata: { version: '1.0.1' },
+            extra: { expoClient: { name: 'Lustre Clinic', version: '1.0.1' } },
         });
     });
 });
