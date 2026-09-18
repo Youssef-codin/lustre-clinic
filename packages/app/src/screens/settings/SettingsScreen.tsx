@@ -479,8 +479,7 @@ function summarize({ settings, schedule, branches, procedures, questions }: Summ
     };
 }
 
-// The APK's own version, not `expoConfig.version`, which an OTA update's
-// manifest supplies.
+// The release this launch runs, the OTA update's number included.
 const INSTALLED = installedVersion();
 const VERSION_LINE = versionLine(INSTALLED);
 

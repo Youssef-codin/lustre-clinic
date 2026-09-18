@@ -18,8 +18,8 @@
  * few seconds. `-PLUSTRE_VERSION_CODE=<n>` (or `ORG_GRADLE_PROJECT_LUSTRE_VERSION_CODE`)
  * forces one, for jumping past a build made on a machine whose clock was ahead.
  *
- * `expo.version` in app.json is the name the doctor reads out, and is still
- * bumped by hand when a native change ships.
+ * The name the doctor reads out is `versionName`, which `scripts/release.ts`
+ * works out and passes in as `LUSTRE_VERSION` (`scripts/releaseVersion.ts`).
  */
 const { withAppBuildGradle } = require('expo/config-plugins');
 

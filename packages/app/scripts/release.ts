@@ -1,8 +1,8 @@
 /**
  * Stages a release for the clinic server (§15, infra/README.md "Releases").
  *
- *   bun release:apk      prebuild, build and sign the release APK
- *   bun release:update   export the JavaScript and sign it as an OTA update
+ *   bun release:apk [--major]   prebuild, build and sign the release APK
+ *   bun release:update          export the JavaScript and sign it as an OTA update
  *
  * Both write into `dist/releases` (or LUSTRE_RELEASES_DIR) in the layout
  * `server/src/modules/release` serves. Neither touches a server: the ansible
@@ -12,12 +12,25 @@
  * bakes it in and an update's asset URLs point at it. Build and publish with the
  * same value from the same app.json, or the runtime versions differ and no phone
  * takes the update.
+ *
+ * Both number the release (`releaseVersion.ts`): an APK is the next minor, an
+ * update the next patch on the APK its runtime belongs to. Both refuse a working
+ * tree with uncommitted changes, and both tag the commit they were built from
+ * `vX.Y.Z`, so a number always names code that can be checked out again.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { $ } from 'bun';
+import {
+    formatVersion,
+    nextApkVersion,
+    nextUpdateVersion,
+    parseVersion,
+    tagFor,
+    type Version,
+} from './releaseVersion';
 import { type ExportedFile, manifestFor, signManifest } from './updateManifest';
 
 const APP_DIR = resolve(import.meta.dir, '..');
@@ -77,6 +90,59 @@ async function atomicWrite(path: string, contents: string | Uint8Array): Promise
     await rename(temporary, path);
 }
 
+async function assertCleanTree(): Promise<void> {
+    const changes = await $`git status --porcelain`.cwd(APP_DIR).quiet().text();
+    if (changes.trim()) {
+        fail(
+            `the working tree has uncommitted changes. Commit or stash them first, so the release's tag names the code it was built from:\n${changes}`,
+        );
+    }
+}
+
+/** Every `vX.Y.Z` tag in the repository. */
+async function taggedVersions(): Promise<string[]> {
+    const tags = await $`git tag --list v*`.cwd(APP_DIR).quiet().text();
+    return tags.split('\n').filter((tag) => parseVersion(tag) !== null);
+}
+
+async function headCommit(): Promise<string> {
+    return (await $`git rev-parse HEAD`.cwd(APP_DIR).quiet().text()).trim();
+}
+
+async function tagRelease(version: Version, message: string): Promise<void> {
+    const tag = tagFor(version);
+    await $`git tag --annotate ${tag} --message ${message}`.cwd(APP_DIR);
+    say(`Tagged ${tag}. Push it with: git push origin ${tag}`);
+}
+
+interface StagedApk {
+    versionCode?: number;
+    version?: string;
+    runtimeVersion?: string;
+}
+
+async function stagedApk(): Promise<StagedApk | null> {
+    return JSON.parse(
+        await readFile(join(OUT_DIR, 'android/latest.json'), 'utf8').catch(() => 'null'),
+    ) as StagedApk | null;
+}
+
+/** The release number of every update already staged for `runtimeVersion`. */
+async function publishedUpdateVersions(runtimeVersion: string): Promise<(string | undefined)[]> {
+    const dir = join(OUT_DIR, 'updates', runtimeVersion);
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+    return Promise.all(
+        entries
+            .filter((entry) => entry.isDirectory())
+            .map(async (entry) => {
+                const manifest = JSON.parse(
+                    await readFile(join(dir, entry.name, 'manifest.json'), 'utf8').catch(() => 'null'),
+                ) as { metadata?: { version?: string } } | null;
+                return manifest?.metadata?.version;
+            }),
+    );
+}
+
 async function resolvedRuntimeVersion(): Promise<string> {
     const output = await $`bunx expo-updates runtimeversion:resolve --platform android`
         .cwd(APP_DIR)
@@ -106,10 +172,18 @@ async function assertReleaseKey(apk: string): Promise<void> {
     say(certs.split('\n').find((line) => line.includes('certificate DN')) ?? certs);
 }
 
-async function buildApk(): Promise<void> {
+async function buildApk(major: boolean): Promise<void> {
     const url = updatesUrl();
+    await assertCleanTree();
 
-    await $`bunx expo prebuild --platform android --no-install`.cwd(APP_DIR);
+    const staged = await stagedApk();
+    const next = nextApkVersion([...(await taggedVersions()), staged?.version], major);
+    const version = formatVersion(next);
+    // Prebuild writes it into build.gradle as versionName.
+    const env = { ...process.env, LUSTRE_VERSION: version };
+    say(`Building Lustre ${version}`);
+
+    await $`bunx expo prebuild --platform android --no-install`.cwd(APP_DIR).env(env);
     // Clinic phones are arm64. Add x86_64 for the emulator or Waydroid.
     const abis = process.env.LUSTRE_APK_ABIS ?? 'arm64-v8a';
     // A release build compiles every native module's Kotlin, and with
@@ -119,7 +193,7 @@ async function buildApk(): Promise<void> {
     await $`./gradlew assembleRelease -Dorg.gradle.jvmargs=${'-Xmx2048m -XX:MaxMetaspaceSize=1024m'}`
         .cwd(join(APP_DIR, 'android'))
         .env({
-            ...process.env,
+            ...env,
             ORG_GRADLE_PROJECT_reactNativeArchitectures: abis,
             // Sentry's Gradle hook uploads source maps on every release build and
             // fails the build without a GlitchTip token. Off unless asked for.
@@ -133,14 +207,16 @@ async function buildApk(): Promise<void> {
     if (!element?.versionCode || !element.versionName || !element.outputFile) {
         fail('the build wrote no release APK metadata');
     }
+    if (element.versionName !== version) {
+        fail(
+            `the build is named ${element.versionName}, not ${version}. Delete packages/app/android and run again.`,
+        );
+    }
     const apk = join(APK_OUTPUTS, element.outputFile);
     await assertReleaseKey(apk);
 
     // The Settings banner offers only a strictly higher build, so a build that is
     // not higher than the one already staged would reach no phone.
-    const staged = JSON.parse(
-        await readFile(join(OUT_DIR, 'android/latest.json'), 'utf8').catch(() => 'null'),
-    ) as { versionCode?: number } | null;
     if (staged?.versionCode && element.versionCode <= staged.versionCode) {
         fail(
             `build ${element.versionCode} is not higher than the staged build ${staged.versionCode}. Rebuild, or set ORG_GRADLE_PROJECT_LUSTRE_VERSION_CODE above it.`,
@@ -161,6 +237,7 @@ async function buildApk(): Promise<void> {
                 // The server offers the APK only once a file of this size is beside it.
                 size: bytes.length,
                 updatesUrl: url,
+                commit: await headCommit(),
                 builtAt: new Date().toISOString(),
             },
             null,
@@ -170,6 +247,7 @@ async function buildApk(): Promise<void> {
 
     say(`Staged Lustre ${element.versionName} (build ${element.versionCode}, ${abis}) in ${OUT_DIR}/android`);
     say(`Runtime version ${runtimeVersion}. Updates from ${url}`);
+    await tagRelease(next, `Lustre ${version}, APK build ${element.versionCode}`);
 }
 
 async function publishUpdate(): Promise<void> {
@@ -183,17 +261,37 @@ async function publishUpdate(): Promise<void> {
     const privateKey = await readFile(keyPath, 'utf8').catch(() =>
         fail(`cannot read the update signing key at ${keyPath}`),
     );
+    await assertCleanTree();
 
+    // An update is numbered on the APK it is for, and that is the APK whose
+    // runtime it has. With no such APK staged it would reach no phone.
     const runtimeVersion = await resolvedRuntimeVersion();
+    const apk = await stagedApk();
+    const apkVersion = apk?.version ? parseVersion(apk.version) : null;
+    if (!apk || !apkVersion) fail('no numbered APK is staged. Ship one with `bun release:apk` first.');
+    if (apk.runtimeVersion !== runtimeVersion) {
+        fail(
+            `this code is runtime ${runtimeVersion}, but the staged APK (${apk.version}, build ${apk.versionCode}) is runtime ${apk.runtimeVersion}. No phone would take the update: something native changed, so ship an APK with \`bun release:apk\`.`,
+        );
+    }
+    const next = nextUpdateVersion(apkVersion, [
+        ...(await taggedVersions()),
+        ...(await publishedUpdateVersions(runtimeVersion)),
+    ]);
+    const version = formatVersion(next);
+    // What `Constants.expoConfig.version` reads on a phone running this update.
+    const env = { ...process.env, LUSTRE_VERSION: version };
+    say(`Publishing Lustre ${version}`);
+
     const staging = await mkdtemp(join(tmpdir(), 'lustre-update-'));
-    await $`bunx expo export --platform android --output-dir ${staging}`.cwd(APP_DIR);
+    await $`bunx expo export --platform android --output-dir ${staging}`.cwd(APP_DIR).env(env);
 
     const exported = JSON.parse(await readFile(join(staging, 'metadata.json'), 'utf8')) as ExportMetadata;
     const android = exported.fileMetadata?.android;
     if (!android) fail('expo export wrote no Android bundle');
     // What the running app reads as `Constants.expoConfig` once it is on this update.
     const expoClient = JSON.parse(
-        await $`bunx expo config --type public --json`.cwd(APP_DIR).quiet().text(),
+        await $`bunx expo config --type public --json`.cwd(APP_DIR).env(env).quiet().text(),
     ) as Record<string, unknown>;
 
     const load = async (path: string, ext: string): Promise<ExportedFile> => ({
@@ -207,7 +305,7 @@ async function publishUpdate(): Promise<void> {
     const id = randomUUID();
     const createdAt = new Date();
     const body = JSON.stringify(
-        manifestFor({ id, createdAt, runtimeVersion, serverUrl: url, bundle, assets, expoClient }),
+        manifestFor({ id, createdAt, runtimeVersion, version, serverUrl: url, bundle, assets, expoClient }),
     );
 
     const target = join(OUT_DIR, 'updates', runtimeVersion, id);
@@ -224,19 +322,11 @@ async function publishUpdate(): Promise<void> {
     );
     await rm(staging, { recursive: true, force: true });
 
-    say(`Staged update ${id} for runtime ${runtimeVersion} in ${target}`);
-
-    const apk = JSON.parse(
-        await readFile(join(OUT_DIR, 'android/latest.json'), 'utf8').catch(() => 'null'),
-    ) as { runtimeVersion?: string; version?: string; versionCode?: number } | null;
-    if (apk?.runtimeVersion && apk.runtimeVersion !== runtimeVersion) {
-        say(
-            `Warning: the staged APK (${apk.version}, build ${apk.versionCode}) is runtime ${apk.runtimeVersion}. Phones on it will not take this update; something native changed, so ship an APK with \`bun release:apk\`.`,
-        );
-    }
+    say(`Staged Lustre ${version} (update ${id}) for runtime ${runtimeVersion} in ${target}`);
+    await tagRelease(next, `Lustre ${version}, update ${id}`);
 }
 
 const command = process.argv[2];
-if (command === 'apk') await buildApk();
+if (command === 'apk') await buildApk(process.argv.includes('--major'));
 else if (command === 'update') await publishUpdate();
 else fail('usage: bun packages/app/scripts/release.ts apk|update');

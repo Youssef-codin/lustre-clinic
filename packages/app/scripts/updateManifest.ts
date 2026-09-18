@@ -24,6 +24,8 @@ export interface ManifestInput {
     id: string;
     createdAt: Date;
     runtimeVersion: string;
+    /** The release number (`releaseVersion.ts`), kept so the next update can count on from it. */
+    version: string;
     serverUrl: string;
     bundle: ExportedFile;
     assets: ExportedFile[];
@@ -72,7 +74,7 @@ export function manifestFor(input: ManifestInput) {
         assets: input.assets.map((asset) =>
             describe(asset, CONTENT_TYPES[asset.ext] ?? 'application/octet-stream', `.${asset.ext}`),
         ),
-        metadata: {},
+        metadata: { version: input.version },
         extra: { expoClient: input.expoClient },
     };
 }

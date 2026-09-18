@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { UPDATES_CHANNEL, UPDATES_MANIFEST_PATH } from '@lustre/shared';
 import type { ConfigContext } from 'expo/config';
-import appConfig, { CHANNEL, glitchtipDsn, MANIFEST_PATH, updatesConfig } from './app.config';
+import appConfig, { CHANNEL, glitchtipDsn, MANIFEST_PATH, releaseVersion, updatesConfig } from './app.config';
 
 /**
  * What a release APK is built to ask for, which cannot be changed after the
@@ -40,6 +40,31 @@ describe('updatesConfig', () => {
             updatesConfig('http://clinic.tail.ts.net:3000', false)?.codeSigningCertificate ?? '';
         const pem = await Bun.file(join(import.meta.dir, certificate)).text();
         expect(pem).toStartWith('-----BEGIN CERTIFICATE-----');
+    });
+});
+
+describe('releaseVersion', () => {
+    test('takes the number the release script passes in', () => {
+        expect(releaseVersion(' 1.4.2 ', '0.0.0')).toBe('1.4.2');
+    });
+
+    test("falls back to app.json's placeholder outside a release", () => {
+        expect(releaseVersion(undefined, '0.0.0')).toBe('0.0.0');
+        expect(releaseVersion('', undefined)).toBe('0.0.0');
+    });
+
+    test('refuses a number that is not MAJOR.MINOR.PATCH', () => {
+        expect(() => releaseVersion('1.4', '0.0.0')).toThrow('LUSTRE_VERSION');
+        expect(() => releaseVersion('v1.4.2', '0.0.0')).toThrow('LUSTRE_VERSION');
+    });
+});
+
+describe('runtime fingerprint', () => {
+    // A config that fails to load is replaced by an empty one without a word,
+    // and every numbered release would then get a runtime of its own.
+    test('skips the version fields, so a release number never changes the runtime', () => {
+        const config = require('./fingerprint.config.js') as { sourceSkips: string[] };
+        expect(config.sourceSkips).toContain('ExpoConfigVersions');
     });
 });
 

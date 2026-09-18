@@ -87,9 +87,37 @@ Tailscale, with nothing hosted anywhere else:
   server has a higher build than the phone; tapping it downloads the APK in the
   browser and Android's installer takes over.
 
-Both are staged into `dist/releases` on the operator's machine and copied to
+Both are numbered and staged into `dist/releases` on the operator's machine and copied to
 `/opt/lustre-<stack>/releases` by the `releases` tag, which the `app` tag also
 runs. The server reads them on each request; nothing restarts.
+
+### Versions
+
+Every release is `MAJOR.MINOR.PATCH`, and the release scripts pick the number;
+nothing is bumped by hand.
+
+| Part | Means | Set by |
+|---|---|---|
+| MINOR | a new APK; PATCH goes back to 0 | `bun release:apk` |
+| PATCH | an OTA update on that APK: 1.4.1, 1.4.2, … | `bun release:update` |
+| MAJOR | a change the server and the app must ship together | `bun release:apk --major` |
+
+The next number is one above the higher of the `vX.Y.Z` git tags and what is
+already staged in `dist/releases`, so a lost tag or a wiped staging directory
+cannot make a number repeat (`packages/app/scripts/releaseVersion.ts`). An
+update is numbered on the staged APK with its runtime version, and is refused
+when there is none, because no phone would take it.
+
+Both scripts refuse uncommitted changes and tag the commit they built from.
+They create the tag locally; push it yourself with the command they print.
+
+Settings → App shows the release the phone runs (the update's number, `1.4.2`)
+with the APK under it (`1.4.0 · build …`). GlitchTip files crashes under the same
+number, `lustre@1.4.2`.
+
+The runtime version is a fingerprint of native code only.
+`packages/app/fingerprint.config.js` keeps the version number out of it, or
+every release would get a runtime of its own and no update would reach a phone.
 
 ### Release signing
 
@@ -130,8 +158,8 @@ back to the debug key. Debug builds do not need them.
 ### Shipping a new APK
 
 ```sh
-# expo.version in packages/app/app.json is the name the doctor reads out: bump it.
 LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:apk
+git push origin v<the version it printed>
 cd infra/ansible && ansible-playbook site.yml -K --tags releases
 ```
 
@@ -154,29 +182,30 @@ role and saved address survive because the APK is signed with the same key.
 
 ```sh
 LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:update
+git push origin v<the version it printed>
 cd infra/ansible && ansible-playbook site.yml -K --tags releases
 ```
 
-Publish from the same `app.json` and the same `LUSTRE_UPDATES_URL` the APK was
-built with. An update is only offered to APKs with the same runtime version,
-a fingerprint of everything native; the script warns when the staged APK's
-runtime differs, which means something native changed and it needs
-`release:apk` instead.
+Publish with the same `LUSTRE_UPDATES_URL` the APK was built with. An update is
+only offered to APKs with the same runtime version, a fingerprint of everything
+native. The script refuses when the staged APK's runtime differs: something
+native changed, and it needs `release:apk` instead.
 
 Phones pick it up on launch and run it on the next cold start: swipe the app
-away and open it twice. Settings → App → Version shows the update's short id.
+away and open it twice. Settings → App → Version shows the new number, and
+Update shows the update's short id.
 
 - **An update that crashes before its first screen draws** rolls itself back:
   expo-updates marks it failed and relaunches on the previous bundle. That
   relaunch can come up blank; closing and reopening the app clears it. A crash
   after the first screen has drawn, such as one behind a button, is not caught
   and does not roll back: fix forward by publishing a corrected update.
-- **An update with a bug that does not crash**: check out the last good commit
-  and run `release:update` again. It gets a new id and becomes the latest.
-- **Which update a crash came from**: GlitchTip's release is the APK version,
-  which an update leaves alone. Every report carries an `update` tag (the id,
-  or `embedded` for the APK's own bundle) and a `runtime` tag; filter on
-  `update` to see whether the newest update is the one crashing.
+- **An update with a bug that does not crash**: check out the last good
+  release's tag (`git checkout v1.4.1`) and run `release:update` again. It is
+  published as the next number, `1.4.3`, and becomes the latest.
+- **Which update a crash came from**: GlitchTip's release is the number the
+  phone ran, `lustre@1.4.2`. Every report also carries an `update` tag (the id,
+  or `embedded` for the APK's own bundle) and a `runtime` tag.
 - Dev builds load Metro and demo builds have updates switched off, so neither
   ever takes a production update.
 
