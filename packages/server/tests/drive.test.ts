@@ -6,9 +6,10 @@ import {
     createDriveClient,
     createDriveFolder,
     createOAuthAuthorizationUrl,
-    DRIVE_REAUTHORIZATION_CODE,
     type DriveCredentials,
+    DriveReauthorizationRequiredError,
     exchangeOAuthCode,
+    isDriveReauthorizationRequired,
     normalizePrivateKey,
     type ServiceAccountDriveCredentials,
 } from '../src/backup/drive.ts';
@@ -160,6 +161,25 @@ describe('operator OAuth flow', () => {
     });
 });
 
+describe('operator OAuth flow, refused', () => {
+    test('refuses a grant Google would not issue a refresh token for', async () => {
+        const { impl } = stubFetch({
+            'oauth2.googleapis.com/token': () => new Response(JSON.stringify({ access_token: 'access-1' })),
+        });
+
+        await expect(
+            exchangeOAuthCode({
+                clientId: 'client-id',
+                clientSecret: 'client-secret',
+                code: 'authorization-code',
+                codeVerifier: 'verifier',
+                redirectUri: 'http://127.0.0.1:1234/oauth/callback',
+                fetchImpl: impl,
+            }),
+        ).rejects.toThrow('revoke the old grant');
+    });
+});
+
 describe('createDriveClient', () => {
     test('exchanges an OAuth refresh token without persisting the access token', async () => {
         const { impl, calls } = stubFetch({
@@ -189,9 +209,57 @@ describe('createDriveClient', () => {
             .list()
             .catch((caught: unknown) => caught);
 
-        expect(error).toMatchObject({ code: DRIVE_REAUTHORIZATION_CODE });
-        expect(error).toBeInstanceOf(Error);
+        expect(error).toBeInstanceOf(DriveReauthorizationRequiredError);
+        expect(isDriveReauthorizationRequired(error)).toBe(true);
         expect((error as Error).message).toContain('drive:authorize');
+    });
+
+    test('asks for a new sign-in when a fresh token is still refused', async () => {
+        let tokens = 0;
+        const { impl } = stubFetch({
+            'oauth2.googleapis.com/token': () => {
+                tokens += 1;
+                return new Response(JSON.stringify({ access_token: `token-${tokens}`, expires_in: 3600 }));
+            },
+            'drive/v3/files': () => new Response('unauthorized', { status: 401 }),
+        });
+
+        const error = await createDriveClient({ credentials: oauthCredentials, fetchImpl: impl })
+            .list()
+            .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(DriveReauthorizationRequiredError);
+        expect(tokens).toBe(2);
+    });
+
+    test('keeps a token refusal that is not a revoked grant generic', async () => {
+        const { impl } = stubFetch({
+            'oauth2.googleapis.com/token': () =>
+                new Response(JSON.stringify({ error: 'invalid_client' }), { status: 400 }),
+        });
+
+        const error = await createDriveClient({ credentials: oauthCredentials, fetchImpl: impl })
+            .list()
+            .catch((caught: unknown) => caught);
+
+        expect(error).not.toBeInstanceOf(DriveReauthorizationRequiredError);
+        expect((error as Error).message).toContain('drive token request failed: 400');
+    });
+
+    test('never puts the refresh token in an error a log or alert would carry', async () => {
+        const { impl } = stubFetch({
+            'oauth2.googleapis.com/token': () =>
+                new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+        });
+
+        const error = await createDriveClient({
+            credentials: { ...oauthCredentials, refreshToken: 'refresh-token-secret' },
+            fetchImpl: impl,
+        })
+            .list()
+            .catch((caught: unknown) => caught);
+
+        expect((error as Error).message).not.toContain('refresh-token-secret');
     });
 
     test('exchanges the assertion for a token and uploads to the folder', async () => {
@@ -350,6 +418,39 @@ describe('resolveDriveCredentials', () => {
 
         expect(resolved.credentials).toBeNull();
         expect(resolved.missing).toContain('BACKUP_DRIVE_REFRESH_TOKEN');
+    });
+
+    test('treats a blank or whitespace-only folder id as unset', () => {
+        for (const folderId of ['', '   ']) {
+            const resolved = resolveDriveCredentials({
+                ...empty,
+                BACKUP_DRIVE_FOLDER_ID: folderId,
+                BACKUP_DRIVE_OAUTH_CLIENT_ID: 'client',
+                BACKUP_DRIVE_OAUTH_CLIENT_SECRET: 'secret',
+                BACKUP_DRIVE_REFRESH_TOKEN: 'refresh',
+            });
+
+            expect(resolved.credentials).toBeNull();
+            expect(resolved.missing).toEqual(['BACKUP_DRIVE_FOLDER_ID']);
+        }
+    });
+
+    test('trims values copied out of the authorize output', () => {
+        const resolved = resolveDriveCredentials({
+            ...empty,
+            BACKUP_DRIVE_FOLDER_ID: ' folder ',
+            BACKUP_DRIVE_OAUTH_CLIENT_ID: 'client ',
+            BACKUP_DRIVE_OAUTH_CLIENT_SECRET: ' secret',
+            BACKUP_DRIVE_REFRESH_TOKEN: 'refresh\n',
+        });
+
+        expect(resolved.credentials).toEqual({
+            kind: 'oauth',
+            clientId: 'client',
+            clientSecret: 'secret',
+            refreshToken: 'refresh',
+            folderId: 'folder',
+        });
     });
 
     test('keeps the service-account path for Workspace compatibility', () => {

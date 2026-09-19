@@ -1,8 +1,29 @@
-/** Google Drive backup transport. OAuth is the normal path; service accounts
- * remain available for existing Workspace/shared-drive deployments. */
+/**
+ * SPEC §16 — the off-site destination. Google Drive, reached with an OAuth
+ * refresh token the doctor granted once from the operator's machine. The
+ * service account it replaced needed no browser step and nothing to
+ * re-authorize on an unattended reboot, which is the trade this gave up: a
+ * refresh token can be revoked, and a grant on an app left in Google's Testing
+ * state expires after seven days. That is why `invalid_grant` is not a generic
+ * failure here but `DriveReauthorizationRequiredError`, which the backup job
+ * turns into an alert naming the command to run.
+ *
+ * Written against the REST API with `fetch` and `node:crypto` rather than
+ * `googleapis`, which is a very large dependency for three calls (upload, list,
+ * delete).
+ *
+ * The service-account path stays for Workspace deployments only. A service
+ * account has no Drive storage of its own: uploading into a folder in someone's
+ * My Drive fails with `storageQuotaExceeded`. It needs a shared drive
+ * (`BACKUP_DRIVE_FOLDER_ID` inside one) or domain-wide delegation via
+ * `BACKUP_DRIVE_SUBJECT`, and a personal Gmail account has neither.
+ *
+ * Error bodies are read for the log but never include secrets; a 404 on delete
+ * means the file is already gone, which is the state pruning wanted.
+ */
 import { createSign } from 'node:crypto';
 
-export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -62,8 +83,6 @@ export interface OAuthCodeExchangeOptions {
 export const DRIVE_REAUTHORIZATION_CODE = 'backup.drive_reauthorization_required';
 
 export class DriveReauthorizationRequiredError extends Error {
-    readonly code = DRIVE_REAUTHORIZATION_CODE;
-
     constructor() {
         super(
             'Google Drive authorization expired or was revoked; run `bun drive:authorize` on the operator machine',
@@ -72,7 +91,7 @@ export class DriveReauthorizationRequiredError extends Error {
     }
 }
 
-export function isDriveReauthorizationRequired(error: unknown): boolean {
+export function isDriveReauthorizationRequired(error: unknown): error is DriveReauthorizationRequiredError {
     return error instanceof DriveReauthorizationRequiredError;
 }
 

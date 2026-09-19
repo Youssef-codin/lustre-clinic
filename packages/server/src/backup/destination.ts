@@ -55,16 +55,21 @@ export function resolveDriveCredentials(env: DriveEnvironment): {
     credentials: DriveCredentials | null;
     missing: string[];
 } {
+    // Trimmed, not just checked for empty: every one of these is copied by hand
+    // out of what `bun drive:authorize` prints, and a folder id with a trailing
+    // space fails at Google as `'<id> ' in parents` with nothing naming the cause.
+    const set = (value: string | undefined): string | undefined => value?.trim() || undefined;
+
     const oauth = {
-        BACKUP_DRIVE_FOLDER_ID: env.BACKUP_DRIVE_FOLDER_ID,
-        BACKUP_DRIVE_OAUTH_CLIENT_ID: env.BACKUP_DRIVE_OAUTH_CLIENT_ID,
-        BACKUP_DRIVE_OAUTH_CLIENT_SECRET: env.BACKUP_DRIVE_OAUTH_CLIENT_SECRET,
-        BACKUP_DRIVE_REFRESH_TOKEN: env.BACKUP_DRIVE_REFRESH_TOKEN,
+        BACKUP_DRIVE_FOLDER_ID: set(env.BACKUP_DRIVE_FOLDER_ID),
+        BACKUP_DRIVE_OAUTH_CLIENT_ID: set(env.BACKUP_DRIVE_OAUTH_CLIENT_ID),
+        BACKUP_DRIVE_OAUTH_CLIENT_SECRET: set(env.BACKUP_DRIVE_OAUTH_CLIENT_SECRET),
+        BACKUP_DRIVE_REFRESH_TOKEN: set(env.BACKUP_DRIVE_REFRESH_TOKEN),
     };
     const oauthConfigured = Boolean(
-        env.BACKUP_DRIVE_OAUTH_CLIENT_ID ||
-            env.BACKUP_DRIVE_OAUTH_CLIENT_SECRET ||
-            env.BACKUP_DRIVE_REFRESH_TOKEN,
+        oauth.BACKUP_DRIVE_OAUTH_CLIENT_ID ||
+            oauth.BACKUP_DRIVE_OAUTH_CLIENT_SECRET ||
+            oauth.BACKUP_DRIVE_REFRESH_TOKEN,
     );
     const oauthMissing = Object.entries(oauth)
         .filter(([, value]) => !value)
@@ -74,19 +79,19 @@ export function resolveDriveCredentials(env: DriveEnvironment): {
         return {
             credentials: {
                 kind: 'oauth',
-                clientId: env.BACKUP_DRIVE_OAUTH_CLIENT_ID as string,
-                clientSecret: env.BACKUP_DRIVE_OAUTH_CLIENT_SECRET as string,
-                refreshToken: env.BACKUP_DRIVE_REFRESH_TOKEN as string,
-                folderId: env.BACKUP_DRIVE_FOLDER_ID as string,
+                clientId: oauth.BACKUP_DRIVE_OAUTH_CLIENT_ID as string,
+                clientSecret: oauth.BACKUP_DRIVE_OAUTH_CLIENT_SECRET as string,
+                refreshToken: oauth.BACKUP_DRIVE_REFRESH_TOKEN as string,
+                folderId: oauth.BACKUP_DRIVE_FOLDER_ID as string,
             },
             missing: [],
         };
     }
 
     const serviceAccount = {
-        BACKUP_DRIVE_FOLDER_ID: env.BACKUP_DRIVE_FOLDER_ID,
-        BACKUP_DRIVE_CLIENT_EMAIL: env.BACKUP_DRIVE_CLIENT_EMAIL,
-        BACKUP_DRIVE_PRIVATE_KEY: env.BACKUP_DRIVE_PRIVATE_KEY,
+        BACKUP_DRIVE_FOLDER_ID: oauth.BACKUP_DRIVE_FOLDER_ID,
+        BACKUP_DRIVE_CLIENT_EMAIL: set(env.BACKUP_DRIVE_CLIENT_EMAIL),
+        BACKUP_DRIVE_PRIVATE_KEY: set(env.BACKUP_DRIVE_PRIVATE_KEY),
     };
     const serviceAccountConfigured = Object.values(serviceAccount).some(Boolean);
     const serviceAccountMissing = Object.entries(serviceAccount)
@@ -97,10 +102,10 @@ export function resolveDriveCredentials(env: DriveEnvironment): {
         return {
             credentials: {
                 kind: 'service-account',
-                clientEmail: env.BACKUP_DRIVE_CLIENT_EMAIL as string,
-                privateKey: normalizePrivateKey(env.BACKUP_DRIVE_PRIVATE_KEY as string),
-                folderId: env.BACKUP_DRIVE_FOLDER_ID as string,
-                subject: env.BACKUP_DRIVE_SUBJECT,
+                clientEmail: serviceAccount.BACKUP_DRIVE_CLIENT_EMAIL as string,
+                privateKey: normalizePrivateKey(serviceAccount.BACKUP_DRIVE_PRIVATE_KEY as string),
+                folderId: serviceAccount.BACKUP_DRIVE_FOLDER_ID as string,
+                subject: set(env.BACKUP_DRIVE_SUBJECT),
             },
             missing: [],
         };
