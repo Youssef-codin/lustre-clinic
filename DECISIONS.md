@@ -1009,16 +1009,37 @@ a half-configured OAuth setup disables the off-site copy loudly rather than
 silently backing up as a different Drive identity. Silently falling back would
 mean the dumps quietly land somewhere nobody is looking.
 
-**Why there is no Settings screen for it.** The task asked for one. It is not
-here, and this is the reason rather than an oversight: the sign-in has to happen
-on a machine with a browser that can reach `127.0.0.1`, which is the operator's
-laptop and not either phone, and the thing a screen would show — "Drive needs a
-new sign-in" — is already delivered to the person who can act on it, by Discord,
-within a day of it becoming true. A pane on the doctor's phone announcing a
-problem only the operator can fix is a worse channel than the one that exists.
-If that changes, what it needs is a server-side reading of the last backup's
-outcome; there is no backup state on the router today, and nothing in
-`packages/app` mentions backups at all.
+**Settings shows it, even though Settings cannot fix it.** The first cut left
+the app out: the sign-in happens on the operator's laptop, not on either phone,
+and Discord already tells the person who can act. That was wrong, and the reason
+is the failure's shape. A dead grant is the one backup failure with no symptom —
+the dump still runs, still verifies, still prunes, so every screen in the app
+looks exactly as it does on a good night while the only copy that survives the
+clinic burning down silently stops being written. Discord is a channel the
+doctor does not read and the operator may not be watching either; nothing else
+would ever say so on the device the doctor actually holds.
+
+So `backup.status` is a procedure (`modules/backup`, file-backed like `release`,
+no database), and Settings draws it two ways. A **Backups row** in the CLINIC
+group carries the state in its sub the way every other row on that index carries
+its own answer — "Last backup today · copied off-site". A **card above the
+summary** appears only for `reauthorize`, next to where the APK banner goes,
+because a row's sub is the wrong weight for "the off-site copy has been dead for
+three days". Doctor-only, like the rest of the CLINIC group: it is his Google
+account. §1 still holds — the role hides rows, it never guards anything.
+
+**The state had to be written down to be shown.** `runBackup` alerted and forgot;
+the alert then deduped for fifteen minutes while the clinic stayed un-backed-up
+for days. `offsite-state.json` sits beside the success marker and holds the
+*first* run that failed this way, so the age on screen is how long the off-site
+copy has been dead rather than how long ago the last attempt was. Only a real
+upload clears it — an unconfigured destination also uploads nothing, and that
+must not read as the grant being good again.
+
+**What the card does not do is offer a button.** There is nothing the phone can
+press: `drive:authorize` needs a browser that can reach `127.0.0.1` on the
+machine holding the client secret. It names who to ask instead, which is the
+honest affordance.
 
 ---
 

@@ -41,6 +41,7 @@ import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
 import {
     DataEntryIcon,
+    DriveAlertIcon,
     LeaveDemoIcon,
     ReportProblemIcon,
     ResetDemoIcon,
@@ -51,6 +52,7 @@ import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
 import { installedVersion, useApkUpdate } from './data/appUpdate';
 import { versionLine } from './data/appVersion';
+import { type BackupView, backupView } from './data/backups';
 import { useConnectionView } from './data/connection';
 import { errorText } from './data/errors';
 import { minutesFromTime } from './data/reminders';
@@ -121,6 +123,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
     const summary = useSummary();
     const connection = useConnectionView();
     const apkUpdate = useApkUpdate();
+    const backups = useBackups();
 
     const isDoctor = role === 'doctor';
 
@@ -190,6 +193,28 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                     </Card>
                 ) : null}
 
+                {/* Above the summary, like the APK banner: the dump still runs
+                    and still verifies when the grant dies, so nothing further
+                    down this screen would look wrong. Drawn for the doctor
+                    only — it is his Google account, and the CLINIC rows below
+                    are gated the same way (§1: the role hides rows, it does
+                    not guard anything). */}
+                {isDoctor && backups?.tone === 'reauthorize' ? (
+                    <Card padded style={styles.backupAlert} testID="settings-backup-alert">
+                        <View style={styles.backupIcon}>
+                            <DriveAlertIcon />
+                        </View>
+                        <View style={styles.updateText}>
+                            <Text variant="body" weight="semibold">
+                                {backups.sub}
+                            </Text>
+                            <Text variant="footnote" tone="muted">
+                                {backups.detail}
+                            </Text>
+                        </View>
+                    </Card>
+                ) : null}
+
                 {summary.loading ? <SkeletonRows count={3} /> : null}
 
                 {summary.error ? (
@@ -253,6 +278,14 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     sub={`${summary.data.openDays} days open`}
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
+                                />
+                                <CardDivider />
+                                <SettingsRow
+                                    icon={<SettingsIcon glyph="backups" />}
+                                    label="Backups"
+                                    sub={backups?.sub ?? 'Checking…'}
+                                    onPress={() => {}}
+                                    testID="settings-backups"
                                 />
                                 <CardDivider />
                                 <SettingsRow
@@ -419,6 +452,18 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
  * standing in: nothing on the server tracks that yet, and a card that says the
  * wrong branch is worse than one that does not claim to know.
  */
+/**
+ * Polled rather than read once: the grant can die between two taps of the tab,
+ * and the whole point of the card is that nothing else on the phone changes
+ * when it does. Failure is silent — the connection card already says when the
+ * server is not answering, and a second complaint about it is noise.
+ */
+function useBackups(): BackupView | null {
+    const trpc = useTRPC();
+    const status = useQuery(trpc.backup.status.queryOptions(undefined, { refetchInterval: 5 * 60_000 }));
+    return status.data ? backupView(status.data) : null;
+}
+
 function useSummary() {
     const trpc = useTRPC();
 
@@ -494,6 +539,14 @@ const styles = StyleSheet.create({
     },
     group: { gap: space[2] },
     version: { textAlign: 'center' },
+    backupAlert: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: space[3],
+        marginBottom: space[3],
+        backgroundColor: color.dueSoft,
+    },
+    backupIcon: { paddingTop: space[0.5] },
     update: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
     updateText: { flex: 1, gap: space[0.5] },
 });

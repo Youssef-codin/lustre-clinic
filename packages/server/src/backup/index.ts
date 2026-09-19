@@ -35,6 +35,7 @@ export * from './destination.ts';
 export * from './retention.ts';
 
 const MARKER_FILE = 'last-success.json';
+const OFFSITE_STATE_FILE = 'offsite-state.json';
 
 export interface BackupResult {
     readonly file: string;
@@ -191,6 +192,40 @@ export async function readLastSuccess(directory = config.BACKUP_DIR): Promise<Ba
     }
 }
 
+/**
+ * A revoked Drive grant outlives the run that found it: the Discord alert fires
+ * once and dedupes for fifteen minutes, but the clinic stays un-backed-up until
+ * a person signs in again. So the state is written down, and Settings reads it.
+ * `since` is the first run that failed this way, not the latest — how long the
+ * off-site copy has been dead is the part worth showing.
+ */
+export interface OffsiteState {
+    reauthorizationRequiredSince: string;
+}
+
+export async function readOffsiteState(directory = config.BACKUP_DIR): Promise<OffsiteState | null> {
+    try {
+        return (await Bun.file(join(directory, OFFSITE_STATE_FILE)).json()) as OffsiteState;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Only a revoked grant is written down, and only the first one: a later run
+ * failing the same way must not reset the clock the doctor is being shown.
+ */
+export async function recordOffsiteFailure(directory: string, error: unknown, at: Date): Promise<void> {
+    if (!isDriveReauthorizationRequired(error)) return;
+    if (await readOffsiteState(directory)) return;
+    const state: OffsiteState = { reauthorizationRequiredSince: at.toISOString() };
+    await Bun.write(join(directory, OFFSITE_STATE_FILE), JSON.stringify(state));
+}
+
+export async function clearOffsiteState(directory: string): Promise<void> {
+    await unlink(join(directory, OFFSITE_STATE_FILE)).catch(() => {});
+}
+
 export async function runBackup(options: BackupOptions = {}): Promise<BackupResult> {
     const {
         databaseUrl = config.DATABASE_URL,
@@ -214,6 +249,9 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         if (verify) await verifyDump(databaseUrl, path, now);
 
         const offsiteKey = offsite ? await uploadOffsite(path, name) : null;
+        // Only a real upload clears it. An unconfigured destination returns null
+        // too, and that must not read as "the grant is good again".
+        if (offsiteKey !== null) await clearOffsiteState(directory);
 
         const pruned = await pruneLocal(directory, retention);
         const prunedOffsite = offsite ? await pruneOffsite(retention) : 0;
@@ -236,6 +274,7 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         return { file: name, bytes: size, verified: verify, offsiteKey, pruned };
     } catch (err) {
         logger.error({ err }, 'backup failed');
+        await recordOffsiteFailure(directory, err, now);
         await alert(backupFailureAlert(err, name));
         throw err;
     }

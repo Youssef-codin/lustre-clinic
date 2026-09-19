@@ -9,6 +9,7 @@
  */
 import type { RouterInput } from '../../types';
 import { appointmentHandlers } from './appointment';
+import { backupHandlers } from './backup';
 import { balanceHandlers } from './balance';
 import { branchHandlers } from './branch';
 import { customQuestionHandlers } from './customQuestion';
@@ -99,6 +100,8 @@ const handlers = {
     'reminder.dismissToday': reminderHandlers.dismissToday,
 
     'stats.summary': statsHandlers.summary,
+
+    'backup.status': backupHandlers.status,
 
     'migration.enter': migrationHandlers.enter,
     'migration.progress': migrationHandlers.progress,

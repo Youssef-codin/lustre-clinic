@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DriveReauthorizationRequiredError } from '../src/backup/drive.ts';
@@ -7,6 +7,7 @@ import {
     type BackupFile,
     backupFailureAlert,
     backupFileName,
+    clearOffsiteState,
     decrypt,
     encrypt,
     generateKey,
@@ -15,12 +16,15 @@ import {
     parseBackupFileName,
     parseKey,
     readLastSuccess,
+    readOffsiteState,
+    recordOffsiteFailure,
     runBackup,
     selectForDeletion,
     selectOffsiteDumps,
     selectRetained,
 } from '../src/backup/index.ts';
 import { config } from '../src/config.ts';
+import { backupService } from '../src/modules/backup/backup.service.ts';
 import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpers/db.ts';
 
 /**
@@ -141,6 +145,78 @@ describe('backup failure alerts', () => {
         expect(alert.code).toBe('backup.drive_reauthorization_required');
         expect(alert.summary).toContain('drive:authorize');
         expect(alert.context).not.toHaveProperty('error');
+    });
+});
+
+describe('a revoked Drive grant outlives the run that found it', () => {
+    async function scratch(): Promise<string> {
+        const directory = join(tmpdir(), `lustre-offsite-${Bun.randomUUIDv7()}`);
+        await mkdir(directory, { recursive: true });
+        return directory;
+    }
+
+    test('nothing is recorded until a grant actually fails', async () => {
+        const directory = await scratch();
+        try {
+            expect(await readOffsiteState(directory)).toBeNull();
+
+            await recordOffsiteFailure(directory, new Error('pg_dump produced an empty file'), new Date());
+            expect(await readOffsiteState(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('keeps the first failure, so the age shown does not reset every night', async () => {
+        const directory = await scratch();
+        try {
+            const first = new Date('2026-09-17T03:00:00Z');
+            await recordOffsiteFailure(directory, new DriveReauthorizationRequiredError(), first);
+            await recordOffsiteFailure(
+                directory,
+                new DriveReauthorizationRequiredError(),
+                new Date('2026-09-20T03:00:00Z'),
+            );
+
+            expect(await readOffsiteState(directory)).toEqual({
+                reauthorizationRequiredSince: first.toISOString(),
+            });
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a later upload clears it', async () => {
+        const directory = await scratch();
+        try {
+            await recordOffsiteFailure(directory, new DriveReauthorizationRequiredError(), new Date());
+            expect(await readOffsiteState(directory)).not.toBeNull();
+
+            await clearOffsiteState(directory);
+            expect(await readOffsiteState(directory)).toBeNull();
+
+            // Clearing what is already clear is what every healthy run does.
+            await clearOffsiteState(directory);
+            expect(await readOffsiteState(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a directory that is not there reads as no state, not as a crash', async () => {
+        expect(await readOffsiteState(join(tmpdir(), `lustre-missing-${Bun.randomUUIDv7()}`))).toBeNull();
+    });
+});
+
+describe('backup.status', () => {
+    test('reports a clinic that has never backed up as stale, not as an error', async () => {
+        const status = await backupService.status();
+
+        expect(status.lastSuccessAt).toBeNull();
+        expect(status.stale).toBe(true);
+        expect(status.staleAfterHours).toBe(config.BACKUP_STALE_AFTER_HOURS);
+        // `.env.test` leaves every Drive and S3 field empty on purpose (§16).
+        expect(status.offsite).toEqual({ configured: false, reauthorizationRequiredSince: null });
     });
 });
 

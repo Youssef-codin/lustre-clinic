@@ -114,8 +114,10 @@ app.
 The refresh token is stored only in the clinic's private environment file.
 Short-lived access tokens are cached in memory and never written to disk. If
 Google returns `invalid_grant` after revocation or expiry, Discord receives
-`backup.drive_reauthorization_required`; rerun `bun drive:authorize`, replace
-the refresh token it prints, and restart the server. Set the existing
+`backup.drive_reauthorization_required` and the doctor's Settings shows that
+Drive needs a new sign-in — the dump itself keeps succeeding, so nothing else
+looks wrong. Rerun `bun drive:authorize`, replace the refresh token it prints,
+and restart the server; the next upload clears the warning. Set the existing
 `BACKUP_DRIVE_FOLDER_ID` while rerunning so the flow keeps using the same folder.
 
 The old service-account fields remain as a Workspace-only compatibility path.

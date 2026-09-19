@@ -75,8 +75,10 @@ docker compose run --rm server backup
 ## Google Drive backups
 
 The production stack can push each verified, encrypted dump into a folder in
-the doctor's own Google Drive. Authorization is an operator-only setup step;
-there is deliberately no app Settings screen.
+the doctor's own Google Drive. Authorization is an operator-only setup step —
+it needs a browser on the machine holding the client secret, so it never
+happens from a phone. The app does not authorize, but it does report: Settings
+shows the doctor a Backups row, and a card when the grant needs renewing.
 
 1. Enable the Google Drive API in a Google Cloud project. Configure the consent
    audience (External for personal Gmail, or Internal for an organization-owned
@@ -101,8 +103,11 @@ there is deliberately no app Settings screen.
 
 Never put these values in inventory, shell history, or the repository. The
 server persists the refresh token, not access tokens. A revoked or expired grant
-alerts Discord as `backup.drive_reauthorization_required`; repeat the flow and
-replace the refresh token. Supply the existing `BACKUP_DRIVE_FOLDER_ID` to the
+alerts Discord as `backup.drive_reauthorization_required`, and is recorded in
+`offsite-state.json` beside the dumps so `backup.status` can keep reporting it
+after the alert has deduped — the doctor's Settings reads that. Repeat the flow
+and replace the refresh token; the next successful upload clears the state by
+itself. Supply the existing `BACKUP_DRIVE_FOLDER_ID` to the
 flow so reauthorization keeps the same folder. External apps left in Google's
 Testing state receive seven-day grants, so a personal-account deployment must
 use In production. `drive.file` is non-sensitive; a one-clinic personal-use app
