@@ -972,9 +972,10 @@ uploaded nothing.
 
 So off-site backup is now the doctor's own Drive, authorized once through OAuth
 (SPEC §16). `bun drive:authorize` runs on the **operator's** machine, not the
-clinic's: loopback callback on `127.0.0.1`, OAuth state, PKCE, `access_type=offline`,
-and one scope — `drive.file`, which sees only what the app itself created, so a
-grant for backups is not a grant to read the rest of the doctor's Drive. The
+clinic's: loopback callback on `127.0.0.1`, OAuth state, PKCE,
+`access_type=offline`, and one scope — `drive.file`, which sees only what the app
+itself created, so a grant for backups is not a grant to read the rest of the
+doctor's Drive. The
 script creates the **Lustre Clinic Backups** folder itself, which is what makes
 that narrow scope sufficient.
 
@@ -1013,8 +1014,8 @@ here, and this is the reason rather than an oversight: the sign-in has to happen
 on a machine with a browser that can reach `127.0.0.1`, which is the operator's
 laptop and not either phone, and the thing a screen would show — "Drive needs a
 new sign-in" — is already delivered to the person who can act on it, by Discord,
-within a day of it becoming true. A pane on the doctor's phone telling him about
-a problem only the operator can fix is a worse channel than the one that exists.
+within a day of it becoming true. A pane on the doctor's phone announcing a
+problem only the operator can fix is a worse channel than the one that exists.
 If that changes, what it needs is a server-side reading of the last backup's
 outcome; there is no backup state on the router today, and nothing in
 `packages/app` mentions backups at all.
