@@ -36,3 +36,29 @@ describe('closing the calendar', () => {
         expect(closeCalendar(CALENDAR_CLOSED)).toBe(CALENDAR_CLOSED);
     });
 });
+
+describe('calendar cell edges', () => {
+    // There is no React Native renderer in this test suite, so keep the two
+    // Android-sensitive rendering invariants pinned at their JSX boundary.
+    async function cellSource() {
+        const source = await Bun.file(new URL('./components/CalendarSheet.tsx', import.meta.url)).text();
+        return source.slice(
+            source.indexOf('<View style={styles.cellBox}>'),
+            source.indexOf('<Text', source.indexOf('<View style={styles.cellBox}>')),
+        );
+    }
+
+    it('keeps the closed edge when the closed day is selected', async () => {
+        const source = await cellSource();
+
+        expect(source).toContain('{closed ? <View pointerEvents="none" style={styles.closedEdge} /> : null}');
+        expect(source).not.toMatch(/!picked\s*&&\s*closed/);
+    });
+
+    it('paints the closed edge on its own layer instead of toggling the clipped cell border', async () => {
+        const source = await cellSource();
+
+        expect(source).toStartWith('<View style={styles.cellBox}>');
+        expect(source.indexOf('styles.fill')).toBeLessThan(source.indexOf('styles.closedEdge'));
+    });
+});
