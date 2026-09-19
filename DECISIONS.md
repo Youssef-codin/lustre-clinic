@@ -1012,12 +1012,15 @@ mean the dumps quietly land somewhere nobody is looking.
 **Settings shows it, even though Settings cannot fix it.** The first cut left
 the app out: the sign-in happens on the operator's laptop, not on either phone,
 and Discord already tells the person who can act. That was wrong, and the reason
-is the failure's shape. A dead grant is the one backup failure with no symptom —
-the dump still runs, still verifies, still prunes, so every screen in the app
-looks exactly as it does on a good night while the only copy that survives the
-clinic burning down silently stops being written. Discord is a channel the
-doctor does not read and the operator may not be watching either; nothing else
-would ever say so on the device the doctor actually holds.
+is how quiet this failure is rather than how invisible. The dump runs and
+verifies before the upload is attempted, so the local copy is fine and nothing
+in the clinic changes; what stops is the copy that survives the building. The
+run itself does fail — `uploadOffsite` throws, so pruning and the success marker
+never happen and `backup.stale` does eventually fire — but not for
+`BACKUP_STALE_AFTER_HOURS`, two days by default, and the one Discord message
+that goes out immediately is deduped for fifteen minutes and lands in a channel
+the doctor does not read. For those two days nothing on the device the doctor
+actually holds says a word.
 
 So `backup.status` is a procedure (`modules/backup`, file-backed like `release`,
 no database), and Settings draws it two ways. A **Backups row** in the CLINIC

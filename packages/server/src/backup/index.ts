@@ -11,7 +11,7 @@
  * environment uploads to the clinic's actual Drive folder and prunes it against
  * the run's own timestamp.
  */
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { config } from '../config.ts';
@@ -218,8 +218,16 @@ export async function readOffsiteState(directory = config.BACKUP_DIR): Promise<O
 export async function recordOffsiteFailure(directory: string, error: unknown, at: Date): Promise<void> {
     if (!isDriveReauthorizationRequired(error)) return;
     if (await readOffsiteState(directory)) return;
+
+    // Written through a temporary file and renamed over: `backup.status` can be
+    // reading this while the job writes it, and `Bun.write` truncates in place,
+    // so a plain write can be read back as half a file. `readOffsiteState`
+    // answers null on a parse error, which would report the grant as healthy.
     const state: OffsiteState = { reauthorizationRequiredSince: at.toISOString() };
-    await Bun.write(join(directory, OFFSITE_STATE_FILE), JSON.stringify(state));
+    const target = join(directory, OFFSITE_STATE_FILE);
+    const scratch = `${target}.${process.pid}.tmp`;
+    await Bun.write(scratch, JSON.stringify(state));
+    await rename(scratch, target);
 }
 
 export async function clearOffsiteState(directory: string): Promise<void> {
@@ -274,7 +282,14 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         return { file: name, bytes: size, verified: verify, offsiteKey, pruned };
     } catch (err) {
         logger.error({ err }, 'backup failed');
-        await recordOffsiteFailure(directory, err, now);
+        // The alert is the escalation; nothing escalates a failure to write the
+        // state file. A full disk here must not swallow the one message that
+        // tells somebody the off-site copy has stopped.
+        try {
+            await recordOffsiteFailure(directory, err, now);
+        } catch (stateErr) {
+            logger.error({ err: stateErr }, 'could not record the off-site backup state');
+        }
         await alert(backupFailureAlert(err, name));
         throw err;
     }

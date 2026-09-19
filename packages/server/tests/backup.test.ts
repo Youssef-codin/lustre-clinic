@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DriveReauthorizationRequiredError } from '../src/backup/drive.ts';
@@ -198,6 +198,19 @@ describe('a revoked Drive grant outlives the run that found it', () => {
             // Clearing what is already clear is what every healthy run does.
             await clearOffsiteState(directory);
             expect(await readOffsiteState(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('leaves no scratch file behind, so status only ever sees whole JSON', async () => {
+        const directory = await scratch();
+        try {
+            await recordOffsiteFailure(directory, new DriveReauthorizationRequiredError(), new Date());
+
+            const left = await readdir(directory);
+            expect(left).toEqual(['offsite-state.json']);
+            expect(await readOffsiteState(directory)).toHaveProperty('reauthorizationRequiredSince');
         } finally {
             await rm(directory, { recursive: true, force: true });
         }
