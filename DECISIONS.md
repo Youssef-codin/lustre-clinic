@@ -958,6 +958,68 @@ shipped; a tag is the code it shipped from. The number is the higher of the two,
 so losing either cannot repeat a number. Rolling back is checking out a tag and
 publishing again as the next patch, never re-using an old number.
 
+## The off-site backup signs in as the doctor, and the refresh token is the cost
+
+`drive.ts` used a **service account**, and the reason written into its header was
+operational: no browser step, no refresh token to babysit, and nothing to
+re-authorize when the clinic machine reboots at 07:00 with nobody watching. That
+reasoning was sound and the setup still never worked, because of a fact it did
+not account for: **a service account has no Drive storage of its own.** Uploading
+into a folder in somebody's My Drive fails with `storageQuotaExceeded`. The way
+out is a shared drive or domain-wide delegation, and the doctor's account is
+personal Gmail, which has neither. The unattended path was unattended and
+uploaded nothing.
+
+So off-site backup is now the doctor's own Drive, authorized once through OAuth
+(SPEC §16). `bun drive:authorize` runs on the **operator's** machine, not the
+clinic's: loopback callback on `127.0.0.1`, OAuth state, PKCE,
+`access_type=offline`, and one scope — `drive.file`, which sees only what the app
+itself created, so a grant for backups is not a grant to read the rest of the
+doctor's Drive. The
+script creates the **Lustre Clinic Backups** folder itself, which is what makes
+that narrow scope sufficient.
+
+**What it costs.** Exactly what the old header warned about, and the warning was
+right — it was simply cheaper than not backing up. The clinic server holds a
+refresh token in its private environment file (mode `0600`), mints access tokens
+from it into memory, and writes none of them to disk. A reboot at 07:00 is still
+unattended: the refresh token survives it and the server mints a new access token
+on the first backup. What is *not* unattended is revocation. The doctor changing
+their Google password, withdrawing the grant, or leaving the consent app in
+Google's **Testing** state — where refresh tokens expire after seven days, which
+is why a personal-account deployment must publish to **In production** — all end
+the same way: Google answers the refresh with `invalid_grant`.
+
+**Which is why that one error is not a generic failure.** It becomes
+`DriveReauthorizationRequiredError`, and the nightly job alerts Discord as
+`backup.drive_reauthorization_required` instead of `backup.failed`, naming the
+command to run. A generic "backup failed" would be read as a machine problem and
+someone would go looking at the server; the real fix is a person signing in
+again, on the operator's machine, and replacing one line in the environment file.
+The alert carries the dump's filename and nothing else — no error text, because
+no error text on this path tells the operator anything the code already did. Pass
+the existing `BACKUP_DRIVE_FOLDER_ID` back into the flow when re-authorizing and
+it keeps the same folder rather than creating a second one beside it.
+
+**Why the service account stays anyway.** It is the only thing that works for a
+Workspace shared drive or domain-wide delegation, it costs three optional env
+vars, and deleting it would strand any deployment already using it. It is a
+fallback, not a default: if *any* OAuth field is set, OAuth must be complete, and
+a half-configured OAuth setup disables the off-site copy loudly rather than
+silently backing up as a different Drive identity. Silently falling back would
+mean the dumps quietly land somewhere nobody is looking.
+
+**Why there is no Settings screen for it.** The task asked for one. It is not
+here, and this is the reason rather than an oversight: the sign-in has to happen
+on a machine with a browser that can reach `127.0.0.1`, which is the operator's
+laptop and not either phone, and the thing a screen would show — "Drive needs a
+new sign-in" — is already delivered to the person who can act on it, by Discord,
+within a day of it becoming true. A pane on the doctor's phone announcing a
+problem only the operator can fix is a worse channel than the one that exists.
+If that changes, what it needs is a server-side reading of the last backup's
+outcome; there is no backup state on the router today, and nothing in
+`packages/app` mentions backups at all.
+
 ---
 
 # Corrections

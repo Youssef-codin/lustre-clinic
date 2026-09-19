@@ -16,9 +16,10 @@ import { join } from 'node:path';
 import postgres from 'postgres';
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
-import { alert } from '../monitoring/index.ts';
+import { type Alert, alert } from '../monitoring/index.ts';
 import { encrypt, parseKey } from './crypto.ts';
 import { offsiteDestination } from './destination.ts';
+import { DRIVE_REAUTHORIZATION_CODE, isDriveReauthorizationRequired } from './drive.ts';
 import { databaseName, pgDump, pgRestore, withScratchDatabase } from './pg.ts';
 import {
     type BackupFile,
@@ -50,6 +51,22 @@ export interface BackupOptions {
     now?: Date;
     verify?: boolean;
     offsite?: boolean;
+}
+
+export function backupFailureAlert(error: unknown, file: string): Alert {
+    if (isDriveReauthorizationRequired(error)) {
+        return {
+            code: DRIVE_REAUTHORIZATION_CODE,
+            summary:
+                'Google Drive authorization expired or was revoked. Run `bun drive:authorize` on the operator machine.',
+            context: { file },
+        };
+    }
+    return {
+        code: 'backup.failed',
+        summary: 'A backup run failed. The clinic is running without a fresh backup.',
+        context: { file, error: error instanceof Error ? error.message.slice(0, 200) : 'unknown' },
+    };
 }
 
 export async function listLocalBackups(directory: string): Promise<BackupFile[]> {
@@ -219,11 +236,7 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         return { file: name, bytes: size, verified: verify, offsiteKey, pruned };
     } catch (err) {
         logger.error({ err }, 'backup failed');
-        await alert({
-            code: 'backup.failed',
-            summary: 'A backup run failed. The clinic is running without a fresh backup.',
-            context: { file: name, error: err instanceof Error ? err.message.slice(0, 200) : 'unknown' },
-        });
+        await alert(backupFailureAlert(err, name));
         throw err;
     }
 }

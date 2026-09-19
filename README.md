@@ -87,23 +87,42 @@ destination is configured.
 
 ### Off-site copies (Google Drive)
 
-The second destination is a Drive folder, reached with a **service account** so
-nothing has to be re-authorized when the clinic machine reboots unattended.
+The normal destination is a folder created in the doctor's own Drive through a
+one-time OAuth sign-in. It works with personal Gmail and Google Workspace and
+uses only `drive.file`, so Lustre cannot browse unrelated Drive files.
 
-1. In a Google Cloud project, enable the Drive API and create a service account.
-2. Create a JSON key for it. `client_email` and `private_key` go into `.env` as
-   `BACKUP_DRIVE_CLIENT_EMAIL` and `BACKUP_DRIVE_PRIVATE_KEY` (keep the `\n`
-   escapes; the server unescapes them).
-3. Create the backup folder **in a shared drive**, share that drive with the
-   service account as Content manager, and put the folder id in
-   `BACKUP_DRIVE_FOLDER_ID`.
-4. Set `BACKUP_ENCRYPTION_KEY`, or the upload is refused.
+1. In a Google Cloud project, enable the Drive API, configure the OAuth consent
+   screen, and create a **Desktop app** OAuth client.
+2. On the operator's machine, set `BACKUP_DRIVE_OAUTH_CLIENT_ID` and
+   `BACKUP_DRIVE_OAUTH_CLIENT_SECRET`, then run `bun drive:authorize`. Open the
+   printed URL, sign in as the doctor, and accept the one requested scope. Set
+   `BACKUP_DRIVE_LOGIN_HINT` first if account selection could be ambiguous.
+3. Copy the four printed `BACKUP_DRIVE_*` lines into the clinic server's private
+   stack environment (`/opt/lustre-prod/.env`, mode `0600`). Clear the terminal
+   after copying them and restart the server.
+4. Set `BACKUP_ENCRYPTION_KEY`, or off-site upload is refused. Run
+   `docker compose run --rm server backup` once and confirm the encrypted file
+   appears in the new **Lustre Clinic Backups** folder.
 
-A service account has no Drive storage of its own, so a folder in somebody's
-personal My Drive fails with `storageQuotaExceeded`. Either use a shared drive
-as above, or set `BACKUP_DRIVE_SUBJECT` to a user the service account may
-impersonate through domain-wide delegation, so the files count against that
-user's quota.
+For personal Gmail, use an External audience and move the consent app to **In
+production**: Testing grants expire after seven days. A one-clinic personal-use
+app using the non-sensitive `drive.file` scope can remain unverified, although
+Google may show an unverified-app warning. For Workspace, an organization-owned
+project may use an Internal audience; an administrator can still restrict the
+app.
+
+The refresh token is stored only in the clinic's private environment file.
+Short-lived access tokens are cached in memory and never written to disk. If
+Google returns `invalid_grant` after revocation or expiry, Discord receives
+`backup.drive_reauthorization_required`; rerun `bun drive:authorize`, replace
+the refresh token it prints, and restart the server. Set the existing
+`BACKUP_DRIVE_FOLDER_ID` while rerunning so the flow keeps using the same folder.
+
+The old service-account fields remain as a Workspace-only compatibility path.
+They still require a shared drive or domain-wide delegation via
+`BACKUP_DRIVE_SUBJECT`; they do not work with personal My Drive. If any OAuth
+field is present, OAuth must be complete and takes precedence rather than
+silently falling back to the service account.
 
 Retention applies off-site exactly as it does locally: same 14/8/12 policy,
 and a file whose name does not parse as a dump is never touched.
