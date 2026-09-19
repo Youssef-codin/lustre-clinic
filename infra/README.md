@@ -72,6 +72,47 @@ docker compose run --rm server backup
 
 `lustre seed` refuses the production database, whatever its connection string.
 
+## Google Drive backups
+
+The production stack can push each verified, encrypted dump into a folder in
+the doctor's own Google Drive. Authorization is an operator-only setup step;
+there is deliberately no app Settings screen.
+
+1. Enable the Google Drive API in a Google Cloud project. Configure the consent
+   audience (External for personal Gmail, or Internal for an organization-owned
+   Workspace project), add only `drive.file`, and create a Desktop OAuth client.
+2. On the operator machine, from the repository, run:
+
+   ```sh
+   read -r BACKUP_DRIVE_OAUTH_CLIENT_ID && export BACKUP_DRIVE_OAUTH_CLIENT_ID
+   read -rs BACKUP_DRIVE_OAUTH_CLIENT_SECRET && export BACKUP_DRIVE_OAUTH_CLIENT_SECRET
+   bun drive:authorize
+   ```
+
+   The loopback callback listens only on `127.0.0.1`, verifies OAuth state, and
+   uses PKCE. Sign in as the doctor. The command creates **Lustre Clinic
+   Backups** itself so `drive.file` is sufficient.
+3. Securely copy the four printed values into the production stack. For an
+   Ansible deploy, export them before running the `app` tag; the generated
+   `/opt/lustre-prod/.env` is mode `0600`, and later deploys preserve values
+   already there. Unset the variables and clear the terminal afterwards.
+4. Restart the server and run `docker compose run --rm server backup`. Confirm
+   an encrypted `.dump.enc` file exists in the folder.
+
+Never put these values in inventory, shell history, or the repository. The
+server persists the refresh token, not access tokens. A revoked or expired grant
+alerts Discord as `backup.drive_reauthorization_required`; repeat the flow and
+replace the refresh token. Supply the existing `BACKUP_DRIVE_FOLDER_ID` to the
+flow so reauthorization keeps the same folder. External apps left in Google's
+Testing state receive seven-day grants, so a personal-account deployment must
+use In production. `drive.file` is non-sensitive; a one-clinic personal-use app
+can be unverified, while a Workspace administrator may use an Internal app or
+trust the client according to organization policy.
+
+The legacy service-account variables are preserved only for Workspace shared
+drives or domain-wide delegation. They cannot write into personal My Drive and
+are ignored when a complete OAuth configuration is present.
+
 ## Releases
 
 The phones get new code two ways (SPEC §15), both from the clinic server over
@@ -220,11 +261,11 @@ curl -i http://<clinic>:3000/updates/manifest \
 
 A `204` means nothing is published for that runtime.
 
-## Off-site backups on the operator's machine
+## Optional backup copies on the operator's machine
 
-The server dumps, restore-verifies and prunes its own backups (SPEC §16). The
-off-site copy is pulled to the operator's machine over Tailscale instead of
-pushed to a cloud, so patient data stays with people who already have it.
+In addition to Google Drive, the operator machine can pull another encrypted
+copy over Tailscale. The server still restore-verifies and prunes its own dumps
+(SPEC §16).
 
 ```sh
 sudo pacman -S age

@@ -2,8 +2,10 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DriveReauthorizationRequiredError } from '../src/backup/drive.ts';
 import {
     type BackupFile,
+    backupFailureAlert,
     backupFileName,
     decrypt,
     encrypt,
@@ -126,6 +128,19 @@ describe('retention', () => {
 describe('offsiteDestination', () => {
     test('is null when nothing is configured, so a run stays local', () => {
         expect(offsiteDestination()).toBeNull();
+    });
+});
+
+describe('backup failure alerts', () => {
+    test('tells the operator to reauthorize Drive when the refresh grant is invalid', () => {
+        const alert = backupFailureAlert(
+            new DriveReauthorizationRequiredError(),
+            'lustre-2026-08-03T08-41-32Z.dump',
+        );
+
+        expect(alert.code).toBe('backup.drive_reauthorization_required');
+        expect(alert.summary).toContain('drive:authorize');
+        expect(alert.context).not.toHaveProperty('error');
     });
 });
 

@@ -1,10 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
+import { resolveDriveCredentials } from '../src/backup/destination.ts';
 import {
     buildJwt,
     createDriveClient,
+    createDriveFolder,
+    createOAuthAuthorizationUrl,
+    DRIVE_REAUTHORIZATION_CODE,
     type DriveCredentials,
+    exchangeOAuthCode,
     normalizePrivateKey,
+    type ServiceAccountDriveCredentials,
 } from '../src/backup/drive.ts';
 
 /**
@@ -18,9 +24,17 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const PUBLIC_PEM = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 
-const credentials: DriveCredentials = {
+const credentials: ServiceAccountDriveCredentials = {
     clientEmail: 'lustre-backup@example.iam.gserviceaccount.com',
     privateKey: PEM,
+    folderId: 'folder-123',
+};
+
+const oauthCredentials: DriveCredentials = {
+    kind: 'oauth',
+    clientId: 'desktop-client.apps.googleusercontent.com',
+    clientSecret: 'client-secret',
+    refreshToken: 'refresh-token',
     folderId: 'folder-123',
 };
 
@@ -93,7 +107,93 @@ describe('buildJwt', () => {
     });
 });
 
+describe('operator OAuth flow', () => {
+    test('requests offline drive.file access with PKCE and state', () => {
+        const url = new URL(
+            createOAuthAuthorizationUrl({
+                clientId: 'client-id',
+                redirectUri: 'http://127.0.0.1:1234/oauth/callback',
+                state: 'state-123',
+                codeChallenge: 'challenge-123',
+                loginHint: 'doctor@example.com',
+            }),
+        );
+
+        expect(url.origin).toBe('https://accounts.google.com');
+        expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/drive.file');
+        expect(url.searchParams.get('access_type')).toBe('offline');
+        expect(url.searchParams.get('prompt')).toBe('consent');
+        expect(url.searchParams.get('state')).toBe('state-123');
+        expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+        expect(url.searchParams.get('login_hint')).toBe('doctor@example.com');
+    });
+
+    test('exchanges the code and creates an app-owned folder', async () => {
+        const { impl, calls } = stubFetch({
+            'oauth2.googleapis.com/token': () =>
+                new Response(JSON.stringify({ access_token: 'access-1', refresh_token: 'refresh-1' })),
+            'drive/v3/files': ({ init }) => {
+                expect(init?.headers).toMatchObject({ authorization: 'Bearer access-1' });
+                expect(JSON.parse(String(init?.body))).toEqual({
+                    name: 'Lustre Clinic Backups',
+                    mimeType: 'application/vnd.google-apps.folder',
+                });
+                return new Response(JSON.stringify({ id: 'folder-new' }));
+            },
+        });
+
+        const tokens = await exchangeOAuthCode({
+            clientId: 'client-id',
+            clientSecret: 'client-secret',
+            code: 'authorization-code',
+            codeVerifier: 'verifier',
+            redirectUri: 'http://127.0.0.1:1234/oauth/callback',
+            fetchImpl: impl,
+        });
+        const folderId = await createDriveFolder(tokens.accessToken, 'Lustre Clinic Backups', impl);
+
+        expect(tokens.refreshToken).toBe('refresh-1');
+        expect(folderId).toBe('folder-new');
+        const tokenBody = new URLSearchParams(String(calls[0]?.init?.body));
+        expect(tokenBody.get('grant_type')).toBe('authorization_code');
+        expect(tokenBody.get('code_verifier')).toBe('verifier');
+    });
+});
+
 describe('createDriveClient', () => {
+    test('exchanges an OAuth refresh token without persisting the access token', async () => {
+        const { impl, calls } = stubFetch({
+            'oauth2.googleapis.com/token': tokenOk,
+            'drive/v3/files': () => new Response(JSON.stringify({ files: [] })),
+        });
+
+        const client = createDriveClient({ credentials: oauthCredentials, fetchImpl: impl });
+        await client.list();
+        await client.list();
+
+        const tokenCalls = calls.filter((call) => call.url.includes('token'));
+        expect(tokenCalls).toHaveLength(1);
+        const body = new URLSearchParams(String(tokenCalls[0]?.init?.body));
+        expect(body.get('grant_type')).toBe('refresh_token');
+        expect(body.get('refresh_token')).toBe('refresh-token');
+        expect(body.has('assertion')).toBe(false);
+    });
+
+    test('turns a revoked OAuth grant into an actionable reauthorization error', async () => {
+        const { impl } = stubFetch({
+            'oauth2.googleapis.com/token': () =>
+                new Response(JSON.stringify({ error: 'invalid_grant' }), { status: 400 }),
+        });
+
+        const error = await createDriveClient({ credentials: oauthCredentials, fetchImpl: impl })
+            .list()
+            .catch((caught: unknown) => caught);
+
+        expect(error).toMatchObject({ code: DRIVE_REAUTHORIZATION_CODE });
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('drive:authorize');
+    });
+
     test('exchanges the assertion for a token and uploads to the folder', async () => {
         let uploadBody: Buffer | undefined;
 
@@ -210,5 +310,56 @@ describe('createDriveClient', () => {
         await expect(
             createDriveClient({ credentials, fetchImpl: impl }).upload('x.dump.enc', new Uint8Array([1])),
         ).rejects.toThrow('storageQuotaExceeded');
+    });
+});
+
+describe('resolveDriveCredentials', () => {
+    const empty = {
+        BACKUP_DRIVE_FOLDER_ID: undefined,
+        BACKUP_DRIVE_OAUTH_CLIENT_ID: undefined,
+        BACKUP_DRIVE_OAUTH_CLIENT_SECRET: undefined,
+        BACKUP_DRIVE_REFRESH_TOKEN: undefined,
+        BACKUP_DRIVE_CLIENT_EMAIL: undefined,
+        BACKUP_DRIVE_PRIVATE_KEY: undefined,
+        BACKUP_DRIVE_SUBJECT: undefined,
+    };
+
+    test('prefers a complete OAuth setup', () => {
+        const resolved = resolveDriveCredentials({
+            ...empty,
+            BACKUP_DRIVE_FOLDER_ID: 'folder',
+            BACKUP_DRIVE_OAUTH_CLIENT_ID: 'client',
+            BACKUP_DRIVE_OAUTH_CLIENT_SECRET: 'secret',
+            BACKUP_DRIVE_REFRESH_TOKEN: 'refresh',
+            BACKUP_DRIVE_CLIENT_EMAIL: 'legacy@example.com',
+            BACKUP_DRIVE_PRIVATE_KEY: PEM,
+        });
+
+        expect(resolved.credentials).toMatchObject({ kind: 'oauth', folderId: 'folder' });
+        expect(resolved.missing).toEqual([]);
+    });
+
+    test('does not silently fall back when OAuth is only partly configured', () => {
+        const resolved = resolveDriveCredentials({
+            ...empty,
+            BACKUP_DRIVE_FOLDER_ID: 'folder',
+            BACKUP_DRIVE_OAUTH_CLIENT_ID: 'client',
+            BACKUP_DRIVE_CLIENT_EMAIL: 'legacy@example.com',
+            BACKUP_DRIVE_PRIVATE_KEY: PEM,
+        });
+
+        expect(resolved.credentials).toBeNull();
+        expect(resolved.missing).toContain('BACKUP_DRIVE_REFRESH_TOKEN');
+    });
+
+    test('keeps the service-account path for Workspace compatibility', () => {
+        const resolved = resolveDriveCredentials({
+            ...empty,
+            BACKUP_DRIVE_FOLDER_ID: 'shared-folder',
+            BACKUP_DRIVE_CLIENT_EMAIL: 'legacy@example.com',
+            BACKUP_DRIVE_PRIVATE_KEY: PEM,
+        });
+
+        expect(resolved.credentials).toMatchObject({ kind: 'service-account', folderId: 'shared-folder' });
     });
 });

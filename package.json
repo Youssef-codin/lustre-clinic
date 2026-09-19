@@ -36,6 +36,7 @@
         "db:migrate": "bun packages/server/scripts/migrate.ts",
         "db:seed": "bun packages/server/scripts/seed.ts",
         "backup": "bun packages/server/scripts/backup.ts",
+        "drive:authorize": "bun packages/server/scripts/drive-authorize.ts",
         "restore": "bun packages/server/scripts/restore.ts"
     },
     "devDependencies": {

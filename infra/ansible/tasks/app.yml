@@ -129,6 +129,14 @@
     stack_urls:
       discord: "{{ (lookup('ansible.builtin.env', stack.discord_env) if stack.discord_env else '') or existing.DISCORD_WEBHOOK_URL | default('') }}"
       heartbeat: "{{ (lookup('ansible.builtin.env', stack.heartbeat_env) if stack.heartbeat_env else '') or existing.HEARTBEAT_URL | default('') }}"
+    stack_drive:
+      folder_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_FOLDER_ID') or existing.BACKUP_DRIVE_FOLDER_ID | default('') }}"
+      oauth_client_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_OAUTH_CLIENT_ID') or existing.BACKUP_DRIVE_OAUTH_CLIENT_ID | default('') }}"
+      oauth_client_secret: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_OAUTH_CLIENT_SECRET') or existing.BACKUP_DRIVE_OAUTH_CLIENT_SECRET | default('') }}"
+      refresh_token: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_REFRESH_TOKEN') or existing.BACKUP_DRIVE_REFRESH_TOKEN | default('') }}"
+      client_email: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_CLIENT_EMAIL') or existing.BACKUP_DRIVE_CLIENT_EMAIL | default('') }}"
+      private_key: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_PRIVATE_KEY') or existing.BACKUP_DRIVE_PRIVATE_KEY | default('') }}"
+      subject: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_SUBJECT') or existing.BACKUP_DRIVE_SUBJECT | default('') }}"
 
 - name: "{{ stack.name }}: environment file"
   become: false

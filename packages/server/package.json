@@ -12,6 +12,7 @@
         "db:migrate": "bun --env-file=../../.env scripts/migrate.ts",
         "db:seed": "bun --env-file=../../.env scripts/seed.ts",
         "backup": "bun --env-file=../../.env scripts/backup.ts",
+        "drive:authorize": "bun --env-file=../../.env scripts/drive-authorize.ts",
         "restore": "bun --env-file=../../.env scripts/restore.ts"
     },
     "dependencies": {

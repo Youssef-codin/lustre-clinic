@@ -6,6 +6,7 @@
  *   lustre                                          serve (the default)
  *   lustre migrate                                  as MIGRATION_DATABASE_URL
  *   lustre backup                                   one run of the nightly job
+ *   lustre drive-authorize                           link the doctor's Drive once
  *   lustre restore <file> [--into <db>] [--key <k>]
  *   lustre seed                                     refuses a production database
  *
@@ -18,6 +19,7 @@ const COMMANDS = {
     serve: () => import('./index.ts'),
     migrate: () => import('../scripts/migrate.ts'),
     backup: () => import('../scripts/backup.ts'),
+    'drive-authorize': () => import('../scripts/drive-authorize.ts'),
     restore: () => import('../scripts/restore.ts'),
     seed: () => import('../scripts/seed.ts'),
 };
