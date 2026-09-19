@@ -6,7 +6,7 @@ const clientId = Bun.env.BACKUP_DRIVE_OAUTH_CLIENT_ID;
 const clientSecret = Bun.env.BACKUP_DRIVE_OAUTH_CLIENT_SECRET;
 const loginHint = Bun.env.BACKUP_DRIVE_LOGIN_HINT;
 const folderName = Bun.env.BACKUP_DRIVE_FOLDER_NAME?.trim() || 'Lustre Clinic Backups';
-const existingFolderId = Bun.env.BACKUP_DRIVE_FOLDER_ID?.trim();
+const existingFolderId = Bun.env.BACKUP_DRIVE_FOLDER_ID?.trim() || undefined;
 
 if (!clientId || !clientSecret) {
     throw new Error(

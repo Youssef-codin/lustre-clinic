@@ -111,7 +111,8 @@ trust the client according to organization policy.
 
 The legacy service-account variables are preserved only for Workspace shared
 drives or domain-wide delegation. They cannot write into personal My Drive and
-are ignored when a complete OAuth configuration is present.
+are ignored when any OAuth credential field is present. OAuth configuration
+must then be complete.
 
 ## Releases
 
