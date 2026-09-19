@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT, useConnection } from '../api';
 import { Button } from '../components/ui';
+import { useLocale, useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { requestReconfigure } from './serverStore';
 
@@ -12,6 +13,8 @@ import { requestReconfigure } from './serverStore';
 // deliberately a dead end. The alternative, a banner over a live-looking app,
 // is how a secretary books onto a slot that was taken an hour ago.
 export function OfflineScreen() {
+    const locale = useLocale();
+    const t = useT();
     const { retry, lastOnlineAt } = useConnection();
     const [retrying, setRetrying] = useState(false);
 
@@ -33,11 +36,13 @@ export function OfflineScreen() {
                     </Text>
                 </View>
 
-                <Text variant="title3">No connection to the clinic</Text>
+                <Text variant="title3">{t('No connection to the clinic')}</Text>
                 <Text variant="subhead" tone="muted" style={styles.body}>
-                    The app cannot reach the clinic computer. Check that you are{' '}
-                    {allowsLan(BUILD_VARIANT) ? 'on the clinic wifi or Tailscale' : 'signed in to Tailscale'},
-                    then try again.
+                    {t(
+                        allowsLan(BUILD_VARIANT)
+                            ? 'The app cannot reach the clinic computer. Check that you are on the clinic wifi or Tailscale, then try again.'
+                            : 'The app cannot reach the clinic computer. Check that you are signed in to Tailscale, then try again.',
+                    )}
                 </Text>
 
                 <Button
@@ -51,7 +56,11 @@ export function OfflineScreen() {
                 />
 
                 <Text variant="caption" tone="muted">
-                    {lastOnlineAt ? `Last connected ${formatLastOnline(lastOnlineAt)}` : 'Never connected'}
+                    {lastOnlineAt
+                        ? locale === 'ar'
+                            ? `آخر اتصال ${formatLastOnline(lastOnlineAt, locale)}`
+                            : `Last connected ${formatLastOnline(lastOnlineAt, locale)}`
+                        : t('Never connected')}
                 </Text>
 
                 {/* The only other way out. A saved address that is wrong fails
@@ -71,8 +80,15 @@ export function OfflineScreen() {
 
 // Coarse on purpose: the exact minute is noise, and the only question being
 // answered is "was this a moment ago, or is this stale?".
-function formatLastOnline(at: number): string {
+function formatLastOnline(at: number, locale: 'en' | 'ar'): string {
     const minutes = Math.floor((Date.now() - at) / 60_000);
+    if (locale === 'ar') {
+        if (minutes < 1) return 'الآن';
+        if (minutes < 60) return `منذ ${minutes} دقيقة`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `منذ ${hours} ساعة`;
+        return `منذ ${Math.floor(hours / 24)} يوم`;
+    }
     if (minutes < 1) return 'just now';
     if (minutes < 60) return `${minutes} min ago`;
     const hours = Math.floor(minutes / 60);

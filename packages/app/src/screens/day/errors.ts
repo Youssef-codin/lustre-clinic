@@ -8,7 +8,8 @@
  * standing in front of the patient has to know the slot is gone, not that
  * "something went wrong", or she tells them they are booked and they are not.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, localizedError } from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 import type { RequestError } from './data';
 
 export interface ErrorMessage {
@@ -19,10 +20,26 @@ export interface ErrorMessage {
 export type ErrorContext = 'walk-in' | 'booking' | 'move' | 'check-in' | 'check-out' | 'day' | 'generic';
 
 export function describeError(error: RequestError, context: ErrorContext = 'generic'): ErrorMessage {
+    const locale = getLocale();
     if (error.offline) {
+        if (locale === 'ar') {
+            return {
+                title: 'خادم العيادة لا يستجيب',
+                body: 'لم يتم حفظ شيء. تأكد أن كمبيوتر العيادة يعمل وحاول مرة أخرى.',
+            };
+        }
         return {
             title: 'The clinic server did not answer',
             body: 'Nothing was saved. Check the clinic PC is on and try again.',
+        };
+    }
+
+    if (locale === 'ar') {
+        const translated = localizedError(locale, error.code);
+        if (translated) return translated;
+        return {
+            title: writeContext(context) ? 'لم يتم الحفظ' : 'لم يتم التحميل',
+            body: 'لم يتغير شيء. حاول مرة أخرى.',
         };
     }
 

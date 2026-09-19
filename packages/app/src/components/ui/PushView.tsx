@@ -8,8 +8,8 @@
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: runs the slide `Animated.timing` and unmounts on its completion callback — the exit has to finish before the pane leaves the tree
 import { useEffect, useRef, useState } from 'react';
-import { Animated, I18nManager, StyleSheet, useWindowDimensions } from 'react-native';
-import { color } from '../../theme';
+import { Animated, StyleSheet, useWindowDimensions } from 'react-native';
+import { color, useIsRTL } from '../../theme';
 import { duration, easing } from './motion';
 import { useReducedMotion } from './useReducedMotion';
 
@@ -27,6 +27,7 @@ export type PushViewProps = {
 };
 
 export function PushView({ visible, children, onClosed, testID }: PushViewProps) {
+    const isRTL = useIsRTL();
     // Always 0, even when the pane is already `visible` on its first render.
     // Every caller but the gallery mounts this from `rendered(stack)`, and a
     // route only joins that list at the moment it is pushed — so `visible` is
@@ -60,7 +61,7 @@ export function PushView({ visible, children, onClosed, testID }: PushViewProps)
 
     if (!mounted) return null;
 
-    const offscreen = I18nManager.isRTL ? -window.width : window.width;
+    const offscreen = isRTL ? -window.width : window.width;
 
     return (
         <Animated.View

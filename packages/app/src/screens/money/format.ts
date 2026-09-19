@@ -3,7 +3,14 @@
 // "Card" because that is what the desk calls it; the stored value is untouched.
 // The client switches on `ERROR_CODE` and never parses the server's message,
 // and this one map is where a localisation scaffold will land.
-import { ERROR_CODE, type ErrorCode, PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
+import {
+    ERROR_CODE,
+    type ErrorCode,
+    localizeCopy,
+    PAYMENT_METHODS,
+    type PaymentMethod,
+} from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 
 const MONTHS_LONG = [
     'January',
@@ -84,5 +91,5 @@ const ERROR_MESSAGE: Partial<Record<ErrorCode, string>> = {
 };
 
 export function errorMessage(code: ErrorCode): string {
-    return ERROR_MESSAGE[code] ?? 'Something went wrong.';
+    return localizeCopy(getLocale(), ERROR_MESSAGE[code] ?? 'Something went wrong.');
 }

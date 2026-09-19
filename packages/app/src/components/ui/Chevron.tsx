@@ -3,8 +3,8 @@
  * flips in Arabic, so the rotation has to flip with it — `forward` and `back`
  * mirror in Arabic; up and down do not.
  */
-import { I18nManager, StyleSheet, View } from 'react-native';
-import { color } from '../../theme';
+import { StyleSheet, View } from 'react-native';
+import { color, useIsRTL } from '../../theme';
 
 export type ChevronDirection = 'forward' | 'back' | 'up' | 'down';
 
@@ -30,6 +30,7 @@ const ROTATION: Record<ChevronDirection, [ltr: string, rtl: string]> = {
 
 export function Chevron({ direction = 'forward', size = 8, tone = 'muted' }: ChevronProps) {
     const [ltr, rtl] = ROTATION[direction];
+    const isRTL = useIsRTL();
 
     return (
         <View
@@ -39,7 +40,7 @@ export function Chevron({ direction = 'forward', size = 8, tone = 'muted' }: Che
                     width: size,
                     height: size,
                     borderColor: TONE[tone],
-                    transform: [{ rotate: I18nManager.isRTL ? rtl : ltr }],
+                    transform: [{ rotate: isRTL ? rtl : ltr }],
                 },
             ]}
         />

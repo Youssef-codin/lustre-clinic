@@ -22,8 +22,9 @@
 import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
 import { useState } from 'react';
 import type { ViewStyle } from 'react-native';
-import { I18nManager, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
+import { useIsRTL } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
@@ -85,6 +86,7 @@ export function VisitPaymentScreen({
     onClosed,
     onWritingChange,
 }: VisitPaymentScreenProps) {
+    const isRTL = useIsRTL();
     const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
     // The desk's discount comes off the total the lines add up to, and never
@@ -405,7 +407,7 @@ export function VisitPaymentScreen({
                         keyboardType="number-pad"
                         accessibilityLabel="Discount"
                         selectTextOnFocus
-                        style={styles.discountInput}
+                        style={[styles.discountInput, { textAlign: isRTL ? 'left' : 'right' }]}
                         testID="visit-payment-discount"
                     />
                 </View>
@@ -428,7 +430,7 @@ export function VisitPaymentScreen({
                         keyboardType="decimal-pad"
                         accessibilityLabel="Amount paid"
                         selectTextOnFocus
-                        style={styles.paidInput}
+                        style={[styles.paidInput, { textAlign: isRTL ? 'left' : 'right' }]}
                         testID="visit-payment-amount"
                     />
                 </View>
@@ -609,8 +611,6 @@ function monthOf(iso: string): string {
     return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
 }
 
-const END_ALIGN = I18nManager.isRTL ? 'left' : 'right';
-
 const styles = StyleSheet.create({
     // Canvas, matching `VisitScreen` and the shell's status-bar inset — see the
     // note there. The cards on it keep their white.
@@ -717,7 +717,6 @@ const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         padding: 0,
-        textAlign: END_ALIGN,
         color: color.ink,
         ...type.figure,
         fontFamily: font.mono.medium,
@@ -739,7 +738,6 @@ const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         padding: 0,
-        textAlign: END_ALIGN,
         color: color.ink,
         ...type.body,
         fontFamily: font.mono.medium,

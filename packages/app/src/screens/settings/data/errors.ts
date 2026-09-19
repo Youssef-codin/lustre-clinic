@@ -9,8 +9,9 @@
  * general sentence for one code pass it in — a `NOT_FOUND` on a branch picker
  * is worth naming, and the pane is the only thing that knows it was a branch.
  */
-import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
+import { ERROR_CODE, type ErrorCode, localizeCopy } from '@lustre/shared';
 import { classifyError } from '../../../api';
+import { getLocale } from '../../../i18n/runtime';
 
 const OFFLINE = "Couldn't reach the clinic computer. Nothing was saved.";
 const GENERAL = 'Something went wrong. Try again.';
@@ -27,10 +28,11 @@ const TEXT: Partial<Record<ErrorCode, string>> = {
 };
 
 export function errorText(error: unknown, overrides: Partial<Record<ErrorCode, string>> = {}): string {
-    if (!error) return GENERAL;
+    const locale = getLocale();
+    if (!error) return localizeCopy(locale, GENERAL);
 
     const { kind, code } = classifyError(error);
-    if (kind === 'offline' || kind === 'timeout') return OFFLINE;
+    if (kind === 'offline' || kind === 'timeout') return localizeCopy(locale, OFFLINE);
 
-    return overrides[code] ?? TEXT[code] ?? GENERAL;
+    return localizeCopy(locale, overrides[code] ?? TEXT[code] ?? GENERAL);
 }

@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { Button, Card, PULSE, useReducedMotion } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { errorMessage } from '../format';
 
@@ -74,12 +75,13 @@ export type LoadStateProps = {
 };
 
 export function LoadState({ isLoading, error, onRetry, skeleton, children }: LoadStateProps) {
+    const t = useT();
     if (error) {
         return (
             <Card padded style={styles.failure}>
                 <Text variant="headline">{errorMessage(error)}</Text>
                 <Text variant="subhead" tone="muted" style={styles.failureBody}>
-                    Nothing is shown rather than a figure that may have moved since.
+                    {t('Nothing is shown rather than a figure that may have moved since.')}
                 </Text>
                 <Button label="Retry" onPress={onRetry} variant="secondary" size="md" />
             </Card>

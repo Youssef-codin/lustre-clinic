@@ -13,6 +13,7 @@ import {
 } from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
+import { useLocale, useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
@@ -47,6 +48,8 @@ const LAN_ALLOWED = allowsLan(BUILD_VARIANT);
 const DEMO_ALLOWED = allowsDemo(BUILD_VARIANT);
 
 export function SetupScreen() {
+    const locale = useLocale();
+    const t = useT();
     const current = serverAddresses();
     const [lan, setLan] = useState(current.lan ?? '');
     const [tailscale, setTailscale] = useState(current.tailscale ?? '');
@@ -102,17 +105,17 @@ export function SetupScreen() {
                 <BrandMark variant="clinic" size={24} />
 
                 <Text variant="title3" style={styles.heading}>
-                    Connect to the clinic
+                    {t('Connect to the clinic')}
                 </Text>
 
                 <View style={styles.fields}>
                     {LAN_ALLOWED ? (
                         <TextField
-                            label="Clinic wifi"
+                            label={t('Clinic wifi')}
                             value={lan}
                             onChangeText={setLan}
                             placeholder="192.168.1.20:3000"
-                            hint="The clinic computer's address on the local network."
+                            hint={t("The clinic computer's address on the local network.")}
                             autoCapitalize="none"
                             autoCorrect={false}
                             keyboardType="url"
@@ -122,14 +125,16 @@ export function SetupScreen() {
                     ) : null}
 
                     <TextField
-                        label="Tailscale"
+                        label={t('Tailscale')}
                         value={tailscale}
                         onChangeText={setTailscale}
                         placeholder="clinic-pc.tailnet.ts.net:3000"
                         hint={
                             LAN_ALLOWED
-                                ? 'Usually filled in by the clinic computer once connected. Leave blank.'
-                                : "The clinic computer's Tailscale name, with the port. This phone must be signed in to Tailscale."
+                                ? t('Usually filled in by the clinic computer once connected. Leave blank.')
+                                : t(
+                                      "The clinic computer's Tailscale name, with the port. This phone must be signed in to Tailscale.",
+                                  )
                         }
                         autoCapitalize="none"
                         autoCorrect={false}
@@ -157,8 +162,10 @@ export function SetupScreen() {
                         </View>
                         <Text variant="footnote" tone={attempt.ok ? 'successText' : 'danger'}>
                             {attempt.ok
-                                ? `Answered over ${ADDRESS_LABEL[attempt.address]} in ${seconds(attempt.ms)}`
-                                : attempt.message}
+                                ? locale === 'ar'
+                                    ? `تم الاتصال عبر ${attempt.address === 'lan' ? 'شبكة العيادة' : 'تايل سكيل'} خلال ${seconds(attempt.ms)}`
+                                    : `Answered over ${ADDRESS_LABEL[attempt.address]} in ${seconds(attempt.ms)}`
+                                : t(attempt.message)}
                         </Text>
                     </View>
                 ) : null}
@@ -171,7 +178,7 @@ export function SetupScreen() {
                 {DEMO_ALLOWED ? (
                     <View style={styles.demo}>
                         <Text variant="footnote" tone="muted">
-                            No clinic server to hand?
+                            {t('No clinic server to hand?')}
                         </Text>
                         <Button
                             label="Run in demo mode"
@@ -182,8 +189,9 @@ export function SetupScreen() {
                             disabled={testing}
                         />
                         <Text variant="caption" tone="muted" style={styles.demoNote}>
-                            Sample patients and a made-up day, kept on this phone. Nothing is saved to a
-                            clinic.
+                            {t(
+                                'Sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.',
+                            )}
                         </Text>
                     </View>
                 ) : null}

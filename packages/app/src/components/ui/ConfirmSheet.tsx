@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { space, Text } from '../../theme';
+import { space, Text, useT } from '../../theme';
 import { Button } from './Button';
 import { Sheet } from './Sheet';
 
@@ -37,12 +37,13 @@ export function ConfirmSheet({
     loading = false,
     testID,
 }: ConfirmSheetProps) {
+    const t = useT();
     return (
         <Sheet
             visible={visible}
             onClose={onCancel}
             dismissable={!loading}
-            title={title}
+            title={t(title)}
             testID={testID}
             footer={
                 <View style={styles.actions}>
@@ -69,7 +70,7 @@ export function ConfirmSheet({
         >
             {body ? (
                 <Text variant="body" tone="ink2">
-                    {body}
+                    {t(body)}
                 </Text>
             ) : null}
             {detail}

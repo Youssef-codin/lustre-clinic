@@ -23,6 +23,7 @@ import {
     useKeyboardHeight,
     usePullToRefresh,
 } from '../../components/ui';
+import { useLocale, useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { todayKey } from '../day/time';
 import { DebtorRow } from './components/DebtorRow';
@@ -65,6 +66,8 @@ export type MoneyScreenProps = {
 };
 
 export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
+    const locale = useLocale();
+    const t = useT();
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<DebtorSort>('balance');
@@ -142,7 +145,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                 testID="money-screen"
             >
                 <ScreenHeader
-                    title="Finances"
+                    title={t('Finances')}
                     trailing={
                         <IconButton accessibilityLabel="More" icon={<MoreIcon />} size={HEADER_BUTTON} />
                     }
@@ -194,14 +197,14 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                         {summary.data && outstanding.data ? (
                             <View style={styles.stats}>
                                 <StatCard
-                                    label="Older visits"
+                                    label={t('Older visits')}
                                     amount={summary.data.olderCollected}
                                     sub={`collected · ${plural(summary.data.olderVisits, 'visit')}`}
                                     tone="older"
                                     testID="money-stat-older"
                                 />
                                 <StatCard
-                                    label="Total due"
+                                    label={t('Total due')}
                                     amount={outstanding.data.total}
                                     sub={plural(outstanding.data.patients.length, 'patient')}
                                     tone="due"
@@ -249,6 +252,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                                 shownOf={outstanding.data.patients.length}
                                 sort={sort}
                                 searching={searching}
+                                locale={locale}
                                 onOpenRecord={onOpenRecord}
                             />
                         ) : null}
@@ -285,30 +289,33 @@ function DebtorList({
     shownOf,
     sort,
     searching,
+    locale,
     onOpenRecord,
 }: {
     debtors: PatientBalance[];
     shownOf: number;
     sort: DebtorSort;
     searching: boolean;
+    locale: 'en' | 'ar';
     onOpenRecord?: (patientId: string) => void;
 }) {
+    const t = useT();
     // Two different facts, so two different sentences: a search that matched
     // nothing is not a clinic that is owed nothing.
     if (debtors.length === 0) {
         return searching ? (
             <View style={styles.searchEmpty}>
                 <Text variant="subhead" tone="muted">
-                    No patients found
+                    {t('No patients found')}
                 </Text>
             </View>
         ) : (
             <View style={styles.noDebtors}>
                 <Text variant="callout" weight="semibold" tone="ink2">
-                    No outstanding patients
+                    {t('No outstanding patients')}
                 </Text>
                 <Text variant="footnote" tone="muted">
-                    All patient balances are settled
+                    {t('All patient balances are settled')}
                 </Text>
             </View>
         );
@@ -328,7 +335,9 @@ function DebtorList({
             </View>
 
             <Text variant="footnote" tone="muted" style={styles.foot}>
-                {`Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
+                {locale === 'ar'
+                    ? `عرض ${debtors.length} من ${shownOf}${sort === 'balance' ? ' · أعلى الأرصدة' : ''}`
+                    : `Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
             </Text>
         </View>
     );

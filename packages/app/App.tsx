@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
+import { LocaleProvider, useT } from './src/i18n';
 import { renderErrorReporter } from './src/reporting';
 import { AppShell, SetupScreen, useServerSetup } from './src/shell';
 import { color, useAppFonts } from './src/theme';
@@ -37,28 +38,39 @@ export default function App() {
         <GestureHandlerRootView style={styles.screen}>
             <SafeAreaProvider>
                 <BottomSheetModalProvider>
-                    <ApiProvider>
-                        {/* The last resort, and the only boundary that can
+                    <LocaleProvider>
+                        <ApiProvider>
+                            {/* The last resort, and the only boundary that can
                             catch the shell itself throwing. It sits under
                             `ApiProvider` so its Reload remounts the tree onto
                             the query cache that is already warm rather than
                             starting the app's connection over. Each pane has
                             its own boundary below this one, so reaching this
                             means the shell or the tab bar went, not a tab. */}
-                        <ErrorBoundary
-                            title="The app stopped"
-                            message="Something went wrong and the screen could not be drawn. Reload to start again — nothing you saved has been lost."
-                            onError={renderErrorReporter('root')}
-                        >
-                            <SafeAreaView style={styles.screen} edges={['top']}>
-                                {showSetup ? <SetupScreen /> : <AppShell />}
-                                <StatusBar style="dark" />
-                            </SafeAreaView>
-                        </ErrorBoundary>
-                    </ApiProvider>
+                            <LocalizedRoot showSetup={showSetup} />
+                        </ApiProvider>
+                    </LocaleProvider>
                 </BottomSheetModalProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>
+    );
+}
+
+function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
+    const t = useT();
+    return (
+        <ErrorBoundary
+            title={t('The app stopped')}
+            message={t(
+                'Something went wrong and the screen could not be drawn. Reload to start again — nothing you saved has been lost.',
+            )}
+            onError={renderErrorReporter('root')}
+        >
+            <SafeAreaView style={styles.screen} edges={['top']}>
+                {showSetup ? <SetupScreen /> : <AppShell />}
+                <StatusBar style="dark" />
+            </SafeAreaView>
+        </ErrorBoundary>
     );
 }
 
