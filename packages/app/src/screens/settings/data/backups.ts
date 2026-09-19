@@ -70,13 +70,9 @@ export function backupView(status: BackupStatusData, now: number = Date.now()): 
         };
     }
 
-    if (status.stale) {
-        return {
-            tone: 'stale',
-            sub: last,
-            detail: `No backup has finished in the last ${status.staleAfterHours} hours.`,
-        };
-    }
+    // No card: stale already has a §17 Discord alert behind it and the row says
+    // so itself. The card is for the failure that has no other signal.
+    if (status.stale) return { tone: 'stale', sub: last, detail: null };
 
     return {
         tone: 'ok',

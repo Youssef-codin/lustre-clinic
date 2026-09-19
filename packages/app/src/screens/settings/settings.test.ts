@@ -90,7 +90,8 @@ describe('backup status on the index', () => {
         const view = backupView({ ...ok, lastSuccessAt: null, stale: true }, now);
         expect(view.tone).toBe('stale');
         expect(view.sub).toBe('No backup yet');
-        expect(view.detail).toContain('48 hours');
+        // Only `reauthorize` draws a card, so a detail here would never be read.
+        expect(view.detail).toBeNull();
     });
 
     test('reads an unparseable timestamp as no backup rather than throwing', () => {
