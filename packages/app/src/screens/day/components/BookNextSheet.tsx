@@ -23,9 +23,15 @@
  * `appointment.create` either way, and that screen already lands the exclusion
  * constraint's answer above the button that caused it (§4/§14).
  *
- * Book later is an answer: it lands where confirming an arrival landed before
- * this sheet existed, the patient's record. The scrim and the hardware back are
- * not answers, so they only close the sheet and leave the desk on the day.
+ * Book later is "not now", and not now means the desk stays where it is. It
+ * used to land on the patient's record — where confirming an arrival landed
+ * before this sheet existed — which took the secretary off the day for a
+ * question she had just declined, with the next patient already at the desk.
+ * The record is still one tap from the queue when she wants it.
+ *
+ * So the sheet has two outcomes, not three: the booking flow, or the day. The
+ * button, the scrim and the hardware back are all the second one, and share a
+ * handler rather than three that have to be kept saying the same thing.
  * Nothing here writes, so nothing here can refuse to close.
  */
 import { Button, Sheet } from '../../../components/ui';
@@ -36,30 +42,21 @@ export type BookNextSheetProps = {
     patientName: string;
     /** Into `BookingScreen`, with this patient already answered. */
     onBookNow: () => void;
-    /** Book later: on to the patient's record. */
+    /** Book later, the scrim, the hardware back: the sheet closes and the day stays. */
     onLater: () => void;
-    /** The scrim or the hardware back: the sheet closes and the day stays. */
-    onDismiss: () => void;
     /**
-     * Both answers land somewhere else, so neither is acted on here: the
-     * handlers above only say which it was, and this is where it is taken. See
-     * `Sheet`'s `onClosed`.
+     * `onBookNow` lands somewhere else, so it is not acted on here: it only
+     * says which answer it was, and this is where it is taken. See `Sheet`'s
+     * `onClosed`.
      */
     onClosed: () => void;
 };
 
-export function BookNextSheet({
-    visible,
-    patientName,
-    onBookNow,
-    onLater,
-    onDismiss,
-    onClosed,
-}: BookNextSheetProps) {
+export function BookNextSheet({ visible, patientName, onBookNow, onLater, onClosed }: BookNextSheetProps) {
     return (
         <Sheet
             visible={visible}
-            onClose={onDismiss}
+            onClose={onLater}
             onClosed={onClosed}
             title="Book their next visit?"
             subtitle={patientName}
