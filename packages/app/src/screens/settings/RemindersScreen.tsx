@@ -153,7 +153,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                         <Card>
                             <TimingRow
                                 label="Remind before"
-                                hint="How long before the appointment a reminder becomes due"
+                                hint="How long before the appointment a reminder becomes due. Changing it moves the reminders already booked."
                                 value={data.reminderLeadHours}
                                 min={1}
                                 max={96}

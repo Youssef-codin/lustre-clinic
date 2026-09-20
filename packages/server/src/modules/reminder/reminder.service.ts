@@ -12,7 +12,7 @@
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
 import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
-import { and, asc, eq, lte } from 'drizzle-orm';
+import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, reminders } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
@@ -59,6 +59,28 @@ export const reminderService = {
             .update(reminders)
             .set({ dueAt: new Date(startsAt.getTime() - reminderLeadHours * 3_600_000) })
             .where(eq(reminders.appointmentId, appointmentId));
+    },
+
+    /**
+     * A new lead time applied to the reminders already booked. Bounded to what
+     * the pending list is actually made of — pending, on an appointment still
+     * booked — and to appointments still ahead: an appointment already past is
+     * a message that was owed at the old lead and either went out or did not,
+     * and moving its `due_at` would only rewrite that history.
+     */
+    async rescheduleAllPending(executor: Executor, leadHours: number): Promise<void> {
+        await executor
+            .update(reminders)
+            .set({ dueAt: sql`${appointments.startsAt} - make_interval(hours => ${leadHours})` })
+            .from(appointments)
+            .where(
+                and(
+                    eq(reminders.appointmentId, appointments.id),
+                    eq(reminders.status, 'pending'),
+                    eq(appointments.status, 'booked'),
+                    gt(appointments.startsAt, sql`now()`),
+                ),
+            );
     },
 
     async skipFor(executor: Executor, appointmentId: string): Promise<void> {

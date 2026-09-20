@@ -585,3 +585,59 @@ describe('the dispatch table', () => {
         expect(summary.visits.outstanding).toBeGreaterThan(0);
     });
 });
+
+/**
+ * The lead time is retroactive on the server, so it has to be here too: a demo
+ * that shortened "Remind before" and watched nothing move would be showing the
+ * bug the real backend no longer has.
+ */
+describe('changing the reminder lead time', () => {
+    function book(daysAway: number) {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        return appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() + daysAway * 24 * 3_600_000).toISOString(),
+            durationMinutes: 30,
+            offsetMinutes: 0,
+        });
+    }
+
+    function reminderFor(appointmentId: string) {
+        const row = getDb().reminders.find((reminder) => reminder.appointmentId === appointmentId);
+        if (!row) throw new Error('expected a reminder');
+        return row;
+    }
+
+    it('moves the reminders already booked', () => {
+        const booked = book(20);
+
+        settingsHandlers.update({ reminderLeadHours: 6 });
+
+        expect(reminderFor(booked.id).dueAt.getTime()).toBe(booked.startsAt.getTime() - 6 * 3_600_000);
+    });
+
+    it('leaves a reminder that is no longer pending', () => {
+        const booked = book(21);
+        const reminder = reminderFor(booked.id);
+        reminderHandlers.markSent({ id: reminder.id });
+        const untouched = reminder.dueAt.getTime();
+
+        settingsHandlers.update({ reminderLeadHours: 6 });
+
+        expect(reminderFor(booked.id).dueAt.getTime()).toBe(untouched);
+    });
+
+    it('leaves every reminder when some other setting is the one being saved', () => {
+        const booked = book(22);
+        const untouched = reminderFor(booked.id).dueAt.getTime();
+
+        settingsHandlers.update({ reminderTemplate: 'See you {{date}}.' });
+
+        expect(reminderFor(booked.id).dueAt.getTime()).toBe(untouched);
+    });
+});

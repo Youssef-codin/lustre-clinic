@@ -21,6 +21,7 @@ import { AppError } from '../../errors/AppError.ts';
 import { highestNumericRef } from '../../util/ref.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
+import { reminderService } from '../reminder/reminder.service.ts';
 import type { SetClinicDayInput, UpdateSettingsInput } from './settings.schema.ts';
 
 interface Settings {
@@ -156,8 +157,27 @@ export const settingsService = {
             );
         }
 
+        // "How long before the appointment a reminder becomes due" is a
+        // statement about the pending list, not only about the next booking,
+        // so a new lead time moves the reminders already on the books. In the
+        // same transaction as the row: a clinic must never be left reading a
+        // lead time its pending list does not obey.
+        const leadHours =
+            input.reminderLeadHours !== undefined && input.reminderLeadHours !== current.reminderLeadHours
+                ? input.reminderLeadHours
+                : undefined;
+
         if (input.patientRefLast === undefined) {
-            return writeRow({ ...input, durationOptions, defaultDuration });
+            if (leadHours === undefined) return writeRow({ ...input, durationOptions, defaultDuration });
+
+            const written = await db.transaction(async (tx) => {
+                const row = await updateRow({ ...input, durationOptions, defaultDuration }, tx);
+                await reminderService.rescheduleAllPending(tx, leadHours);
+                return row;
+            });
+
+            broadcast(WS_EVENT.SETTINGS_UPDATED);
+            return toSettings(written);
         }
 
         const patientRefLast = input.patientRefLast;
@@ -167,7 +187,9 @@ export const settingsService = {
             // this has been written.
             await tx.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)).for('update');
             await assertPatientRefLast(patientRefLast, tx);
-            return updateRow({ ...input, durationOptions, defaultDuration }, tx);
+            const row = await updateRow({ ...input, durationOptions, defaultDuration }, tx);
+            if (leadHours !== undefined) await reminderService.rescheduleAllPending(tx, leadHours);
+            return row;
         });
 
         broadcast(WS_EVENT.SETTINGS_UPDATED);
