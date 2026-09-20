@@ -8,12 +8,28 @@
  * appointment?" offers two answers to one question. The Check out button is
  * disabled without a visit because (BLOCKED.md) the id is only known for a
  * visit this session checked in.
+ *
+ * The title is the patient and opens their record, because that is what the
+ * name on a sheet is for — the desk taps a row to find out who is coming and
+ * then wants their history, and the only way there used to be backing out to
+ * the day and searching the patients tab for a name already on the screen.
+ *
+ * The actions below are three weights, not three of the same: Reschedule keeps
+ * the appointment and is bordered, no-show is a correction and is quiet,
+ * cancel is destructive and is the only red. They were two identical outlines
+ * and a red link, which put the mildest and the most dangerous of the three at
+ * the same size and made the wall of full-width buttons read as one control
+ * repeated.
+ *
+ * One rule in the body, and it spans the sheet like the footer's does. Hairlines
+ * between every pair of facts chopped a short sheet into four, and an inset rule
+ * over a full-bleed one reads as two different rules.
  */
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MoneyValue, StatusPill } from '../../../components/domain';
-import { Button, Callout, CardDivider, Sheet, Tag } from '../../../components/ui';
+import { Button, Callout, Sheet, Tag } from '../../../components/ui';
 import { color, radius, size, space, Text } from '../../../theme';
 import {
     type Appointment,
@@ -46,9 +62,11 @@ export type AppointmentDetailSheetProps = {
      * until that page's button.
      */
     onReschedule: (appointment: Appointment) => void;
+    /** The patient behind the appointment, from their name at the top of the sheet. */
+    onOpenRecord: (appointment: Appointment) => void;
     /**
-     * All three of those open a page over the day, so neither may draw until this
-     * sheet is off the screen. See `Sheet`'s `onClosed`.
+     * All of those open a page over the day, so none may draw until this sheet
+     * is off the screen. See `Sheet`'s `onClosed`.
      */
     onClosed?: () => void;
     /**
@@ -76,6 +94,7 @@ export function AppointmentDetailSheet({
     onCheckOut,
     onCheckIn,
     onReschedule,
+    onOpenRecord,
     onClosed,
     inChair = false,
 }: AppointmentDetailSheetProps) {
@@ -127,6 +146,19 @@ export function AppointmentDetailSheet({
                 startMinutes,
                 startMinutes + appointment.durationMinutes,
             )} · ${appointment.durationMinutes} min`}
+            // Off while a write is in flight, for the reason `dismissable`
+            // is: leaving takes the failure with it, and this sheet is where
+            // a failure is reported. The chevron and the button role go with
+            // it, so the row stops offering what it cannot do.
+            onTitlePress={
+                writing
+                    ? undefined
+                    : () => {
+                          close();
+                          onOpenRecord(appointment);
+                      }
+            }
+            titleAccessibilityLabel={`Open ${appointment.patient.name}'s record`}
             testID="appointment-detail"
             footer={
                 confirming ? null : (
@@ -160,12 +192,7 @@ export function AppointmentDetailSheet({
 
             <View style={styles.facts}>
                 <Fact label="Phone" value={appointment.patient.phone} mono />
-                {appointment.note ? (
-                    <>
-                        <CardDivider />
-                        <Note text={appointment.note} />
-                    </>
-                ) : null}
+                {appointment.note ? <Note text={appointment.note} /> : null}
             </View>
 
             {hasVisit ? (
@@ -309,15 +336,17 @@ function SecondaryActions({
                     <Button
                         label="Keep it"
                         variant="ghost"
+                        size="md"
                         onPress={() => setConfirming(null)}
-                        style={styles.confirmKeep}
+                        style={styles.confirmHalf}
                     />
                     <Button
                         label={isCancel ? 'Cancel it' : 'No-show'}
                         variant="danger"
+                        size="md"
                         loading={isCancel ? cancelling : markingNoShow}
                         onPress={isCancel ? onCancel : onNoShow}
-                        style={styles.confirmGo}
+                        style={styles.confirmHalf}
                     />
                 </View>
             </Group>
@@ -339,10 +368,11 @@ function SecondaryActions({
             />
             <Button
                 label="Mark no-show"
-                variant="secondary"
+                variant="ghost"
                 size="md"
                 block
                 onPress={() => setConfirming('no-show')}
+                testID="appointment-no-show"
             />
             <Button
                 label="Cancel appointment"
@@ -350,21 +380,23 @@ function SecondaryActions({
                 size="md"
                 block
                 onPress={() => setConfirming('cancel')}
+                testID="appointment-cancel"
             />
         </Group>
     );
 }
 
 /**
- * Everything below the record is one group behind one rule: a hairline, then the
- * actions. It carries its own divider so a status with nothing to say — at the
- * desk, waiting on the checkout — ends the sheet at the record instead of on a
- * rule with an empty row under it.
+ * Everything below the record is one group behind one rule, and that rule
+ * bleeds to the sheet's edges the way the footer's does — an inset rule above a
+ * full-bleed one reads as a mistake. It carries its own divider so a status with
+ * nothing to say — at the desk, waiting on the checkout — ends the sheet at the
+ * record instead of on a rule with an empty row under it.
  */
 function Group({ children }: { children: ReactNode }) {
     return (
         <View style={styles.group}>
-            <CardDivider />
+            <View style={styles.rule} />
             <View style={styles.actions}>{children}</View>
         </View>
     );
@@ -479,7 +511,7 @@ function Note({ text }: { text: string }) {
 
 const styles = StyleSheet.create({
     headline: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
-    facts: { marginTop: space[1] },
+    facts: { marginTop: space[1], gap: space[1] },
     fact: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -497,9 +529,11 @@ const styles = StyleSheet.create({
     },
     money: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     group: { marginTop: space[2], gap: space[4] },
+    // Out of the scroll's gutter and back, so the rule reaches both edges the
+    // way `Sheet`'s footer rule does.
+    rule: { marginHorizontal: -size.gutter, height: 1, backgroundColor: color.hair },
     actions: { gap: space[2] },
     confirmBody: { marginBottom: space[1] },
     confirmRow: { flexDirection: 'row', gap: space[2] },
-    confirmKeep: { flex: 1 },
-    confirmGo: { flex: 1.4 },
+    confirmHalf: { flex: 1 },
 });
