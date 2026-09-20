@@ -78,7 +78,8 @@ export const DEFAULT_CLINIC_NAME = 'Clinic';
 export const DEFAULT_REMINDER_TEMPLATE =
     'Hello {{name}}, this is a reminder of your appointment at {{clinic}} on {{date}} at {{time}}.';
 
-export const REMINDER_PLACEHOLDERS = ['name', 'clinic', 'date', 'time', 'ref'] as const;
+/** Order is the order the settings pane draws its token chips in. */
+export const REMINDER_PLACEHOLDERS = ['name', 'date', 'time', 'branch', 'clinic', 'ref'] as const;
 export type ReminderPlaceholder = (typeof REMINDER_PLACEHOLDERS)[number];
 
 /** Bounds for a duration, independent of what the clinic configures. */

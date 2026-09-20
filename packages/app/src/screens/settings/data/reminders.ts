@@ -8,10 +8,13 @@
  * The server accepts a 1000-character template; the pane holds the mockup's 320,
  * which is the length that still reads as one message on a phone. The tighter
  * limit is the client's own rule, so it is enforced where it is drawn.
+ *
+ * The tokens themselves are not a third: they are `@lustre/shared`'s
+ * `REMINDER_TOKENS`, rendered by the same function the senders use, because
+ * a pane that offered its own list is exactly how the chips came to insert a
+ * token neither sender substituted.
  */
-
-/** The tokens a reminder template may carry, substituted per appointment. */
-export const REMINDER_TOKENS = ['{name}', '{date}', '{time}', '{branch}', '{clinic}'] as const;
+import { type ReminderPlaceholder, renderReminderTemplate } from '@lustre/shared';
 
 export const TEMPLATE_MAX = 320;
 
@@ -70,4 +73,27 @@ export function templateDraft(draft: string | null, saved: string | undefined): 
     const dirty = draft !== null && draft.trim() !== (saved ?? '').trim();
 
     return { text, dirty, issue, canSave: dirty && issue === null };
+}
+
+/**
+ * The values the preview substitutes. Deliberately one fixed patient rather
+ * than a real one off the list: a preview that names a real patient reads as a
+ * message that has already been sent.
+ *
+ * The date and time are written the way the sender writes them — `YYYY-MM-DD`
+ * and a 24-hour clock — because a preview that quotes a prettier time than the
+ * message carries is the same lie the brace mismatch was.
+ */
+const SAMPLE: Record<ReminderPlaceholder, string> = {
+    name: 'Nour El-Sayed',
+    date: '2026-06-12',
+    time: '11:35',
+    branch: 'Heliopolis',
+    clinic: 'Lustre Dental',
+    ref: '120626-K7T4',
+};
+
+/** The template as the sender would render it, against one sample appointment. */
+export function previewMessage(template: string): string {
+    return renderReminderTemplate(template, SAMPLE);
 }

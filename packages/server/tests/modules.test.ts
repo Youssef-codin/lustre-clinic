@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { ERROR_CODE, MAX_PATIENT_REF, PATIENT_REF_PATTERN } from '@lustre/shared';
+import { ERROR_CODE, MAX_PATIENT_REF, PATIENT_REF_PATTERN, renderReminderTemplate } from '@lustre/shared';
 import { AppError } from '../src/errors/AppError.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { balanceService } from '../src/modules/balance/balance.service.ts';
@@ -8,7 +8,7 @@ import { createCustomQuestionInput } from '../src/modules/customQuestion/customQ
 import { customQuestionService } from '../src/modules/customQuestion/customQuestion.service.ts';
 import { patientService } from '../src/modules/patient/patient.service.ts';
 import { procedureService } from '../src/modules/procedure/procedure.service.ts';
-import { reminderService, renderTemplate } from '../src/modules/reminder/reminder.service.ts';
+import { reminderService } from '../src/modules/reminder/reminder.service.ts';
 import { setClinicDayInput, updateSettingsInput } from '../src/modules/settings/settings.schema.ts';
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { statsService } from '../src/modules/stats/stats.service.ts';
@@ -2419,7 +2419,9 @@ describe('reminder', () => {
     });
 
     test('leaves an unknown placeholder visible rather than dropping it', () => {
-        expect(renderTemplate('Hi {{name}}, {{nonsense}}', { name: 'Nadia' })).toBe('Hi Nadia, {{nonsense}}');
+        expect(renderReminderTemplate('Hi {{name}}, {{nonsense}}', { name: 'Nadia' })).toBe(
+            'Hi Nadia, {{nonsense}}',
+        );
     });
 });
 

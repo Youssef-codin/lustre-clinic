@@ -11,10 +11,10 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
+import { renderReminderTemplate } from '@lustre/shared';
 import { and, asc, eq, lte } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
-import { appointments, patients, reminders } from '../../db/schema.ts';
+import { appointments, branches, patients, reminders } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { toWhatsAppNumber } from '../../util/phone.ts';
 import { settingsService } from '../settings/settings.service.ts';
@@ -31,12 +31,6 @@ interface PendingReminder {
     patient: { id: string; name: string; phone: string };
     whatsAppUrl: string;
     message: string;
-}
-
-export function renderTemplate(template: string, values: Record<string, string>): string {
-    return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (whole, key: string) =>
-        (REMINDER_PLACEHOLDERS as readonly string[]).includes(key) ? (values[key] ?? whole) : whole,
-    );
 }
 
 export const reminderService = {
@@ -81,12 +75,14 @@ export const reminderService = {
                 startsAt: appointments.startsAt,
                 ref: appointments.ref,
                 status: appointments.status,
+                branch: branches.name,
                 patientId: patients.id,
                 name: patients.name,
                 phone: patients.phone,
             })
             .from(reminders)
             .innerJoin(appointments, eq(reminders.appointmentId, appointments.id))
+            .innerJoin(branches, eq(appointments.branchId, branches.id))
             .innerJoin(patients, eq(appointments.patientId, patients.id))
             .where(
                 and(
@@ -101,9 +97,10 @@ export const reminderService = {
         return rows.map((row) => {
             const local = new Date(row.startsAt.getTime() + input.offsetMinutes * 60_000);
 
-            const message = renderTemplate(settings.reminderTemplate, {
+            const message = renderReminderTemplate(settings.reminderTemplate, {
                 name: row.name,
                 clinic: settings.clinicName,
+                branch: row.branch,
                 date: local.toISOString().slice(0, 10),
                 time: local.toISOString().slice(11, 16),
                 ref: row.ref,

@@ -15,6 +15,7 @@
  * reach.
  */
 import { afterEach, beforeEach, describe, expect, it, mock, setSystemTime } from 'bun:test';
+import { REMINDER_TOKENS } from '@lustre/shared';
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -583,5 +584,61 @@ describe('the dispatch table', () => {
 
         expect(summary.appointments.total).toBeGreaterThan(0);
         expect(summary.visits.outstanding).toBeGreaterThan(0);
+    });
+});
+
+/**
+ * The demo sends nothing, but it renders the same message the server does, and
+ * it is the backend a demo walks the settings pane against. It substituted the
+ * double-brace tokens while the pane's chips inserted single ones, so a demo
+ * built a template from the chips and previewed braces it could not resolve.
+ * Both senders now share `renderReminderTemplate`; this holds the demo to it.
+ */
+describe('the reminder message the demo renders', () => {
+    function firstPending() {
+        const [reminder] = reminderHandlers.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 });
+        if (!reminder) throw new Error('expected a pending reminder');
+        return reminder;
+    }
+
+    it('substitutes the time chip into the message and the WhatsApp link', () => {
+        settingsHandlers.update({ reminderTemplate: 'Be here at {{time}}.' });
+
+        const reminder = firstPending();
+        const expected = `Be here at ${reminder.startsAt.toISOString().slice(11, 16)}.`;
+
+        expect(reminder.message).toBe(expected);
+        expect(new URL(reminder.whatsAppUrl).searchParams.get('text')).toBe(expected);
+        expect(reminder.whatsAppUrl).not.toContain('%7B');
+    });
+
+    it('resolves every chip the settings pane offers', () => {
+        settingsHandlers.update({ reminderTemplate: REMINDER_TOKENS.join(' ') });
+
+        expect(firstPending().message).not.toMatch(/[{}]/);
+    });
+
+    it('names the branch the appointment is at', () => {
+        settingsHandlers.update({ reminderTemplate: 'See you at {{branch}}.' });
+
+        const reminder = firstPending();
+        const appointment = getDb().appointments.find((row) => row.id === reminder.appointmentId);
+        const branch = getDb().branches.find((row) => row.id === appointment?.branchId);
+
+        expect(branch?.name).toBeTruthy();
+        expect(reminder.message).toBe(`See you at ${branch?.name}.`);
+    });
+
+    // A demo database seeded before the chips were fixed still holds one.
+    it('still resolves a template saved in the old single braces', () => {
+        settingsHandlers.update({ reminderTemplate: 'See you at {time}.' });
+
+        const reminder = firstPending();
+
+        expect(reminder.message).toBe(`See you at ${reminder.startsAt.toISOString().slice(11, 16)}.`);
+    });
+
+    it('sends the seeded default with no braces left in it', () => {
+        expect(firstPending().message).not.toMatch(/[{}]/);
     });
 });
