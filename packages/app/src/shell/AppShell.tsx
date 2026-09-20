@@ -1,4 +1,3 @@
-import type { ClientRole } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
@@ -14,6 +13,7 @@ import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { OfflineScreen } from './OfflineScreen';
+import { useRole } from './roleStore';
 import {
     ALL_TABS,
     ask,
@@ -31,8 +31,9 @@ import { BackStackContext } from './useBackHandler';
 // each keeping its own internal stack. A tab is mounted on first open and then
 // stays mounted, hidden with `display: 'none'` rather than unmounted, so the
 // secretary keeps the date, scroll position and in-flight queries across tab
-// switches. The shell owns the role — it outlives the settings screen — but it
-// is still device-local and gates rows, never access.
+// switches. The role reaches the shell from `roleStore` rather than being held
+// here: it outlives not just the settings screen but the process. It is still
+// device-local and gates rows, never access.
 //
 // Four mounted clusters is also what makes the switch expensive if nothing is
 // done about it: `setTab` re-renders this component, and every pane below it
@@ -80,7 +81,9 @@ import { BackStackContext } from './useBackHandler';
 // field over a server that cannot be searched is worse than no screen at all.
 export function AppShell() {
     const [tab, setTab] = useState<TabKey>('day');
-    const [role, setRole] = useState<ClientRole>('doctor');
+    // Device-local and persisted (`roleStore`), not shell state: a role held
+    // here only would be re-chosen as Doctor by every cold launch.
+    const { hydrated: roleReady, role } = useRole();
     const [visited, setVisited] = useState<TabKey[]>(['day']);
     // The day tab can be showing a booking, which is patients' work — the tab
     // bar says so rather than leaving the highlight on a day nobody is looking
@@ -264,6 +267,12 @@ export function AppShell() {
         return true;
     });
 
+    // The same blank hold the root gives the fonts and the stored server
+    // address, for the same reason: `role` decides which day screen and which
+    // Settings rows exist, so drawing before the read lands shows one role the
+    // other's screen for a frame.
+    if (!roleReady) return <View style={styles.root} />;
+
     return (
         <View style={styles.root}>
             <View style={styles.body}>
@@ -325,7 +334,7 @@ export function AppShell() {
                     mounted={visited.includes('settings')}
                     back={stacks.settings}
                 >
-                    <SettingsScreen role={role} goHome={home.settings} onChangeRole={setRole} />
+                    <SettingsScreen goHome={home.settings} />
                 </Pane>
 
                 {/* Inside the body rather than at the root, so it lands where a
