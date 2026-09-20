@@ -71,6 +71,12 @@ export const ERROR_CODE = {
     DUPLICATE_KEY: 'DUPLICATE_KEY',
     /** The patient number was set below a patient ref already handed out. */
     PATIENT_REF_BELOW_EXISTING: 'PATIENT_REF_BELOW_EXISTING',
+
+    // --- backups (§16) ------------------------------------------------------
+    /** No Android OAuth client is configured, so the phone cannot run the consent step. */
+    DRIVE_SIGN_IN_UNCONFIGURED: 'DRIVE_SIGN_IN_UNCONFIGURED',
+    /** Google refused the authorization code, or the backup folder could not be created. */
+    DRIVE_LINK_FAILED: 'DRIVE_LINK_FAILED',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

@@ -19,6 +19,8 @@ export interface BackupStatusData {
     offsite: {
         configured: boolean;
         reauthorizationRequiredSince: string | null;
+        account: string | null;
+        canSignIn: boolean;
     };
 }
 
@@ -30,6 +32,20 @@ export interface BackupView {
     sub: string;
     /** The card's second line, or null when there is no card to draw. */
     detail: string | null;
+    /** The account the clinic backs up to, for the confirm sheet to name. */
+    account: string | null;
+    /** The server has an Android client, so the row can open the sign-in. */
+    canSignIn: boolean;
+}
+
+/**
+ * §14 — the client localizes from `ERROR_CODE` and never by reading the
+ * server's message, which stays English for the logs.
+ */
+export function driveSignInError(code: string): string {
+    if (code === 'DRIVE_SIGN_IN_UNCONFIGURED') return 'Drive sign-in is not set up on the clinic server';
+    if (code === 'DRIVE_LINK_FAILED') return 'Google refused the sign-in — try again';
+    return 'Could not link Google Drive';
 }
 
 export function ageInDays(since: string, now: number): number | null {
@@ -61,22 +77,36 @@ function lastLine(lastSuccessAt: string | null, now: number): string {
 export function backupView(status: BackupStatusData, now: number = Date.now()): BackupView {
     const last = lastLine(status.lastSuccessAt, now);
     const since = status.offsite.reauthorizationRequiredSince;
+    const link = { account: status.offsite.account, canSignIn: status.offsite.canSignIn };
 
     if (since) {
         return {
             tone: 'reauthorize',
             sub: 'Google Drive needs a new sign-in',
-            detail: `${stoppedFor(ageInDays(since, now))} Ask whoever set up the clinic server to sign in to Google Drive again.`,
+            detail: signInHint(status.offsite.canSignIn, ageInDays(since, now)),
+            ...link,
         };
     }
 
     // No card: stale already has a §17 Discord alert behind it and the row says
     // so itself. The card is for the failure that has no other signal.
-    if (status.stale) return { tone: 'stale', sub: last, detail: null };
+    if (status.stale) return { tone: 'stale', sub: last, detail: null, ...link };
 
     return {
         tone: 'ok',
         sub: status.offsite.configured ? `${last} · copied off-site` : `${last} · on this machine only`,
         detail: null,
+        ...link,
     };
+}
+
+/**
+ * The card tells the reader what *they* can do about it, which depends on
+ * whether this server can run the sign-in from the handset at all.
+ */
+function signInHint(canSignIn: boolean, days: number | null): string {
+    const stopped = stoppedFor(days);
+    return canSignIn
+        ? `${stopped} Open Backups below to sign in again.`
+        : `${stopped} Ask whoever set up the clinic server to sign in to Google Drive again.`;
 }

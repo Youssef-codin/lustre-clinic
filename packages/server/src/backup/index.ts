@@ -138,7 +138,7 @@ async function countRows(sql: postgres.Sql, tables: readonly string[]): Promise<
 }
 
 async function uploadOffsite(localPath: string, name: string): Promise<string | null> {
-    const destination = offsiteDestination();
+    const destination = await offsiteDestination();
     if (!destination) return null;
 
     if (!config.BACKUP_ENCRYPTION_KEY) {
@@ -167,7 +167,7 @@ async function pruneLocal(directory: string, policy: RetentionPolicy): Promise<s
 }
 
 async function pruneOffsite(policy: RetentionPolicy): Promise<number> {
-    const destination = offsiteDestination();
+    const destination = await offsiteDestination();
     if (!destination) return 0;
 
     const doomed = selectForDeletion(await destination.list(), policy);

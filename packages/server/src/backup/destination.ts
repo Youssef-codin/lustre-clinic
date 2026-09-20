@@ -16,6 +16,7 @@
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import { createDriveClient, type DriveCredentials, normalizePrivateKey } from './drive.ts';
+import { readDriveGrant } from './grant.ts';
 import { type BackupFile, parseBackupFileName } from './retention.ts';
 
 export interface OffsiteFile extends BackupFile {
@@ -116,8 +117,25 @@ export function resolveDriveCredentials(env: DriveEnvironment): {
     return { credentials: null, missing: [] };
 }
 
-function driveDestination(): OffsiteDestination | null {
-    const resolved = resolveDriveCredentials(config);
+/**
+ * A grant made from the doctor's phone outranks the environment: it is the more
+ * recent statement of which Drive the clinic backs up to, and the operator's
+ * pasted values are what it was before somebody signed in again.
+ */
+async function driveDestination(): Promise<OffsiteDestination | null> {
+    const grant = await readDriveGrant();
+    const resolved = grant
+        ? {
+              credentials: {
+                  kind: 'oauth' as const,
+                  clientId: grant.clientId,
+                  refreshToken: grant.refreshToken,
+                  folderId: grant.folderId,
+              },
+              missing: [],
+          }
+        : resolveDriveCredentials(config);
+
     if (!resolved.credentials) {
         if (resolved.missing.length > 0) {
             logger.warn(
@@ -175,6 +193,6 @@ function s3Destination(): OffsiteDestination | null {
     };
 }
 
-export function offsiteDestination(): OffsiteDestination | null {
-    return driveDestination() ?? s3Destination();
+export async function offsiteDestination(): Promise<OffsiteDestination | null> {
+    return (await driveDestination()) ?? s3Destination();
 }

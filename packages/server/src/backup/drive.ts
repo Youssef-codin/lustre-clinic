@@ -23,7 +23,7 @@
  */
 import { createSign } from 'node:crypto';
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -38,7 +38,8 @@ interface CommonDriveCredentials {
 export interface OAuthDriveCredentials extends CommonDriveCredentials {
     kind: 'oauth';
     clientId: string;
-    clientSecret: string;
+    /** Absent when the grant came from the phone's Android client (see §16). */
+    clientSecret?: string;
     refreshToken: string;
 }
 
@@ -71,9 +72,17 @@ export interface OAuthAuthorizationOptions {
     loginHint?: string;
 }
 
+/** What the phone needs to run the consent step itself (§16). */
+export interface DriveSignInConfig {
+    clientId: string;
+    redirectUri: string;
+    scope: string;
+}
+
 export interface OAuthCodeExchangeOptions {
     clientId: string;
-    clientSecret: string;
+    /** Absent for an Android client: Google issues none, and PKCE stands in for it. */
+    clientSecret?: string;
     code: string;
     codeVerifier: string;
     redirectUri: string;
@@ -158,7 +167,7 @@ export async function exchangeOAuthCode(options: OAuthCodeExchangeOptions): Prom
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
             client_id: options.clientId,
-            client_secret: options.clientSecret,
+            ...(options.clientSecret ? { client_secret: options.clientSecret } : {}),
             code: options.code,
             code_verifier: options.codeVerifier,
             redirect_uri: options.redirectUri,
@@ -214,7 +223,7 @@ export function createDriveClient(options: DriveOptions): DriveClient {
         const body = isOAuth(credentials)
             ? new URLSearchParams({
                   client_id: credentials.clientId,
-                  client_secret: credentials.clientSecret,
+                  ...(credentials.clientSecret ? { client_secret: credentials.clientSecret } : {}),
                   refresh_token: credentials.refreshToken,
                   grant_type: 'refresh_token',
               })

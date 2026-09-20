@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ageInDays, backupView, formatAge } from './data/backups';
+import { ageInDays, backupView, driveSignInError, formatAge } from './data/backups';
 import { minutesFromTime, timeFromMinutes } from './data/reminders';
 
 /**
@@ -44,7 +44,7 @@ describe('backup status on the index', () => {
         lastSuccessAt: '2026-09-20T03:00:00Z',
         stale: false,
         staleAfterHours: 48,
-        offsite: { configured: true, reauthorizationRequiredSince: null },
+        offsite: { configured: true, reauthorizationRequiredSince: null, account: null, canSignIn: false },
     };
 
     test('says nothing loud when the clinic is backed up', () => {
@@ -66,7 +66,12 @@ describe('backup status on the index', () => {
             {
                 ...ok,
                 stale: true,
-                offsite: { configured: true, reauthorizationRequiredSince: '2026-09-17T03:00:00Z' },
+                offsite: {
+                    configured: true,
+                    reauthorizationRequiredSince: '2026-09-17T03:00:00Z',
+                    account: null,
+                    canSignIn: false,
+                },
             },
             now,
         );
@@ -79,7 +84,15 @@ describe('backup status on the index', () => {
 
     test('does not say "0 days" on the day it breaks', () => {
         const view = backupView(
-            { ...ok, offsite: { configured: true, reauthorizationRequiredSince: '2026-09-20T07:00:00Z' } },
+            {
+                ...ok,
+                offsite: {
+                    configured: true,
+                    reauthorizationRequiredSince: '2026-09-20T07:00:00Z',
+                    account: null,
+                    canSignIn: false,
+                },
+            },
             now,
         );
         expect(view.detail).not.toContain('0 days');
@@ -94,6 +107,35 @@ describe('backup status on the index', () => {
         expect(view.detail).toBeNull();
     });
 
+    test('offers the sign-in in the card only when the server can run it', () => {
+        const broken = {
+            ...ok,
+            offsite: {
+                configured: true,
+                reauthorizationRequiredSince: '2026-09-17T03:00:00Z',
+                account: 'doctor@example.com',
+                canSignIn: true,
+            },
+        };
+
+        const onPhone = backupView(broken, now);
+        expect(onPhone.detail).toContain('Open Backups below');
+        expect(onPhone.canSignIn).toBe(true);
+        expect(onPhone.account).toBe('doctor@example.com');
+
+        // An operator-only server must not tell the doctor to do something the
+        // app cannot offer.
+        const operatorOnly = backupView({ ...broken, offsite: { ...broken.offsite, canSignIn: false } }, now);
+        expect(operatorOnly.detail).toContain('Ask whoever set up the clinic server');
+        expect(operatorOnly.detail).not.toContain('Open Backups below');
+    });
+
+    test('localizes the sign-in failures from ERROR_CODE, never a server message', () => {
+        expect(driveSignInError('DRIVE_SIGN_IN_UNCONFIGURED')).toContain('not set up');
+        expect(driveSignInError('DRIVE_LINK_FAILED')).toContain('refused');
+        expect(driveSignInError('SOMETHING_NEW')).toBe('Could not link Google Drive');
+    });
+
     test('reads an unparseable timestamp as no backup rather than throwing', () => {
         expect(backupView({ ...ok, lastSuccessAt: 'not-a-date', stale: true }, now).sub).toBe(
             'No backup yet',
@@ -103,7 +145,15 @@ describe('backup status on the index', () => {
 
     test('reads one day as yesterday rather than "1 days"', () => {
         const view = backupView(
-            { ...ok, offsite: { configured: true, reauthorizationRequiredSince: '2026-09-19T03:00:00Z' } },
+            {
+                ...ok,
+                offsite: {
+                    configured: true,
+                    reauthorizationRequiredSince: '2026-09-19T03:00:00Z',
+                    account: null,
+                    canSignIn: false,
+                },
+            },
             now,
         );
         expect(view.detail).toContain('since yesterday');

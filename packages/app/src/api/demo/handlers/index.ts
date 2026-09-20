@@ -102,6 +102,8 @@ const handlers = {
     'stats.summary': statsHandlers.summary,
 
     'backup.status': backupHandlers.status,
+    'backup.signInConfig': backupHandlers.signInConfig,
+    'backup.linkDrive': backupHandlers.linkDrive,
 
     'migration.enter': migrationHandlers.enter,
     'migration.progress': migrationHandlers.progress,

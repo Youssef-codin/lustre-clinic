@@ -39,6 +39,7 @@
                 "tailscale": null
             },
             "demo": false
-        }
+        },
+        "scheme": "com.lustre.clinic"
     }
 }

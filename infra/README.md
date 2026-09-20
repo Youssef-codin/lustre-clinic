@@ -75,11 +75,12 @@ docker compose run --rm server backup
 ## Google Drive backups
 
 The production stack can push each verified, encrypted dump into a folder in
-the doctor's own Google Drive. Authorization is an operator-only setup step: the
-clinic server is headless, so the flow runs on the operator's machine, which has
-a browser. Driving it from the doctor's phone instead is possible and is
-deliberately not built — see DECISIONS.md. The app does not authorize, but it
-does report: Settings shows the doctor a Backups row, and a card when the grant
+the doctor's own Google Drive. There are two ways to authorize it. The operator
+flow below always works and needs no app. The doctor can also do it from the
+phone — Settings → Backups, behind a confirm — once
+`BACKUP_DRIVE_ANDROID_CLIENT_ID` names an Android OAuth client; the handset runs
+the consent and the server does the token exchange, so no refresh token is ever
+held on a phone. Settings also reports: a Backups row, and a card when the grant
 needs renewing.
 
 1. Enable the Google Drive API in a Google Cloud project. Configure the consent
@@ -102,6 +103,42 @@ needs renewing.
    already there. Unset the variables and clear the terminal afterwards.
 4. Restart the server and run `docker compose run --rm server backup`. Confirm
    an encrypted `.dump.enc` file exists in the folder.
+
+### Letting the doctor sign in from the phone
+
+Optional. Without it the app hides the sign-in and `bun drive:authorize` stays
+the only way in.
+
+1. In the same Google Cloud project, create a second OAuth client of type
+   **Android**. Package name `com.lustre.clinic`; SHA-1 from the certificate the
+   APK is signed with. Google issues no secret for this type — PKCE covers it.
+2. A debug build and a release build are signed with **different keys**, so they
+   have different SHA-1s. Register the release cert for the clinic's real APK,
+   and the debug cert too if you want it to work on a development build:
+
+   ```sh
+   # release
+   keytool -list -v -alias <your alias> -keystore <your release keystore> | grep SHA1
+   # debug
+   keytool -list -v -alias androiddebugkey -storepass android \
+       -keystore packages/app/android/app/debug.keystore | grep SHA1
+   ```
+3. Put the client id in `BACKUP_DRIVE_ANDROID_CLIENT_ID` on the clinic server and
+   restart. Settings → Backups then opens a confirm, and the doctor signs in
+   there.
+
+The handset never holds a refresh token: it returns an authorization code, and
+the server exchanges it. A grant made this way is written to
+`drive-grant.json` beside the dumps (mode `0600`) and **takes precedence over the
+`BACKUP_DRIVE_*` environment values** — it is the more recent statement of which
+Drive the clinic uses. Delete that file to fall back to the environment.
+
+This mutation is unauthenticated, like every other procedure (SPEC §1): anyone
+who can reach the API on the tailnet can re-point the clinic's off-site backups.
+That was accepted deliberately — see DECISIONS.md — on the grounds that such a
+peer already reads every patient record, and the dumps leave encrypted with a key
+that is not on this machine. Leave `BACKUP_DRIVE_ANDROID_CLIENT_ID` empty if you
+would rather not take it.
 
 Never put these values in inventory, shell history, or the repository. The
 server persists the refresh token, not access tokens. A revoked or expired grant

@@ -12,7 +12,10 @@
     // temporary and goes as a folder, so its copies are not duplication worth consolidating.
     "duplicates": { "ignore": ["packages/app/src/api/demo/**"] },
     // Metro loads it through require.resolve in metro.config.js, never an import.
-    "ignoreDependencies": ["react-native-svg-transformer"],
+    // expo-web-browser is the native half of expo-auth-session's consent prompt: it is
+    // autolinked and never imported by us, and stays explicit so bun's isolated
+    // node_modules cannot drop it.
+    "ignoreDependencies": ["react-native-svg-transformer", "expo-web-browser"],
     "ignoreExports": [
         // The shared component libraries and theme tokens are public surface: a component, its props
         // and a token type are exported before a screen uses them.

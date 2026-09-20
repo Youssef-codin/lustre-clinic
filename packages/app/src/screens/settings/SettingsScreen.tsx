@@ -38,6 +38,7 @@ import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
+import { DriveSignInSheet } from './components/DriveSignInSheet';
 import { IdentityCard } from './components/IdentityCard';
 import {
     DataEntryIcon,
@@ -52,8 +53,9 @@ import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
 import { installedVersion, useApkUpdate } from './data/appUpdate';
 import { versionLine } from './data/appVersion';
-import { type BackupView, backupView } from './data/backups';
+import { type BackupView, backupView, driveSignInError } from './data/backups';
 import { useConnectionView } from './data/connection';
+import { useDriveSignIn } from './data/driveSignIn';
 import { errorText } from './data/errors';
 import { minutesFromTime } from './data/reminders';
 import { DataEntryScreen } from './dataEntry';
@@ -124,6 +126,21 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
     const connection = useConnectionView();
     const apkUpdate = useApkUpdate();
     const backups = useBackups();
+    const driveSignIn = useDriveSignIn();
+    const [linkingDrive, setLinkingDrive] = useState(false);
+
+    async function linkDrive() {
+        setLinkingDrive(false);
+        const result = await driveSignIn.signIn();
+        if (result.kind === 'cancelled') return;
+        setToast(
+            result.kind === 'linked'
+                ? result.account
+                    ? `Backups now go to ${result.account}`
+                    : 'Google Drive linked'
+                : driveSignInError(result.code),
+        );
+    }
 
     const isDoctor = role === 'doctor';
 
@@ -284,7 +301,9 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                     icon={<SettingsIcon glyph="backups" />}
                                     label="Backups"
                                     sub={backups?.sub ?? 'Checking…'}
-                                    onPress={() => {}}
+                                    onPress={() => {
+                                        if (backups?.canSignIn) setLinkingDrive(true);
+                                    }}
                                     testID="settings-backups"
                                 />
                                 <CardDivider />
@@ -384,6 +403,14 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                 message={toast ?? ''}
                 onDismiss={() => setToast(null)}
                 testID="settings-toast"
+            />
+
+            <DriveSignInSheet
+                visible={linkingDrive}
+                account={backups?.account ?? null}
+                busy={driveSignIn.linking}
+                onConfirm={() => void linkDrive()}
+                onCancel={() => setLinkingDrive(false)}
             />
 
             <RoleSwitchSheet

@@ -62,6 +62,10 @@ const envSchema = z.object({
     BACKUP_DRIVE_OAUTH_CLIENT_ID: z.string().optional(),
     BACKUP_DRIVE_OAUTH_CLIENT_SECRET: z.string().optional(),
     BACKUP_DRIVE_REFRESH_TOKEN: z.string().optional(),
+    // The Android OAuth client the phone consents against (§16). Public: Google
+    // issues no secret for it, and PKCE is what stands in for one.
+    BACKUP_DRIVE_ANDROID_CLIENT_ID: z.string().optional(),
+    BACKUP_DRIVE_ANDROID_REDIRECT_URI: z.string().default('com.lustre.clinic:/oauth2redirect'),
     BACKUP_DRIVE_CLIENT_EMAIL: z.string().optional(),
     BACKUP_DRIVE_PRIVATE_KEY: z.string().optional(),
     BACKUP_DRIVE_SUBJECT: z.string().optional(),

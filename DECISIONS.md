@@ -1039,23 +1039,42 @@ copy has been dead rather than how long ago the last attempt was. Only a real
 upload clears it — an unconfigured destination also uploads nothing, and that
 must not read as the grant being good again.
 
-**What the card does not do is offer a button, and the reason is not what it
-first looks like.** `drive:authorize` redirects to `127.0.0.1`, which a phone
-cannot receive — but that is this script's choice, not OAuth's. A phone flow is
-ordinary: an **Android** OAuth client carries no secret at all, and the PKCE
-this already uses is what replaces one.
+**The doctor can now sign in from the phone, and the reason that took a second
+pass is worth keeping.** The first answer was that a phone *cannot* do it —
+`drive:authorize` redirects to `127.0.0.1`, which no handset receives. That is
+this script's choice, not OAuth's: an **Android** OAuth client carries no secret
+at all, and the PKCE already in use is what replaces one. The browser was never
+the obstacle.
 
-What stops it is §1. The refresh token has to end up on the clinic server, which
-reads it from the environment at boot and has nowhere to put one at runtime. Give
-it somewhere, and the mutation that writes it is unauthenticated like everything
-else — so any peer on the tailnet could point the clinic's off-site backups at
-their own Drive. That is outbound and silent, which is a different class from the
-reading the tailnet already allows, and `BACKUP_ENCRYPTION_KEY` only softens it:
-the thief gets ciphertext, and the key is not on the clinic machine.
+The real question was §1, and it was answered rather than dodged. The refresh
+token has to reach a server that read it from the environment at boot and had
+nowhere to put one at runtime, and the mutation that writes it is unauthenticated
+like every other — so any peer on the tailnet can point the clinic's off-site
+backups at their own Drive. That is outbound and silent, unlike the reading the
+tailnet already allows. **Accepted on the owner's call**, on the grounds that a
+peer who can reach the API already reads every patient record, and
+`BACKUP_ENCRYPTION_KEY` means what a thief collects is ciphertext whose key is
+not on the clinic machine.
 
-So the card names who to ask. If the phone flow is ever built, it is that
-storage-and-authorization question that has to be answered first, not the browser
-one.
+Two things follow from accepting it rather than pretending it away.
+
+**The token never touches the phone.** The handset runs the consent, gets an
+authorization *code*, and posts that to `backup.linkDrive`; the server does the
+exchange and keeps the refresh token. A code is single-use and worthless without
+the verifier that produced it, so the durable credential goes Google → server and
+is never on a device that can be lost in a waiting room.
+
+**A confirm stands in front of it.** The role is a device preference, so the
+secretary can switch to the doctor's view and land on these rows, and this is the
+one control in the app that changes where every future copy of the clinic goes. A
+mis-tap does not lose data — it quietly starts sending it somewhere else, which
+is worse for being invisible. `DriveSignInSheet` names the account in use, says
+the old backups are not moved, and puts that before the button.
+
+`drive-grant.json` sits beside the dumps, 0600, written through a rename, and
+**outranks the environment**: it is the more recent statement of which Drive the
+clinic uses, and the operator's pasted values are what it was before somebody
+signed in again.
 
 ---
 
