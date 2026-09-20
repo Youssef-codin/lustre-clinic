@@ -11,6 +11,14 @@
  * app where a typo reaches every patient, so the pane renders the message as it
  * will actually be sent, with sample values substituted for the tokens.
  *
+ * That is also why the two halves commit differently. A stepper tap is a whole
+ * decision and writes immediately. The template is composed rather than picked,
+ * so it has an explicit Save: it used to write on blur, which on Android is a
+ * blur that never comes if the pane is left by the header or the back gesture —
+ * the edit was simply lost, with nothing on screen having claimed otherwise.
+ * Saved is only shown once the server's own read has come back with the new
+ * message, never on the strength of the local edit.
+ *
  * Two shapes are the pane's own and are converted at this edge, in
  * `data/reminders`: the stepper steps minutes from midnight while the column is
  * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
@@ -22,6 +30,7 @@ import { StyleSheet, View } from 'react-native';
 import { useTRPC } from '../../api';
 import { formatClock12 } from '../../components/domain';
 import {
+    Button,
     Callout,
     Card,
     CardDivider,
@@ -37,7 +46,13 @@ import { PlusIcon, WhatsAppIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
-import { minutesFromTime, REMINDER_TOKENS, TEMPLATE_MAX, timeFromMinutes } from './data/reminders';
+import {
+    minutesFromTime,
+    REMINDER_TOKENS,
+    TEMPLATE_MAX,
+    templateDraft,
+    timeFromMinutes,
+} from './data/reminders';
 
 /**
  * The values the preview substitutes. Deliberately one fixed patient rather
@@ -58,37 +73,38 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const queryClient = useQueryClient();
 
     const settings = useQuery(trpc.settings.get.queryOptions());
-    const save = useMutation(
-        trpc.settings.update.mutationOptions({
-            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
-        }),
-    );
 
-    // The template is typed into, so it is local state while the pane is open
-    // and written back on blur; the three steppers write on every tap because
-    // a tap is already a whole decision.
+    const refetchSettings = () => queryClient.invalidateQueries(trpc.settings.pathFilter());
+
+    // Two mutations over the one procedure, because they report to different
+    // controls: a stepper mid-write must not put the template's Save button
+    // into a spinner, and a failed template save must not disable the steppers.
+    const saveTiming = useMutation(trpc.settings.update.mutationOptions({ onSuccess: refetchSettings }));
+    const saveTemplate = useMutation(trpc.settings.update.mutationOptions({ onSuccess: refetchSettings }));
+
     const [template, setTemplate] = useState<string | null>(null);
 
     const pull = usePullToRefresh(settings.refetch, settings.isFetching);
 
     const data = settings.data;
-    const text = template ?? data?.reminderTemplate ?? '';
-    const overLimit = text.length > TEMPLATE_MAX;
+    const draft = templateDraft(template, data?.reminderTemplate);
+    const text = draft.text;
     const notifyAt = data ? minutesFromTime(data.reminderNotifyAt) : 0;
 
-    // Why the typed template will not be written, if it will not. The pane
-    // refuses rather than capping the field: the counter is built to go over
-    // and turn `due`, which a `maxLength` would make unreachable. What has to
-    // stop is refusing in silence — the text stays on screen either way, so
-    // without this the pane reads as saved while Postgres keeps the old
-    // wording, and nobody finds out until a patient gets the old message.
-    const templateProblem = overLimit
-        ? `Too long by ${text.length - TEMPLATE_MAX} ${text.length - TEMPLATE_MAX === 1 ? 'character' : 'characters'}. The message has to fit ${TEMPLATE_MAX}.`
-        : template !== null && text.trim() === ''
-          ? 'The message cannot be empty.'
-          : null;
+    // The edit is dropped when the refetch comes back carrying it, rather than
+    // when the mutation resolves. Dropping it on the response would fall back
+    // to the cached settings for the frame before the refetch lands, which is
+    // the old wording flashing into the field the moment it was saved.
+    if (template !== null && data?.reminderTemplate === template.trim()) setTemplate(null);
 
-    const write = save.mutate;
+    // Between that response and that refetch the draft still differs from the
+    // cache, so the button would read as unsaved again for a moment. It is the
+    // value we sent and it landed, so it is still saving until confirmed.
+    const sent = saveTemplate.variables?.reminderTemplate;
+    const confirming = saveTemplate.isSuccess && sent !== undefined && sent === template?.trim();
+    const savingTemplate = saveTemplate.isPending || confirming;
+
+    const write = saveTiming.mutate;
 
     return (
         <Pane title="Reminders" onBack={onBack} pull={pull} testID="settings-reminders">
@@ -104,13 +120,9 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
             {data ? (
                 <>
-                    {templateProblem ? (
+                    {saveTiming.error ? (
                         <Callout tone="warning" title="Not saved">
-                            {templateProblem}
-                        </Callout>
-                    ) : save.error ? (
-                        <Callout tone="warning" title="Not saved">
-                            {errorText(save.error)}
+                            {errorText(saveTiming.error)}
                         </Callout>
                     ) : null}
 
@@ -139,7 +151,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 max={96}
                                 format={(hours) => `${hours} h`}
                                 onChange={(reminderLeadHours) => write({ reminderLeadHours })}
-                                saving={save.isPending}
+                                saving={saveTiming.isPending}
                                 testID="reminder-lead"
                             />
                             <CardDivider />
@@ -152,7 +164,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={60}
                                 format={formatClock12}
                                 onChange={(minutes) => write({ reminderNotifyAt: timeFromMinutes(minutes) })}
-                                saving={save.isPending}
+                                saving={saveTiming.isPending}
                                 testID="reminder-notify"
                             />
                             <CardDivider />
@@ -165,7 +177,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={15}
                                 format={(minutes) => `${minutes} min`}
                                 onChange={(reminderRepeatMinutes) => write({ reminderRepeatMinutes })}
-                                saving={save.isPending}
+                                saving={saveTiming.isPending}
                                 testID="reminder-repeat"
                             />
                         </Card>
@@ -178,7 +190,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 <Text
                                     variant="caption"
                                     weight="medium"
-                                    tone={overLimit ? 'due' : 'muted'}
+                                    tone={text.length > TEMPLATE_MAX ? 'due' : 'muted'}
                                     script="mono"
                                 >
                                     {`${text.length} / ${TEMPLATE_MAX}`}
@@ -191,11 +203,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                         <Textarea
                             value={text}
                             onChangeText={setTemplate}
-                            onBlur={() => {
-                                if (templateProblem) return;
-                                const trimmed = template?.trim();
-                                if (trimmed) write({ reminderTemplate: trimmed });
-                            }}
+                            error={draft.issue ?? undefined}
                             accessibilityLabel="Reminder message template"
                             testID="reminder-template"
                         />
@@ -212,6 +220,35 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 />
                             ))}
                         </View>
+
+                        {saveTemplate.error ? (
+                            <Callout tone="warning" title="Not saved">
+                                {errorText(saveTemplate.error)}
+                            </Callout>
+                        ) : null}
+
+                        {/* Only once the refetch above has brought the new
+                            wording back: until then the edit is on this phone
+                            and nowhere else, and saying otherwise is the bug
+                            this pane had. */}
+                        {!draft.dirty && saveTemplate.isSuccess ? (
+                            <Callout tone="reassurance" title="Saved">
+                                Patients will get this wording from the next reminder on.
+                            </Callout>
+                        ) : null}
+
+                        {/* Shown from the first edit rather than always, so a
+                            pane nobody has typed in offers nothing to press. */}
+                        {draft.dirty || savingTemplate ? (
+                            <Button
+                                label="Save message"
+                                onPress={() => saveTemplate.mutate({ reminderTemplate: text.trim() })}
+                                loading={savingTemplate}
+                                disabled={!draft.canSave || savingTemplate}
+                                block
+                                testID="reminder-template-save"
+                            />
+                        ) : null}
                     </View>
 
                     <View style={styles.section}>
