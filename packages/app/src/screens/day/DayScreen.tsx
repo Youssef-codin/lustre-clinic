@@ -779,6 +779,10 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                     setSelected((current) => ({ ...current, open: false }));
                     detailDone.after(() => openVisit(appointment, loaded));
                 }}
+                // The record lives on the Patients tab, so the shell takes it.
+                // The day pane stays mounted behind it with its date, branch
+                // and scroll, which is what Back comes back to.
+                onOpenRecord={(appointment) => detailDone.after(() => onOpenRecord?.(appointment.patient.id))}
                 onClosed={detailDone.closed}
             />
 
