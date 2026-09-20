@@ -101,7 +101,7 @@ async function assertCleanTree(): Promise<void> {
 
 /** Every `vX.Y.Z` tag in the repository. */
 async function taggedVersions(): Promise<string[]> {
-    const tags = await $`git tag --list v*`.cwd(APP_DIR).quiet().text();
+    const tags = await $`git tag --list ${'v*'}`.cwd(APP_DIR).quiet().text();
     return tags.split('\n').filter((tag) => parseVersion(tag) !== null);
 }
 
