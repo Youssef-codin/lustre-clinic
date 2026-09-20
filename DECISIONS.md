@@ -1039,10 +1039,23 @@ copy has been dead rather than how long ago the last attempt was. Only a real
 upload clears it — an unconfigured destination also uploads nothing, and that
 must not read as the grant being good again.
 
-**What the card does not do is offer a button.** There is nothing the phone can
-press: `drive:authorize` needs a browser that can reach `127.0.0.1` on the
-machine holding the client secret. It names who to ask instead, which is the
-honest affordance.
+**What the card does not do is offer a button, and the reason is not what it
+first looks like.** `drive:authorize` redirects to `127.0.0.1`, which a phone
+cannot receive — but that is this script's choice, not OAuth's. A phone flow is
+ordinary: an **Android** OAuth client carries no secret at all, and the PKCE
+this already uses is what replaces one.
+
+What stops it is §1. The refresh token has to end up on the clinic server, which
+reads it from the environment at boot and has nowhere to put one at runtime. Give
+it somewhere, and the mutation that writes it is unauthenticated like everything
+else — so any peer on the tailnet could point the clinic's off-site backups at
+their own Drive. That is outbound and silent, which is a different class from the
+reading the tailnet already allows, and `BACKUP_ENCRYPTION_KEY` only softens it:
+the thief gets ciphertext, and the key is not on the clinic machine.
+
+So the card names who to ask. If the phone flow is ever built, it is that
+storage-and-authorization question that has to be answered first, not the browser
+one.
 
 ---
 

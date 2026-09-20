@@ -75,10 +75,12 @@ docker compose run --rm server backup
 ## Google Drive backups
 
 The production stack can push each verified, encrypted dump into a folder in
-the doctor's own Google Drive. Authorization is an operator-only setup step —
-it needs a browser on the machine holding the client secret, so it never
-happens from a phone. The app does not authorize, but it does report: Settings
-shows the doctor a Backups row, and a card when the grant needs renewing.
+the doctor's own Google Drive. Authorization is an operator-only setup step: the
+clinic server is headless, so the flow runs on the operator's machine, which has
+a browser. Driving it from the doctor's phone instead is possible and is
+deliberately not built — see DECISIONS.md. The app does not authorize, but it
+does report: Settings shows the doctor a Backups row, and a card when the grant
+needs renewing.
 
 1. Enable the Google Drive API in a Google Cloud project. Configure the consent
    audience (External for personal Gmail, or Internal for an organization-owned
