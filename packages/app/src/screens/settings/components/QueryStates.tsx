@@ -8,6 +8,7 @@
  */
 import { StyleSheet, View } from 'react-native';
 import { Button, Card, CardDivider } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 
 export type SkeletonRowsProps = {
@@ -42,9 +43,10 @@ export type ErrorStateProps = {
 };
 
 export function ErrorState({ message, onRetry, retrying = false }: ErrorStateProps) {
+    const t = useT();
     return (
         <Card variant="dashed" padded style={styles.error}>
-            <Text variant="headline">Couldn't load this</Text>
+            <Text variant="headline">{t("Couldn't load this")}</Text>
             <Text variant="subhead" tone="muted" style={styles.message}>
                 {message}
             </Text>

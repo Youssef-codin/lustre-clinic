@@ -22,8 +22,9 @@ import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextTone } from '../../theme';
-import { border, color, radius, shadow, size, space, Text, useT } from '../../theme';
+import { border, color, radius, shadow, size, space, Text } from '../../theme';
 
 export type ButtonVariant =
     | 'primary'

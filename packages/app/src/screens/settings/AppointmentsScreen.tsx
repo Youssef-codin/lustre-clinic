@@ -26,6 +26,7 @@ import {
     Tag,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { CloseIcon, PlusIcon } from './components/icons';
 import { Pane } from './components/Pane';
@@ -36,6 +37,7 @@ import { errorText } from './data/errors';
 const QUICK_ADDS = [10, 25, 90] as const;
 
 export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
+    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
@@ -115,7 +117,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                             inset={false}
                             action={
                                 <Text variant="caption" weight="medium" tone="muted">
-                                    Tap a circle to set the default
+                                    {t('Tap a circle to set the default')}
                                 </Text>
                             }
                         >
@@ -142,7 +144,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                                                 {String(minutes)}
                                             </Text>
                                             <Text variant="subhead" tone="muted">
-                                                min
+                                                {t('min')}
                                             </Text>
 
                                             {isDefault ? <Tag tone="muted">DEFAULT</Tag> : null}
@@ -210,7 +212,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                         <View style={styles.figure}>
                             <Text variant="figure">{String(data.defaultDuration)}</Text>
                             <Text variant="callout" tone="muted">
-                                min
+                                {t('min')}
                             </Text>
                         </View>
                         <Text variant="footnote" tone="muted">

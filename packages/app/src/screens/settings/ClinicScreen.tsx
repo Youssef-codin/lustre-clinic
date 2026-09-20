@@ -19,12 +19,14 @@ import { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { useTRPC } from '../../api';
 import { ActionBar, Callout, Card, NumericField, SectionLabel, TextField, Toast } from '../../components/ui';
+import { useT } from '../../i18n';
 import { space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
 
 export function ClinicScreen({ onBack }: { onBack: () => void }) {
+    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
@@ -141,7 +143,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                     </Card>
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
-                        Appears on receipts and in reminder messages.
+                        {t('Appears on receipts and in reminder messages.')}
                     </Text>
 
                     <SectionLabel inset={false}>PATIENT NUMBERS</SectionLabel>
@@ -161,7 +163,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                     </Card>
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
-                        The next patient registered gets the number after this one.
+                        {t('The next patient registered gets the number after this one.')}
                     </Text>
                 </>
             ) : null}

@@ -29,6 +29,7 @@ import {
     BottomSheetBackdrop,
     BottomSheetModal,
     BottomSheetScrollView,
+    BottomSheetView,
     useBottomSheetTimingConfigs,
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
@@ -36,6 +37,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { duration } from './motion';
 import { useHardwareBack } from './useHardwareBack';
@@ -86,6 +88,22 @@ export type SheetProps = {
      * but the shortcut.
      */
     dragFromBody?: boolean;
+    /**
+     * Whether the body scrolls.
+     *
+     * Off for a body that is a control rather than a list — the time wheel,
+     * whose columns are `FlatList`s of their own. React Native refuses to
+     * window a `VirtualizedList` nested in a scroll view of the same
+     * orientation and says so as a red console error on every open, which is a
+     * real complaint even though the wheel's own height is fixed and its
+     * windowing works: the rule exists because the outer scroll usually leaves
+     * the inner list unbounded.
+     *
+     * The cost is that nothing saves a body taller than `maxHeightRatio` — it
+     * is clipped instead of scrolled — so this is only for content whose height
+     * is known and small.
+     */
+    scrollBody?: boolean;
     testID?: string;
 };
 
@@ -100,8 +118,10 @@ export function Sheet({
     maxHeightRatio = 0.86,
     dismissable = true,
     dragFromBody = true,
+    scrollBody = true,
     testID,
 }: SheetProps) {
+    const t = useT();
     const sheet = useRef<BottomSheetModal>(null);
     const insets = useSafeAreaInsets();
     const window = useWindowDimensions();
@@ -271,17 +291,24 @@ export function Sheet({
 
                 {title ? (
                     <View style={styles.header}>
-                        <Text variant="title3">{title}</Text>
+                        <Text variant="title3">{t(title)}</Text>
                         {subtitle ? (
                             <Text variant="subhead" tone="muted">
-                                {subtitle}
+                                {t(subtitle)}
                             </Text>
                         ) : null}
                     </View>
                 ) : null}
             </View>
         ),
-        [title, subtitle],
+        [t, title, subtitle],
+    );
+
+    const body = (
+        <>
+            {children}
+            {footer ? <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View> : null}
+        </>
     );
 
     return (
@@ -343,16 +370,23 @@ export function Sheet({
              * came up with no button at all. The cost is that on a sheet tall
              * enough to scroll, the action scrolls with the content.
              */}
-            <BottomSheetScrollView
-                testID={testID}
-                contentContainerStyle={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-            >
-                {children}
-
-                {footer ? <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View> : null}
-            </BottomSheetScrollView>
+            {scrollBody ? (
+                <BottomSheetScrollView
+                    testID={testID}
+                    contentContainerStyle={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="interactive"
+                >
+                    {body}
+                </BottomSheetScrollView>
+            ) : (
+                <BottomSheetView
+                    testID={testID}
+                    style={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
+                >
+                    {body}
+                </BottomSheetView>
+            )}
         </BottomSheetModal>
     );
 }

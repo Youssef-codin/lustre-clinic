@@ -19,6 +19,7 @@ import {
     duration as motionDuration,
     useReducedMotion,
 } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
@@ -64,6 +65,7 @@ export function AgendaRow({
     onNoShow,
     projectedMinutes = null,
 }: AgendaRowProps) {
+    const t = useT();
     const slide = useRef(new Animated.Value(0)).current;
     const [armed, setArmed] = useState(false);
 
@@ -98,10 +100,10 @@ export function AgendaRow({
         <View style={styles.swipe} {...pan.panHandlers}>
             <View style={styles.behind} pointerEvents="none">
                 <Text variant="footnote" weight="semibold" tone={armed ? 'due' : 'muted'}>
-                    No-show
+                    {t('No-show')}
                 </Text>
                 <Text variant="footnote" weight="semibold" tone={armed ? 'due' : 'muted'}>
-                    No-show
+                    {t('No-show')}
                 </Text>
             </View>
             <Animated.View style={[styles.front, { transform: [{ translateX: slide }] }]}>

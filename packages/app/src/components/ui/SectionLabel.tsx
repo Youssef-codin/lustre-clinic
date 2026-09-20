@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { size, space, Text, useT } from '../../theme';
+import { useT } from '../../i18n';
+import { size, space, Text } from '../../theme';
 
 export type SectionLabelProps = {
     children: string;

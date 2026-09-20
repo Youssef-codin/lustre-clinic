@@ -6,7 +6,8 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { space, Text, useT } from '../../theme';
+import { useT } from '../../i18n';
+import { space, Text } from '../../theme';
 import { Button } from './Button';
 import { Sheet } from './Sheet';
 

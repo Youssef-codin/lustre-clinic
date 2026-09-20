@@ -9,7 +9,8 @@ import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: runs the slide `Animated.timing` and unmounts on its completion callback — the exit has to finish before the pane leaves the tree
 import { useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, useWindowDimensions } from 'react-native';
-import { color, useIsRTL } from '../../theme';
+import { useIsRTL } from '../../i18n';
+import { color } from '../../theme';
 import { duration, easing } from './motion';
 import { useReducedMotion } from './useReducedMotion';
 

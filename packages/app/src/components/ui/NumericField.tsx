@@ -23,7 +23,8 @@
 import { forwardRef, useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { color, font, radius, size as sizes, space, Text, type, useIsRTL } from '../../theme';
+import { useIsRTL } from '../../i18n';
+import { color, font, radius, size as sizes, space, Text, type } from '../../theme';
 import type { FieldLayout } from './Field';
 import { Field } from './Field';
 import { Placeholder } from './Placeholder';

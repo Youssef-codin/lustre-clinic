@@ -22,6 +22,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { poundsToPiastres, toPounds } from '../../../components/domain/money';
 import { duration } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import type { ProcedureCategory, RequestError } from '../data';
 import { groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
@@ -50,6 +51,7 @@ type Asking =
     | { step: 'toothFor'; picked: PickedProcedure };
 
 export function ProcedurePlan({ value, onChange, categories, loading, error, onRetry }: ProcedurePlanProps) {
+    const t = useT();
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
 
@@ -118,7 +120,7 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
         <View style={styles.plan}>
             <View style={styles.head}>
                 <Text variant="eyebrow" tone="muted">
-                    WHAT IS PLANNED
+                    {t('WHAT IS PLANNED')}
                 </Text>
                 <Text variant="caption" tone="muted">
                     {value.length === 0
@@ -137,7 +139,7 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                     <View style={styles.ring}>
                         <PlusIcon size={20} stroke={color.ink} />
                     </View>
-                    <Text variant="headline">Nothing planned yet</Text>
+                    <Text variant="headline">{t('Nothing planned yet')}</Text>
                     <Text variant="subhead" tone="muted" style={styles.emptyBody}>
                         Add what the visit is for — a tooth, then the procedure. It can be left empty and
                         decided in the chair.
@@ -173,7 +175,7 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                                     money: (
                                         <>
                                             <Text variant="caption" tone="muted">
-                                                EGP
+                                                {t('EGP')}
                                             </Text>
                                             <TextInput
                                                 value={String(toPounds(item.price))}
@@ -230,13 +232,13 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                             <PlusIcon size={13} stroke={color.inverse} />
                         </View>
                         <Text variant="subhead" weight="semibold" tone="ink2">
-                            Add procedure
+                            {t('Add procedure')}
                         </Text>
                     </Pressable>
 
                     <View style={styles.total}>
                         <Text variant="subhead" tone="muted">
-                            Estimated total
+                            {t('Estimated total')}
                         </Text>
                         <MoneyValue piastres={total} variant="title3" weight="semibold" />
                     </View>

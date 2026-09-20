@@ -4,7 +4,8 @@
  * mirror in Arabic; up and down do not.
  */
 import { StyleSheet, View } from 'react-native';
-import { color, useIsRTL } from '../../theme';
+import { useIsRTL } from '../../i18n';
+import { color } from '../../theme';
 
 export type ChevronDirection = 'forward' | 'back' | 'up' | 'down';
 

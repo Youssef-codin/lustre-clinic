@@ -1,14 +1,16 @@
 /**
  * Failures, in the words the secretary needs. §4/§14: the client localizes
  * from `ERROR_CODE` and never parses the server's message, which stays English
- * for the logs; when the dictionaries land (F4) these strings move into them
- * and the switch does not change. The rule for the copy: say what happened to
- * the thing on screen, then what to do about it. The SLOT_OVERLAP case matters
- * most — double-booking is a Postgres exclusion constraint, and a secretary
- * standing in front of the patient has to know the slot is gone, not that
- * "something went wrong", or she tells them they are booked and they are not.
+ * for the logs. The switch picks the English sentence and `localize` takes it
+ * through the shared catalogue on the way out, so the Arabic lives beside every
+ * other string in the app rather than in a second table keyed by code. The rule
+ * for the copy: say what happened to the thing on screen, then what to do about
+ * it. The SLOT_OVERLAP case matters most — double-booking is a Postgres
+ * exclusion constraint, and a secretary standing in front of the patient has to
+ * know the slot is gone, not that "something went wrong", or she tells them
+ * they are booked and they are not.
  */
-import { ERROR_CODE, localizedError } from '@lustre/shared';
+import { ERROR_CODE, localizeCopy } from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
 import type { RequestError } from './data';
 
@@ -20,26 +22,20 @@ export interface ErrorMessage {
 export type ErrorContext = 'walk-in' | 'booking' | 'move' | 'check-in' | 'check-out' | 'day' | 'generic';
 
 export function describeError(error: RequestError, context: ErrorContext = 'generic'): ErrorMessage {
+    return localize(englishError(error, context));
+}
+
+function localize({ title, body }: ErrorMessage): ErrorMessage {
     const locale = getLocale();
+    const localized = localizeCopy(locale, title);
+    return body === undefined ? { title: localized } : { title: localized, body: localizeCopy(locale, body) };
+}
+
+function englishError(error: RequestError, context: ErrorContext): ErrorMessage {
     if (error.offline) {
-        if (locale === 'ar') {
-            return {
-                title: 'خادم العيادة لا يستجيب',
-                body: 'لم يتم حفظ شيء. تأكد أن كمبيوتر العيادة يعمل وحاول مرة أخرى.',
-            };
-        }
         return {
             title: 'The clinic server did not answer',
             body: 'Nothing was saved. Check the clinic PC is on and try again.',
-        };
-    }
-
-    if (locale === 'ar') {
-        const translated = localizedError(locale, error.code);
-        if (translated) return translated;
-        return {
-            title: writeContext(context) ? 'لم يتم الحفظ' : 'لم يتم التحميل',
-            body: 'لم يتغير شيء. حاول مرة أخرى.',
         };
     }
 

@@ -12,7 +12,7 @@
 import { resolveLabel } from '@lustre/shared';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { Button, Placeholder, Select, TextField } from '../../../components/ui';
-import { useLocale } from '../../../shell/localeStore';
+import { useLocale, useT } from '../../../i18n';
 import { color, font, radius, size, space, Text, type } from '../../../theme';
 import type { CustomQuestion } from '../data/types';
 import type { DraftValue } from './customFields';
@@ -160,6 +160,7 @@ function NumberBox({ question, value, onChange, error }: Omit<AnswerEditorProps,
  * and is what deactivating a question means.
  */
 export function ReadOnlyAnswer({ question, shown }: { question: CustomQuestion; shown: string | null }) {
+    const t = useT();
     const label = resolveLabel(question, useLocale());
 
     return (
@@ -175,7 +176,7 @@ export function ReadOnlyAnswer({ question, shown }: { question: CustomQuestion; 
                     {shown ?? 'Not answered'}
                 </Text>
                 <Text variant="caption" tone="muted">
-                    Read-only for now
+                    {t('Read-only for now')}
                 </Text>
             </View>
         </View>

@@ -32,7 +32,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
-import { useLocale, useT } from '../../shell/localeStore';
+import { useLocale, useT } from '../../i18n';
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
@@ -74,7 +74,7 @@ export function WorkingHoursScreen({ onBack }: { onBack: () => void }) {
 
     return (
         <Pane
-            title={t('Working hours')}
+            title="Working hours"
             onBack={onBack}
             pull={pull}
             overlay={
@@ -169,7 +169,7 @@ function DayRow({ name, day, branchName, onPress }: DayRowProps) {
                 </Text>
             ) : (
                 <Tag tone="muted" variant="muted">
-                    {t('CLOSED')}
+                    CLOSED
                 </Tag>
             )}
             <Chevron direction="forward" tone="muted" />
@@ -196,6 +196,7 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     const [picking, setPicking] = useState<'opens' | 'closes' | null>(null);
     const [draft, setDraft] = useState(0);
     const locale = useLocale();
+    const openLabel = t('Open on {day}', { day: name });
 
     function pick(which: 'opens' | 'closes') {
         setDraft(which === 'opens' ? opens : closes);
@@ -212,7 +213,7 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
         .filter((branch) => branch.active || branch.id === day?.branchId)
         .map((branch) => ({
             value: branch.id,
-            label: branch.active ? branch.name : `${branch.name} (deactivated)`,
+            label: branch.active ? branch.name : t('{branch} (deactivated)', { branch: branch.name }),
         }));
 
     const trpc = useTRPC();
@@ -231,7 +232,10 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
 
     function onSave() {
         if (!open) {
-            clearDay.mutate({ weekday }, { onSuccess: () => onSaved(`${name} marked closed`) });
+            clearDay.mutate(
+                { weekday },
+                { onSuccess: () => onSaved(t('{day} marked closed', { day: name })) },
+            );
             return;
         }
         if (!branchId) return;
@@ -242,7 +246,7 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                 opensAt: timeFromMinutes(opens),
                 closesAt: timeFromMinutes(closes),
             },
-            { onSuccess: () => onSaved(`${name} saved`) },
+            { onSuccess: () => onSaved(t('{day} saved', { day: name })) },
         );
     }
 
@@ -253,10 +257,8 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                 onClose={pending ? () => {} : onClose}
                 dismissable={!pending}
                 title={name}
-                subtitle={open ? t('Open this day') : t('Closed all day')}
-                footer={
-                    <Button label={t('Save')} onPress={onSave} loading={pending} disabled={!canSave} block />
-                }
+                subtitle={open ? 'Open this day' : 'Closed all day'}
+                footer={<Button label="Save" onPress={onSave} loading={pending} disabled={!canSave} block />}
             >
                 {failure ? (
                     <Callout tone="warning" title="Not saved">
@@ -269,17 +271,13 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                 <View style={styles.switchRow}>
                     <View style={styles.rowText}>
                         <Text variant="body" weight="medium">
-                            {locale === 'ar' ? `مفتوح يوم ${name}` : `Open on ${name}`}
+                            {openLabel}
                         </Text>
                         <Text variant="subhead" tone="muted">
                             {t('Off means closed all day.')}
                         </Text>
                     </View>
-                    <Switch
-                        value={open}
-                        onValueChange={setOpen}
-                        accessibilityLabel={locale === 'ar' ? `مفتوح يوم ${name}` : `Open on ${name}`}
-                    />
+                    <Switch value={open} onValueChange={setOpen} accessibilityLabel={openLabel} />
                 </View>
 
                 {open ? (
@@ -309,18 +307,14 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
                     visible
                     onClose={() => setPicking(null)}
                     dragFromBody={false}
-                    title={t(picking === 'opens' ? 'Opens' : 'Closes')}
+                    scrollBody={false}
+                    title={picking === 'opens' ? 'Opens' : 'Closes'}
                     subtitle={formatClock(draft, locale)}
                     testID="working-hours-wheel"
                     footer={
                         <>
-                            <Button label={t('Set')} block onPress={setPicked} testID="working-hours-set" />
-                            <Button
-                                label={t('Cancel')}
-                                variant="ghost"
-                                block
-                                onPress={() => setPicking(null)}
-                            />
+                            <Button label="Set" block onPress={setPicked} testID="working-hours-set" />
+                            <Button label="Cancel" variant="ghost" block onPress={() => setPicking(null)} />
                         </>
                     }
                 >

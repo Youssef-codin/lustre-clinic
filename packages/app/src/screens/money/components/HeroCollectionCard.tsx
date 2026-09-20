@@ -10,6 +10,7 @@
 // tinted figures are tokens instead: an opacity on the card would dim its
 // contents with it.
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../../i18n';
 import { color, gradient, radius, shadow, space, Text } from '../../../theme';
 import type { BalanceSummary } from '../data';
 import { MoneyValue } from '../MoneyValue';
@@ -26,6 +27,7 @@ export type HeroCollectionCardProps = {
 };
 
 export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollectionCardProps) {
+    const t = useT();
     const { charged, collected, difference, duePatients } = summary;
 
     const rate = collectionRate(charged, collected);
@@ -41,7 +43,7 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
     return (
         <View style={[styles.card, { minHeight }]} testID="money-hero">
             <Text variant="eyebrow" script="sans" weight="bold" tone="inverse" style={styles.dim}>
-                Collection rate
+                {t('Collection rate')}
             </Text>
 
             <View style={styles.figure}>

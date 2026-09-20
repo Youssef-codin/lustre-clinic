@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { color, radius, shadow, space, Text, useT } from '../../theme';
+import { useT } from '../../i18n';
+import { color, radius, shadow, space, Text } from '../../theme';
 import { Button } from './Button';
 
 export type EmptyStateProps = {

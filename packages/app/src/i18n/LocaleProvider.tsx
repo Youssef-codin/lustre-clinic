@@ -1,4 +1,4 @@
-import { type Locale, localizeCopy } from '@lustre/shared';
+import { type CopyVars, type Locale, localizeCopy } from '@lustre/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     createContext,
@@ -33,6 +33,8 @@ async function hydrate(): Promise<void> {
 const subscribe = hydratingSubscribe(listeners, hydrate);
 const getSnapshot = () => current;
 
+/** Not a hook: the language toggle is the only caller and it sets the
+ * preference rather than reading it, so there is nothing to subscribe to. */
 export function setLocale(next: Locale): void {
     if (next === current) return;
     emit(next);
@@ -42,8 +44,7 @@ export function setLocale(next: Locale): void {
 type LocaleContextValue = {
     locale: Locale;
     isRTL: boolean;
-    setLocale: (locale: Locale) => void;
-    t: (copy: string) => string;
+    t: (copy: string, vars?: CopyVars) => string;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -51,7 +52,7 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 export function LocaleProvider({ children }: { children: ReactNode }) {
     const locale = useSyncExternalStore(subscribe, getSnapshot);
     const isRTL = locale === 'ar';
-    const t = useCallback((copy: string) => localizeCopy(locale, copy), [locale]);
+    const t = useCallback((copy: string, vars?: CopyVars) => localizeCopy(locale, copy, vars), [locale]);
 
     useEffect(() => {
         I18nManager.allowRTL(true);
@@ -59,7 +60,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
         if (I18nManager.isRTL !== isRTL) I18nManager.forceRTL(isRTL);
     }, [isRTL]);
 
-    const value = useMemo(() => ({ locale, isRTL, setLocale, t }), [locale, isRTL, t]);
+    const value = useMemo(() => ({ locale, isRTL, t }), [locale, isRTL, t]);
     return (
         <LocaleContext.Provider value={value}>
             <View style={[styles.root, { direction: isRTL ? 'rtl' : 'ltr' }]}>{children}</View>
@@ -81,12 +82,8 @@ export function useIsRTL(): boolean {
     return useLocaleContext().isRTL;
 }
 
-export function useT(): (copy: string) => string {
+export function useT(): (copy: string, vars?: CopyVars) => string {
     return useLocaleContext().t;
-}
-
-export function useSetLocale(): (locale: Locale) => void {
-    return useLocaleContext().setLocale;
 }
 
 const styles = StyleSheet.create({ root: { flex: 1 } });

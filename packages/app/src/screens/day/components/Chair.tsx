@@ -13,6 +13,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Dot } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
@@ -56,6 +57,7 @@ export function ChairStrip({
     onOpenRecord,
     onFinish,
 }: ChairStripProps) {
+    const t = useT();
     const starts = minutesOfDay(appointment.startsAt);
 
     return (
@@ -65,7 +67,7 @@ export function ChairStrip({
                     <View style={styles.eyebrowRow}>
                         <Dot tone="wa" size={7} />
                         <Text variant="eyebrow" tone="successText">
-                            IN THE CHAIR
+                            {t('IN THE CHAIR')}
                         </Text>
                     </View>
 
@@ -140,17 +142,18 @@ export function ChairCard({
     onOpenRecord,
     onFinish,
 }: ChairCardProps) {
+    const t = useT();
     if (!appointment) {
         return (
             <View style={[styles.card, styles.empty]} testID="chair-card">
                 <Text variant="eyebrow" tone="muted">
-                    THE CHAIR
+                    {t('THE CHAIR')}
                 </Text>
                 <Text variant="headline" weight="medium" tone="inverse">
-                    Nobody waiting
+                    {t('Nobody waiting')}
                 </Text>
                 <Text variant="subhead" tone="muted">
-                    The day is done. Anyone new comes through the desk.
+                    {t('The day is done. Anyone new comes through the desk.')}
                 </Text>
             </View>
         );

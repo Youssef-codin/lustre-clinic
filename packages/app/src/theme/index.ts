@@ -1,4 +1,3 @@
-export { useIsRTL, useT } from '../i18n';
 export { useAppFonts } from './fonts';
 export type { TextProps, TextTone, TextVariant, TextWeight } from './Text';
 export { containsArabic, Text } from './Text';

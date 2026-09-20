@@ -28,11 +28,11 @@ import {
     Toast,
     useAfterSheet,
 } from '../../components/ui';
-import { isOpen, rendered, useRouteStack } from '../../navigation';
-import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
-import { setLocale, useLocale, useT } from '../../shell/localeStore';
+import { setLocale, useLocale, useT } from '../../i18n';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
+import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 import { color, size, space, Text } from '../../theme';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';

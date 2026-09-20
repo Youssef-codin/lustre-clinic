@@ -33,6 +33,7 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import { Button, Callout, Chevron, Chip, Select, Textarea, useKeyboardHeight } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import {
     dayLabel,
@@ -172,6 +173,7 @@ export function BookingScreen({
     onBack,
     onBooked,
 }: BookingScreenProps) {
+    const t = useT();
     const today = todayKey();
 
     const [index, setIndex] = useState(0);
@@ -456,7 +458,7 @@ export function BookingScreen({
     const howLong = (
         <View style={styles.section}>
             <Text variant="eyebrow" tone="muted">
-                HOW LONG
+                {t('HOW LONG')}
             </Text>
             {/* Four to a row, wrapping — not one row of `grow` chips. Settings
                 lets the clinic keep up to twelve lengths and this screen has to
@@ -527,7 +529,7 @@ export function BookingScreen({
                         </>
                     ) : (
                         <Text variant="eyebrow" tone="inverse">
-                            NOW
+                            {t('NOW')}
                         </Text>
                     )}
                 </View>
@@ -583,7 +585,7 @@ export function BookingScreen({
                     <>
                         <View style={styles.section}>
                             <Text variant="eyebrow" tone="muted">
-                                WHEN
+                                {t('WHEN')}
                             </Text>
 
                             {branches.length > 1 ? (
@@ -713,7 +715,7 @@ export function BookingScreen({
                         <View style={styles.section}>
                             <View style={styles.head}>
                                 <Text variant="eyebrow" tone="muted">
-                                    WHAT IS PLANNED
+                                    {t('WHAT IS PLANNED')}
                                 </Text>
                                 <Text variant="caption" weight="medium" tone="muted">
                                     {plan.length === 0
@@ -725,7 +727,7 @@ export function BookingScreen({
                             {plan.length === 0 ? (
                                 <View style={styles.emptyPlan}>
                                     <Text variant="subhead" tone="muted">
-                                        No procedures planned — it will be decided in the chair.
+                                        {t('No procedures planned — it will be decided in the chair.')}
                                     </Text>
                                 </View>
                             ) : (
@@ -759,7 +761,7 @@ export function BookingScreen({
 
                                     <View style={styles.total}>
                                         <Text variant="subhead" tone="muted">
-                                            Estimated total
+                                            {t('Estimated total')}
                                         </Text>
                                         <Text variant="title3" weight="bold">
                                             {formatMoney(totalOf(plan))}
@@ -772,7 +774,7 @@ export function BookingScreen({
                         {note.trim() ? (
                             <View style={styles.section}>
                                 <Text variant="eyebrow" tone="muted">
-                                    NOTE
+                                    {t('NOTE')}
                                 </Text>
                                 <View style={styles.noteCard}>
                                     <Text variant="callout" tone="ink2">

@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MoneyValue, StatusPill } from '../../../components/domain';
 import { Button, Callout, CardDivider, Sheet, Tag } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import {
     type Appointment,
@@ -381,6 +382,7 @@ function VisitPanel({
     failed: boolean;
     onRetry: () => void;
 }) {
+    const t = useT();
     if (loading) {
         return (
             <View style={styles.panel}>
@@ -395,7 +397,7 @@ function VisitPanel({
         return (
             <View style={styles.panel}>
                 <Text variant="subhead" tone="due">
-                    The visit could not be loaded.
+                    {t('The visit could not be loaded.')}
                 </Text>
                 <Button label="Try again" variant="text" size="md" onPress={onRetry} />
             </View>
@@ -417,20 +419,20 @@ function VisitPanel({
         <View style={styles.panel}>
             <View style={styles.money}>
                 <Text variant="subhead" tone="muted">
-                    Charged
+                    {t('Charged')}
                 </Text>
                 <MoneyValue piastres={visit.chargedTotal} />
             </View>
             <View style={styles.money}>
                 <Text variant="subhead" tone="muted">
-                    Paid
+                    {t('Paid')}
                 </Text>
                 <MoneyValue piastres={visit.paidTotal} tone="success" />
             </View>
             {visit.balance > 0 ? (
                 <View style={styles.money}>
                     <Text variant="subhead" tone="muted">
-                        Outstanding
+                        {t('Outstanding')}
                     </Text>
                     <MoneyValue piastres={visit.balance} tone="due" />
                 </View>
@@ -465,10 +467,11 @@ function Fact({ label, value, mono = false }: { label: string; value: string; mo
 
 /** The note is prose and gets the full width; a value column would ladder it. */
 function Note({ text }: { text: string }) {
+    const t = useT();
     return (
         <View style={styles.note}>
             <Text variant="subhead" tone="muted">
-                Note
+                {t('Note')}
             </Text>
             <Text variant="body" tone="ink2">
                 {text}

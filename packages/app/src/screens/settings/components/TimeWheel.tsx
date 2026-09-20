@@ -2,17 +2,42 @@
  * Opening and closing time, on a wheel. The wheel library supplies the native-
  * animated cylinder projection; every visible row and the selection band stay
  * in the app so clock labels always follow the app locale.
+ *
+ * **The columns are virtualized, and that is not a nicety.** The library's
+ * default list mounts every datum — `data.map(...)`, `removeClippedSubviews`
+ * off — and gives each row an `Animated.View` carrying three interpolations off
+ * the native scroll offset: opacity, `rotateX` and `translateY`. An animated
+ * opacity on a view group is an offscreen `saveLayer` and a 3D rotate is a
+ * render layer, so the sixty minutes plus twelve hours plus two meridiems came
+ * to seventy-four rotated, alpha-blended layers re-rasterised every frame. On
+ * the emulator that pinned `RenderThread` at 99% for the length of a scroll and
+ * took the UI thread down with it: one 250px swipe moved the column one row and
+ * took ninety-five seconds, with `Input dispatching timed out` every five.
+ * `withVirtualized` at `windowSize={3}` mounts about fifteen rows a column
+ * instead, and the same swipe now settles in a frame or two.
+ *
+ * `_enableSyncScrollAfterScrollEnd` is off for the same reason in a different
+ * place. It re-issues `scrollToIndex` a beat after every scroll ends to pull a
+ * column back onto its value; against a `FlatList` that programmatic animated
+ * scroll never reports an end on Android, so the resync re-arms itself and the
+ * column scrolls for ever — `RenderThread` at 100% with no way back. Tapping a
+ * row was enough to trigger it. Nothing is lost by turning it off: the effect
+ * keyed on `valueIndex` still scrolls the column whenever `value` changes,
+ * which is the path that makes the control controlled.
  */
-import WheelPicker, { type RenderItemProps } from '@quidone/react-native-wheel-picker';
+import BaseWheelPicker, { type RenderItemProps, withVirtualized } from '@quidone/react-native-wheel-picker';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { clock12 } from '../../../components/domain';
 import { Chevron, Field } from '../../../components/ui';
-import { useLocale } from '../../../shell/localeStore';
+import { useLocale } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
+
+const WheelPicker = withVirtualized(BaseWheelPicker);
 
 const ROW = 44;
 const VISIBLE = 5;
+const WINDOW = 3;
 const COLUMN = 92;
 
 type Slot = { value: number; label: string };
@@ -108,6 +133,8 @@ export function TimeWheel({ value, onChange }: TimeWheelProps) {
                 onValueChanged={({ item }) => move({ ...parts, hour: item.value })}
                 renderItem={digits}
                 renderOverlay={null}
+                windowSize={WINDOW}
+                _enableSyncScrollAfterScrollEnd={false}
                 itemHeight={ROW}
                 visibleItemCount={VISIBLE}
                 width={COLUMN}
@@ -120,6 +147,8 @@ export function TimeWheel({ value, onChange }: TimeWheelProps) {
                 onValueChanged={({ item }) => move({ ...parts, minute: item.value })}
                 renderItem={digits}
                 renderOverlay={null}
+                windowSize={WINDOW}
+                _enableSyncScrollAfterScrollEnd={false}
                 itemHeight={ROW}
                 visibleItemCount={VISIBLE}
                 width={COLUMN}
@@ -132,6 +161,8 @@ export function TimeWheel({ value, onChange }: TimeWheelProps) {
                 onValueChanged={({ item }) => move({ ...parts, pm: item.value === 1 })}
                 renderItem={words}
                 renderOverlay={null}
+                windowSize={WINDOW}
+                _enableSyncScrollAfterScrollEnd={false}
                 itemHeight={ROW}
                 visibleItemCount={VISIBLE}
                 width={COLUMN}
@@ -144,14 +175,18 @@ export function TimeWheel({ value, onChange }: TimeWheelProps) {
 
 function digits({ item }: RenderItemProps<Slot>) {
     return (
-        <Text variant="title3" script="mono">
+        <Text variant="title3" script="mono" style={styles.label}>
             {item.label}
         </Text>
     );
 }
 
 function words({ item }: RenderItemProps<Slot>) {
-    return <Text variant="title3">{item.label}</Text>;
+    return (
+        <Text variant="title3" style={styles.label}>
+            {item.label}
+        </Text>
+    );
 }
 
 const styles = StyleSheet.create({
@@ -170,6 +205,7 @@ const styles = StyleSheet.create({
     errored: { borderColor: color.danger },
     pressed: { opacity: 0.72 },
     disabled: { opacity: 0.32 },
+    label: { width: '100%', textAlign: 'center' },
     wheel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     band: {
         position: 'absolute',

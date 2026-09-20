@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { color, containsArabic, font, radius, size, space, Text, type, useT } from '../../theme';
+import { useT } from '../../i18n';
+import { color, containsArabic, font, radius, size, space, Text, type } from '../../theme';
 import { Placeholder } from './Placeholder';
 
 export type SearchFieldProps = Omit<TextInputProps, 'style' | 'placeholderTextColor'> & {

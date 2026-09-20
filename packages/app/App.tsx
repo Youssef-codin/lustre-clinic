@@ -32,14 +32,23 @@ export default function App() {
     // `GestureHandlerRootView` and `BottomSheetModalProvider` are the two things
     // `ui/Sheet` needs above it: the first for the drag, the second because every
     // sheet is a modal presented into a portal here rather than mounted where it
-    // is written. Both sit outside `SafeAreaProvider` so a sheet can draw over
-    // the whole window, including the tab bar.
+    // is written. `GestureHandlerRootView` sits outside `SafeAreaProvider` so a
+    // sheet can draw over the whole window, including the tab bar.
+    //
+    // `BottomSheetModalProvider` is *inside* `LocaleProvider` and `ApiProvider`,
+    // and that nesting is load-bearing rather than tidy. The portal does not
+    // carry context across: a sheet's children are re-parented into the host
+    // rendered here, so every hook in them resolves against this position in the
+    // tree and not against the screen that wrote the sheet. With the provider
+    // above, `Sheet`'s own `useT` threw `LocaleProvider is missing` the moment a
+    // sheet opened. The same move puts the host inside the provider's direction
+    // wrapper, so sheet content mirrors in Arabic along with everything else.
     return (
         <GestureHandlerRootView style={styles.screen}>
             <SafeAreaProvider>
-                <BottomSheetModalProvider>
-                    <LocaleProvider>
-                        <ApiProvider>
+                <LocaleProvider>
+                    <ApiProvider>
+                        <BottomSheetModalProvider>
                             {/* The last resort, and the only boundary that can
                             catch the shell itself throwing. It sits under
                             `ApiProvider` so its Reload remounts the tree onto
@@ -48,9 +57,9 @@ export default function App() {
                             its own boundary below this one, so reaching this
                             means the shell or the tab bar went, not a tab. */}
                             <LocalizedRoot showSetup={showSetup} />
-                        </ApiProvider>
-                    </LocaleProvider>
-                </BottomSheetModalProvider>
+                        </BottomSheetModalProvider>
+                    </ApiProvider>
+                </LocaleProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>
     );

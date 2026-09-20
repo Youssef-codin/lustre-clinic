@@ -1,5 +1,4 @@
 import type { Locale } from './enums.ts';
-import type { ErrorCode } from './errors.ts';
 
 /** Strings shared by the handset and receipt rendering. English copy is the
  * stable key so existing server-side renderers can opt in without importing
@@ -295,73 +294,242 @@ export const COPY_AR = {
     'That amount is not allowed': 'هذا المبلغ غير مسموح',
     'Say how they paid': 'اذكر طريقة الدفع',
     'Something in that was not accepted': 'بعض البيانات غير مقبولة',
+    '01xx xxx xxxx': '01xx xxx xxxx',
+    "A category groups procedures. It has no price of its own and can't be picked on a visit.":
+        'التصنيف يجمع الإجراءات. ليس له سعر خاص ولا يمكن اختياره في زيارة.',
+    'A procedure inside a category is one of its subtypes, priced on its own.':
+        'الإجراء داخل تصنيف هو أحد أنواعه، وله سعره الخاص.',
+    APK: 'APK',
+    'Add a branch': 'إضافة فرع',
+    'Add a category': 'إضافة تصنيف',
+    'Add procedure': 'إضافة إجراء',
+    "Answers are filed under this. It can't change later.":
+        'تُحفظ الإجابات تحت هذا المفتاح. لا يمكن تغييره بعد ذلك.',
+    'Anything the doctor should know.': 'أي شيء يجب أن يعرفه الطبيب.',
+    'Appears on receipts and in reminder messages.': 'يظهر في الإيصالات وفي رسائل التذكير.',
+    'As it is on the old system': 'كما هو في النظام القديم',
+    'As written on the file': 'كما هو مكتوب في الملف',
+    BASICS: 'البيانات الأساسية',
+    'BOOKED FOR': 'محجوز لـ',
+    'Back to the day': 'العودة إلى اليوم',
+    'Back to the visit': 'العودة إلى الزيارة',
+    'Bank transfer': 'تحويل بنكي',
+    'Book an appointment or a walk-in': 'حجز موعد أو حضور مباشر',
+    'Branch name': 'اسم الفرع',
+    "Branches can't be deleted — history stays attached.": 'لا تُحذف الفروع — السجل يبقى مرتبطًا بها.',
+    "Built in — these five can't be renamed, reordered or removed.":
+        'حقول أساسية — لا يمكن إعادة تسميتها أو ترتيبها أو حذفها.',
+    'CLINIC QUESTIONS': 'أسئلة العيادة',
+    'Called off': 'أُلغي',
+    'Category name': 'اسم التصنيف',
+    Change: 'تغيير',
+    'Change the branch and cutoff date': 'تغيير الفرع وتاريخ الإقفال',
+    'Clinic saved': 'تم حفظ بيانات العيادة',
+    Closed: 'مغلق',
+    'Collected against charged': 'المحصّل مقابل المطلوب',
+    'Collection rate': 'نسبة التحصيل',
+    "Could not load the clinic's questions": 'تعذر تحميل أسئلة العيادة',
+    'Could not open this record': 'تعذر فتح هذا الملف',
+    "Couldn't load this": 'تعذر تحميل البيانات',
+    Crowns: 'التيجان',
+    'DD / MM / YYYY': 'يوم / شهر / سنة',
+    DISCOUNT: 'الخصم',
+    'Daily notification time, if any reminders are pending':
+        'موعد الإشعار اليومي إذا كانت هناك تذكيرات معلّقة',
+    'Day or reminders': 'اليوم أو التذكيرات',
+    Decrease: 'إنقاص',
+    'Diabetic?': 'مريض سكر؟',
+    'Did not attend': 'لم يحضر',
+    Discount: 'خصم',
+    Dismiss: 'إخفاء',
+    Done: 'تم',
+    EGP: 'ج.م',
+    'Edit this patient': 'تعديل بيانات المريض',
+    'Estimated total': 'الإجمالي التقديري',
+    'Everything paid on this visit, not a payment on top of it.':
+        'إجمالي ما دُفع في هذه الزيارة، وليس دفعة إضافية فوقه.',
+    F: 'أ',
+    Facebook: 'فيسبوك',
+    'Fixed once patients have answered.': 'لا يتغير بعد أن يجيب المرضى.',
+    Full: 'كامل',
+    'HOW LONG': 'المدة',
+    Half: 'نصف',
+    Heliopolis: 'مصر الجديدة',
+    Hide: 'إخفاء',
+    'Hide procedure': 'إخفاء الإجراء',
+    'Hide this procedure?': 'إخفاء هذا الإجراء؟',
+    'How long': 'المدة',
+    'How long before the appointment a reminder becomes due': 'قبل الموعد بكم يصبح التذكير مستحقًا',
+    'How often the notification repeats while reminders are still pending. Stops when the list is cleared or dismissed for the day, and never runs overnight.':
+        'كل كم يتكرر الإشعار ما دامت هناك تذكيرات معلّقة. يتوقف عند إنهاء القائمة أو إخفائها لليوم، ولا يعمل ليلًا.',
+    'How was it paid?': 'كيف تم الدفع؟',
+    'IN FOR': 'الزيارة من أجل',
+    'IN THE CHAIR': 'على الكرسي',
+    Increase: 'زيادة',
+    'Keep it': 'الإبقاء عليه',
+    LEGACY: 'من النظام القديم',
+    'Loading the day': 'جارٍ تحميل اليوم',
+    'Lustre Clinic': 'Lustre Clinic',
+    'Lustre Dental': 'Lustre Dental',
+    M: 'ذ',
+    MIN: 'دقيقة',
+    'NEXT UP': 'التالي',
+    NOTE: 'ملاحظة',
+    'NOTE FROM THE DESK': 'ملاحظة من الاستقبال',
+    NOW: 'الآن',
+    'New category': 'تصنيف جديد',
+    'New duration in minutes': 'مدة جديدة بالدقائق',
+    'Next month': 'الشهر التالي',
+    'No branch to book into': 'لا يوجد فرع للحجز فيه',
+    'No matching teeth.': 'لا توجد أسنان مطابقة.',
+    'No procedures planned — it will be decided in the chair.': 'لا توجد إجراءات مخططة — يُحدد على الكرسي.',
+    'No procedures recorded': 'لم تُسجل إجراءات',
+    'No tooth assigned': 'لم يُحدد سن',
+    'No-show': 'لم يحضر',
+    'Nobody in the chair': 'لا يوجد مريض على الكرسي',
+    'Nobody matches. If they are new here, register them below.':
+        'لا يوجد من يطابق البحث. إذا كان جديدًا هنا، سجّله بالأسفل.',
+    'Nobody waiting': 'لا أحد في الانتظار',
+    'Not answered': 'بدون إجابة',
+    'Not been here before?': 'أول مرة هنا؟',
+    'Not charged — other work was done': 'بدون رسوم — تم عمل آخر',
+    'Nothing has been paid on this visit yet.': 'لم يُدفع شيء في هذه الزيارة بعد.',
+    'Nothing left to check in today.': 'لم يتبق أحد لتسجيل حضوره اليوم.',
+    'Nothing owed': 'لا توجد مستحقات',
+    'Nothing planned — it will be decided in the chair.': 'لا توجد خطة — يُحدد على الكرسي.',
+    'Nothing planned yet': 'لا توجد خطة بعد',
+    'Nothing was collected in this period.': 'لم يُحصّل شيء في هذه الفترة.',
+    'Nothing was recorded on this visit.': 'لم يُسجل شيء في هذه الزيارة.',
+    'Old ref': 'الرقم القديم',
+    'Open on {day}': 'مفتوح يوم {day}',
+    'Open patient record': 'فتح ملف المريض',
+    'Opening balance': 'الرصيد الافتتاحي',
+    'Order not saved': 'لم يُحفظ الترتيب',
+    'Other payment method': 'طريقة دفع أخرى',
+    Outstanding: 'المستحق',
+    Owed: 'المستحق',
+    'Owed at the cutoff, in pounds': 'المستحق عند تاريخ الإقفال بالجنيه',
+    PATIENT: 'المريض',
+    PAYMENT: 'الدفع',
+    'PAYMENTS RECEIVED': 'الدفعات المستلمة',
+    Paid: 'المدفوع',
+    'Paid in full': 'مدفوع بالكامل',
+    'Previous month': 'الشهر السابق',
+    'Procedures are never deleted — past visits still reference them.':
+        'لا تُحذف الإجراءات — الزيارات السابقة ما زالت مرتبطة بها.',
+    'Question in Arabic': 'السؤال بالعربية',
+    'Question in English': 'السؤال بالإنجليزية',
+    'Read-only for now': 'للقراءة فقط حاليًا',
+    'Record section': 'قسم الملف',
+    'Refunds cancelled out what was taken, so there is no split to show.':
+        'المرتجعات عادلت ما تم تحصيله، فلا يوجد تفصيل لعرضه.',
+    'Remaining balance': 'المتبقي',
+    'Reminder message template': 'قالب رسالة التذكير',
+    'Repeat every': 'التكرار كل',
+    'Sample patient — real values are filled per appointment.':
+        'مريض تجريبي — تُملأ القيم الحقيقية مع كل موعد.',
+    'Search the patients on file, or register someone new.': 'ابحث في ملفات المرضى أو سجّل مريضًا جديدًا.',
+    'Send to desk': 'إرسال إلى الاستقبال',
+    'Send to the desk': 'إرسال إلى الاستقبال',
+    'Something on this tab went wrong. The other tabs still work — reload this one to try again.':
+        'حدث خطأ في هذا القسم. باقي الأقسام تعمل — أعد تحميله للمحاولة من جديد.',
+    'Still to ask': 'لم يُسأل بعد',
+    'Stored as': 'يُحفظ باسم',
+    'Street, area': 'الشارع، المنطقة',
+    'THE CHAIR': 'الكرسي',
+    TOOTH: 'السن',
+    'Tap a circle to set the default': 'اضغط على دائرة لتحديد الافتراضي',
+    'That visit ends after the clinic closes.': 'هذه الزيارة تنتهي بعد إغلاق العيادة.',
+    'The day is done. Anyone new comes through the desk.': 'انتهى اليوم. أي مريض جديد يمر عبر الاستقبال.',
+    'The next patient registered gets the number after this one.': 'المريض التالي يأخذ الرقم الذي يلي هذا.',
+    'The next screen asks for the first procedure under it.': 'الشاشة التالية تطلب أول إجراء تحته.',
+    "The old system's reference": 'الرقم المرجعي في النظام القديم',
+    'The patient list could not be searched.': 'تعذر البحث في قائمة المرضى.',
+    'The visit could not be loaded.': 'تعذر تحميل الزيارة.',
+    'This form cannot be completed': 'لا يمكن إكمال هذا النموذج',
+    'This number is already on file': 'هذا الرقم مسجل بالفعل',
+    'This tab stopped': 'توقف هذا القسم',
+    'Time into the slot': 'الوقت داخل الموعد',
+    'Total cost': 'إجمالي التكلفة',
+    'Treatment or payment': 'علاج أو دفع',
+    'Type two letters of a name, or part of a phone number.': 'اكتب حرفين من الاسم أو جزءًا من رقم الهاتف.',
+    VISIT: 'الزيارة',
+    'Visits already recorded keep the price they were charged at.':
+        'الزيارات المسجلة بالفعل تحتفظ بالسعر الذي حُسب وقتها.',
+    'WHAT IS PLANNED': 'الخطة',
+    'WHAT TIME': 'الوقت',
+    'WHAT WAS DONE': 'ما تم عمله',
+    WHATSAPP: 'واتساب',
+    WHEN: 'الموعد',
+    'WHICH DAY': 'اليوم',
+    'Waived when other work is done': 'يُعفى منه عند عمل إجراء آخر',
+    Was: 'كان',
+    'What was it?': 'ما طريقة الدفع؟',
+    'Which branch': 'أي فرع',
+    'Whole pounds. More than they owe is not accepted.': 'بالجنيهات الكاملة. لا يُقبل أكثر من المستحق عليه.',
+    'Zirconia crown': 'تاج زيركون',
+    'booked load': 'نسبة الحجز',
+    'clinic-pc.tailnet.ts.net:3000': 'clinic-pc.tailnet.ts.net:3000',
+    diabetic: 'مريض سكر',
+    due: 'مستحق',
+    'entered this session': 'أُدخلت في هذه الجلسة',
+    'fully booked': 'محجوز بالكامل',
+    min: 'د',
+    paid: 'مدفوع',
+    '{branch} (deactivated)': '{branch} (موقوف)',
+    '{day} marked closed': 'تم ضبط {day} كيوم مغلق',
+    '{day} saved': 'تم حفظ {day}',
+    'That branch is no longer set up. Pick another one.': 'لم يعد هذا الفرع مضبوطًا. اختر فرعًا آخر.',
+    'Nothing was saved. Check the clinic PC is on and try again.':
+        'لم يتم حفظ شيء. تأكد أن كمبيوتر العيادة يعمل وحاول مرة أخرى.',
+    'Someone is already booked for that time. Give this walk-in a shorter visit, or finish the patient in the chair first.':
+        'هناك حجز بالفعل في هذا الوقت. اجعل زيارة الحضور المباشر أقصر، أو أنهِ المريض الذي على الكرسي أولًا.',
+    'That time was taken while this was being filled in. Go back and pick another one — the times have been reloaded.':
+        'حُجز هذا الوقت أثناء ملء البيانات. ارجع واختر وقتًا آخر — تم تحديث المواعيد.',
+    'Someone is already booked for that time. Pick another time, or shorten the appointment.':
+        'هناك حجز بالفعل في هذا الوقت. اختر وقتًا آخر أو قلّل مدة الموعد.',
+    'That length is not one of the clinic’s': 'هذه المدة ليست من مدد العيادة',
+    'Pick one of the durations set up in Settings.': 'اختر مدة من المدد المضبوطة في الإعدادات.',
+    'Someone else changed this appointment. Close this and open it again.':
+        'غيّر شخص آخر هذا الموعد. أغلقه وافتحه مرة أخرى.',
+    'A patient is checked in on the day of their appointment. Move it to today first if they are here now.':
+        'يُسجل حضور المريض في يوم موعده. انقل الموعد إلى اليوم أولًا إذا كان موجودًا الآن.',
+    'A visit needs at least one procedure before it can be checked out.':
+        'تحتاج الزيارة إلى إجراء واحد على الأقل قبل إنهائها.',
+    'That day could not be loaded': 'تعذر تحميل هذا اليوم',
+    'That is no longer there': 'لم يعد هذا موجودًا',
+    'It may have been cancelled or removed. Reload the day.': 'ربما أُلغي أو حُذف. أعد تحميل اليوم.',
+    'Use the number as it is dialled, for example 010 1234 5678.':
+        'اكتب الرقم كما يتم الاتصال به، مثل 010 1234 5678.',
+    'Check the details and try again.': 'راجع البيانات وحاول مرة أخرى.',
+    'Enter the amount in whole pounds.': 'أدخل المبلغ بالجنيهات الكاملة.',
+    'Other needs a note — Instapay to whom, or which card.':
+        'طريقة «أخرى» تحتاج إلى ملاحظة — إنستاباي لمن، أو أي بطاقة.',
+    'Nothing was saved. Try again in a moment.': 'لم يتم حفظ شيء. حاول بعد قليل.',
+    'Nothing was changed. Try again — if it keeps failing, the clinic PC may need a restart.':
+        'لم يتغير شيء. حاول مرة أخرى — إذا استمر الفشل فقد يحتاج كمبيوتر العيادة إلى إعادة تشغيل.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;
 
-export function localizeCopy(locale: Locale, copy: string): string {
-    if (locale === 'en') return copy;
-    return COPY_AR[copy as CopyKey] ?? copy;
+/** Values substituted into a `{name}` slot in the copy.
+ *
+ * The slot is in the English key as well as the Arabic, so the two can order
+ * the sentence differently — `Open on {day}` against `مفتوح يوم {day}` — which
+ * is the whole reason the interpolation is here rather than at the call site
+ * concatenating a translated fragment onto a name. */
+export type CopyVars = Record<string, string | number>;
+
+const SLOT = /\{(\w+)\}/g;
+
+function fill(copy: string, vars: CopyVars): string {
+    return copy.replace(SLOT, (slot, name: string) => {
+        const value = vars[name];
+        return value === undefined ? slot : String(value);
+    });
 }
 
-export type ReceiptStringKey =
-    | 'receipt.title'
-    | 'receipt.patient'
-    | 'receipt.date'
-    | 'receipt.procedure'
-    | 'receipt.amount'
-    | 'receipt.paid'
-    | 'receipt.balance'
-    | 'receipt.thankYou';
-
-const RECEIPT: Record<Locale, Record<ReceiptStringKey, string>> = {
-    en: {
-        'receipt.title': 'Receipt',
-        'receipt.patient': 'Patient',
-        'receipt.date': 'Date',
-        'receipt.procedure': 'Procedure',
-        'receipt.amount': 'Amount',
-        'receipt.paid': 'Paid',
-        'receipt.balance': 'Balance',
-        'receipt.thankYou': 'Thank you',
-    },
-    ar: {
-        'receipt.title': 'إيصال',
-        'receipt.patient': 'المريض',
-        'receipt.date': 'التاريخ',
-        'receipt.procedure': 'الإجراء',
-        'receipt.amount': 'المبلغ',
-        'receipt.paid': 'المدفوع',
-        'receipt.balance': 'المتبقي',
-        'receipt.thankYou': 'شكرًا لك',
-    },
-};
-
-export function receiptString(locale: Locale, key: ReceiptStringKey): string {
-    return RECEIPT[locale][key];
-}
-
-export type ErrorString = { title: string; body?: string };
-
-const ERROR_AR: Partial<Record<ErrorCode, ErrorString>> = {
-    SLOT_OVERLAP: { title: 'هذا الموعد محجوز', body: 'اختر وقتًا آخر أو قلّل مدة الموعد.' },
-    INVALID_DURATION: { title: 'هذه المدة غير متاحة', body: 'اختر مدة مضبوطة في الإعدادات.' },
-    INVALID_STATUS_TRANSITION: {
-        title: 'تم تحديث هذه الحالة بالفعل',
-        body: 'غيّر شخص آخر هذا الموعد. أغلقه وافتحه مرة أخرى.',
-    },
-    VISIT_ALREADY_EXISTS: { title: 'تم تسجيل حضور هذا المريض بالفعل' },
-    CHECK_IN_NOT_TODAY: { title: 'هذا الموعد ليس اليوم', body: 'انقل الموعد إلى اليوم أولًا.' },
-    VISIT_ALREADY_COMPLETED: { title: 'تم إنهاء هذه الزيارة بالفعل' },
-    VISIT_HAS_NO_PROCEDURES: { title: 'أضف الإجراء الذي تم أولًا' },
-    NOT_FOUND: { title: 'لم يعد هذا موجودًا', body: 'ربما أُلغي أو حُذف. أعد التحميل.' },
-    INVALID_PHONE: { title: 'رقم الهاتف غير صحيح', body: 'اكتب الرقم كما يتم الاتصال به.' },
-    VALIDATION: { title: 'بعض البيانات غير مقبولة', body: 'راجع البيانات وحاول مرة أخرى.' },
-    INVALID_AMOUNT: { title: 'هذا المبلغ غير مسموح', body: 'أدخل المبلغ بالجنيهات الكاملة.' },
-    PAYMENT_NOTE_REQUIRED: { title: 'اذكر طريقة الدفع', body: 'طريقة «أخرى» تحتاج إلى ملاحظة.' },
-    DB_UNAVAILABLE: { title: 'خادم العيادة لا يستجيب', body: 'لم يتم حفظ شيء. حاول بعد قليل.' },
-};
-
-export function localizedError(locale: Locale, code: ErrorCode): ErrorString | undefined {
-    return locale === 'ar' ? ERROR_AR[code] : undefined;
+export function localizeCopy(locale: Locale, copy: string, vars?: CopyVars): string {
+    const resolved = locale === 'en' ? copy : (COPY_AR[copy as CopyKey] ?? copy);
+    return vars ? fill(resolved, vars) : resolved;
 }

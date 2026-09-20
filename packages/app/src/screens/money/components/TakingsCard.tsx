@@ -12,6 +12,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { duration, easing, useReducedMotion } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import type { MethodTaking, TakingsReport } from '../data';
 import { methodLabel } from '../format';
@@ -30,6 +31,7 @@ export type TakingsCardProps = {
 };
 
 export function TakingsCard({ takings, label }: TakingsCardProps) {
+    const t = useT();
     const { total, byMethod } = takings;
 
     // Nothing came in is a period with no payment rows, not a period whose
@@ -66,7 +68,7 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
             {nothingCollected ? (
                 <View style={styles.empty}>
                     <Text variant="subhead" tone="muted">
-                        Nothing was collected in this period.
+                        {t('Nothing was collected in this period.')}
                     </Text>
                 </View>
             ) : (
@@ -80,7 +82,7 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
             {!nothingCollected && !split ? (
                 <View style={styles.note}>
                     <Text variant="footnote" tone="muted">
-                        Refunds cancelled out what was taken, so there is no split to show.
+                        {t('Refunds cancelled out what was taken, so there is no split to show.')}
                     </Text>
                 </View>
             ) : null}

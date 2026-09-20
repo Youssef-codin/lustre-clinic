@@ -14,6 +14,7 @@
  */
 import { Fragment } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Patient } from '../data/types';
 import { sentenceCase } from './format';
@@ -132,10 +133,11 @@ function metaParts(patient: Patient): string[] {
  * chip in the app is: solid `ink`, `inverse` type. See BLOCKED.md.
  */
 function LegacyBadge() {
+    const t = useT();
     return (
         <View style={styles.legacy}>
             <Text variant="tag" weight="bold" tone="inverse">
-                LEGACY
+                {t('LEGACY')}
             </Text>
         </View>
     );

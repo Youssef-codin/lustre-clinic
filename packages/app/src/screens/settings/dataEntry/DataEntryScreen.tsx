@@ -61,6 +61,7 @@ import {
     TextField,
     Toast,
 } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import { Pane } from '../components/Pane';
 import { ErrorState, SkeletonRows } from '../components/QueryStates';
@@ -441,6 +442,7 @@ function saveLabel(owed: string[], pending: boolean): string {
  * can be checked against the old system's own count at the end.
  */
 function Tally({ session, total }: { session: Session; total?: number }) {
+    const t = useT();
     return (
         <View style={styles.tally}>
             <View style={styles.tallyMain}>
@@ -448,7 +450,7 @@ function Tally({ session, total }: { session: Session; total?: number }) {
                     {String(session.entered)}
                 </Text>
                 <Text variant="footnote" tone="muted">
-                    entered this session
+                    {t('entered this session')}
                 </Text>
             </View>
 
@@ -487,6 +489,7 @@ function CutoffCard({
     onDone: () => void;
     closeable: boolean;
 }) {
+    const t = useT();
     return (
         <View style={styles.group}>
             <SectionLabel inset={false}>BALANCES AS OF</SectionLabel>
@@ -527,7 +530,7 @@ function CutoffCard({
                         style={({ pressed }) => [styles.done, pressed && styles.pressed]}
                     >
                         <Text variant="footnote" weight="semibold" tone="accent">
-                            Done
+                            {t('Done')}
                         </Text>
                     </Pressable>
                 ) : null}
@@ -546,6 +549,7 @@ function CutoffSummary({
     date: string | null;
     onOpen: () => void;
 }) {
+    const t = useT();
     return (
         <Pressable
             accessibilityRole="button"
@@ -558,7 +562,7 @@ function CutoffSummary({
                 {branch && date ? `Balances as of ${date} · ${branch}` : 'No cutoff set — balances off'}
             </Text>
             <Text variant="caption" weight="semibold" tone="accent">
-                Change
+                {t('Change')}
             </Text>
         </Pressable>
     );
@@ -578,6 +582,7 @@ function DuplicateWarning({
     acknowledged: boolean;
     onAcknowledge: () => void;
 }) {
+    const t = useT();
     if (matches.length === 0) return null;
 
     return (
@@ -602,7 +607,7 @@ function DuplicateWarning({
                             </Text>
                         ) : null}
                     </View>
-                    <Text variant="footnote">This is a different patient</Text>
+                    <Text variant="footnote">{t('This is a different patient')}</Text>
                 </Pressable>
             </View>
         </Callout>

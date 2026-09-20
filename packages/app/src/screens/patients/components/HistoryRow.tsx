@@ -35,6 +35,7 @@
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MoneyValue, statusLabel } from '../../../components/domain';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
 
@@ -76,6 +77,7 @@ const CHECKED_IN: { label: string; tone: Tone } = { label: 'Checked in', tone: '
 const CARRIED_OVER: { label: string; tone: Tone } = { label: 'Carried over', tone: 'muted' };
 
 export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
+    const t = useT();
     const { day, month } = stamp(entry.startsAt);
     const carried = entry.isOpeningBalance;
     // Debt carried over from the old system has a visit behind it, because that
@@ -120,7 +122,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
             <View style={styles.body}>
                 {carried ? (
                     <Text variant="callout" weight="bold" numberOfLines={2}>
-                        Opening balance
+                        {t('Opening balance')}
                     </Text>
                 ) : (
                     <Work procedures={entry.procedures} />
@@ -147,7 +149,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                             tone="due"
                         />
                         <Text variant="caption" weight="bold" tone="due">
-                            due
+                            {t('due')}
                         </Text>
                     </View>
                 ) : came ? (
@@ -171,12 +173,13 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
  * where the whole list belongs.
  */
 function Work({ procedures }: { procedures: HistoryProcedure[] }) {
+    const t = useT();
     const [first, ...rest] = procedures;
 
     if (!first) {
         return (
             <Text variant="callout" weight="bold" tone="muted" numberOfLines={2}>
-                No procedures recorded
+                {t('No procedures recorded')}
             </Text>
         );
     }
@@ -195,18 +198,19 @@ function Work({ procedures }: { procedures: HistoryProcedure[] }) {
  * is already on the pill.
  */
 function Meaning({ entry }: { entry: PatientHistoryEntry }) {
+    const t = useT();
     if (entry.visitId === null) {
         if (entry.status === 'no_show') {
             return (
                 <Text variant="caption" tone="muted">
-                    Did not attend
+                    {t('Did not attend')}
                 </Text>
             );
         }
         if (entry.status === 'cancelled') {
             return (
                 <Text variant="caption" tone="muted">
-                    Called off
+                    {t('Called off')}
                 </Text>
             );
         }
@@ -231,7 +235,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
 
     return (
         <Text variant="caption" weight="medium" tone="success">
-            Paid in full
+            {t('Paid in full')}
         </Text>
     );
 }

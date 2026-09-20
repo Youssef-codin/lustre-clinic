@@ -12,6 +12,7 @@
  * confirmed and starts a race against the first.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, space, Text } from '../../theme';
 
 export type StepperProps = {
@@ -37,13 +38,14 @@ export function Stepper({
     accessibilityLabel,
     testID,
 }: StepperProps) {
+    const t = useT();
     const canDecrement = !disabled && value - step >= min;
     const canIncrement = !disabled && value + step <= max;
 
     return (
         <View
             accessibilityRole="adjustable"
-            accessibilityLabel={accessibilityLabel}
+            accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
             accessibilityValue={{ now: value, min, max }}
             accessibilityState={{ disabled, busy: disabled }}
             style={styles.track}
@@ -51,7 +53,7 @@ export function Stepper({
         >
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Decrease"
+                accessibilityLabel={t('Decrease')}
                 disabled={!canDecrement}
                 onPress={() => onChange(value - step)}
                 style={({ pressed }) => [
@@ -71,7 +73,7 @@ export function Stepper({
 
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Increase"
+                accessibilityLabel={t('Increase')}
                 disabled={!canIncrement}
                 onPress={() => onChange(value + step)}
                 style={({ pressed }) => [

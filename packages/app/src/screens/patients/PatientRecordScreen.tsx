@@ -43,6 +43,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { dateKey, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
@@ -261,6 +262,7 @@ function RecordBar({
     backLabel: string;
     onEdit: () => void;
 }) {
+    const t = useT();
     return (
         <View style={styles.bar}>
             {onBack ? (
@@ -278,7 +280,7 @@ function RecordBar({
             )}
 
             <Text variant="eyebrow" tone="muted" style={styles.barEyebrow}>
-                PATIENT
+                {t('PATIENT')}
             </Text>
 
             <Pressable
@@ -353,13 +355,14 @@ function segments(visits: number) {
  * so the sheet opens here and the desk stays on the patient they are looking at.
  */
 function Outstanding({ amount, onRecordPayment }: { amount: number; onRecordPayment: () => void }) {
+    const t = useT();
     if (amount <= 0) return null;
 
     return (
         <View style={styles.strip}>
             <View style={styles.stripDot} />
             <Text variant="subhead" tone="muted" style={styles.stripLabel}>
-                Outstanding
+                {t('Outstanding')}
             </Text>
             <MoneyValue piastres={amount} tone="due" variant="headline" weight="bold" showCurrency={false} />
             <Pill label="Record payment" onPress={onRecordPayment} testID="record-payment" />
@@ -407,6 +410,7 @@ function History({
     chairId: string | null | undefined;
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 }) {
+    const t = useT();
     const years = useMemo(() => groupByYear(history), [history]);
     const paid = history.reduce((total, entry) => total + entry.paidTotal, 0);
 
@@ -432,7 +436,7 @@ function History({
                     <View style={styles.summaryPaid}>
                         <MoneyValue piastres={paid} variant="footnote" tone="muted" showCurrency={false} />
                         <Text variant="footnote" tone="muted">
-                            paid
+                            {t('paid')}
                         </Text>
                     </View>
                 ) : null}
