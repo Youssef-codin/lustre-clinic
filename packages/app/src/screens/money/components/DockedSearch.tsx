@@ -36,6 +36,14 @@ export type DockedSearchProps = {
     value: string;
     onChangeText: (value: string) => void;
     placeholder: string;
+    /**
+     * Focus and blur. The pill docks to the bottom from anywhere on the
+     * dashboard, so without these it is a search you can type into while the
+     * list it filters is somewhere off the bottom of the screen. The screen
+     * holds the list under the pill for as long as it is focused.
+     */
+    onFocus?: () => void;
+    onBlur?: () => void;
     /** Position, clamped so the pill can never fall past the dock line. */
     translateY: RNAnimated.AnimatedInterpolation<number>;
     /** 0 resting in the list, 1 floating over it. Drives the lift, not the box. */
@@ -48,6 +56,8 @@ export function DockedSearch({
     value,
     onChangeText,
     placeholder,
+    onFocus,
+    onBlur,
     translateY,
     dockOpacity,
     dockScale,
@@ -68,6 +78,8 @@ export function DockedSearch({
                 <TextInput
                     value={value}
                     onChangeText={onChangeText}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
                     accessibilityLabel={placeholder}
                     accessibilityRole="search"
                     returnKeyType="search"
