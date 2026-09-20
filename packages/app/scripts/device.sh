@@ -16,11 +16,28 @@
 #
 # `adb reverse` tunnels Metro and the API over the cable, so on-device
 # `localhost` means this machine — no LAN IP anywhere in the codebase, and it
-# works on mobile data or a foreign network.
+# works on mobile data or a foreign network. That is also where a dev build
+# looks for the server before anyone configures one.
+#
+# A dev build installs as `com.lustre.clinic.dev`, named "Lustre Clinic (DEV)",
+# and wears a DEV strip; a release is the clinic's own id and name and wears
+# none. Both fit on one phone.
 set -euo pipefail
 
 METRO_PORT="${METRO_PORT:-8081}"
 API_PORT="${API_PORT:-3000}"
+
+# The two application ids. A dev build installs under the `.dev` suffix
+# `plugins/withDevIdentity.js` gives the debug build type, so it sits beside a
+# release on one phone instead of failing to install over it. Gradle applies the
+# suffix, and `expo run:android` launches whatever id it reads out of Gradle —
+# which is the unsuffixed one — hence `--app-id`.
+APP_ID="com.lustre.clinic"
+DEV_APP_ID="$APP_ID.dev"
+
+# Where a dev build looks for the server when nothing has been configured. It is
+# the port reversed below, so on-device `localhost` is this machine (app.config.ts).
+export LUSTRE_DEV_SERVER="http://localhost:${API_PORT}"
 
 # Prefer an already-exported SDK; fall back to the system-wide location.
 export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
@@ -119,9 +136,9 @@ esac
 # So: assemble, install, and start the launcher activity by name. No bundler,
 # nothing to reload, and it exits when the app is up. Signed with the release
 # keystore (`plugins/withReleaseSigning.js`), so the build fails on a machine
-# without it; see infra/README.md, "Release signing". A phone that has a debug
-# build installed has to uninstall it first. `bun release:apk` is the build that
-# goes to the clinic.
+# without it; see infra/README.md, "Release signing". A dev build already on the
+# phone is left where it is — it is a different application id. `bun release:apk`
+# is the build that goes to the clinic.
 if [ "$mode" = "release" ]; then
     apk="android/app/build/outputs/apk/release/app-release.apk"
 
@@ -133,12 +150,12 @@ if [ "$mode" = "release" ]; then
 
     # `-S` stops it first: a `singleTask` activity that is already up would be
     # brought forward holding the previous build's state.
-    adb -s "$serial" shell am start -S -n com.lustre.clinic/.MainActivity
-    echo "Launched com.lustre.clinic (release, embedded bundle)."
+    adb -s "$serial" shell am start -S -n "$APP_ID/.MainActivity"
+    echo "Launched $APP_ID (release, embedded bundle)."
     exit 0
 fi
 
-args=(run:android --device "${name:-$serial}" --port "$METRO_PORT")
+args=(run:android --device "${name:-$serial}" --port "$METRO_PORT" --app-id "$DEV_APP_ID")
 if [ "$mode" = "build" ]; then
     args+=(--no-build-cache)
 fi

@@ -38,6 +38,18 @@ env_file="$(dirname "$0")/../../../.env"
 env_port=$(sed -n 's/^[[:space:]]*PORT[[:space:]]*=[[:space:]]*\([0-9]\{1,\}\).*/\1/p' "$env_file" 2>/dev/null | tail -1)
 API_PORT="${API_PORT:-${env_port:-3000}}"
 
+# The two application ids. A dev build installs under the `.dev` suffix
+# `plugins/withDevIdentity.js` gives the debug build type, so it sits beside a
+# release on one phone instead of failing to install over it. Gradle applies the
+# suffix, and `expo run:android` launches whatever id it reads out of Gradle —
+# which is the unsuffixed one — hence `--app-id`.
+APP_ID="com.lustre.clinic"
+DEV_APP_ID="$APP_ID.dev"
+
+# Where a dev build looks for the server when nothing has been configured
+# (app.config.ts). The reverse below is what makes `localhost` mean this machine.
+export LUSTRE_DEV_SERVER="http://localhost:${API_PORT}"
+
 # Prefer an already-exported SDK; fall back to the system-wide location.
 export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
@@ -168,12 +180,12 @@ fi
 # Native changes (a new native dependency, an app.json edit that touches the
 # native project) still need `--build`. Nothing here can detect those.
 if [ "$mode" = "run" ]; then
-    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx 'package:com.lustre.clinic'; then
-        echo "com.lustre.clinic is already installed — starting the bundler only."
+    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx "package:$DEV_APP_ID"; then
+        echo "$DEV_APP_ID is already installed — starting the bundler only."
         echo "Use --build if you changed anything native."
         mode="start"
     else
-        echo "com.lustre.clinic is not installed on $serial — building it."
+        echo "$DEV_APP_ID is not installed on $serial — building it."
     fi
 fi
 
@@ -191,7 +203,7 @@ if [ "$mode" = "start" ]; then
     exec bunx expo "${args[@]}"
 fi
 
-args=(run:android --device "$avd" --port "$METRO_PORT")
+args=(run:android --device "$avd" --port "$METRO_PORT" --app-id "$DEV_APP_ID")
 [ "$mode" = "build" ] && args+=(--no-build-cache)
 
 exec bunx expo "${args[@]}"

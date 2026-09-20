@@ -2,7 +2,23 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { UPDATES_CHANNEL, UPDATES_MANIFEST_PATH } from '@lustre/shared';
 import type { ConfigContext } from 'expo/config';
-import appConfig, { CHANNEL, glitchtipDsn, MANIFEST_PATH, releaseVersion, updatesConfig } from './app.config';
+import appConfig, {
+    CHANNEL,
+    DEV_SERVER,
+    devServer,
+    glitchtipDsn,
+    MANIFEST_PATH,
+    releaseVersion,
+    updatesConfig,
+} from './app.config';
+import appJson from './app.json';
+import {
+    APPLICATION_ID_SUFFIX,
+    applyDevApplicationId,
+    DEV_APP_NAME,
+    DEV_STRINGS_PATH,
+    DEV_STRINGS_XML,
+} from './plugins/withDevIdentity';
 
 /**
  * What a release APK is built to ask for, which cannot be changed after the
@@ -90,16 +106,33 @@ describe('appConfig', () => {
 
     test('bakes the GlitchTip DSN from LUSTRE_GLITCHTIP_DSN, and never into a demo', () => {
         const previous = process.env.LUSTRE_GLITCHTIP_DSN;
+        const previousDevServer = process.env.LUSTRE_DEV_SERVER;
         process.env.LUSTRE_GLITCHTIP_DSN = ' http://key@clinic.tail.ts.net:8000/1 ';
+        delete process.env.LUSTRE_DEV_SERVER;
 
         expect(appConfig(context(false)).extra).toEqual({
             demo: false,
+            devServer: DEV_SERVER,
             glitchtipDsn: 'http://key@clinic.tail.ts.net:8000/1',
         });
         expect(appConfig(context(true)).extra?.glitchtipDsn).toBeNull();
 
         if (previous === undefined) delete process.env.LUSTRE_GLITCHTIP_DSN;
         else process.env.LUSTRE_GLITCHTIP_DSN = previous;
+        if (previousDevServer !== undefined) process.env.LUSTRE_DEV_SERVER = previousDevServer;
+    });
+
+    test('bakes the dev server the device scripts pass in, into every build', () => {
+        const previous = process.env.LUSTRE_DEV_SERVER;
+        process.env.LUSTRE_DEV_SERVER = 'http://localhost:3001/';
+
+        // Every build, because only a dev one reads it (`api/config.ts`): a
+        // value left out of a demo would be a second thing to get wrong.
+        expect(appConfig(context(false)).extra?.devServer).toBe('http://localhost:3001');
+        expect(appConfig(context(true)).extra?.devServer).toBe('http://localhost:3001');
+
+        if (previous === undefined) delete process.env.LUSTRE_DEV_SERVER;
+        else process.env.LUSTRE_DEV_SERVER = previous;
     });
 });
 
@@ -107,5 +140,99 @@ describe('glitchtipDsn', () => {
     test('is empty, and reports off, when nothing was given', () => {
         expect(glitchtipDsn(undefined, false)).toBeNull();
         expect(glitchtipDsn('   ', false)).toBeNull();
+    });
+});
+
+/**
+ * The other half of telling the two builds apart: a dev build has to install
+ * beside the clinic's release rather than over it, and has to arrive pointing
+ * at the dev server. Android refuses the second install of one package signed
+ * two ways — "package already exists" — and the way past it was uninstalling
+ * whichever build you were comparing against.
+ */
+
+// What `expo prebuild` writes into android/app/build.gradle (SDK 57), trimmed
+// to the blocks the plugin touches. `signingConfigs` is kept: its `debug` block
+// sits above the build type of the same name.
+const GRADLE_TEMPLATE = `apply plugin: "com.android.application"
+
+android {
+    namespace 'com.lustre.clinic'
+    defaultConfig {
+        applicationId 'com.lustre.clinic'
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled enableMinifyInReleaseBuilds
+        }
+    }
+}
+`;
+
+describe('dev application id', () => {
+    const gradle = applyDevApplicationId(GRADLE_TEMPLATE);
+    const buildTypes = gradle.slice(gradle.indexOf('buildTypes {'));
+    const debugBuildType = buildTypes.slice(0, buildTypes.indexOf('release {'));
+    const releaseBuildType = buildTypes.slice(buildTypes.indexOf('release {'));
+
+    test('installs a dev build under an id of its own', () => {
+        expect(debugBuildType).toContain(`applicationIdSuffix '${APPLICATION_ID_SUFFIX}'`);
+        expect(`${appJson.expo.android.package}${APPLICATION_ID_SUFFIX}`).toBe('com.lustre.clinic.dev');
+    });
+
+    test("leaves a production build on the clinic's id, and its own name", () => {
+        expect(appJson.expo.android.package).toBe('com.lustre.clinic');
+        expect(appJson.expo.name).toBe('Lustre Clinic');
+        expect(releaseBuildType).not.toContain('applicationIdSuffix');
+        // The signing config above `buildTypes` is a `debug` block too, and
+        // suffixing the wrong one would rename nothing and break the build.
+        expect(gradle.slice(0, gradle.indexOf('buildTypes {'))).not.toContain('applicationIdSuffix');
+    });
+
+    test('names the dev build apart in the launcher, from the debug source set', () => {
+        expect(DEV_STRINGS_XML).toContain(`<string name="app_name">${DEV_APP_NAME}</string>`);
+        expect(DEV_APP_NAME).not.toBe(appJson.expo.name);
+        // `main` is where prebuild writes app_name; a build type overrides it,
+        // and any other source set would collide with it instead.
+        expect(DEV_STRINGS_PATH.split(/[\\/]/)).toEqual([
+            'app',
+            'src',
+            'debug',
+            'res',
+            'values',
+            'strings.xml',
+        ]);
+    });
+
+    test('is applied by a plugin, so prebuild cannot regenerate it away', () => {
+        expect(appJson.expo.plugins).toContain('./plugins/withDevIdentity');
+    });
+
+    test('is written once, however many times prebuild runs', () => {
+        expect(applyDevApplicationId(gradle)).toBe(gradle);
+    });
+
+    test('refuses to go quiet when the prebuild template moves', () => {
+        expect(() => applyDevApplicationId('android {\n}\n')).toThrow('withDevIdentity');
+    });
+});
+
+describe('devServer', () => {
+    test('takes the address the device scripts reversed onto the phone', () => {
+        expect(devServer(' http://localhost:8788/ ')).toBe('http://localhost:8788');
+    });
+
+    test('falls back to the port the server binds by default', () => {
+        expect(devServer(undefined)).toBe(DEV_SERVER);
+        expect(devServer('   ')).toBe(DEV_SERVER);
     });
 });

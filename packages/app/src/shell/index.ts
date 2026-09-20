@@ -1,5 +1,6 @@
 // The app shell: the bottom tab bar and the four clusters under it (SPEC §18 F3),
 // plus the two screens that stand in front of it — setup (F1) and offline.
 export { AppShell } from './AppShell';
+export { DevBanner } from './DevBanner';
 export { SetupScreen } from './SetupScreen';
 export { useServerSetup } from './serverStore';
