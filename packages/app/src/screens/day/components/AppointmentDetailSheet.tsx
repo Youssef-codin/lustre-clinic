@@ -146,10 +146,18 @@ export function AppointmentDetailSheet({
                 startMinutes,
                 startMinutes + appointment.durationMinutes,
             )} · ${appointment.durationMinutes} min`}
-            onTitlePress={() => {
-                close();
-                onOpenRecord(appointment);
-            }}
+            // Off while a write is in flight, for the reason `dismissable`
+            // is: leaving takes the failure with it, and this sheet is where
+            // a failure is reported. The chevron and the button role go with
+            // it, so the row stops offering what it cannot do.
+            onTitlePress={
+                writing
+                    ? undefined
+                    : () => {
+                          close();
+                          onOpenRecord(appointment);
+                      }
+            }
             titleAccessibilityLabel={`Open ${appointment.patient.name}'s record`}
             testID="appointment-detail"
             footer={

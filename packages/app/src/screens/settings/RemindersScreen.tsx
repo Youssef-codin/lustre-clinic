@@ -100,6 +100,14 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
     // Between that response and that refetch the draft still differs from the
     // cache, so the button would read as unsaved again for a moment. It is the
     // value we sent and it landed, so it is still saving until confirmed.
+    // Every edit goes through here so a failure cannot outlive the text that
+    // caused it: the mutation holds its error until the next attempt, which
+    // left "Not saved" standing over a draft that had never been sent.
+    function editTemplate(next: string) {
+        if (saveTemplate.isError) saveTemplate.reset();
+        setTemplate(next);
+    }
+
     const sent = saveTemplate.variables?.reminderTemplate;
     const confirming = saveTemplate.isSuccess && sent !== undefined && sent === template?.trim();
     const savingTemplate = saveTemplate.isPending || confirming;
@@ -202,7 +210,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
                         <Textarea
                             value={text}
-                            onChangeText={setTemplate}
+                            onChangeText={editTemplate}
                             error={draft.issue ?? undefined}
                             accessibilityLabel="Reminder message template"
                             testID="reminder-template"
@@ -215,7 +223,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                     variant="new"
                                     label={token}
                                     icon={<PlusIcon size={11} stroke={color.muted} width={2.6} />}
-                                    onPress={() => setTemplate(`${text} ${token}`)}
+                                    onPress={() => editTemplate(`${text} ${token}`)}
                                     testID={`reminder-token-${token}`}
                                 />
                             ))}

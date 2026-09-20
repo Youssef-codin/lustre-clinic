@@ -118,7 +118,12 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
         summary.isLoading || takings.isLoading || outstanding.isLoading,
     );
 
-    const dock = useSearchDock(pull.scrollProps.onScroll, scroller, searchFocused, debtors.length);
+    // What the list is currently showing, as one value the pin below can
+    // compare. The count alone is not it: retyping one three-patient search
+    // into a different three-patient search changes every row and no length.
+    const shownKey = useMemo(() => debtors.map((row) => row.patientId).join(','), [debtors]);
+
+    const dock = useSearchDock(pull.scrollProps.onScroll, scroller, searchFocused, shownKey);
 
     return (
         <View style={styles.screen} onLayout={dock.onScreenLayout}>
@@ -413,8 +418,8 @@ function useSearchDock(
     scroller: React.RefObject<ScrollView | null>,
     /** Whether the pill is being typed into. */
     focused: boolean,
-    /** How many rows the list is showing, which is what the filter changes. */
-    rows: number,
+    /** Which rows the list is showing, as one comparable value. */
+    shown: string,
 ) {
     const scrollY = useRef(new Animated.Value(0)).current;
     const anchor = useRef(new Animated.Value(0)).current;
@@ -449,17 +454,18 @@ function useSearchDock(
      * the list's own head to the top, which puts "Who owe", its sort and the
      * first rows under the keyboard's ceiling.
      *
-     * `rows` is in here because filtering shortens the content: eight debtors
-     * down to one is a shorter scroll, the offset is clamped back up, and the
-     * one match the search just found ends up below the fold. Re-pinning on
-     * every change of the count is what keeps the results where the eye
-     * already is.
+     * `shown` is in here because filtering changes the page under the pin:
+     * eight debtors down to one is a shorter scroll, the offset is clamped
+     * back up, and the one match the search just found ends up below the fold.
+     * Re-pinning whenever the rows change is what keeps the results where the
+     * eye already is — the rows and not their count, so swapping one search
+     * for another of the same length still brings its results up.
      */
-    // biome-ignore lint/correctness/useExhaustiveDependencies: `rows` is the signal, not a value read — the list changing length is the thing worth re-pinning for
+    // biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is the signal, not a value read — the list's rows changing is the thing worth re-pinning for
     useEffect(() => {
         if (!focused) return;
         scroller.current?.scrollTo({ y: headY.current, animated: true });
-    }, [focused, rows, scroller]);
+    }, [focused, shown, scroller]);
 
     const [screenHeight, setScreenHeight] = useState(0);
     const keyboard = useKeyboardHeight();
