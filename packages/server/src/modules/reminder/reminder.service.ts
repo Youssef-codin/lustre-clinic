@@ -53,11 +53,15 @@ export const reminderService = {
             .onConflictDoUpdate({ target: reminders.appointmentId, set: { dueAt } });
     },
 
-    async reschedule(executor: Executor, appointmentId: string, startsAt: Date): Promise<void> {
-        const { reminderLeadHours } = await settingsService.get();
+    async reschedule(
+        executor: Executor,
+        appointmentId: string,
+        startsAt: Date,
+        leadHours: number,
+    ): Promise<void> {
         await executor
             .update(reminders)
-            .set({ dueAt: new Date(startsAt.getTime() - reminderLeadHours * 3_600_000) })
+            .set({ dueAt: new Date(startsAt.getTime() - leadHours * 3_600_000) })
             .where(eq(reminders.appointmentId, appointmentId));
     },
 

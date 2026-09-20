@@ -166,6 +166,68 @@ describe('what a new lead time leaves alone', () => {
     });
 });
 
+describe('a booking taken while the lead time is changing', () => {
+    /**
+     * The booking reads the lead time and writes its reminder from it. If it
+     * read outside the settings lock, it could take the old lead, miss the
+     * reschedule because its reminder did not exist yet, and commit the one row
+     * the new setting never reaches. Both orderings are run: the result has to
+     * be the same either way, because both are the same race.
+     */
+    async function raceABooking(first: 'booking' | 'settings') {
+        const fixtures = await clinic();
+        const startsAt = slot(first === 'booking' ? 0 : 30);
+
+        const booking = () =>
+            appointmentService.create({
+                patient: { kind: 'existing', patientId: fixtures.patient.id },
+                branchId: fixtures.branch.id,
+                startsAt,
+                offsetMinutes: 0,
+            });
+        const change = () => settingsService.update({ reminderLeadHours: 9 });
+
+        const [appointment] =
+            first === 'booking'
+                ? await Promise.all([booking(), change()])
+                : await Promise.all([change(), booking()]).then(([, a]) => [a] as const);
+
+        return { appointment, dueAt: await dueAtOf(appointment.id) };
+    }
+
+    test('lands on the new lead time when the booking goes first', async () => {
+        const { appointment, dueAt } = await raceABooking('booking');
+        expect(dueAt).toBe(appointment.startsAt.getTime() - 9 * HOUR);
+    });
+
+    test('lands on the new lead time when the change goes first', async () => {
+        const { appointment, dueAt } = await raceABooking('settings');
+        expect(dueAt).toBe(appointment.startsAt.getTime() - 9 * HOUR);
+    });
+
+    test('registers a patient and books without deadlocking on the settings row', async () => {
+        const fixtures = await clinic();
+
+        const booked = await Promise.all(
+            [0, 30, 60].map((offset) =>
+                appointmentService.create({
+                    patient: { kind: 'new', name: `Walk In ${offset}`, phone: '01099988877' },
+                    branchId: fixtures.branch.id,
+                    startsAt: slot(offset),
+                    offsetMinutes: 0,
+                }),
+            ),
+        );
+
+        const { reminderLeadHours } = await settingsService.get();
+        for (const appointment of booked) {
+            expect(await dueAtOf(appointment.id)).toBe(
+                appointment.startsAt.getTime() - reminderLeadHours * HOUR,
+            );
+        }
+    });
+});
+
 describe('a refused settings update', () => {
     test('leaves both the lead time and the reminders where they were', async () => {
         const { appointment } = await bookedAppointment();

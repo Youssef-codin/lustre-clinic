@@ -114,6 +114,41 @@ async function assertPatientRefLast(value: number, executor: Executor): Promise<
     }
 }
 
+/**
+ * The lead time, read under the settings row's own lock, for a caller that is
+ * about to write a reminder from it. `update` holds that same lock from its
+ * write through `rescheduleAllPending`, so a booking either takes the old lead
+ * and commits before the change, or waits and takes the new one. Without it a
+ * booking could read the old lead, miss the reschedule because its reminder did
+ * not exist yet, and commit the one row the new setting does not reach.
+ *
+ * Exclusive rather than shared: `nextPatientRef` bumps this row later in the
+ * same booking transaction, and two bookings each holding a shared lock and
+ * waiting to upgrade it is a deadlock. Bookings already serialize on this row
+ * whenever they register a patient.
+ */
+async function leadHoursForWrite(executor: Executor): Promise<number> {
+    const read = () =>
+        executor
+            .select({ leadHours: settings.reminderLeadHours })
+            .from(settings)
+            .where(eq(settings.id, 1))
+            .for('update')
+            .limit(1);
+
+    const [existing] = await read();
+    if (existing) return existing.leadHours;
+
+    await executor
+        .insert(settings)
+        .values({ id: 1, clinicName: DEFAULT_CLINIC_NAME, reminderTemplate: DEFAULT_REMINDER_TEMPLATE })
+        .onConflictDoNothing();
+
+    const [seeded] = await read();
+    if (!seeded) throw AppError.internal('settings row could not be seeded');
+    return seeded.leadHours;
+}
+
 interface ClinicDay {
     weekday: number;
     branchId: string;
@@ -140,6 +175,8 @@ export const settingsService = {
     async ensureSeeded(): Promise<void> {
         await readRow();
     },
+
+    leadHoursForWrite,
 
     async update(input: UpdateSettingsInput): Promise<Settings> {
         const current = await readRow();
