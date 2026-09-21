@@ -200,6 +200,9 @@ describe('dev application id', () => {
 
     test('names the dev build apart in the launcher, from the debug source set', () => {
         expect(DEV_STRINGS_XML).toContain(`<string name="app_name">${DEV_APP_NAME}</string>`);
+        // Not merely different: a launcher truncates, so a name that opens with
+        // the real one's reads as the real one in the drawer.
+        expect(DEV_APP_NAME.startsWith(appJson.expo.name)).toBe(false);
         expect(DEV_APP_NAME).not.toBe(appJson.expo.name);
         // `main` is where prebuild writes app_name; a build type overrides it,
         // and any other source set would collide with it instead.

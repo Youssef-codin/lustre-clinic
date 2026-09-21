@@ -19,9 +19,9 @@
 # works on mobile data or a foreign network. That is also where a dev build
 # looks for the server before anyone configures one.
 #
-# A dev build installs as `com.lustre.clinic.dev`, named "Lustre Clinic (DEV)",
-# and wears a DEV strip; a release is the clinic's own id and name and wears
-# none. Both fit on one phone.
+# A dev build installs as `com.lustre.clinic.dev`, named "Lustre DEV", and
+# wears a DEV strip; a release is the clinic's own id and name and wears none.
+# Both fit on one phone.
 set -euo pipefail
 
 METRO_PORT="${METRO_PORT:-8081}"

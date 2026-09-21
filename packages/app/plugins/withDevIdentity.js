@@ -29,7 +29,9 @@ const { withAppBuildGradle, withDangerousMod } = require('expo/config-plugins');
 const MARKER = '// @lustre: dev application id (plugins/withDevIdentity.js)';
 
 const APPLICATION_ID_SUFFIX = '.dev';
-const DEV_APP_NAME = 'Lustre Clinic (DEV)';
+// DEV first, and short: a launcher truncates, and "Lustre Clinic (DEV)"
+// truncates to "Lustre Clini…" beside a "Lustre Clinic" that is the real one.
+const DEV_APP_NAME = 'Lustre DEV';
 
 // The first `debug {` inside `buildTypes` — not the one in `signingConfigs`,
 // which sits above it and outside the match.

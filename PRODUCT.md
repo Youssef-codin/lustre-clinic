@@ -147,9 +147,9 @@ secretary before becoming a record.
 ## Brand Commitments
 
 Name: **Lustre Clinic**. Package `com.lustre.clinic`. A development build
-installs as `com.lustre.clinic.dev`, named "Lustre Clinic (DEV)" in the
-launcher, so it sits beside a release on one phone and carries a DEV strip
-across every screen.
+installs as `com.lustre.clinic.dev`, named "Lustre DEV" in the launcher, so
+it sits beside a release on one phone and carries a DEV strip across every
+screen.
 
 The assets in `packages/app/assets/` and the `#E6F4FE` adaptive-icon background
 are **placeholders, explicitly not binding**. A later visual world may replace
