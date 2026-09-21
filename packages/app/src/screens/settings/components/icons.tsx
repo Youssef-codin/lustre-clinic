@@ -24,7 +24,6 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
-    ClipboardList,
     Clock,
     CloudAlert,
     DatabaseBackup,
@@ -33,6 +32,7 @@ import {
     Hospital,
     Info,
     ListPlus,
+    LogIn,
     LogOut,
     MapPin,
     MessageSquareWarning,
@@ -45,7 +45,7 @@ import {
     Tags,
     X,
 } from 'lucide-react-native';
-import { I18nManager } from 'react-native';
+import { useIsRTL } from '../../../i18n';
 import { color } from '../../../theme';
 
 export type IconProps = {
@@ -119,17 +119,14 @@ export const InfoIcon = icon(Info, { size: 16, stroke: color.muted, width: 2 });
 /** Deactivating or reactivating a branch, tinted by its caller. */
 export const PowerIcon = icon(Power, { size: 15, stroke: color.ink, width: 2.2 });
 
-/**
- * The data-entry pane `main` added. It has no mockup counterpart, so there is
- * nothing to match and the nearest library glyph is the honest answer.
- */
-export const DataEntryIcon = icon(ClipboardList, ROW);
-
 /** Putting the demo's clinic back the way it opens. No mockup counterpart either. */
 export const ResetDemoIcon = icon(RotateCcw, ROW);
 
 /** Leaving the demo for the clinic server. No mockup counterpart. */
 export const LeaveDemoIcon = icon(LogOut, ROW);
+
+/** Entering the demo from a connected dev build. No mockup counterpart. */
+export const EnterDemoIcon = icon(LogIn, ROW);
 
 /** "Report a problem". No mockup counterpart. */
 export const ReportProblemIcon = icon(MessageSquareWarning, ROW);
@@ -160,7 +157,7 @@ const ArrowBack = icon(ArrowLeft, { size: 18, stroke: color.muted, width: 2.2 })
 
 /** The role sheet's from → to arrow. */
 export function ArrowRightIcon(props: IconProps) {
-    return I18nManager.isRTL ? <ArrowBack {...props} /> : <ArrowForward {...props} />;
+    return useIsRTL() ? <ArrowBack {...props} /> : <ArrowForward {...props} />;
 }
 
 const ChevronBack = icon(ChevronLeft, { size: 15, stroke: color.ink, width: 2.4 });
@@ -168,5 +165,5 @@ const ChevronForward = icon(ChevronRight, { size: 15, stroke: color.ink, width: 
 
 /** The pane header's back button. */
 export function BackIcon(props: IconProps) {
-    return I18nManager.isRTL ? <ChevronForward {...props} /> : <ChevronBack {...props} />;
+    return useIsRTL() ? <ChevronForward {...props} /> : <ChevronBack {...props} />;
 }

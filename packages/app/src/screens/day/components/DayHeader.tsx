@@ -23,7 +23,7 @@
  */
 // biome-ignore lint/style/noRestrictedImports: runs the branch-change slide `Animated.timing` and clears the outgoing name on its completion callback
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, I18nManager, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, Pressable, StyleSheet, View } from 'react-native';
 import {
     Chevron,
     DropdownMenu,
@@ -32,6 +32,7 @@ import {
     type MenuAnchor,
     useReducedMotion,
 } from '../../../components/ui';
+import { useIsRTL } from '../../../i18n';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import type { Branch } from '../data';
 import { formatDate, formatDatePill, relativeDayLabel } from '../time';
@@ -49,6 +50,7 @@ export type DayHeaderProps = {
 };
 
 export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCalendar }: DayHeaderProps) {
+    const isRTL = useIsRTL();
     const [menu, setMenu] = useState(false);
     const [anchor, setAnchor] = useState<MenuAnchor | undefined>(undefined);
     const pill = useRef<View>(null);
@@ -73,7 +75,7 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
         const cameFrom = branches.findIndex((row) => row.id === previous.id);
         const forward = order > cameFrom ? 1 : -1;
 
-        setLeaving({ name: previous.name, toward: I18nManager.isRTL ? -forward : forward });
+        setLeaving({ name: previous.name, toward: isRTL ? -forward : forward });
         slide.setValue(0);
         Animated.timing(slide, {
             toValue: 1,
@@ -83,7 +85,7 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
         }).start(({ finished }) => {
             if (finished) setLeaving(null);
         });
-    }, [shownId, slide, reducedMotion]);
+    }, [shownId, slide, reducedMotion, isRTL]);
 
     const toward = leaving?.toward ?? 1;
     const entering = {
@@ -102,10 +104,9 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
 
     function openBranches() {
         pill.current?.measureInWindow((x, y, width, height) => {
-            const rtl = I18nManager.isRTL;
             setAnchor({
                 top: y + height + space[1],
-                start: rtl ? Dimensions.get('window').width - (x + width) : x,
+                start: isRTL ? Dimensions.get('window').width - (x + width) : x,
             });
             setMenu(true);
         });

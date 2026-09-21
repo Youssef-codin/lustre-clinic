@@ -57,6 +57,7 @@ const envSchema = z.object({
     // `packages/app/scripts/release.ts` and copied here by the ansible
     // `releases` tag. Read on every request, so a new release needs no restart.
     RELEASES_DIR: z.string().default('./releases'),
+    UPDATES_CHANNEL: z.enum(['production', 'development']).default('production'),
 
     BACKUP_DRIVE_FOLDER_ID: z.string().optional(),
     BACKUP_DRIVE_OAUTH_CLIENT_ID: z.string().optional(),

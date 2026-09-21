@@ -8,7 +8,7 @@
 // deleted, so its answers survive (§7.8); `age` and `balance` are derived,
 // never stored; `UpdatePatientInput.custom` is a partial patch — only the keys
 // sent are validated, a blank clears, and keys left out keep what is stored.
-import type { AppointmentStatus, PaymentMethod } from '@lustre/shared';
+import type { AppointmentStatus, PaymentMethod, Tooth } from '@lustre/shared';
 
 export type QuestionKind = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
@@ -47,7 +47,13 @@ export interface Patient {
     gender: string | null;
     custom: Answers;
     notes: string | null;
-    /** The old system's number for this patient, typed in during the migration. Null for anyone registered since. */
+    /**
+     * The old system's number for this patient. Null for anyone registered
+     * since the cutoff. For a patient registered as an old patient it equals
+     * `ref` — they were given one number and the record shows that one. Where
+     * the two differ, the record came across under the old data-entry flow,
+     * which allocated a second number on top of the real one.
+     */
     legacyRef: string | null;
     createdAt: string;
     age: number | null;
@@ -76,6 +82,10 @@ export interface PatientHistoryEntry {
     completedAt: string | null;
     /** Debt carried over from the old system at migration, not a visit anyone attended. */
     isOpeningBalance: boolean;
+    /** Work the old system recorded. No visit behind it, so no money on it — prior history, nothing more. */
+    isImported: boolean;
+    /** The file did not say when. The row carries the cutoff only because a date is required. */
+    dateUnknown: boolean;
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;
@@ -156,6 +166,29 @@ export interface CreatePatientInput {
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
+    /** Present only when the **Old patient** switch is on. Its absence is what makes this a new registration. */
+    old?: OldPatientInput;
+}
+
+/** One line off the paper file: what was done, and when if the file says. */
+export interface OldProcedureInput {
+    procedureId: string;
+    quantity: number;
+    tooth?: Tooth | null;
+    /** `YYYY-MM-DD`, or absent — which the record draws as *before migration* rather than guessing a day. */
+    performedOn?: string | null;
+}
+
+/**
+ * What a patient who predates the cutoff brings with them. `ref` becomes their
+ * patient ref: the desk was given one number for them and must not be handed a
+ * second. `openingBalance` is piastres and is the single figure they carry —
+ * imported procedures never add to it.
+ */
+export interface OldPatientInput {
+    ref: string;
+    openingBalance?: number;
+    procedures: OldProcedureInput[];
 }
 
 /**

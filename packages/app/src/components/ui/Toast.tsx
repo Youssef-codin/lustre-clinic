@@ -14,6 +14,7 @@
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the slide `Animated.timing` with its unmount callback, and the `setTimeout` that dismisses the toast
 import { useEffect, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { easing, duration as motionDuration } from './motion';
 import { useReducedMotion } from './useReducedMotion';
@@ -46,6 +47,7 @@ export function Toast({
     offset = space[2],
     testID,
 }: ToastProps) {
+    const t = useT();
     const progress = useRef(new Animated.Value(0)).current;
     const drag = useRef(new Animated.ValueXY()).current;
     const [mounted, setMounted] = useState(visible);
@@ -140,13 +142,13 @@ export function Toast({
             ]}
         >
             <Text variant="callout" tone="inverse" style={styles.message}>
-                {message}
+                {t(message)}
             </Text>
 
             {actionLabel ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={actionLabel}
+                    accessibilityLabel={t(actionLabel)}
                     hitSlop={8}
                     onPress={() => {
                         onAction?.();
@@ -155,7 +157,7 @@ export function Toast({
                     style={({ pressed }) => [styles.action, pressed && styles.pressed]}
                 >
                     <Text variant="callout" weight="semibold" tone="inverse">
-                        {actionLabel}
+                        {t(actionLabel)}
                     </Text>
                 </Pressable>
             ) : null}

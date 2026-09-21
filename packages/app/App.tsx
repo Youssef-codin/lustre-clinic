@@ -5,8 +5,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
+import { LocaleProvider, useT } from './src/i18n';
 import { renderErrorReporter } from './src/reporting';
-import { AppShell, SetupScreen, useServerSetup } from './src/shell';
+import { AppShell, DevBanner, SetupScreen, useServerSetup } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
 // The entry point mounts the shell (F3): the bottom tab bar and four clusters,
@@ -31,34 +32,58 @@ export default function App() {
     // `GestureHandlerRootView` and `BottomSheetModalProvider` are the two things
     // `ui/Sheet` needs above it: the first for the drag, the second because every
     // sheet is a modal presented into a portal here rather than mounted where it
-    // is written. Both sit outside `SafeAreaProvider` so a sheet can draw over
-    // the whole window, including the tab bar.
+    // is written. `GestureHandlerRootView` sits outside `SafeAreaProvider` so a
+    // sheet can draw over the whole window, including the tab bar.
+    //
+    // `BottomSheetModalProvider` is *inside* `LocaleProvider` and `ApiProvider`,
+    // and that nesting is load-bearing rather than tidy. The portal does not
+    // carry context across: a sheet's children are re-parented into the host
+    // rendered here, so every hook in them resolves against this position in the
+    // tree and not against the screen that wrote the sheet. With the provider
+    // above, `Sheet`'s own `useT` threw `LocaleProvider is missing` the moment a
+    // sheet opened. The same move puts the host inside the provider's direction
+    // wrapper, so sheet content mirrors in Arabic along with everything else.
     return (
         <GestureHandlerRootView style={styles.screen}>
             <SafeAreaProvider>
-                <BottomSheetModalProvider>
+                <LocaleProvider>
                     <ApiProvider>
-                        {/* The last resort, and the only boundary that can
+                        <BottomSheetModalProvider>
+                            {/* The last resort, and the only boundary that can
                             catch the shell itself throwing. It sits under
                             `ApiProvider` so its Reload remounts the tree onto
                             the query cache that is already warm rather than
                             starting the app's connection over. Each pane has
                             its own boundary below this one, so reaching this
                             means the shell or the tab bar went, not a tab. */}
-                        <ErrorBoundary
-                            title="The app stopped"
-                            message="Something went wrong and the screen could not be drawn. Reload to start again — nothing you saved has been lost."
-                            onError={renderErrorReporter('root')}
-                        >
-                            <SafeAreaView style={styles.screen} edges={['top']}>
-                                {showSetup ? <SetupScreen /> : <AppShell />}
-                                <StatusBar style="dark" />
-                            </SafeAreaView>
-                        </ErrorBoundary>
+                            <LocalizedRoot showSetup={showSetup} />
+                        </BottomSheetModalProvider>
                     </ApiProvider>
-                </BottomSheetModalProvider>
+                </LocaleProvider>
             </SafeAreaProvider>
         </GestureHandlerRootView>
+    );
+}
+
+function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
+    const t = useT();
+    return (
+        <ErrorBoundary
+            title={t('The app stopped')}
+            message={t(
+                'Something went wrong and the screen could not be drawn. Reload to start again — nothing you saved has been lost.',
+            )}
+            onError={renderErrorReporter('root')}
+        >
+            <SafeAreaView style={styles.screen} edges={['top']}>
+                {/* Above both screens, not inside either: a dev build says so
+                    on the setup screen it opens on as well as on the day it
+                    lands in. */}
+                <DevBanner />
+                {showSetup ? <SetupScreen /> : <AppShell />}
+                <StatusBar style="dark" />
+            </SafeAreaView>
+        </ErrorBoundary>
     );
 }
 

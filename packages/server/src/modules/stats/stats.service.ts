@@ -42,10 +42,13 @@ export const statsService = {
         // counting them would report a cutoff date on which hundreds of
         // patients were seen and a fortune was billed. `outstanding` below is
         // the one figure that does include them, because they are still owed.
+        // Imported rows are the same argument about work rather than money —
+        // the old system saw those patients, this clinic did not.
         const inPeriod = and(
             gte(appointments.startsAt, from),
             lt(appointments.startsAt, to),
             eq(appointments.isOpeningBalance, false),
+            eq(appointments.isImported, false),
             ...(input.branchId ? [eq(appointments.branchId, input.branchId)] : []),
         );
 

@@ -14,6 +14,7 @@ import type { Locale } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT } from '../../api';
 import { Button, Card, Dot, SectionLabel } from '../../components/ui';
+import { useT } from '../../i18n';
 import { color, radius, space, Text } from '../../theme';
 import { ReprobeIcon } from './components/icons';
 import { Pane } from './components/Pane';
@@ -37,6 +38,7 @@ export type AppScreenProps = {
 };
 
 export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
+    const t = useT();
     const connection = useConnectionView();
 
     return (
@@ -50,7 +52,7 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                     </Text>
                     <View
                         accessibilityRole="tablist"
-                        accessibilityLabel="Interface language"
+                        accessibilityLabel={t('Interface language')}
                         style={styles.langTrack}
                         testID="settings-language"
                     >
@@ -80,8 +82,9 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                 </Card>
 
                 <Text variant="footnote" tone="muted" style={styles.hint}>
-                    Changes the interface everywhere, including printed receipts. Patient messages use the
-                    patient's own language.
+                    {t(
+                        "Changes the interface everywhere, including printed receipts. Patient messages use the patient's own language.",
+                    )}
                 </Text>
             </View>
 
@@ -95,7 +98,7 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                             {connection.serverName}
                         </Text>
                         <Text variant="footnote" weight="semibold" tone={statusTone(connection.kind)}>
-                            {connection.label}
+                            {t(connection.label)}
                         </Text>
                     </View>
 
@@ -105,10 +108,10 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
 
                     <View style={styles.probe}>
                         <Text variant="footnote" tone="muted" script="mono" style={styles.stamp}>
-                            {connection.stamp ?? 'Not checked yet'}
+                            {connection.stamp ?? t('Not checked yet')}
                         </Text>
                         <Button
-                            label={connection.probing ? 'Probing…' : 'Re-probe'}
+                            label={connection.probing ? t('Probing…') : t('Re-probe')}
                             variant="secondary"
                             size="md"
                             onPress={connection.reprobe}
@@ -120,9 +123,11 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                 </Card>
 
                 <Text variant="footnote" tone="muted" style={styles.hint}>
-                    {allowsLan(BUILD_VARIANT)
-                        ? 'Lustre prefers the clinic server when you are on its wifi and falls back to the tailnet elsewhere. Re-probe if the app is stuck on the wrong one.'
-                        : 'Lustre reaches the clinic server over Tailscale. Re-probe if it has stopped answering.'}
+                    {t(
+                        allowsLan(BUILD_VARIANT)
+                            ? 'Lustre prefers the clinic server when you are on its wifi and falls back to the tailnet elsewhere. Re-probe if the app is stuck on the wrong one.'
+                            : 'Lustre reaches the clinic server over Tailscale. Re-probe if it has stopped answering.',
+                    )}
                 </Text>
             </View>
 
@@ -136,7 +141,9 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                 </Card>
 
                 <Text variant="footnote" tone="muted" style={styles.hint}>
-                    Updates download by themselves and apply the next time Lustre is opened from closed.
+                    {t(
+                        'Updates download by themselves and apply the next time Lustre is opened from closed.',
+                    )}
                 </Text>
             </View>
         </Pane>
@@ -144,10 +151,11 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
 }
 
 function VersionRow({ label, value }: { label: string; value: string }) {
+    const t = useT();
     return (
         <View style={styles.versionRow}>
             <Text variant="subhead" tone="muted">
-                {label}
+                {t(label)}
             </Text>
             <Text variant="subhead" weight="semibold" script="mono">
                 {value}

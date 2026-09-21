@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextTone } from '../../theme';
 import { color, radius, space, Text } from '../../theme';
 
@@ -46,6 +47,7 @@ const TEXT: Record<CalloutTone, TextTone> = {
 };
 
 export function Callout({ tone = 'info', title, children, icon }: CalloutProps) {
+    const t = useT();
     return (
         <View
             style={[
@@ -65,12 +67,12 @@ export function Callout({ tone = 'info', title, children, icon }: CalloutProps) 
             <View style={styles.body}>
                 {title ? (
                     <Text variant="subhead" weight="semibold" tone={TEXT[tone]}>
-                        {title}
+                        {t(title)}
                     </Text>
                 ) : null}
                 {typeof children === 'string' ? (
                     <Text variant="subhead" tone={tone === 'info' || tone === 'note' ? 'muted' : TEXT[tone]}>
-                        {children}
+                        {t(children)}
                     </Text>
                 ) : (
                     children

@@ -22,6 +22,7 @@ import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextTone } from '../../theme';
 import { border, color, radius, shadow, size, space, Text } from '../../theme';
 
@@ -106,6 +107,8 @@ export function Button({
     style,
     testID,
 }: ButtonProps) {
+    const t = useT();
+    const shownLabel = t(label);
     const lockedUntil = useRef(0);
     const inert = disabled || loading;
     // A button that refuses the press always looks it. One that kept its fill
@@ -128,7 +131,7 @@ export function Button({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={label}
+            accessibilityLabel={shownLabel}
             accessibilityState={{ disabled: inert, busy: loading }}
             disabled={inert}
             onPress={handlePress}
@@ -150,7 +153,7 @@ export function Button({
                     weight="semibold"
                     tone={dimmed ? 'muted' : LABEL_TONE[variant]}
                 >
-                    {label}
+                    {shownLabel}
                 </Text>
             </View>
 

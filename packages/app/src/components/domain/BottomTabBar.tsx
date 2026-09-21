@@ -21,6 +21,7 @@ import type { ClientRole } from '@lustre/shared';
 import { Calendar, CreditCard, Headset, Stethoscope, Users } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { useKeyboardHeight } from '../ui';
 
@@ -59,6 +60,7 @@ const TAB_ICON: Record<Exclude<TabKey, 'settings'>, typeof Calendar> = {
 };
 
 export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
+    const t = useT();
     const insets = useSafeAreaInsets();
     const keyboard = useKeyboardHeight();
     const RoleGlyph = ROLE_ICON[role];
@@ -87,7 +89,7 @@ export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
                         key={tab.key}
                         accessibilityRole="tab"
                         accessibilityState={{ selected }}
-                        accessibilityLabel={tab.label}
+                        accessibilityLabel={t(tab.label)}
                         onPress={() => onChange(tab.key)}
                         style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
                         testID={`tab-${tab.key}`}
@@ -98,7 +100,7 @@ export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
                             weight={selected ? 'semibold' : 'medium'}
                             tone={selected ? 'ink' : 'muted'}
                         >
-                            {tab.label}
+                            {t(tab.label)}
                         </Text>
                     </Pressable>
                 );

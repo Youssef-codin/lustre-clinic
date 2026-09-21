@@ -10,26 +10,21 @@
 // it is hidden while searching rather than recomputed over the filtered rows,
 // because a figure that shrank as you typed would read as the clinic being owed
 // less than it is.
-// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the `AppState` subscription that re-reads the day on foreground
+import type { CopyVars } from '@lustre/shared';
+// biome-ignore lint/style/noRestrictedImports: three of them, all external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, the same `scrollTo` holding the debtor list under a focused search, and the `AppState` subscription that re-reads the day on foreground
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
-import {
-    DropdownMenu,
-    IconButton,
-    ScreenHeader,
-    useKeyboardHeight,
-    usePullToRefresh,
-} from '../../components/ui';
+import { DropdownMenu, ScreenHeader, useKeyboardHeight, usePullToRefresh } from '../../components/ui';
+import { useLocale, useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { todayKey } from '../day/time';
 import { DebtorRow } from './components/DebtorRow';
 import { DockedSearch, SEARCH_HEIGHT } from './components/DockedSearch';
 import { HeroCollectionCard } from './components/HeroCollectionCard';
-import { MoreIcon } from './components/icons';
-import { LoadState, SkeletonCard, SkeletonRows } from './components/LoadState';
+import { LoadState, SkeletonCard, SkeletonHeroCard, SkeletonRows } from './components/LoadState';
 import { OweHead } from './components/OweHead';
 import { PeriodTabs } from './components/PeriodTabs';
 import { StatCard, StatCardSkeleton } from './components/StatCard';
@@ -45,8 +40,6 @@ import {
     periodRange,
     sortDebtors,
 } from './money';
-
-const HEADER_BUTTON = 40;
 
 export type MoneyScreenProps = {
     /**
@@ -65,10 +58,13 @@ export type MoneyScreenProps = {
 };
 
 export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
+    const locale = useLocale();
+    const t = useT();
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
     const [sort, setSort] = useState<DebtorSort>('balance');
     const [sortAnchor, setSortAnchor] = useState<MenuAnchor | null>(null);
+    const [searchFocused, setSearchFocused] = useState(false);
 
     const [today, rereadToday] = useToday();
     const range = useMemo(() => periodRange(period, today), [period, today]);
@@ -126,7 +122,12 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
         summary.isLoading || takings.isLoading || outstanding.isLoading,
     );
 
-    const dock = useSearchDock(pull.scrollProps.onScroll);
+    // What the list is currently showing, as one value the pin below can
+    // compare. The count alone is not it: retyping one three-patient search
+    // into a different three-patient search changes every row and no length.
+    const shownKey = useMemo(() => debtors.map((row) => row.patientId).join(','), [debtors]);
+
+    const dock = useSearchDock(pull.scrollProps.onScroll, scroller, searchFocused, shownKey);
 
     return (
         <View style={styles.screen} onLayout={dock.onScreenLayout}>
@@ -141,12 +142,12 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                 onScrollEndDrag={pull.scrollProps.onScrollEndDrag}
                 testID="money-screen"
             >
-                <ScreenHeader
-                    title="Finances"
-                    trailing={
-                        <IconButton accessibilityLabel="More" icon={<MoreIcon />} size={HEADER_BUTTON} />
-                    }
-                />
+                {/* No overflow button. It was drawn with no handler, and every
+                    action this screen has is already a control on it: the
+                    period is the tabs, the sort is the head above the list,
+                    and a refresh is the pull. A menu here would have to invent
+                    something to hold. */}
+                <ScreenHeader title={t('Finances')} />
 
                 <PeriodTabs value={period} onChange={setPeriod} />
 
@@ -155,7 +156,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                         {statsPeriodLabel()}
                     </Text>
                     <Text variant="caption" weight="semibold" tone="muted">
-                        {periodLabel}
+                        {t(periodLabel)}
                     </Text>
                 </View>
 
@@ -164,7 +165,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                         isLoading={summary.isLoading}
                         error={summary.error}
                         onRetry={summary.refetch}
-                        skeleton={<SkeletonCard height={hero.minHeight} />}
+                        skeleton={<SkeletonHeroCard height={hero.minHeight} />}
                     >
                         {summary.data ? (
                             <HeroCollectionCard
@@ -194,16 +195,18 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                         {summary.data && outstanding.data ? (
                             <View style={styles.stats}>
                                 <StatCard
-                                    label="Older visits"
+                                    label={t('Older visits')}
                                     amount={summary.data.olderCollected}
-                                    sub={`collected · ${plural(summary.data.olderVisits, 'visit')}`}
+                                    sub={t('collected · {count}', {
+                                        count: plural(t, summary.data.olderVisits, 'visit'),
+                                    })}
                                     tone="older"
                                     testID="money-stat-older"
                                 />
                                 <StatCard
-                                    label="Total due"
+                                    label={t('Total due')}
                                     amount={outstanding.data.total}
-                                    sub={plural(outstanding.data.patients.length, 'patient')}
+                                    sub={plural(t, outstanding.data.patients.length, 'patient')}
                                     tone="due"
                                     testID="money-stat-total-due"
                                 />
@@ -225,7 +228,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                     </LoadState>
                 </View>
 
-                <View style={styles.oweHead}>
+                <View style={styles.oweHead} onLayout={dock.onHeadLayout}>
                     <OweHead
                         total={searching ? null : (outstanding.data?.total ?? null)}
                         sort={sort}
@@ -236,7 +239,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
 
                 <View style={styles.searchSlot} onLayout={dock.onAnchorLayout} />
 
-                <View style={styles.gutter}>
+                <View style={[styles.gutter, searchFocused && { minHeight: dock.listMinHeight }]}>
                     <LoadState
                         isLoading={outstanding.isLoading}
                         error={outstanding.error}
@@ -249,6 +252,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                                 shownOf={outstanding.data.patients.length}
                                 sort={sort}
                                 searching={searching}
+                                locale={locale}
                                 onOpenRecord={onOpenRecord}
                             />
                         ) : null}
@@ -261,6 +265,8 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                     value={search}
                     onChangeText={setSearch}
                     placeholder="Search patients"
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setSearchFocused(false)}
                     translateY={dock.translateY}
                     dockOpacity={dock.dockOpacity}
                     dockScale={dock.dockScale}
@@ -285,30 +291,33 @@ function DebtorList({
     shownOf,
     sort,
     searching,
+    locale,
     onOpenRecord,
 }: {
     debtors: PatientBalance[];
     shownOf: number;
     sort: DebtorSort;
     searching: boolean;
+    locale: 'en' | 'ar';
     onOpenRecord?: (patientId: string) => void;
 }) {
+    const t = useT();
     // Two different facts, so two different sentences: a search that matched
     // nothing is not a clinic that is owed nothing.
     if (debtors.length === 0) {
         return searching ? (
             <View style={styles.searchEmpty}>
                 <Text variant="subhead" tone="muted">
-                    No patients found
+                    {t('No patients found')}
                 </Text>
             </View>
         ) : (
             <View style={styles.noDebtors}>
                 <Text variant="callout" weight="semibold" tone="ink2">
-                    No outstanding patients
+                    {t('No outstanding patients')}
                 </Text>
                 <Text variant="footnote" tone="muted">
-                    All patient balances are settled
+                    {t('All patient balances are settled')}
                 </Text>
             </View>
         );
@@ -328,14 +337,18 @@ function DebtorList({
             </View>
 
             <Text variant="footnote" tone="muted" style={styles.foot}>
-                {`Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
+                {locale === 'ar'
+                    ? `عرض ${debtors.length} من ${shownOf}${sort === 'balance' ? ' · أعلى الأرصدة' : ''}`
+                    : `Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
             </Text>
         </View>
     );
 }
 
-function plural(count: number, noun: string): string {
-    return `${count} ${count === 1 ? noun : `${noun}s`}`;
+// The English plural is a suffix and the Arabic one is a different word, so
+// both forms are catalogue keys and the count picks between them.
+function plural(t: (copy: string, vars?: CopyVars) => string, count: number, noun: string): string {
+    return t(count === 1 ? `{count} ${noun}` : `{count} ${noun}s`, { count });
 }
 
 // Which local day the period pills are measured from.
@@ -414,10 +427,25 @@ const DOCK_SCALE = 0.975;
 const FAR = 10_000;
 
 /** `listener` is the pull-to-refresh's own scroll handler, which rides on the native event rather than replacing it. */
-function useSearchDock(listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => void) {
+function useSearchDock(
+    listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => void,
+    scroller: React.RefObject<ScrollView | null>,
+    /** Whether the pill is being typed into. */
+    focused: boolean,
+    /** Which rows the list is showing, as one comparable value. */
+    shown: string,
+) {
     const scrollY = useRef(new Animated.Value(0)).current;
     const anchor = useRef(new Animated.Value(0)).current;
     const slotY = useRef(Animated.subtract(anchor, scrollY)).current;
+
+    // The same offset as `anchor`, kept where JS can read it: an `Animated.Value`
+    // drives the transform on the native thread and `scrollTo` is a JS call that
+    // needs a number. The list's own head is what the scroll aims at rather than
+    // the search slot — landing on the slot alone would put the pill at the top
+    // of the screen with "Who owe" and its sort control scrolled off above it.
+    const headY = useRef(0);
+    const [headHeight, setHeadHeight] = useState(0);
 
     // Where the pill sits once it has nothing left to follow. Measured off the
     // screen's own box rather than the scroller's, because that is the box the
@@ -431,6 +459,28 @@ function useSearchDock(listener: (event: NativeSyntheticEvent<NativeScrollEvent>
     // kept and the line derived from it rather than the line being stored: the
     // layout does not fire again when the keyboard moves, so a stored line
     // would keep the value it was measured with.
+    /**
+     * Search brings what it filters with it, and keeps it there.
+     *
+     * The pill docks to the bottom of the screen from anywhere on the
+     * dashboard, so it was perfectly usable three screens above the list it
+     * searches — you typed and watched a hero card not change. Focus scrolls
+     * the list's own head to the top, which puts "Who owe", its sort and the
+     * first rows under the keyboard's ceiling.
+     *
+     * `shown` is in here because filtering changes the page under the pin:
+     * eight debtors down to one is a shorter scroll, the offset is clamped
+     * back up, and the one match the search just found ends up below the fold.
+     * Re-pinning whenever the rows change is what keeps the results where the
+     * eye already is — the rows and not their count, so swapping one search
+     * for another of the same length still brings its results up.
+     */
+    // biome-ignore lint/correctness/useExhaustiveDependencies: `shown` is the signal, not a value read — the list's rows changing is the thing worth re-pinning for
+    useEffect(() => {
+        if (!focused) return;
+        scroller.current?.scrollTo({ y: headY.current, animated: true });
+    }, [focused, shown, scroller]);
+
     const [screenHeight, setScreenHeight] = useState(0);
     const keyboard = useKeyboardHeight();
     const dockLine = screenHeight > 0 ? screenHeight - keyboard - size.dock - SEARCH_HEIGHT : 0;
@@ -480,6 +530,23 @@ function useSearchDock(listener: (event: NativeSyntheticEvent<NativeScrollEvent>
         ).current,
         onScreenLayout: (event: LayoutChangeEvent) => setScreenHeight(event.nativeEvent.layout.height),
         onAnchorLayout: (event: LayoutChangeEvent) => anchor.setValue(event.nativeEvent.layout.y),
+        onHeadLayout: (event: LayoutChangeEvent) => {
+            headY.current = event.nativeEvent.layout.y;
+            setHeadHeight(event.nativeEvent.layout.height);
+        },
+        /**
+         * What the list has to be worth scrolling to, while it is being
+         * searched. A filter that cuts eight debtors to one also cuts the
+         * content shorter than a screen, and a scroll cannot move what it
+         * cannot overscroll: the pin above asked for the head at the top, the
+         * offset clamped at the bottom of a short page, and the single match
+         * stayed under the keyboard.
+         *
+         * Reserving a screen's worth under the head makes that scroll possible.
+         * It is whitespace below the last row for as long as the field is
+         * focused, and the dashboard's own resting layout never sees it.
+         */
+        listMinHeight: Math.max(0, screenHeight - headHeight - SEARCH_HEIGHT),
     };
 }
 

@@ -10,6 +10,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { ConnectionView } from '../data/connection';
 import { ReprobeIcon, SwitchRoleIcon } from './icons';
@@ -33,6 +34,7 @@ export function IdentityCard({
     onSwitchRole,
     testID,
 }: IdentityCardProps) {
+    const t = useT();
     return (
         <View style={styles.card} testID={testID}>
             <View style={styles.identity}>
@@ -44,7 +46,7 @@ export function IdentityCard({
 
                 <View style={styles.who}>
                     <Text variant="title3" tone="inverse" numberOfLines={1}>
-                        {roleName}
+                        {t(roleName)}
                     </Text>
                     <Text variant="subhead" tone="inverse" numberOfLines={1} style={styles.branch}>
                         {clinicName}
@@ -61,12 +63,12 @@ export function IdentityCard({
                     numberOfLines={1}
                     style={styles.statusLabel}
                 >
-                    {connection.label}
+                    {t(connection.label)}
                 </Text>
 
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Check the server connection again"
+                    accessibilityLabel={t('Check the server connection again')}
                     accessibilityState={{ busy: connection.probing }}
                     onPress={connection.reprobe}
                     disabled={connection.probing}
@@ -75,21 +77,21 @@ export function IdentityCard({
                 >
                     <ReprobeIcon size={13} stroke={color.inverse} width={2} />
                     <Text variant="footnote" weight="semibold" tone="inverse" style={styles.reprobeLabel}>
-                        {connection.probing ? 'Probing…' : 'Re-probe'}
+                        {t(connection.probing ? 'Probing…' : 'Re-probe')}
                     </Text>
                 </Pressable>
             </View>
 
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Switch role"
+                accessibilityLabel={t('Switch role')}
                 onPress={onSwitchRole}
                 testID="settings-switch-role"
                 style={({ pressed }) => [styles.switch, pressed && styles.pressed]}
             >
                 <SwitchRoleIcon size={16} />
                 <Text variant="callout" weight="semibold" tone="inverse">
-                    Switch role
+                    {t('Switch role')}
                 </Text>
             </Pressable>
         </View>

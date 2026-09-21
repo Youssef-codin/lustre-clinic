@@ -13,7 +13,9 @@
  * they are what `components/domain` exports and what a screen should use.
  */
 import type { Locale } from '@lustre/shared';
-import { I18nManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useLocale } from '../../i18n';
+import { getLocale } from '../../i18n/runtime';
 import type { TextTone, TextVariant, TextWeight } from '../../theme';
 import { space, Text } from '../../theme';
 import { CURRENCY, formatAmount, formatMoney as formatIn, type MoneyOptions } from './money';
@@ -40,11 +42,7 @@ const SYMBOL_VARIANT: Partial<Record<TextVariant, TextVariant>> = {
 };
 
 export function formatMoney(piastres: number, options: MoneyOptions = {}): string {
-    return formatIn(piastres, { ...options, language: options.language ?? currentLanguage() });
-}
-
-function currentLanguage(): Locale {
-    return I18nManager.isRTL ? 'ar' : 'en';
+    return formatIn(piastres, { ...options, language: options.language ?? getLocale() });
 }
 
 export function MoneyValue({
@@ -57,7 +55,8 @@ export function MoneyValue({
     language,
     testID,
 }: MoneyValueProps) {
-    const locale = language ?? currentLanguage();
+    const appLocale = useLocale();
+    const locale = language ?? appLocale;
     const amount = formatAmount(piastres, compact);
 
     const symbol = showCurrency ? (

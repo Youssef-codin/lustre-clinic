@@ -17,7 +17,7 @@
 # nothing more, and it runs without a window, which is all an agent needs.
 #
 # One session serves every worktree. Each agent reverses its own Metro port, but
-# there is one com.lustre.clinic on the device: whoever installed or reloaded
+# there is one com.lustre.clinic.dev on the device: whoever installed or reloaded
 # last is what the screen shows. Screenshot straight after your own reload.
 #
 # Setup, once, as root:
@@ -32,6 +32,18 @@ BOOT_TIMEOUT="${BOOT_TIMEOUT:-120}"
 env_file="$(dirname "$0")/../../../.env"
 env_port=$(sed -n 's/^[[:space:]]*PORT[[:space:]]*=[[:space:]]*\([0-9]\{1,\}\).*/\1/p' "$env_file" 2>/dev/null | tail -1)
 API_PORT="${API_PORT:-${env_port:-3000}}"
+
+# The two application ids. A dev build installs under the `.dev` suffix
+# `plugins/withDevIdentity.js` gives the debug build type, so it sits beside a
+# release on one phone instead of failing to install over it. Gradle applies the
+# suffix, and `expo run:android` launches whatever id it reads out of Gradle —
+# which is the unsuffixed one — hence `--app-id`.
+APP_ID="com.lustre.clinic"
+DEV_APP_ID="$APP_ID.dev"
+
+# Where a dev build looks for the server when nothing has been configured
+# (app.config.ts). The reverse below is what makes `localhost` mean this machine.
+export LUSTRE_DEV_SERVER="http://localhost:${API_PORT}"
 
 export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
@@ -176,12 +188,12 @@ echo "Reversed ports ${METRO_PORT} (metro) and ${API_PORT} (api) onto Waydroid."
 cd "$(dirname "$0")/.."
 
 if [ "$mode" = "run" ]; then
-    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx 'package:com.lustre.clinic'; then
-        echo "com.lustre.clinic is already installed — starting the bundler only."
+    if adb -s "$serial" shell pm list packages 2>/dev/null | tr -d '\r' | grep -qx "package:$DEV_APP_ID"; then
+        echo "$DEV_APP_ID is already installed — starting the bundler only."
         echo "Use --build if you changed anything native."
         mode="start"
     else
-        echo "com.lustre.clinic is not installed on $serial — building it."
+        echo "$DEV_APP_ID is not installed on $serial — building it."
     fi
 fi
 
@@ -193,8 +205,8 @@ if [ "$mode" = "release" ]; then
     # No source-map upload: it fails the build without a GlitchTip token.
     (cd android && SENTRY_DISABLE_AUTO_UPLOAD="${SENTRY_DISABLE_AUTO_UPLOAD:-true}" ./gradlew assembleRelease)
     adb -s "$serial" install -r "$apk"
-    adb -s "$serial" shell am start -S -n com.lustre.clinic/.MainActivity
-    echo "Launched com.lustre.clinic (release, embedded bundle)."
+    adb -s "$serial" shell am start -S -n "$APP_ID/.MainActivity"
+    echo "Launched $APP_ID (release, embedded bundle)."
     exit 0
 fi
 
@@ -208,7 +220,7 @@ name=$(adb devices -l | awk -v s="$serial" '$1 == s {
     for (i = 2; i <= NF; i++) if ($i ~ /^model:/) { sub(/^model:/, "", $i); print $i; exit }
 }')
 
-args=(run:android --device "${name:-$serial}" --port "$METRO_PORT")
+args=(run:android --device "${name:-$serial}" --port "$METRO_PORT" --app-id "$DEV_APP_ID")
 [ "$mode" = "build" ] && args+=(--no-build-cache)
 
 exec bunx expo "${args[@]}"

@@ -3,7 +3,14 @@
 // ruled rows, then the clinic's questions under a label that counts them and a
 // progress bar across them, and the save pinned to the bottom over a hairline.
 //
-// One screen for both jobs because the design draws one. What differs is
+// One screen for both jobs because the design draws one, and one screen for
+// both *kinds* of patient: an **Old patient** switch reveals the number on
+// somebody's paper file, what they owed on it and what the file records was
+// done. Off by default and off sends nothing. It replaced a separate Settings →
+// Data entry screen, whose one job was to be a second way to register the same
+// person — and which numbered them a second time doing it.
+//
+// What differs between registering and correcting is
 // entirely in `patientForm.ts`: a create sends the whole form and cannot be
 // saved until every required question is answered, an edit sends only what
 // moved and is never held back by a question nobody has answered yet. That
@@ -38,12 +45,13 @@ import {
     SkeletonRows,
     useKeyboardHeight,
 } from '../../components/ui';
-import { useLocale } from '../../shell/localeStore';
+import { useLocale, useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
 import { CloseIcon } from './components/icons';
+import { OldPatientRows, OldProcedures } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
@@ -51,13 +59,16 @@ import type { CustomQuestion, PatientDetail } from './data/types';
 import type { PatientForm } from './patientForm';
 import {
     answeredCount,
+    badOldDates,
     blankBasics,
+    blankOld,
     clearedRequired,
     createInputOf,
     emptyForm,
     formOf,
     isUnchanged,
     malformedBasics,
+    malformedOld,
     missingRequired,
     unaskableRequired,
     updateInputOf,
@@ -86,6 +97,7 @@ export type PatientEditScreenProps = {
 };
 
 export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
+    const t = useT();
     const creating = patientId === undefined;
 
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
@@ -126,6 +138,14 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
     const blank = form ? blankBasics(form) : [];
     const malformed = form ? malformedBasics(form) : {};
+    // Only on a registration: the switch is not drawn on an edit, so its fields
+    // can never be owed there.
+    const oldBlank = form && creating ? blankOld(form) : [];
+    const oldMalformed = form && creating ? malformedOld(form) : {};
+    // A date typed into an old procedure that cannot be read. Counted with the
+    // rest rather than left to the row's own message, because a save that goes
+    // through would record it as "before migration" instead.
+    const oldBadDates = form && creating ? badOldDates(form) : [];
     const missing = form ? missingRequired(form, editable) : [];
     const answered = form ? answeredCount(form, editable) : 0;
 
@@ -139,7 +159,13 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // plus anything emptied — a required question left alone is not owed,
     // because `patient.update` validates only the patch it is sent and holding
     // an unrelated correction hostage to it is what §7.8 exists to avoid.
-    const owed = blank.length + Object.keys(malformed).length + (creating ? missing.length : cleared.length);
+    const owed =
+        blank.length +
+        Object.keys(malformed).length +
+        oldBlank.length +
+        Object.keys(oldMalformed).length +
+        oldBadDates.length +
+        (creating ? missing.length : cleared.length);
 
     // A required question this screen has no control for (§7.9). Intake cannot
     // succeed while one exists — `validateIntake` wants every active required
@@ -240,10 +266,32 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                         )}
 
                         <Text variant="eyebrow" tone="muted" style={styles.eyebrow}>
-                            BASICS
+                            {t('BASICS')}
                         </Text>
 
-                        <BasicsCard form={form} onChange={change} blank={blank} errors={malformed} />
+                        {/* The old-patient switch is registration only. An
+                            existing record is never registered again, and an
+                            editor offering to give somebody an old number would
+                            be offering to change the number already written on
+                            their file. */}
+                        <BasicsCard
+                            form={form}
+                            onChange={change}
+                            blank={blank}
+                            errors={malformed}
+                            trailing={
+                                creating ? (
+                                    <OldPatientRows
+                                        form={form}
+                                        onChange={change}
+                                        blank={oldBlank}
+                                        errors={oldMalformed}
+                                    />
+                                ) : null
+                            }
+                        />
+
+                        {creating ? <OldProcedures form={form} onChange={change} /> : null}
 
                         <Questions
                             questions={editable}
@@ -334,6 +382,7 @@ function Questions({
     loading,
     error,
 }: QuestionsProps) {
+    const t = useT();
     const missingKeys = useMemo(() => new Set(missing), [missing]);
     const total = questions.length;
 
@@ -373,7 +422,7 @@ function Questions({
         <View style={styles.section}>
             <View style={styles.sectionHead}>
                 <Text variant="eyebrow" tone="muted">
-                    CLINIC QUESTIONS
+                    {t('CLINIC QUESTIONS')}
                 </Text>
                 <Text variant="caption" weight="medium" tone="muted">
                     {`${answered} of ${total} answered`}

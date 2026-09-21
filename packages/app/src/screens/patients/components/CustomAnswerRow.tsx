@@ -7,7 +7,7 @@
 import { resolveLabel } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Tag } from '../../../components/ui';
-import { useLocale } from '../../../shell/localeStore';
+import { useLocale, useT } from '../../../i18n';
 import { size, space, Text } from '../../../theme';
 import type { CustomQuestion, QuestionnaireGapReason } from '../data/types';
 import { displayAnswer, isReadOnly } from './customFields';
@@ -28,6 +28,7 @@ const GAP_LABEL: Partial<Record<QuestionnaireGapReason, string>> = {
 };
 
 export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) {
+    const t = useT();
     const answer = displayAnswer(question, value);
     const gapLabel = gap === undefined ? undefined : GAP_LABEL[gap];
     const label = resolveLabel(question, useLocale());
@@ -69,7 +70,7 @@ export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) 
 
                 {answer !== null && isReadOnly(question) && (
                     <Text variant="caption" tone="muted">
-                        Read-only for now
+                        {t('Read-only for now')}
                     </Text>
                 )}
             </View>

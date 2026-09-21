@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { size, space, Text } from '../../theme';
 
 export type SectionLabelProps = {
@@ -10,10 +11,11 @@ export type SectionLabelProps = {
 };
 
 export function SectionLabel({ children, count, action, inset = true }: SectionLabelProps) {
+    const t = useT();
     return (
         <View style={[styles.row, inset && styles.inset]}>
             <Text variant="eyebrow" tone="muted">
-                {children}
+                {t(children)}
             </Text>
             {count === undefined ? null : (
                 <Text variant="eyebrow" tone="muted">

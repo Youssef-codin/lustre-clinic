@@ -34,14 +34,15 @@ export const updateSettingsInput = z
             .min(1)
             .max(24 * 60),
         reminderTemplate: z.string().trim().min(1).max(1000),
-        // One below the column's maximum, so the next registration still has a
-        // number. Below the highest numbered ref on file is refused by the
-        // service, which is the only side that can see the patients.
-        patientRefLast: z
-            .number()
-            .int()
-            .min(0)
-            .max(MAX_PATIENT_REF - 1),
+        // The number the next new patient is given, so one is the lowest it can
+        // be. At or below a ref already on file is refused by the service,
+        // which is the only side that can see the patients.
+        patientRefNext: z.number().int().min(1).max(MAX_PATIENT_REF),
+        // Where an old patient's carried-over money and history are dated.
+        // Nullable: a clinic that never migrated anything has no cutoff, and
+        // clearing them is how it says so.
+        migrationBranchId: z.uuid().nullable(),
+        migrationCutoffDate: z.iso.date().nullable(),
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

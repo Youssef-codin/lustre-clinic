@@ -10,6 +10,7 @@
 // tinted figures are tokens instead: an opacity on the card would dim its
 // contents with it.
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../../i18n';
 import { color, gradient, radius, shadow, space, Text } from '../../../theme';
 import type { BalanceSummary } from '../data';
 import { MoneyValue } from '../MoneyValue';
@@ -26,6 +27,7 @@ export type HeroCollectionCardProps = {
 };
 
 export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollectionCardProps) {
+    const t = useT();
     const { charged, collected, difference, duePatients } = summary;
 
     const rate = collectionRate(charged, collected);
@@ -41,7 +43,7 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
     return (
         <View style={[styles.card, { minHeight }]} testID="money-hero">
             <Text variant="eyebrow" script="sans" weight="bold" tone="inverse" style={styles.dim}>
-                Collection rate
+                {t('Collection rate')}
             </Text>
 
             <View style={styles.figure}>
@@ -81,7 +83,7 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
                                 surplus it would be counting the wrong thing. */}
                             {ahead > 0 ? null : (
                                 <Text variant="body" weight="semibold" tone="inverse" style={styles.faint}>
-                                    {` · ${duePatients} ${duePatients === 1 ? 'patient' : 'patients'}`}
+                                    {` · ${t(duePatients === 1 ? '{count} patient' : '{count} patients', { count: duePatients })}`}
                                 </Text>
                             )}
                         </Text>
@@ -127,12 +129,13 @@ function HeroStat({
     dim?: boolean;
     last?: boolean;
 }) {
+    const t = useT();
     return (
         <View style={[styles.stat, last && styles.statLast]}>
             <View style={styles.statLabel}>
                 <View style={[styles.dot, { backgroundColor: dot }]} />
                 <Text variant="tag" script="sans" weight="bold" tone="inverse" style={styles.label}>
-                    {label}
+                    {t(label)}
                 </Text>
             </View>
 

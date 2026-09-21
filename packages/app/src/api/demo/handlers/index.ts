@@ -105,7 +105,6 @@ const handlers = {
     'backup.signInConfig': backupHandlers.signInConfig,
     'backup.linkDrive': backupHandlers.linkDrive,
 
-    'migration.enter': migrationHandlers.enter,
     'migration.progress': migrationHandlers.progress,
 } as const satisfies Record<Path, Handler>;
 

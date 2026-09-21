@@ -25,6 +25,7 @@
 import type { Animated as RNAnimated } from 'react-native';
 import { Animated, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Placeholder } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, containsArabic, font, radius, shadow, size, space, Text, type } from '../../../theme';
 import { SearchIcon } from './icons';
 
@@ -36,6 +37,14 @@ export type DockedSearchProps = {
     value: string;
     onChangeText: (value: string) => void;
     placeholder: string;
+    /**
+     * Focus and blur. The pill docks to the bottom from anywhere on the
+     * dashboard, so without these it is a search you can type into while the
+     * list it filters is somewhere off the bottom of the screen. The screen
+     * holds the list under the pill for as long as it is focused.
+     */
+    onFocus?: () => void;
+    onBlur?: () => void;
     /** Position, clamped so the pill can never fall past the dock line. */
     translateY: RNAnimated.AnimatedInterpolation<number>;
     /** 0 resting in the list, 1 floating over it. Drives the lift, not the box. */
@@ -48,11 +57,15 @@ export function DockedSearch({
     value,
     onChangeText,
     placeholder,
+    onFocus,
+    onBlur,
     translateY,
     dockOpacity,
     dockScale,
 }: DockedSearchProps) {
-    const arabic = containsArabic(value || placeholder);
+    const t = useT();
+    const shown = t(placeholder);
+    const arabic = containsArabic(value || shown);
 
     return (
         <Animated.View style={[styles.pill, { transform: [{ translateY }, { scale: dockScale }] }]}>
@@ -68,14 +81,16 @@ export function DockedSearch({
                 <TextInput
                     value={value}
                     onChangeText={onChangeText}
-                    accessibilityLabel={placeholder}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                    accessibilityLabel={shown}
                     accessibilityRole="search"
                     returnKeyType="search"
                     autoCorrect={false}
                     style={[styles.input, { fontFamily: arabic ? font.arabic.regular : font.sans.regular }]}
                     testID="money-debtor-search"
                 />
-                <Placeholder text={placeholder} visible={value === ''} />
+                <Placeholder text={shown} visible={value === ''} />
             </View>
 
             {value.length > 0 ? (

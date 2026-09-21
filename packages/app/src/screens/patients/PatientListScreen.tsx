@@ -33,6 +33,7 @@ import {
     useKeyboardHeight,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { PlusIcon, SearchIcon } from './components/icons';
 import { patientsApi } from './data/api';
@@ -61,6 +62,7 @@ export type PatientListScreenProps = {
 const DEBOUNCE_MS = 250;
 
 export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientListScreenProps) {
+    const t = useT();
     const keyboard = useKeyboardHeight();
     const [term, setTerm] = useState('');
     const [toast, setToast] = useState<string | null>(null);
@@ -158,17 +160,17 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                     />
                 ) : rows.length === 0 ? (
                     <EmptyState
-                        title={searching ? 'No patients found' : 'No patients yet'}
+                        title={t(searching ? 'No patients found' : 'No patients yet')}
                         body={
                             searching
-                                ? 'Nothing matches that name or number.'
-                                : 'Patients appear here as they are registered.'
+                                ? t('Nothing matches that name or number.')
+                                : t('Patients appear here as they are registered.')
                         }
                         weight="panel"
                     />
                 ) : (
                     <View>
-                        <SectionLabel>{searching ? 'RESULTS' : 'RECENT'}</SectionLabel>
+                        <SectionLabel>{t(searching ? 'RESULTS' : 'RECENT')}</SectionLabel>
                         {rows.map((patient) => (
                             <PatientRow
                                 key={patient.id}
@@ -194,11 +196,12 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
  * animating up from zero.
  */
 function ListHeader({ total, onNewPatient }: { total?: number; onNewPatient: () => void }) {
+    const t = useT();
     return (
         <View style={styles.header}>
             <View style={styles.titles}>
                 <Text variant="title" accessibilityRole="header">
-                    Patients
+                    {t('Patients')}
                 </Text>
                 {total === undefined ? null : (
                     <Text variant="footnote" weight="medium" tone="muted" script="mono">
@@ -220,10 +223,11 @@ function ListHeader({ total, onNewPatient }: { total?: number; onNewPatient: () 
  * heading's baseline.
  */
 function NewPatientButton({ onPress }: { onPress: () => void }) {
+    const t = useT();
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel="New patient"
+            accessibilityLabel={t('New patient')}
             onPress={onPress}
             hitSlop={8}
             style={({ pressed }) => [styles.newPatient, pressed && styles.pressed]}
@@ -231,7 +235,7 @@ function NewPatientButton({ onPress }: { onPress: () => void }) {
         >
             <PlusIcon size={15} stroke={color.inverse} />
             <Text variant="subhead" weight="semibold" tone="inverse">
-                New patient
+                {t('New patient')}
             </Text>
         </Pressable>
     );

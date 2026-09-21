@@ -18,6 +18,7 @@
 import { StyleSheet, View } from 'react-native';
 import { StatusPill } from '../../../components/domain';
 import { Button, Sheet } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { dateKey, formatSpan, minutesOfDay, relativeDayLabel } from '../time';
@@ -51,6 +52,7 @@ export function DoctorVisitSheet({
     onClosed,
     inChair = false,
 }: DoctorVisitSheetProps) {
+    const t = useT();
     const arrived =
         appointment?.status === 'checked_in' ||
         appointment?.status === 'awaiting_payment' ||
@@ -107,7 +109,7 @@ export function DoctorVisitSheet({
                     {appointment.note ? (
                         <View style={styles.note}>
                             <Text variant="eyebrow" tone="muted">
-                                NOTE FROM THE DESK
+                                {t('NOTE FROM THE DESK')}
                             </Text>
                             <Text variant="body" tone="ink2" style={styles.noteText}>
                                 {appointment.note}
@@ -128,6 +130,7 @@ export function DoctorVisitSheet({
  * said twice, and how long he has is the thing it was not saying at all.
  */
 function Identity({ appointment, inChair }: { appointment: Appointment; inChair: boolean }) {
+    const t = useT();
     return (
         <View style={styles.identity}>
             <View style={styles.tile}>
@@ -135,7 +138,7 @@ function Identity({ appointment, inChair }: { appointment: Appointment; inChair:
                     {String(appointment.durationMinutes)}
                 </Text>
                 <Text variant="tag" tone="inverse" style={styles.tileSub}>
-                    MIN
+                    {t('MIN')}
                 </Text>
             </View>
 
