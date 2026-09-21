@@ -30,6 +30,7 @@
  * done is refused — the alternative is inventing a branch and a day the clinic
  * was open. A patient who brings neither needs none of it.
  */
+import type { CopyVars } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -251,7 +252,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                         />
                         {submitted && pairIssue ? (
                             <Text variant="caption" tone="due">
-                                {pairIssue}
+                                {t(pairIssue)}
                             </Text>
                         ) : null}
                     </Card>
@@ -260,7 +261,9 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                         {t(
                             'The day the old system stopped being the truth. A patient registered with an old number who owes money or had work recorded has it dated here. Leave it unset if nothing is being carried over.',
                         )}
-                        {carried.data && carried.data.oldPatients > 0 ? ` ${carriedSoFar(carried.data)}` : ''}
+                        {carried.data && carried.data.oldPatients > 0
+                            ? ` ${carriedSoFar(t, carried.data)}`
+                            : ''}
                     </Text>
                 </>
             ) : null}
@@ -272,12 +275,19 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
  * What has come across, in one sentence. Plural-aware because "1 patients" on a
  * settings pane is the kind of thing that makes the rest of it look untended.
  */
-function carriedSoFar(progress: { oldPatients: number; openingBalances: number }): string {
-    const patients = `${progress.oldPatients} patient${progress.oldPatients === 1 ? '' : 's'}`;
-    if (progress.openingBalances === 0) return `${patients} carried over so far.`;
+function carriedSoFar(
+    t: (copy: string, vars?: CopyVars) => string,
+    progress: { oldPatients: number; openingBalances: number },
+): string {
+    const patients = t(progress.oldPatients === 1 ? '{count} patient' : '{count} patients', {
+        count: progress.oldPatients,
+    });
+    if (progress.openingBalances === 0) return t('{patients} carried over so far.', { patients });
 
-    const owing = `${progress.openingBalances} of them still owing money`;
-    return `${patients} carried over so far, ${owing}.`;
+    return t('{patients} carried over so far, {owing} of them still owing money.', {
+        patients,
+        owing: progress.openingBalances,
+    });
 }
 
 const styles = StyleSheet.create({

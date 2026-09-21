@@ -158,7 +158,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                     <View style={[styles.pill, PILL[status.tone]]}>
                         <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />
                         <Text variant="tag" weight="bold" tone={status.tone === 'ink' ? 'ink' : status.tone}>
-                            {status.label}
+                            {t(status.label)}
                         </Text>
                     </View>
                 </View>

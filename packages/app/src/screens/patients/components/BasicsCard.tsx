@@ -17,6 +17,7 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Card, CardDivider, Placeholder } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, font, radius, space, Text, type } from '../../../theme';
 import type { BasicsField, PatientForm } from '../patientForm';
 import { ageDigits, FEMALE, MALE } from '../patientForm';
@@ -174,11 +175,12 @@ function Row({
     align?: 'center' | 'flex-start';
     children: ReactNode;
 }) {
+    const t = useT();
     return (
         <View style={styles.row}>
             <View style={[styles.line, align === 'center' && styles.lineCentred]}>
                 <Text variant="footnote" tone={owed ? 'due' : 'muted'} style={styles.label}>
-                    {label}
+                    {t(label)}
                 </Text>
                 <View style={styles.field}>{children}</View>
             </View>
@@ -187,7 +189,7 @@ function Row({
                 and a sentence in it would reflow the card. */}
             {error ? (
                 <Text variant="caption" tone="danger" style={styles.error}>
-                    {error}
+                    {t(error)}
                 </Text>
             ) : null}
         </View>
@@ -220,11 +222,12 @@ function SexToggle({ value, onChange }: { value: string; onChange: (value: strin
 }
 
 function Half({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+    const t = useT();
     return (
         <Pressable
             accessibilityRole="radio"
             accessibilityState={{ selected }}
-            accessibilityLabel={label === 'F' ? 'Female' : 'Male'}
+            accessibilityLabel={t(label === 'F' ? 'Female' : 'Male')}
             onPress={onPress}
             style={({ pressed }) => [styles.half, selected && styles.halfOn, pressed && styles.pressed]}
             testID={`patient-sex-${label}`}

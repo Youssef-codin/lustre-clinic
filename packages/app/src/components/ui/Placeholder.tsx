@@ -6,8 +6,12 @@
  * placeholder gets Noto Naskh, which the native hint could not do. The overlay
  * sits above the input, so `pointerEvents="none"` — a tap has to reach the field
  * under it.
+ *
+ * The text is copy and is localized here, the way `Field` localizes its label:
+ * a screen writes `placeholder="Optional"` once and both languages read it.
  */
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextProps, TextVariant } from '../../theme';
 import { Text } from '../../theme';
 
@@ -25,6 +29,7 @@ export type PlaceholderProps = {
 };
 
 export function Placeholder({ text, visible, variant = 'body', script, align = 'start' }: PlaceholderProps) {
+    const t = useT();
     if (!visible || !text) return null;
 
     return (
@@ -33,7 +38,7 @@ export function Placeholder({ text, visible, variant = 'body', script, align = '
             style={[styles.overlay, align === 'end' && styles.end, align === 'top' && styles.top]}
         >
             <Text variant={variant} script={script} tone="muted" numberOfLines={1}>
-                {text}
+                {t(text)}
             </Text>
         </View>
     );

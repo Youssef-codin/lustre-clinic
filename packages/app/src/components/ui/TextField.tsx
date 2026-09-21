@@ -14,6 +14,7 @@
 import { forwardRef, useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, containsArabic, font, radius, size, space, type } from '../../theme';
 import type { FieldLayout } from './Field';
 import { Field } from './Field';
@@ -34,8 +35,12 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
     { label, required, hint, error, due, inline = false, layout, placeholder, ...input },
     ref,
 ) {
+    const t = useT();
     const [focused, setFocused] = useState(false);
-    const arabic = containsArabic(input.value || placeholder || '');
+    // The placeholder as it will be drawn, so an Arabic one picks the face the
+    // value will then be typed in.
+    const shown = placeholder ? t(placeholder) : undefined;
+    const arabic = containsArabic(input.value || shown || '');
 
     return (
         <Field label={label} required={required} hint={hint} error={error} due={due} layout={layout}>
@@ -50,7 +55,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
                 <View style={styles.inputWrap}>
                     <TextInput
                         ref={ref}
-                        accessibilityLabel={label ?? placeholder}
+                        accessibilityLabel={t(label ?? shown ?? '') || undefined}
                         {...input}
                         onFocus={(event) => {
                             setFocused(true);

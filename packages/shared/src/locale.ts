@@ -620,6 +620,76 @@ export const COPY_AR = {
         'لم يستجب هذا العنوان. تأكد أن كمبيوتر العيادة يعمل، وأنك متصل بشبكة العيادة أو مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
     'That address did not answer. Check the clinic computer is on, that you are signed in to Tailscale, and that the address ends in the port (:3000).':
         'لم يستجب هذا العنوان. تأكد أن كمبيوتر العيادة يعمل، وأنك مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
+
+    // --- old patients: the New patient switch, the record, and Settings → Clinic
+    'Already a patient here': 'مريض سابق في العيادة',
+    'They have a number from before the clinic moved over.': 'لديه رقم من قبل انتقال العيادة إلى هذا النظام.',
+    'Old patient': 'مريض قديم',
+    'Old ref number': 'الرقم القديم',
+    'The number on the front of their paper file. It becomes their patient number here.':
+        'الرقم المكتوب على غلاف ملفه الورقي. يصبح رقم المريض هنا.',
+    Owes: 'عليه',
+    'What they still owed the old system. Leave blank if nothing.':
+        'ما تبقى عليه في النظام القديم. اتركه فارغًا إن لم يكن هناك شيء.',
+    'OLD PROCEDURES': 'إجراءات سابقة',
+    Optional: 'اختياري',
+    '{count} entry': 'إدخال واحد',
+    '{count} entries': '{count} إدخالات',
+    "What the old system recorded. It shows in this patient's history, marked as imported, and never adds to what they owe.":
+        'ما سجله النظام القديم. يظهر في سجل هذا المريض بعلامة مستورد، ولا يُضاف أبدًا إلى ما عليه.',
+    'Could not load the procedures': 'تعذر تحميل الإجراءات',
+    'The rest of the registration still saves — the old procedures are the only part that needs the catalogue.':
+        'بقية التسجيل تُحفظ كالمعتاد — الإجراءات السابقة وحدها هي التي تحتاج إلى القائمة.',
+    'Remove {name}': 'إزالة {name}',
+    Date: 'التاريخ',
+    'Before migration': 'قبل الانتقال',
+    'From the old system': 'من النظام القديم',
+    'Old record': 'سجل قديم',
+    'Carried over': 'مرحّل',
+    'Checked in': 'وصل',
+    Came: 'حضر',
+    'OLD {ref}': 'قديم {ref}',
+    'Old system number {ref}': 'رقم النظام القديم {ref}',
+    'Next patient number': 'رقم المريض التالي',
+    'The next new patient registered gets this number, and the one after gets the number after it. A patient entered with an old number keeps that number instead, and does not use this one up.':
+        'المريض الجديد التالي يحصل على هذا الرقم، والذي بعده على الرقم الذي يليه. المريض المسجل برقم قديم يحتفظ برقمه ولا يستهلك هذا الرقم.',
+    'OLD PATIENTS': 'المرضى القدامى',
+    'Not set': 'غير محدد',
+    'The day the old system stopped being the truth. A patient registered with an old number who owes money or had work recorded has it dated here. Leave it unset if nothing is being carried over.':
+        'اليوم الذي توقف فيه النظام القديم عن كونه المرجع. المريض المسجل برقم قديم وعليه مبلغ أو له عمل مسجل يُؤرَّخ هنا. اتركه فارغًا إن لم يكن هناك شيء مرحّل.',
+    '{patients} carried over so far.': 'تم ترحيل {patients} حتى الآن.',
+    '{patients} carried over so far, {owing} of them still owing money.':
+        'تم ترحيل {patients} حتى الآن، {owing} منهم ما زال عليهم مبالغ.',
+    'Type the number the next new patient should get.': 'اكتب الرقم الذي سيحصل عليه المريض الجديد التالي.',
+    'The first patient number is 1.': 'أول رقم مريض هو 1.',
+    'That number is larger than the system will hold.': 'هذا الرقم أكبر مما يستوعبه النظام.',
+    'Day, month and year — 01 / 08 / 2026.': 'اليوم والشهر والسنة — 01 / 08 / 2026.',
+    'The cutoff has to be a day that has happened.': 'تاريخ الانتقال يجب أن يكون يومًا قد مضى.',
+    'That has to be a day that has happened.': 'يجب أن يكون يومًا قد مضى.',
+    'Pick the branch the old patients belong to, or clear the cutoff date.':
+        'اختر الفرع الذي يتبعه المرضى القدامى، أو امسح تاريخ الانتقال.',
+    'Set the cutoff date, or set the branch back to Not set.':
+        'حدد تاريخ الانتقال، أو أعد الفرع إلى غير محدد.',
+
+    // --- the patient form's own rules, drawn under the row they are about
+    'As it is on the card': 'كما هو على البطاقة',
+    'That address is missing something.': 'هذا العنوان ينقصه شيء.',
+    'That is too short to be a number.': 'هذا أقصر من أن يكون رقمًا.',
+    'That is not an age.': 'هذا ليس عمرًا.',
+    'Day, month and year — 05 / 11 / 1990.': 'اليوم والشهر والسنة — 05 / 11 / 1990.',
+    'That is not a date anyone was born on.': 'هذا ليس تاريخ ميلاد ممكنًا.',
+    'That is not an amount in pounds.': 'هذا ليس مبلغًا بالجنيه.',
+
+    // --- Settings
+    'Enter demo': 'دخول الوضع التجريبي',
+    'A fake register, off the clinic server': 'سجل تجريبي، بعيدًا عن خادم العيادة',
+    Saved: 'تم الحفظ',
+    'Patients will get this wording from the next reminder on.':
+        'سيصل هذا النص إلى المرضى بدءًا من التذكير التالي.',
+    'Save message': 'حفظ الرسالة',
+
+    // --- the appointment sheet
+    "Open {name}'s record": 'فتح سجل {name}',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

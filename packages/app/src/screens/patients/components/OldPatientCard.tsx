@@ -52,6 +52,7 @@ import {
     TextField,
     useReducedMotion,
 } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import { type PickedProcedure, ProcedureSheet } from '../../day/components/ProcedureSheet';
 import { ToothSheet } from '../../day/components/ToothSheet';
@@ -74,6 +75,7 @@ type Asking = null | { step: 'procedure' } | { step: 'toothFor'; picked: PickedP
 
 /** The switch row and, once it is on, the ref and the balance — inside the BASICS card. */
 export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProps) {
+    const t = useT();
     const old = form.old;
     const change = (patch: Partial<OldPatientForm>) => onChange({ old: { ...old, ...patch } });
 
@@ -82,10 +84,10 @@ export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProp
             <View style={styles.switchRow}>
                 <View style={styles.switchText}>
                     <Text variant="callout" weight="medium">
-                        Already a patient here
+                        {t('Already a patient here')}
                     </Text>
                     <Text variant="caption" tone="muted">
-                        They have a number from before the clinic moved over.
+                        {t('They have a number from before the clinic moved over.')}
                     </Text>
                 </View>
                 <Switch
@@ -130,6 +132,7 @@ export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProp
 
 /** The OLD PROCEDURES list under the card, shown while the switch is on. */
 export function OldProcedures({ form, onChange }: Pick<OldPatientProps, 'form' | 'onChange'>) {
+    const t = useT();
     const [asking, setAsking] = useState<Asking>(null);
 
     const catalogue = useLocalQuery('patients:procedureTree', () => dayApi.procedureTree(), {
@@ -173,19 +176,22 @@ export function OldProcedures({ form, onChange }: Pick<OldPatientProps, 'form' |
                 <View style={styles.history}>
                     <View style={styles.historyHead}>
                         <Text variant="eyebrow" tone="muted">
-                            OLD PROCEDURES
+                            {t('OLD PROCEDURES')}
                         </Text>
                         <Text variant="caption" tone="muted">
                             {old.procedures.length === 0
-                                ? 'Optional'
-                                : `${old.procedures.length} entr${old.procedures.length === 1 ? 'y' : 'ies'}`}
+                                ? t('Optional')
+                                : t(old.procedures.length === 1 ? '{count} entry' : '{count} entries', {
+                                      count: old.procedures.length,
+                                  })}
                         </Text>
                     </View>
 
                     {old.procedures.length === 0 ? (
                         <Text variant="caption" tone="muted">
-                            What the old system recorded. It shows in this patient's history, marked as
-                            imported, and never adds to what they owe.
+                            {t(
+                                "What the old system recorded. It shows in this patient's history, marked as imported, and never adds to what they owe.",
+                            )}
                         </Text>
                     ) : (
                         <Card>
@@ -323,6 +329,7 @@ function OldProcedureRow({
     onDate: (digits: string) => void;
     onRemove: () => void;
 }) {
+    const t = useT();
     // Two lines, not three columns. With the date squeezed between the name
     // and the remove button it had the width of a word, and `14 / 03 / 2024`
     // showed as `024` once typed. The name and the cross share the first line;
@@ -345,7 +352,7 @@ function OldProcedureRow({
 
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove ${entry.name}`}
+                    accessibilityLabel={t('Remove {name}', { name: entry.name })}
                     onPress={onRemove}
                     hitSlop={10}
                     style={({ pressed }) => [styles.remove, pressed && styles.pressed]}

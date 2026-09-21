@@ -23,7 +23,7 @@
 import { forwardRef, useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { useIsRTL } from '../../i18n';
+import { useIsRTL, useT } from '../../i18n';
 import { color, font, radius, size as sizes, space, Text, type } from '../../theme';
 import type { FieldLayout } from './Field';
 import { Field } from './Field';
@@ -70,6 +70,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
     ref,
 ) {
     const isRTL = useIsRTL();
+    const t = useT();
     const [focused, setFocused] = useState(false);
     const display = variant === 'display';
     const figure = display ? 'figure' : size;
@@ -94,7 +95,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                 <View style={styles.inputWrap}>
                     <TextInput
                         ref={ref}
-                        accessibilityLabel={label ?? placeholder}
+                        accessibilityLabel={t(label ?? placeholder ?? '') || undefined}
                         {...input}
                         keyboardType={keyboardType}
                         onFocus={(event) => {

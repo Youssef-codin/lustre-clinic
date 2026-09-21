@@ -338,7 +338,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                only way in. The saved address stays put and
                                Leave demo above returns to it. A prod build
                                allows no demo, so its Settings never has this. */
-                            <Group title="DEMO">
+                            <Group title={t('DEMO')}>
                                 <SettingsRow
                                     icon={<EnterDemoIcon />}
                                     label="Enter demo"

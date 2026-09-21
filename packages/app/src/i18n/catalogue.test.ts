@@ -43,6 +43,8 @@ const COPY_PROPS = [
     'confirmLabel',
     'cancelLabel',
     'accessibilityLabel',
+    // `Placeholder`'s, which draws it through `t`.
+    'text',
 ];
 
 /** Primitives that put their own children through `t`. */

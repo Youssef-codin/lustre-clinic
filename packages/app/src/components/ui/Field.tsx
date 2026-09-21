@@ -63,7 +63,9 @@ export function Field({
     const footer =
         error || hint ? (
             <Text variant="footnote" tone={error ? 'danger' : 'muted'}>
-                {error ?? t(hint ?? '')}
+                {/* The error is a rule's sentence from a plain module, so it
+                    is localized here rather than where it was decided. */}
+                {t(error ?? hint ?? '')}
             </Text>
         ) : null;
 
