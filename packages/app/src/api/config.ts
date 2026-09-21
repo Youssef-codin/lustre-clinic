@@ -1,4 +1,5 @@
 import { TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { type BuildVariant, bootAddresses, usableAddresses, variantOf } from './variant';
 
@@ -44,7 +45,11 @@ function normalize(address: unknown): string | null {
 
 const extra = (Constants.expoConfig?.extra ?? {}) as BuildExtra;
 
-export const BUILD_VARIANT: BuildVariant = variantOf({ dev: __DEV__, shippedDemo: extra.demo === true });
+export const BUILD_VARIANT: BuildVariant = variantOf({
+    dev: __DEV__,
+    shippedDemo: extra.demo === true,
+    applicationId: Application.applicationId,
+});
 
 let addresses: ServerAddresses = usableAddresses(
     BUILD_VARIANT,

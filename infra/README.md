@@ -87,9 +87,9 @@ Tailscale, with nothing hosted anywhere else:
   server has a higher build than the phone; tapping it downloads the APK in the
   browser and Android's installer takes over.
 
-Both are numbered and staged into `dist/releases` on the operator's machine and copied to
-`/opt/lustre-<stack>/releases` by the `releases` tag, which the `app` tag also
-runs. The server reads them on each request; nothing restarts.
+Production releases are staged in `dist/releases`; development releases are staged
+in `dist/releases-dev`. The `releases` tag copies each directory to its matching
+stack. The server reads releases on each request; nothing restarts.
 
 ### Versions
 
@@ -206,8 +206,39 @@ Update shows the update's short id.
 - **Which update a crash came from**: GlitchTip's release is the number the
   phone ran, `lustre@1.4.2`. Every report also carries an `update` tag (the id,
   or `embedded` for the APK's own bundle) and a `runtime` tag.
-- Dev builds load Metro and demo builds have updates switched off, so neither
-  ever takes a production update.
+- The `bun app` development build loads Metro and does not take OTA updates.
+  The installable development build below takes signed updates from the dev
+  stack. Demo builds have updates switched off.
+
+### Development build with OTA
+
+The phone can hold `Lustre Clinic` (`com.lustre.clinic`) and `Lustre DEV`
+(`com.lustre.clinic.dev`) together. The OTA development build replaces the
+existing Metro development install under `.dev`; its app data is separate from
+production. It uses the same debug signing key as the Metro build. The first
+OTA development launch starts with the dev stack at port 3001, even if the
+Metro build had a different server saved. The red DEV strip remains visible.
+
+```sh
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3001 bun release:dev:apk
+adb -s <phone serial> install -r dist/releases-dev/android/lustre.apk
+cd infra/ansible && ansible-playbook site.yml -K --tags releases
+```
+
+The dev stack serves only the `development` update channel; production serves
+only `production`. Both check on launch, download in the background, and use an
+update on the next cold start. The development APK and its OTA updates are
+signed, and only a matching native runtime accepts an update. To publish one:
+
+```sh
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3001 bun release:dev:update
+cd infra/ansible && ansible-playbook site.yml -K --tags releases
+```
+
+Development versions use `dev-vX.Y.Z` git tags, separate from production's
+`vX.Y.Z`. Push the tag printed by the script. A native change needs
+`release:dev:apk` again. Running `bun app` later reinstalls the Metro build
+over `.dev`; reinstall the staged development APK to resume OTA testing.
 
 The manifest is signed on this machine when it is published; the server only
 serves the signed bytes. To see what a phone would get:

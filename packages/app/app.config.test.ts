@@ -4,10 +4,12 @@ import { UPDATES_CHANNEL, UPDATES_MANIFEST_PATH } from '@lustre/shared';
 import type { ConfigContext } from 'expo/config';
 import appConfig, {
     CHANNEL,
+    DEV_CHANNEL,
     DEV_SERVER,
     devServer,
     glitchtipDsn,
     MANIFEST_PATH,
+    releaseTrack,
     releaseVersion,
     updatesConfig,
 } from './app.config';
@@ -15,7 +17,9 @@ import appJson from './app.json';
 import {
     APPLICATION_ID_SUFFIX,
     applyDevApplicationId,
+    applyDevReleaseBuildType,
     DEV_APP_NAME,
+    DEV_RELEASE_STRINGS_PATH,
     DEV_STRINGS_PATH,
     DEV_STRINGS_XML,
 } from './plugins/withDevIdentity';
@@ -51,6 +55,15 @@ describe('updatesConfig', () => {
         });
     });
 
+    test('routes the installable dev build to the development update channel', () => {
+        expect(updatesConfig('http://clinic.tail.ts.net:3001', false, 'development')).toMatchObject({
+            enabled: true,
+            url: 'http://clinic.tail.ts.net:3001/updates/manifest',
+            requestHeaders: { 'expo-channel-name': DEV_CHANNEL },
+        });
+        expect(DEV_CHANNEL).not.toBe(CHANNEL);
+    });
+
     test('verifies updates against a certificate that is in the repo', async () => {
         const certificate =
             updatesConfig('http://clinic.tail.ts.net:3000', false)?.codeSigningCertificate ?? '';
@@ -72,6 +85,14 @@ describe('releaseVersion', () => {
     test('refuses a number that is not MAJOR.MINOR.PATCH', () => {
         expect(() => releaseVersion('1.4', '0.0.0')).toThrow('LUSTRE_VERSION');
         expect(() => releaseVersion('v1.4.2', '0.0.0')).toThrow('LUSTRE_VERSION');
+    });
+});
+
+describe('releaseTrack', () => {
+    test('defaults to production and rejects unknown tracks', () => {
+        expect(releaseTrack(undefined)).toBe('production');
+        expect(releaseTrack('development')).toBe('development');
+        expect(() => releaseTrack('demo')).toThrow('LUSTRE_RELEASE_TRACK');
     });
 });
 
@@ -133,6 +154,23 @@ describe('appConfig', () => {
 
         if (previous === undefined) delete process.env.LUSTRE_DEV_SERVER;
         else process.env.LUSTRE_DEV_SERVER = previous;
+    });
+
+    test('points an OTA dev build at the dev stack and disables clinic crash reporting', () => {
+        const previousTrack = process.env.LUSTRE_RELEASE_TRACK;
+        const previousUrl = process.env.LUSTRE_UPDATES_URL;
+        process.env.LUSTRE_RELEASE_TRACK = 'development';
+        process.env.LUSTRE_UPDATES_URL = 'http://clinic.tail.ts.net:3001';
+        const config = appConfig(context(false));
+        expect(config.name).toBe('Lustre DEV');
+        expect(config.extra?.server).toEqual({ lan: null, tailscale: 'http://clinic.tail.ts.net:3001' });
+        expect(config.extra?.devServer).toBeNull();
+        expect(config.extra?.glitchtipDsn).toBeNull();
+        expect(config.updates?.requestHeaders).toEqual({ 'expo-channel-name': 'development' });
+        if (previousTrack === undefined) delete process.env.LUSTRE_RELEASE_TRACK;
+        else process.env.LUSTRE_RELEASE_TRACK = previousTrack;
+        if (previousUrl === undefined) delete process.env.LUSTRE_UPDATES_URL;
+        else process.env.LUSTRE_UPDATES_URL = previousUrl;
     });
 });
 
@@ -222,6 +260,23 @@ describe('dev application id', () => {
 
     test('is written once, however many times prebuild runs', () => {
         expect(applyDevApplicationId(gradle)).toBe(gradle);
+    });
+
+    test('builds OTA dev as a release bundle under the existing dev package and key', () => {
+        const withDevRelease = applyDevReleaseBuildType(gradle);
+        expect(withDevRelease).toContain('devRelease {');
+        expect(withDevRelease).toContain('initWith release');
+        expect(withDevRelease).toContain(`applicationIdSuffix '${APPLICATION_ID_SUFFIX}'`);
+        expect(withDevRelease).toContain('signingConfig signingConfigs.debug');
+        expect(applyDevReleaseBuildType(withDevRelease)).toBe(withDevRelease);
+        expect(DEV_RELEASE_STRINGS_PATH.split(/[\\\\/]/)).toEqual([
+            'app',
+            'src',
+            'devRelease',
+            'res',
+            'values',
+            'strings.xml',
+        ]);
     });
 
     test('refuses to go quiet when the prebuild template moves', () => {

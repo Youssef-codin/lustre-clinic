@@ -23,6 +23,8 @@
         "app:go": "bun run --cwd packages/app start",
         "release:apk": "bun packages/app/scripts/release.ts apk",
         "release:update": "bun packages/app/scripts/release.ts update",
+        "release:dev:apk": "LUSTRE_RELEASE_TRACK=development bun packages/app/scripts/release.ts apk",
+        "release:dev:update": "LUSTRE_RELEASE_TRACK=development bun packages/app/scripts/release.ts update",
         "emu": "bun run --cwd packages/app emu",
         "emu:build": "bun run --cwd packages/app emu:build",
         "emu:start": "bun run --cwd packages/app emu:start",

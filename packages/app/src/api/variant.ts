@@ -10,8 +10,12 @@ import type { ServerAddresses } from './config';
 
 export type BuildVariant = 'dev' | 'demo' | 'prod';
 
-export function variantOf(build: { dev: boolean; shippedDemo: boolean }): BuildVariant {
-    if (build.dev) return 'dev';
+export function variantOf(build: {
+    dev: boolean;
+    shippedDemo: boolean;
+    applicationId?: string | null;
+}): BuildVariant {
+    if (build.dev || build.applicationId === 'com.lustre.clinic.dev') return 'dev';
     return build.shippedDemo ? 'demo' : 'prod';
 }
 

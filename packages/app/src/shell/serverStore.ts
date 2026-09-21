@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Updates from 'expo-updates';
 import { useSyncExternalStore } from 'react';
 import {
     allowsLan,
@@ -21,8 +22,10 @@ import { hydratingSubscribe } from './hydratingSubscribe';
 // comes back as a bad address the probe rejects, instead of a parse that throws
 // on the boot path. Hydration is started by the first subscriber rather than at
 // import, so nothing touches the native module until something renders.
-const LAN_KEY = 'lustre.server.lan';
-const TAILSCALE_KEY = 'lustre.server.tailscale';
+const STORAGE_PREFIX =
+    BUILD_VARIANT === 'dev' && Updates.isEnabled ? 'lustre.ota-dev.server' : 'lustre.server';
+const LAN_KEY = `${STORAGE_PREFIX}.lan`;
+const TAILSCALE_KEY = `${STORAGE_PREFIX}.tailscale`;
 
 // What the boot sequence is waiting on. A default is probed rather than
 // trusted: one address is shipped to every clinic, so it is right for the one

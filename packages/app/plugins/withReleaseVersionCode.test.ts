@@ -38,8 +38,9 @@ describe('release versionCode', () => {
 describe('applyReleaseVersionCode', () => {
     const gradle = applyReleaseVersionCode('android {\n}\n');
 
-    test('stamps release builds only, with the number the tests above describe', () => {
-        expect(gradle).toContain("onVariants(selector().withBuildType('release'))");
+    test('stamps both installable builds, with the number the tests above describe', () => {
+        expect(gradle).toContain("['release', 'devRelease'].each");
+        expect(gradle).toContain('onVariants(selector().withBuildType(buildType))');
         expect(gradle).toContain(`(System.currentTimeMillis() - ${EPOCH_MS}L).intdiv(${STEP_MS}L)`);
     });
 

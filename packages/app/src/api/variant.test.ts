@@ -25,6 +25,15 @@ describe('variantOf', () => {
         expect(variantOf({ dev: true, shippedDemo: false })).toBe('dev');
         expect(variantOf({ dev: true, shippedDemo: true })).toBe('dev');
     });
+
+    it('keeps the release-bundled dev app on the dev rules using its native package id', () => {
+        expect(variantOf({ dev: false, shippedDemo: false, applicationId: 'com.lustre.clinic.dev' })).toBe(
+            'dev',
+        );
+        expect(variantOf({ dev: false, shippedDemo: false, applicationId: 'com.lustre.clinic' })).toBe(
+            'prod',
+        );
+    });
 });
 
 describe('prod rules', () => {
