@@ -40,13 +40,7 @@ import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
-import {
-    DataEntryIcon,
-    LeaveDemoIcon,
-    ReportProblemIcon,
-    ResetDemoIcon,
-    SettingsIcon,
-} from './components/icons';
+import { LeaveDemoIcon, ReportProblemIcon, ResetDemoIcon, SettingsIcon } from './components/icons';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
@@ -55,7 +49,6 @@ import { versionLine } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 import { errorText } from './data/errors';
 import { minutesFromTime } from './data/reminders';
-import { DataEntryScreen } from './dataEntry';
 import { PatientFieldsScreen } from './PatientFieldsScreen';
 import { ProceduresScreen } from './ProceduresScreen';
 import { RemindersScreen } from './RemindersScreen';
@@ -70,8 +63,7 @@ type Route =
     | 'branches'
     | 'hours'
     | 'procedures'
-    | 'patientFields'
-    | 'dataEntry';
+    | 'patientFields';
 
 const ROLE_NAME: Record<ClientRole, string> = { doctor: 'Doctor', secretary: 'Secretary' };
 const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' };
@@ -267,24 +259,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        {/* The secretary's, and only hers: she is the one
-                            retyping the old system's register, and the doctor
-                            tapping into a bulk entry form is a mis-tap with a
-                            patient at the end of it. Like every other row here
-                            the gate is the device-local role, which hides rows
-                            and never guards access (§1). */}
-                        {isDoctor ? null : (
-                            <Group title="MIGRATION">
-                                <SettingsRow
-                                    icon={<DataEntryIcon />}
-                                    label="Data entry"
-                                    sub="Bulk entry from the old system"
-                                    onPress={() => routes.push('dataEntry')}
-                                    testID="settings-data-entry-row"
-                                />
-                            </Group>
-                        )}
-
                         {/* Only in demo mode, and only here: a demo is given
                             more than once, and the second run should not open
                             on the first one's cancellations. `resetDemoData`
@@ -384,7 +358,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
                     {pane === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
                     {pane === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
-                    {pane === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
                 </PushView>
             ))}
         </View>

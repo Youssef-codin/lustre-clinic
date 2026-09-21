@@ -6,6 +6,13 @@
  * The row leads with the work: a record is read to answer "what did we do last
  * time", and `160826-7M69` answers nothing a person asks out loud.
  *
+ * Two rows here are not visits and say so rather than borrowing a visit's
+ * words. An **opening balance** is debt carried over and has a visit behind it
+ * only because that is where a balance can live. An **imported** row is work the
+ * old system recorded: no visit at all, so the money column is empty, and the
+ * date stamp goes blank when the paper file did not say when — *Before
+ * migration* is the honest answer and the cutoff date would be a made-up one.
+ *
  * The appointment ref used to ride beside the status pill, on the reasoning that
  * this is the screen someone is on with the paper file open and the ref was what
  * matched one to the other. That was wrong about the paper: the book is one page
@@ -75,6 +82,9 @@ const CHECKED_IN: { label: string; tone: Tone } = { label: 'Checked in', tone: '
 /** Not a status the schema has — the row is `done`, and what happened is that nothing did. */
 const CARRIED_OVER: { label: string; tone: Tone } = { label: 'Carried over', tone: 'muted' };
 
+/** Work the old system recorded. It happened — somewhere else, before this app. */
+const IMPORTED: { label: string; tone: Tone } = { label: 'Old record', tone: 'muted' };
+
 export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const { day, month } = stamp(entry.startsAt);
     const carried = entry.isOpeningBalance;
@@ -85,11 +95,13 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     // telling the desk something that did not happen.
     const status = carried
         ? CARRIED_OVER
-        : entry.status === 'checked_in' && inChair === undefined
-          ? CHECKED_IN
-          : entry.status === 'checked_in' && inChair
-            ? IN_CHAIR
-            : STATUS[entry.status];
+        : entry.isImported
+          ? IMPORTED
+          : entry.status === 'checked_in' && inChair === undefined
+            ? CHECKED_IN
+            : entry.status === 'checked_in' && inChair
+              ? IN_CHAIR
+              : STATUS[entry.status];
     const came = entry.visitId !== null;
     const due = entry.balance > 0;
 
@@ -100,6 +112,12 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     // either.
     const openable = came && !carried && onOpen !== undefined;
 
+    // An imported row's date is the cutoff only because `starts_at` is NOT
+    // NULL. Drawing it would be this record telling the desk a day the work was
+    // done on, which nobody knows — so the stamp says nothing and the line
+    // under the row says why.
+    const undated = entry.isImported && entry.dateUnknown;
+
     return (
         <Pressable
             accessibilityRole={openable ? 'button' : undefined}
@@ -109,12 +127,20 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
             testID={`history-row-${entry.appointmentId}`}
         >
             <View style={styles.stamp}>
-                <Text variant="callout" script="mono" weight="bold">
-                    {day}
-                </Text>
-                <Text variant="tag" tone="muted">
-                    {month}
-                </Text>
+                {undated ? (
+                    <Text variant="callout" script="mono" weight="bold" tone="muted">
+                        —
+                    </Text>
+                ) : (
+                    <>
+                        <Text variant="callout" script="mono" weight="bold">
+                            {day}
+                        </Text>
+                        <Text variant="tag" tone="muted">
+                            {month}
+                        </Text>
+                    </>
+                )}
             </View>
 
             <View style={styles.body}>
@@ -195,6 +221,17 @@ function Work({ procedures }: { procedures: HistoryProcedure[] }) {
  * is already on the pill.
  */
 function Meaning({ entry }: { entry: PatientHistoryEntry }) {
+    // Work the old system recorded. There is no money column on it at all — no
+    // visit, so nothing to charge, owe or pay — and the line under the empty
+    // column is the only thing that has to say so.
+    if (entry.isImported) {
+        return (
+            <Text variant="caption" tone="muted" style={styles.importedNote}>
+                {entry.dateUnknown ? 'Before migration' : 'From the old system'}
+            </Text>
+        );
+    }
+
     if (entry.visitId === null) {
         if (entry.status === 'no_show') {
             return (
@@ -284,5 +321,8 @@ const styles = StyleSheet.create({
     },
     pillDot: { width: 5, height: 5, borderRadius: radius.full },
     amounts: { alignItems: 'flex-end', gap: space[0.5] },
+    // The column is empty above it, so the note wraps to two short lines on a
+    // narrow phone rather than pushing the row's body out of shape.
+    importedNote: { textAlign: 'right', maxWidth: 96 },
     meaning: { flexDirection: 'row', alignItems: 'baseline', gap: space[1] },
 });

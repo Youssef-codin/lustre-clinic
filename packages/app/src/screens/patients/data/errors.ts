@@ -22,6 +22,20 @@ const TEXT: Record<string, string> = {
     NOTHING_OUTSTANDING: 'This patient owes nothing.',
     PAYMENT_NOTE_REQUIRED: 'Say what the payment was.',
     INVALID_AMOUNT: 'That amount is not valid.',
+    // The three an old-patient registration can come back with. Each names the
+    // field or the setting to go and fix, because each is something the desk
+    // can actually do something about.
+    PATIENT_REF_TAKEN: 'Another patient already has that number. Check the old ref and try again.',
+    PATIENT_REF_RESERVED:
+        'That number has not been given out yet. Check the old ref, or raise the next patient number in Settings → Clinic.',
+    MIGRATION_NOT_CONFIGURED:
+        'Set the cutoff date and branch in Settings → Clinic before entering what an old patient owes or had done.',
+    IMPORTED_DATE_AFTER_CUTOFF:
+        'One of the old procedures is dated after the cutoff. Work done since then belongs in a visit, not here.',
+    INVALID_PHONE: 'That phone number was not accepted. Check it and try again.',
+    TOOTH_REQUIRED: 'One of the old procedures is done to a tooth and has none. Remove it and add it again.',
+    TOOTH_NOT_APPLICABLE: 'One of the old procedures is not done to a tooth. Remove it and add it again.',
+    PROCEDURE_DUPLICATE: 'The same procedure is listed twice on one day. Remove one of them.',
     DB_UNAVAILABLE: 'The clinic server could not answer. Try again in a moment.',
 };
 

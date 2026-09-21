@@ -16,18 +16,26 @@ import { clampToOutstanding, formatMoney, isWholePounds, paymentReceipt, toPound
 import { errorText } from './data/errors';
 import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion, Patient } from './data/types';
-import type { PatientForm } from './patientForm';
+import type { OldProcedureDraft, PatientForm } from './patientForm';
 import {
     answeredCount,
+    badOldDates,
     birthDateOf,
     blankBasics,
+    blankOld,
     clearedRequired,
     createInputOf,
+    EMPTY_OLD,
     emptyForm,
     formOf,
     isUnchanged,
     malformedBasics,
+    malformedOld,
     missingRequired,
+    oldDateDigits,
+    oldDateError,
+    owesInput,
+    owesPiastres,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -69,6 +77,25 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     age: '34',
     gender: 'female',
     answers: {},
+    old: EMPTY_OLD,
+    ...over,
+});
+
+/** The old-patient block, switched on and filled the way the desk would fill it. */
+const oldOn = (over: Partial<PatientForm['old']> = {}): PatientForm['old'] => ({
+    on: true,
+    ref: '710',
+    owes: '',
+    procedures: [],
+    ...over,
+});
+
+const oldProcedure = (over: Partial<OldProcedureDraft> = {}): OldProcedureDraft => ({
+    id: 'old-1',
+    procedureId: '22222222-2222-2222-2222-222222222222',
+    name: 'Checkup',
+    tooth: null,
+    dateDigits: '',
     ...over,
 });
 
@@ -414,5 +441,237 @@ describe('the patient form — what a save sends', () => {
     it('counts what the progress bar counts — every question with something in it', () => {
         const form = sound({ answers: { blood: 'O+', diabetic: NO, allergies: '' } });
         expect(answeredCount(form, questions)).toBe(2);
+    });
+});
+
+/**
+ * The **Old patient** switch, and the one rule everything about it turns on:
+ * off sends nothing. A number typed and then thought better of must not reach
+ * the server, and the way it does not is that `createInputOf` leaves the whole
+ * block out rather than sending a blank one.
+ */
+describe('the Old patient switch', () => {
+    const questions: CustomQuestion[] = [];
+
+    it('is off on a blank form, and sends no old block', () => {
+        const form = emptyForm(questions);
+
+        expect(form.old.on).toBe(false);
+        expect(createInputOf(form, questions, TODAY)?.old).toBeUndefined();
+    });
+
+    it('sends the number on the file as the old ref when it is on', () => {
+        const input = createInputOf(sound({ old: oldOn({ ref: '710' }) }), questions, TODAY);
+
+        expect(input?.old?.ref).toBe('710');
+    });
+
+    // The reported case, from the form's side: what the screen sends for old
+    // ref 710 has to be 710 and nothing else. The server keeps it as the
+    // patient's ref, so a blank or a trimmed-away value here is the bug.
+    it('sends 710 for a file marked 710', () => {
+        const input = createInputOf(sound({ old: oldOn({ ref: ' 710 ' }) }), questions, TODAY);
+
+        expect(input?.old?.ref).toBe('710');
+    });
+
+    it('sends nothing from the block once the switch goes back off', () => {
+        const filled = sound({
+            old: oldOn({ ref: '710', owes: '800', procedures: [oldProcedure()] }),
+        });
+        const off = { ...filled, old: { ...filled.old, on: false } };
+
+        // The values are still on screen — a mis-tap that wiped them would be
+        // worse — and none of them is in the payload.
+        expect(off.old.ref).toBe('710');
+        expect(createInputOf(off, questions, TODAY)?.old).toBeUndefined();
+    });
+
+    it('refuses a save while the switch is on and the number is blank', () => {
+        const form = sound({ old: oldOn({ ref: '' }) });
+
+        expect(blankOld(form)).toEqual(['ref']);
+        expect(createInputOf(form, questions, TODAY)).toBeNull();
+    });
+
+    it('does not count the number as owed while the switch is off', () => {
+        expect(blankOld(sound({ old: { ...oldOn({ ref: '' }), on: false } }))).toEqual([]);
+    });
+
+    it('takes a number that is not a number — that format is the old system’s', () => {
+        const input = createInputOf(sound({ old: oldOn({ ref: 'A/1991-07' }) }), questions, TODAY);
+
+        expect(input?.old?.ref).toBe('A/1991-07');
+    });
+});
+
+describe('what an old patient owes', () => {
+    const questions: CustomQuestion[] = [];
+
+    it('takes whole pounds and sends integer piastres', () => {
+        expect(owesPiastres('800')).toBe(80_000);
+        expect(
+            createInputOf(sound({ old: oldOn({ owes: '800' }) }), questions, TODAY)?.old?.openingBalance,
+        ).toBe(80_000);
+    });
+
+    it('sends nothing at all for a blank or a zero — the absence of a balance is not one', () => {
+        expect(owesPiastres('')).toBeNull();
+        expect(owesPiastres('0')).toBeNull();
+
+        const blank = createInputOf(sound({ old: oldOn({ owes: '' }) }), questions, TODAY);
+        expect(blank?.old).toBeDefined();
+        expect(blank?.old?.openingBalance).toBeUndefined();
+    });
+
+    // `12.50` read as `1250` is a hundredfold overcharge told to a patient
+    // months later with no visit to check it against. The keypad has no decimal
+    // key; a paste is the one way punctuation gets in, and it is refused
+    // rather than reinterpreted.
+    it('refuses punctuation rather than reading a separator as digits', () => {
+        expect(owesInput('12.50')).toBe('12.50');
+        expect(owesPiastres('12.50')).toBeNull();
+        expect(owesPiastres('1,200')).toBeNull();
+        expect(owesPiastres('abc')).toBeNull();
+
+        const pasted = sound({ old: oldOn({ owes: '12.50' }) });
+        expect(malformedOld(pasted).owes).toBeDefined();
+        expect(createInputOf(pasted, questions, TODAY)).toBeNull();
+    });
+
+    it('refuses a figure that is a mis-key rather than a balance', () => {
+        expect(owesPiastres('100001')).toBeNull();
+        expect(malformedOld(sound({ old: oldOn({ owes: '100001' }) })).owes).toBeDefined();
+        expect(createInputOf(sound({ old: oldOn({ owes: '100001' }) }), questions, TODAY)).toBeNull();
+    });
+
+    it('says nothing about an amount typed while the switch is off', () => {
+        expect(malformedOld(sound({ old: { ...oldOn({ owes: '100001' }), on: false } }))).toEqual({});
+    });
+});
+
+describe('old procedures', () => {
+    const questions: CustomQuestion[] = [];
+
+    it('sends zero, one, or several entries', () => {
+        const none = createInputOf(sound({ old: oldOn() }), questions, TODAY);
+        expect(none?.old?.procedures).toEqual([]);
+
+        const three = createInputOf(
+            sound({
+                old: oldOn({
+                    procedures: [
+                        oldProcedure({ id: 'a' }),
+                        oldProcedure({ id: 'b' }),
+                        oldProcedure({ id: 'c' }),
+                    ],
+                }),
+            }),
+            questions,
+            TODAY,
+        );
+        expect(three?.old?.procedures).toHaveLength(3);
+    });
+
+    it('sends the tooth when the entry carries one, and nothing when it does not', () => {
+        const input = createInputOf(
+            sound({
+                old: oldOn({
+                    procedures: [
+                        oldProcedure({ id: 'a', tooth: 'UL6' }),
+                        oldProcedure({ id: 'b', tooth: null }),
+                    ],
+                }),
+            }),
+            questions,
+            TODAY,
+        );
+
+        expect(input?.old?.procedures[0]?.tooth).toBe('UL6');
+        expect(input?.old?.procedures[1]?.tooth).toBeUndefined();
+    });
+
+    // Blank is the honest answer far more often than it looks: the paper file
+    // says what was done and not always when. It goes as nothing, and the
+    // record draws it as *before migration* rather than picking a day.
+    it('leaves the date out when the file did not say when', () => {
+        const input = createInputOf(
+            sound({ old: oldOn({ procedures: [oldProcedure({ dateDigits: '' })] }) }),
+            questions,
+            TODAY,
+        );
+
+        expect(input?.old?.procedures[0]?.performedOn).toBeUndefined();
+    });
+
+    it('sends a typed date as an ISO day', () => {
+        const input = createInputOf(
+            sound({ old: oldOn({ procedures: [oldProcedure({ dateDigits: '14032024' })] }) }),
+            questions,
+            TODAY,
+        );
+
+        expect(input?.old?.procedures[0]?.performedOn).toBe('2024-03-14');
+    });
+
+    it('takes eight digits and strips the rest', () => {
+        expect(oldDateDigits('14/03/2024')).toBe('14032024');
+        expect(oldDateDigits('140320249')).toBe('14032024');
+    });
+
+    it('says nothing about a date still being typed, and does about one that is wrong', () => {
+        expect(oldDateError('', '2026-09-20')).toBeNull();
+        expect(oldDateError('1403', '2026-09-20')).toContain('Day, month and year');
+        expect(oldDateError('32032024', '2026-09-20')).toContain('day that has happened');
+        expect(oldDateError('14032099', '2026-09-20')).toContain('day that has happened');
+        expect(oldDateError('14032024', '2026-09-20')).toBeNull();
+    });
+});
+
+/**
+ * A date typed into an old procedure and not readable. Blank is fine and
+ * common — the paper file often does not say when — but a *wrong* date must
+ * hold the save back, or the entry goes without one and the record shows
+ * "Before migration" for a procedure the desk just dated.
+ */
+describe('a mistyped old procedure date', () => {
+    const questions: CustomQuestion[] = [];
+
+    it('does not hold the save back when it is simply blank', () => {
+        const form = sound({ old: oldOn({ procedures: [oldProcedure({ dateDigits: '' })] }) });
+
+        expect(badOldDates(form)).toEqual([]);
+        expect(createInputOf(form, questions, TODAY)).not.toBeNull();
+    });
+
+    it('holds the save back on a half-typed date', () => {
+        const form = sound({
+            old: oldOn({ procedures: [oldProcedure({ id: 'half', dateDigits: '1403' })] }),
+        });
+
+        expect(badOldDates(form)).toEqual(['half']);
+        expect(createInputOf(form, questions, TODAY)).toBeNull();
+    });
+
+    it('holds the save back on a day that is not one, or has not happened', () => {
+        const impossible = sound({
+            old: oldOn({ procedures: [oldProcedure({ id: 'feb31', dateDigits: '31022024' })] }),
+        });
+        expect(badOldDates(impossible)).toEqual(['feb31']);
+
+        const future = sound({
+            old: oldOn({ procedures: [oldProcedure({ id: 'later', dateDigits: '14032099' })] }),
+        });
+        expect(badOldDates(future)).toEqual(['later']);
+        expect(createInputOf(future, questions, TODAY)).toBeNull();
+    });
+
+    it('says nothing about a bad date while the switch is off', () => {
+        const off = sound({
+            old: { ...oldOn({ procedures: [oldProcedure({ dateDigits: '1403' })] }), on: false },
+        });
+
+        expect(badOldDates(off)).toEqual([]);
+        expect(createInputOf(off, questions, TODAY)).not.toBeNull();
     });
 });

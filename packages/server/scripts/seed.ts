@@ -307,8 +307,8 @@ const questions = [
 ];
 
 // Seeded patients are numbered the way the service numbers them, and the
-// settings row below is left on the last one, so the first patient registered
-// after a seed carries on from there.
+// settings row below is left pointing at the number after the last of them, so
+// the first patient registered after a seed carries on from there.
 let lastPatientRef = 0;
 
 function seedPatientRef(): string {
@@ -1223,14 +1223,14 @@ await db.transaction(async (tx) => {
             clinicName: 'Lustre Clinic',
             clinicPhone: '+20223456789',
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
-            patientRefLast: lastPatientRef,
+            patientRefNext: lastPatientRef + 1,
         })
         .onConflictDoUpdate({
             target: settings.id,
             set: {
                 clinicName: 'Lustre Clinic',
                 clinicPhone: '+20223456789',
-                patientRefLast: lastPatientRef,
+                patientRefNext: lastPatientRef + 1,
                 updatedAt: new Date(),
             },
         });

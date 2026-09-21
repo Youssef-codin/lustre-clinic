@@ -20,13 +20,76 @@
 // patient whose real date of birth is on file (booked in through the day
 // cluster, which asks for the date) never has it flattened to 1 January by an
 // editor that was opened for their phone number. See `updateInputOf`.
+//
+// ## The Old patient switch
+//
+// Registering someone the clinic already had is the same screen with three more
+// fields behind a switch: the number on their paper file, what they owed on it,
+// and whatever the file records they had done. The switch is off by default,
+// and *off means nothing is sent* — `createInputOf` leaves the whole `old`
+// block out rather than sending a blank one, so a number typed and then thought
+// better of does not reach the server. The fields keep their values while the
+// switch is off, because a mis-tap that wiped them would be worse than one that
+// did not, and only the submit reads the switch.
+//
+// The old ref is never validated for shape. That format is the old system's,
+// not this one's, and refusing a real number for not looking like a `ref` would
+// be refusing the only thing that matches a paper file to a record. The two
+// refusals that do exist — a number another patient has, and one the new-patient
+// sequence has still to hand out — are the server's, because only it can see
+// the register.
+//
+// An old patient is never an *edit*: `old` is a registration block, and
+// `updateInputOf` never sends it.
 
-import { birthDateOf, blankNameAndPhone, malformedDraft, orNull } from '../../components/domain/patientDraft';
+import { PIASTRES_PER_POUND, type Tooth, todayKey } from '@lustre/shared';
+import {
+    birthDateOf,
+    blankNameAndPhone,
+    calendarIsoOf,
+    malformedDraft,
+    orNull,
+} from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
-import type { Answers, CreatePatientInput, CustomQuestion, Patient, UpdatePatientInput } from './data/types';
+import { isWholePounds } from './components/money';
+import type {
+    Answers,
+    CreatePatientInput,
+    CustomQuestion,
+    OldPatientInput,
+    Patient,
+    UpdatePatientInput,
+} from './data/types';
 
-export { ageDigits, birthDateOf, FEMALE, MALE } from '../../components/domain/patientDraft';
+export {
+    ageDigits,
+    birthDateOf,
+    dateDigitsDisplay as oldDateDisplay,
+    FEMALE,
+    MALE,
+} from '../../components/domain/patientDraft';
+
+/** `DDMMYYYY`, the same keypad rhythm the age-adjacent date fields already use. */
+export const OLD_DATE_DIGITS = 8;
+
+export function oldDateDigits(text: string): string {
+    return text.replace(/\D/g, '').slice(0, OLD_DATE_DIGITS);
+}
+
+/**
+ * A date that is typed but cannot be read. Half a date is a date still being
+ * typed and says nothing; a complete one that is not a day, or is in the
+ * future, is wrong and says so. Blank is not an error — it is the honest
+ * *before migration, date unknown*.
+ */
+export function oldDateError(digits: string, today: string = todayKey()): string | null {
+    if (digits.length === 0 || digits.length < OLD_DATE_DIGITS) {
+        return digits.length === 0 ? null : 'Day, month and year — 01 / 08 / 2026.';
+    }
+    const iso = calendarIsoOf(digits);
+    return iso === null || iso > today ? 'That has to be a day that has happened.' : null;
+}
 
 export type PatientForm = {
     name: string;
@@ -38,10 +101,43 @@ export type PatientForm = {
     gender: string;
     /** One entry per editable question, keyed by `custom_questions.key`. */
     answers: Draft;
+    old: OldPatientForm;
 };
 
+/** One row in the old-procedures list, as the screen holds it before a save. */
+export type OldProcedureDraft = {
+    /** Local to the draft — the row does not exist server-side yet. */
+    id: string;
+    procedureId: string;
+    /** As it is read out: "Composite filling — Class II". Display only; the id is what is sent. */
+    name: string;
+    tooth: Tooth | null;
+    /** `DDMMYYYY` digits, or `''` — blank is *before migration, date unknown* and is sent as nothing. */
+    dateDigits: string;
+};
+
+export type OldPatientForm = {
+    /** Off by default. Off means nothing below is sent, whatever is in it. */
+    on: boolean;
+    /** The number on the paper file. Free text — see the note at the top. */
+    ref: string;
+    /** Whole pounds as digits, or `''` for a patient who owed nothing. */
+    owes: string;
+    procedures: OldProcedureDraft[];
+};
+
+export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '', procedures: [] };
+
 export function emptyForm(questions: CustomQuestion[]): PatientForm {
-    return { name: '', phone: '', email: '', age: '', gender: '', answers: blankAnswers(questions) };
+    return {
+        name: '',
+        phone: '',
+        email: '',
+        age: '',
+        gender: '',
+        answers: blankAnswers(questions),
+        old: EMPTY_OLD,
+    };
 }
 
 export function formOf(patient: Patient, questions: CustomQuestion[]): PatientForm {
@@ -56,6 +152,9 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         age: patient.age === null ? '' : String(patient.age),
         gender: patient.gender ?? '',
         answers,
+        // An existing record is never registered again, so the switch has
+        // nothing to do on an edit and the screen does not draw it.
+        old: EMPTY_OLD,
     };
 }
 
@@ -163,10 +262,123 @@ function answersOf(form: PatientForm, questions: CustomQuestion[], only: (key: s
     return patch;
 }
 
+// --- the old-patient block ------------------------------------------------
+
+/**
+ * What the field holds. Trimmed and capped, and *not* stripped to digits: a
+ * pasted `12.50` has to stay `12.50` so that `malformedOld` can refuse it. The
+ * old data-entry screen stripped, which read `12.50` as `1250` — a hundredfold
+ * overcharge told to a patient months later with no visit to check it against,
+ * and the one thing the field exists to not do. The keypad is `number-pad`, so
+ * nothing but a paste ever gets punctuation in here.
+ */
+export function owesInput(text: string): string {
+    return text.trim().slice(0, 8);
+}
+
+/** Above this and it is a mis-key, not a balance: a hundred thousand pounds owed by one patient. */
+const LARGEST_OWED_EGP = 100_000;
+
+/**
+ * Whole pounds in, integer piastres out (§7.12), or null for anything that is
+ * not whole pounds — a blank, a zero, punctuation, or a figure nobody owes.
+ */
+export function owesPiastres(pounds: string): number | null {
+    const text = pounds.trim();
+    if (text === '' || !isWholePounds(text)) return null;
+
+    const value = Number(text);
+    if (!Number.isInteger(value) || value <= 0 || value > LARGEST_OWED_EGP) return null;
+
+    return value * PIASTRES_PER_POUND;
+}
+
+export type OldField = 'ref' | 'owes';
+
+/**
+ * Required and still empty, while the switch is on. Only the number: a patient
+ * who owed nothing and had nothing recorded is most of them, and the switch is
+ * about *which* patient this is rather than about what they bring with them.
+ */
+export function blankOld(form: PatientForm): OldField[] {
+    if (!form.old.on) return [];
+    return form.old.ref.trim() === '' ? ['ref'] : [];
+}
+
+/** Typed, and wrong — so a message, the moment it is true. */
+export function malformedOld(form: PatientForm): Partial<Record<OldField, string>> {
+    if (!form.old.on) return {};
+
+    const owes = form.old.owes.trim();
+    if (owes !== '' && owesPiastres(owes) === null) {
+        return { owes: 'That is not an amount in pounds.' };
+    }
+    return {};
+}
+
+/**
+ * Old procedures whose date has been typed and cannot be read — half a date, a
+ * 31st of February, a day that has not happened.
+ *
+ * A blank date is not one of these: it is the honest *before migration*, and
+ * most entries have it. A *wrong* one has to hold the save back, because the
+ * alternative is silent — `calendarIsoOf` answers null, the entry goes without
+ * a date, and the record shows "Before migration" for a procedure the desk just
+ * dated. Returned as ids so the screen can count them; the message is already
+ * under each row.
+ */
+export function badOldDates(form: PatientForm): string[] {
+    if (!form.old.on) return [];
+    return form.old.procedures
+        .filter((entry) => oldDateError(entry.dateDigits) !== null)
+        .map((entry) => entry.id);
+}
+
+function oldIsSound(form: PatientForm): boolean {
+    return (
+        blankOld(form).length === 0 &&
+        Object.keys(malformedOld(form)).length === 0 &&
+        badOldDates(form).length === 0
+    );
+}
+
+/**
+ * The block to send, or null when the switch is off. `performedOn` is left out
+ * for an undated entry rather than sent as null: the record labels it *before
+ * migration* and a blank date is the honest answer, not a missing one.
+ *
+ * No `offsetMinutes` rides with these dates, which every other date this app
+ * sends does carry. They are a day being named rather than a day being bounded,
+ * and the server stamps them at noon UTC so they read back as that day from any
+ * offset this clinic can be in — see `migration.service`. It is also the only thing that *could*
+ * work here: the opening balance is dated at a cutoff this form never sees, so
+ * the offset in force on it is not something the form can know.
+ */
+function oldInputOf(form: PatientForm): OldPatientInput {
+    const owes = owesPiastres(form.old.owes);
+
+    return {
+        ref: form.old.ref.trim(),
+        ...(owes === null ? {} : { openingBalance: owes }),
+        procedures: form.old.procedures.map((entry) => {
+            const performedOn = calendarIsoOf(entry.dateDigits);
+            return {
+                procedureId: entry.procedureId,
+                quantity: 1,
+                ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
+                ...(performedOn === null ? {} : { performedOn }),
+            };
+        }),
+    };
+}
+
 /**
  * The whole form, or null while it cannot be registered. Blank answers are left
  * out rather than sent as `''`: on intake the server takes what it is given and
  * a blank would only be deleted again on arrival.
+ *
+ * The `old` block is present only while the switch is on, so turning it off is
+ * the whole of "prevents stale values from being submitted".
  */
 export function createInputOf(
     form: PatientForm,
@@ -175,6 +387,7 @@ export function createInputOf(
 ): CreatePatientInput | null {
     if (!basicsAreSound(form)) return null;
     if (missingRequired(form, questions).length > 0) return null;
+    if (!oldIsSound(form)) return null;
 
     return {
         name: form.name.trim(),
@@ -183,6 +396,7 @@ export function createInputOf(
         birthDate: birthDateOf(form.age, today),
         gender: orNull(form.gender),
         custom: answersOf(form, questions, (key) => isAnswered(form.answers[key] ?? '')),
+        ...(form.old.on ? { old: oldInputOf(form) } : {}),
     };
 }
 
