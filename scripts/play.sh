@@ -30,4 +30,10 @@ if ((${#tags[@]})); then
     flags+=(--tags "$(IFS=,; echo "${tags[*]}")")
 fi
 
+# `bun run` hands the script non-blocking stdio, which ansible refuses outright
+# ("Ansible requires blocking IO on stdin/stdout/stderr"). Put it back.
+python3 -c 'import os, fcntl
+for fd in (0, 1, 2):
+    fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) & ~os.O_NONBLOCK)'
+
 exec ansible-playbook site.yml "${flags[@]}"
