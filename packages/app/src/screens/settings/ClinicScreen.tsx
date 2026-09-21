@@ -53,6 +53,7 @@ import {
     cutoffDisplay,
     cutoffError,
     cutoffIso,
+    migrationIssue,
     patientNumberDigits,
     patientNumberError,
 } from './data/clinic';
@@ -96,11 +97,14 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const phoneError = submitted && phoneValue.trim() === '' ? 'The clinic needs a phone number.' : undefined;
     const patientNumberIssue = patientNumberError(patientNumberValue);
     const cutoffIssue = cutoffError(cutoffValue);
+    // Both halves or neither — shown only once Save has been pressed, because
+    // one half is exactly what the pane looks like while the other is being set.
+    const pairIssue = cutoffIssue === null ? migrationIssue(cutoffValue, branchValue) : null;
 
     function onSave() {
         setSubmitted(true);
         if (nameValue.trim() === '' || phoneValue.trim() === '') return;
-        if (patientNumberIssue !== null || cutoffIssue !== null) return;
+        if (patientNumberIssue !== null || cutoffIssue !== null || pairIssue !== null) return;
 
         const patientRefNext = Number(patientNumberValue);
         const migrationCutoffDate = cutoffValue === '' ? null : cutoffIso(cutoffValue);
@@ -243,6 +247,11 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                             ]}
                             testID="clinic-migration-branch"
                         />
+                        {submitted && pairIssue ? (
+                            <Text variant="caption" tone="due">
+                                {pairIssue}
+                            </Text>
+                        ) : null}
                     </Card>
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
@@ -265,7 +274,7 @@ function carriedSoFar(progress: { oldPatients: number; openingBalances: number }
     const patients = `${progress.oldPatients} patient${progress.oldPatients === 1 ? '' : 's'}`;
     if (progress.openingBalances === 0) return `${patients} carried over so far.`;
 
-    const owing = `${progress.openingBalances} owing something`;
+    const owing = `${progress.openingBalances} of them still owing money`;
     return `${patients} carried over so far, ${owing}.`;
 }
 

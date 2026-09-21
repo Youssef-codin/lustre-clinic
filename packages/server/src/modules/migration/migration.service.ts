@@ -32,7 +32,8 @@
  * never sees.
  *
  * So they are stamped at **noon UTC** on the day they name, which reads back as
- * that same day at every offset between −12 and +12 — every offset there is.
+ * that same day at every offset strictly between −12 and +12 — Egypt is +2 or
+ * +3, and only the date line's own zones fall outside that.
  * Nothing rounds these rows into a day's bounds, because nothing counts them:
  * the day view, revenue and statistics all exclude them by flag.
  *
@@ -109,9 +110,10 @@ export interface OldPatientPlan {
 }
 
 /**
- * Midday on the day this names, in UTC. Read back through any offset from −12
- * to +12 it is still that day — which is the whole requirement for a row that
- * carries a date rather than occupying a slot. See the note at the top.
+ * Midday on the day this names, in UTC. Read back through any offset strictly
+ * between −12 and +12 it is still that day — which is the whole requirement
+ * for a row that carries a date rather than occupying a slot. See the note at
+ * the top.
  */
 function noonUtc(date: string): Date {
     return new Date(`${date}T12:00:00.000Z`);
@@ -143,6 +145,21 @@ export async function planOldPatientHistory(old: OldPatientInput): Promise<OldPa
         throw new AppError(
             ERROR_CODE.MIGRATION_NOT_CONFIGURED,
             'an old patient with money owed or work done needs a migration branch and cutoff date',
+            422,
+        );
+    }
+
+    // A line dated after the cutoff was done here, not at the old clinic, and
+    // an imported row is one every operational view leaves out. Refused rather
+    // than quietly filed where nothing will count it. ISO dates compare as
+    // strings.
+    const afterCutoff = old.procedures.find(
+        (line) => line.performedOn != null && line.performedOn > migrationCutoffDate,
+    );
+    if (afterCutoff) {
+        throw new AppError(
+            ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF,
+            `an old procedure is dated ${afterCutoff.performedOn}, after the cutoff (${migrationCutoffDate})`,
             422,
         );
     }

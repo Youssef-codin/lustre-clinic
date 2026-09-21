@@ -30,6 +30,8 @@ const TEXT: Record<string, string> = {
         'That number has not been given out yet. Check the old ref, or raise the next patient number in Settings → Clinic.',
     MIGRATION_NOT_CONFIGURED:
         'Set the cutoff date and branch in Settings → Clinic before entering what an old patient owes or had done.',
+    IMPORTED_DATE_AFTER_CUTOFF:
+        'One of the old procedures is dated after the cutoff. Work done since then belongs in a visit, not here.',
     INVALID_PHONE: 'That phone number was not accepted. Check it and try again.',
     TOOTH_REQUIRED: 'One of the old procedures is done to a tooth and has none. Remove it and add it again.',
     TOOTH_NOT_APPLICABLE: 'One of the old procedures is not done to a tooth. Remove it and add it again.',

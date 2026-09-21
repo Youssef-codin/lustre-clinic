@@ -541,6 +541,38 @@ describe('imported procedures', () => {
         expect(await patientService.byPhone({ phone: '01044440008' })).toHaveLength(0);
     });
 
+    // Work done after the cutoff was done here. Filing it as imported would
+    // hide it from the day view, the money and the statistics — every view
+    // that should be counting it.
+    test('refuse a date after the cutoff, before anything is written', async () => {
+        const clinic = await migrating();
+
+        await expectAppError(ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF, () =>
+            patientService.create({
+                name: 'Too Recent',
+                phone: '01044440011',
+                custom: {},
+                old: {
+                    ref: '211',
+                    procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2026-08-02' }],
+                },
+            }),
+        );
+        expect(await patientService.byPhone({ phone: '01044440011' })).toHaveLength(0);
+
+        // The cutoff day itself is the last day the old system was the truth.
+        const onTheDay = await patientService.create({
+            name: 'On The Day',
+            phone: '01044440012',
+            custom: {},
+            old: {
+                ref: '212',
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: CUTOFF }],
+            },
+        });
+        expect((await patientService.byId(onTheDay.id)).history).toHaveLength(1);
+    });
+
     // The rule is per list, and a day is the list: the same tooth extracted on
     // two different days is two real lines.
     test('allow the same work on two different days and refuse it twice on one', async () => {
@@ -623,7 +655,9 @@ describe('an old-patient registration is all or nothing', () => {
      * patient row and its number are already written when the opening balance
      * is refused, and only a real `ROLLBACK` takes them back.
      */
-    async function failNextInsertInto(table: 'visits' | 'appointment_procedures'): Promise<void> {
+    async function failNextInsertInto(
+        table: 'patients' | 'visits' | 'appointment_procedures',
+    ): Promise<void> {
         await sql.unsafe(`
             CREATE OR REPLACE FUNCTION test_refuse() RETURNS trigger AS $$
             BEGIN RAISE EXCEPTION 'refused by the test'; END $$ LANGUAGE plpgsql;
@@ -632,7 +666,7 @@ describe('an old-patient registration is all or nothing', () => {
         `);
     }
 
-    async function stopRefusing(table: 'visits' | 'appointment_procedures'): Promise<void> {
+    async function stopRefusing(table: 'patients' | 'visits' | 'appointment_procedures'): Promise<void> {
         await sql.unsafe(`DROP TRIGGER IF EXISTS test_refuse_insert ON ${table}`);
     }
 
@@ -690,23 +724,22 @@ describe('an old-patient registration is all or nothing', () => {
         expect(await rowCounts()).toEqual(before);
     });
 
+    // A *new* patient, with no `old` block: the number is taken off the counter
+    // first and the row inserted after, in one transaction. The insert failing
+    // has to give the number back, or the next registration skips one.
     test('a failed write of a *new* patient hands their number back', async () => {
         await migrating();
 
-        await failNextInsertInto('visits');
+        await failNextInsertInto('patients');
         try {
             await expect(
-                patientService.create({
-                    name: 'Ghost Entry',
-                    phone: '01555555557',
-                    custom: {},
-                    old: { ref: '806', openingBalance: OWED, procedures: [] },
-                }),
+                patientService.create({ name: 'Ghost Entry', phone: '01555555557', custom: {} }),
             ).rejects.toThrow();
         } finally {
-            await stopRefusing('visits');
+            await stopRefusing('patients');
         }
 
+        expect((await settingsService.get()).patientRefNext).toBe(NEXT_REF);
         const fresh = await patientService.create({ name: 'Next In', phone: '01555555558', custom: {} });
         expect(fresh.ref).toBe(String(NEXT_REF));
     });

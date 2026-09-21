@@ -34,7 +34,7 @@ import {
     missingRequired,
     oldDateDigits,
     oldDateError,
-    owesDigits,
+    owesInput,
     owesPiastres,
     unaskableRequired,
     updateInputOf,
@@ -526,11 +526,17 @@ describe('what an old patient owes', () => {
 
     // `12.50` read as `1250` is a hundredfold overcharge told to a patient
     // months later with no visit to check it against. The keypad has no decimal
-    // key; this is what catches a paste.
-    it('strips anything that is not a digit rather than reading a separator as one', () => {
-        expect(owesDigits('12.50')).toBe('1250');
-        expect(owesDigits('1,200')).toBe('1200');
-        expect(owesDigits('abc')).toBe('');
+    // key; a paste is the one way punctuation gets in, and it is refused
+    // rather than reinterpreted.
+    it('refuses punctuation rather than reading a separator as digits', () => {
+        expect(owesInput('12.50')).toBe('12.50');
+        expect(owesPiastres('12.50')).toBeNull();
+        expect(owesPiastres('1,200')).toBeNull();
+        expect(owesPiastres('abc')).toBeNull();
+
+        const pasted = sound({ old: oldOn({ owes: '12.50' }) });
+        expect(malformedOld(pasted).owes).toBeDefined();
+        expect(createInputOf(pasted, questions, TODAY)).toBeNull();
     });
 
     it('refuses a figure that is a mis-key rather than a balance', () => {

@@ -83,6 +83,12 @@ export const ERROR_CODE = {
      * not said which branch and cutoff date that history hangs on (§12).
      */
     MIGRATION_NOT_CONFIGURED: 'MIGRATION_NOT_CONFIGURED',
+    /**
+     * An old procedure was dated after the migration cutoff. Work done since
+     * the changeover was done here, and belongs in a visit rather than in
+     * imported history that every operational view leaves out.
+     */
+    IMPORTED_DATE_AFTER_CUTOFF: 'IMPORTED_DATE_AFTER_CUTOFF',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

@@ -76,3 +76,19 @@ export function cutoffDigitsOf(iso: string | null): string {
     const [year = '', month = '', day = ''] = iso.split('-');
     return `${day}${month}${year}`;
 }
+
+/**
+ * The cutoff and the branch travel together or not at all. A cutoff with no
+ * branch has nowhere to hang an opening balance, and a branch with no cutoff
+ * has no day to date it on — the server would store either half and then refuse
+ * every old patient with `MIGRATION_NOT_CONFIGURED`, which names neither. Said
+ * here, on the pane, instead.
+ */
+export function migrationIssue(cutoffDigits: string, branchId: string | null): string | null {
+    const hasCutoff = cutoffDigits !== '';
+    const hasBranch = branchId !== null;
+    if (hasCutoff === hasBranch) return null;
+    return hasCutoff
+        ? 'Pick the branch the old patients belong to, or clear the cutoff date.'
+        : 'Set the cutoff date, or set the branch back to Not set.';
+}

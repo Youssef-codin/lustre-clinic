@@ -39,18 +39,18 @@ const OPENING_BALANCE_NOTE = 'Opening balance carried over from the old system';
 const IMPORTED_NOTE = 'Recorded by the old system before the migration';
 
 /**
- * Everything the write needs, checked before a row is touched — the same order
- * the server resolves it in, so a demo refuses what the clinic would refuse.
- */
-/**
  * Midday on the day this names, in UTC — the same trick the server uses. These
  * rows carry a date rather than occupying a slot, and noon reads back as that
- * day at every offset there is. See `migration.service`.
+ * day at every offset strictly between −12 and +12. See `migration.service`.
  */
 function noonUtc(date: string): Date {
     return new Date(`${date}T12:00:00.000Z`);
 }
 
+/**
+ * Everything the write needs, checked before a row is touched — the same order
+ * the server resolves it in, so a demo refuses what the clinic would refuse.
+ */
 export function planOldPatientHistory(old: OldPatientInput): {
     branchId: string;
     cutoffDate: string;
@@ -72,6 +72,18 @@ export function planOldPatientHistory(old: OldPatientInput): {
         );
     }
     branchHandlers.byId(migrationBranchId);
+
+    // Done since the changeover is done here, and belongs in a visit.
+    const afterCutoff = procedures.find(
+        (line) => line.performedOn != null && line.performedOn > migrationCutoffDate,
+    );
+    if (afterCutoff) {
+        throw new DemoError(
+            ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF,
+            `an old procedure is dated ${afterCutoff.performedOn}, after the cutoff (${migrationCutoffDate})`,
+            422,
+        );
+    }
 
     const byDay = new Map<string | null, OldProcedures>();
     for (const line of procedures) {

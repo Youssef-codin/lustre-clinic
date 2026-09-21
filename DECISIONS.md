@@ -148,8 +148,9 @@ know the one in force on a cutoff it never sees, because the cutoff lives in
 Settings.
 
 **Decided:** these rows are stamped at **noon UTC** on the day they name. Noon
-reads back as that same day at every offset from −12 to +12, which is every
-offset there is, so the `old` block sends no `offsetMinutes` at all. It is safe
+reads back as that same day at every offset strictly between −12 and +12 —
+which covers every clinic this app is for, Egypt being +2 or +3, and every zone
+short of the date line — so the `old` block sends no `offsetMinutes` at all. It is safe
 precisely because nothing rounds these rows into a day's bounds: the day view,
 revenue and statistics all exclude them by flag, so no range query ever has to
 agree with the stamp.

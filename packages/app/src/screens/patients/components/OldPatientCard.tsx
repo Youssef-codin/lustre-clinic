@@ -50,7 +50,7 @@ import { type PickedProcedure, ProcedureSheet } from '../../day/components/Proce
 import { ToothSheet } from '../../day/components/ToothSheet';
 import { api as dayApi, useLocalQuery } from '../../day/data';
 import type { OldField, OldPatientForm, OldProcedureDraft, PatientForm } from '../patientForm';
-import { oldDateDigits, oldDateDisplay, oldDateError, owesDigits } from '../patientForm';
+import { oldDateDigits, oldDateDisplay, oldDateError, owesInput } from '../patientForm';
 import { CloseIcon } from './icons';
 
 export type OldPatientCardProps = {
@@ -145,7 +145,7 @@ export function OldPatientCard({ form, onChange, blank, errors }: OldPatientCard
                             <NumericField
                                 label="Owes"
                                 value={old.owes}
-                                onChangeText={(text) => change({ owes: owesDigits(text) })}
+                                onChangeText={(text) => change({ owes: owesInput(text) })}
                                 placeholder="0"
                                 prefix="EGP"
                                 error={errors.owes}

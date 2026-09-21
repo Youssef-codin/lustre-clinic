@@ -4,6 +4,7 @@ import {
     cutoffDigitsOf,
     cutoffError,
     cutoffIso,
+    migrationIssue,
     patientNumberDigits,
     patientNumberError,
 } from './data/clinic';
@@ -198,5 +199,28 @@ describe('the migration cutoff', () => {
     test('takes eight digits and strips the rest', () => {
         expect(cutoffDigits('01 / 08 / 2026')).toBe('01082026');
         expect(cutoffDigits('010820269')).toBe('01082026');
+    });
+});
+
+/**
+ * The cutoff and the branch are one setting in two fields. The server stores
+ * either half alone and then refuses every old patient with a code that names
+ * neither, so the pane refuses the half-set state itself.
+ */
+describe('the cutoff and the branch travel together', () => {
+    test('neither set is a clinic with nothing to carry over', () => {
+        expect(migrationIssue('', null)).toBeNull();
+    });
+
+    test('both set is a configured migration', () => {
+        expect(migrationIssue('01082026', 'branch-id')).toBeNull();
+    });
+
+    test('a cutoff with no branch is refused, and says which half is missing', () => {
+        expect(migrationIssue('01082026', null)).toContain('Pick the branch');
+    });
+
+    test('a branch with no cutoff is refused, and says which half is missing', () => {
+        expect(migrationIssue('', 'branch-id')).toContain('Set the cutoff date');
     });
 });

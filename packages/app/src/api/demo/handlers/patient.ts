@@ -189,8 +189,8 @@ export const patientHandlers = {
      * An old patient keeps the number on their paper file as their `ref` — the
      * desk was given one number for them and must not be handed a second — and
      * `legacyRef` carries the same string, which is what marks the record as
-     * having come across. The demo has no counter to protect, so the only thing
-     * it refuses is the number twice.
+     * having come across. It refuses what the server refuses: the number twice,
+     * and a plain number the new-patient sequence has still to reach.
      */
     create(input: RouterInput['patient']['create']): Patient {
         const custom = customQuestionHandlers.validateIntake(input.custom ?? {});
@@ -205,6 +205,17 @@ export const patientHandlers = {
         const old = input.old;
         if (getDb().patients.some((patient) => patient.ref === old.ref)) {
             throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
+        }
+
+        // A plain number the sequence has still to hand out — the server's
+        // rule, so the demo refuses what the clinic would refuse.
+        const next = getDb().settings.patientRefNext;
+        if (/^\d+$/.test(old.ref) && Number(old.ref) >= next) {
+            throw new DemoError(
+                ERROR_CODE.PATIENT_REF_RESERVED,
+                `${old.ref} is at or above the next patient number (${next}) and is not yet a patient's`,
+                422,
+            );
         }
 
         const plan = planOldPatientHistory(old);

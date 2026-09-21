@@ -52,6 +52,7 @@ import {
 } from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
+import { isWholePounds } from './components/money';
 import type {
     Answers,
     CreatePatientInput,
@@ -263,27 +264,30 @@ function answersOf(form: PatientForm, questions: CustomQuestion[], only: (key: s
 
 // --- the old-patient block ------------------------------------------------
 
-/** Six digits is a hundred thousand pounds; the range check below refuses more. */
-export function owesDigits(text: string): string {
-    return text.replace(/\D/g, '').slice(0, 6);
+/**
+ * What the field holds. Trimmed and capped, and *not* stripped to digits: a
+ * pasted `12.50` has to stay `12.50` so that `malformedOld` can refuse it. The
+ * old data-entry screen stripped, which read `12.50` as `1250` — a hundredfold
+ * overcharge told to a patient months later with no visit to check it against,
+ * and the one thing the field exists to not do. The keypad is `number-pad`, so
+ * nothing but a paste ever gets punctuation in here.
+ */
+export function owesInput(text: string): string {
+    return text.trim().slice(0, 8);
 }
 
 /** Above this and it is a mis-key, not a balance: a hundred thousand pounds owed by one patient. */
 const LARGEST_OWED_EGP = 100_000;
 
 /**
- * Whole pounds in, integer piastres out (§7.12). The field takes digits only,
- * and `owesDigits` strips anything else — which is why it asks `ui/NumericField`
- * for `number-pad` rather than the default `decimal-pad`. Stripping a separator
- * reads `12.50` as `1250`, and on a migration that is a hundredfold overcharge
- * told to a patient months later with no visit to check it against. A keypad
- * with no decimal key is what stops it being typed; the stripping catches a
- * paste.
+ * Whole pounds in, integer piastres out (§7.12), or null for anything that is
+ * not whole pounds — a blank, a zero, punctuation, or a figure nobody owes.
  */
 export function owesPiastres(pounds: string): number | null {
-    if (pounds.trim() === '') return null;
+    const text = pounds.trim();
+    if (text === '' || !isWholePounds(text)) return null;
 
-    const value = Number(pounds);
+    const value = Number(text);
     if (!Number.isInteger(value) || value <= 0 || value > LARGEST_OWED_EGP) return null;
 
     return value * PIASTRES_PER_POUND;
@@ -346,7 +350,7 @@ function oldIsSound(form: PatientForm): boolean {
  * No `offsetMinutes` rides with these dates, which every other date this app
  * sends does carry. They are a day being named rather than a day being bounded,
  * and the server stamps them at noon UTC so they read back as that day from any
- * offset — see `migration.service`. It is also the only thing that *could*
+ * offset this clinic can be in — see `migration.service`. It is also the only thing that *could*
  * work here: the opening balance is dated at a cutoff this form never sees, so
  * the offset in force on it is not something the form can know.
  */
