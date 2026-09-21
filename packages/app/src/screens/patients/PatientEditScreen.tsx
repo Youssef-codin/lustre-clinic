@@ -51,7 +51,7 @@ import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
 import { CloseIcon } from './components/icons';
-import { OldPatientCard } from './components/OldPatientCard';
+import { OldPatientRows, OldProcedures } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
@@ -268,20 +268,29 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             BASICS
                         </Text>
 
-                        <BasicsCard form={form} onChange={change} blank={blank} errors={malformed} />
+                        {/* The old-patient switch is registration only. An
+                            existing record is never registered again, and an
+                            editor offering to give somebody an old number would
+                            be offering to change the number already written on
+                            their file. */}
+                        <BasicsCard
+                            form={form}
+                            onChange={change}
+                            blank={blank}
+                            errors={malformed}
+                            trailing={
+                                creating ? (
+                                    <OldPatientRows
+                                        form={form}
+                                        onChange={change}
+                                        blank={oldBlank}
+                                        errors={oldMalformed}
+                                    />
+                                ) : null
+                            }
+                        />
 
-                        {/* Registration only. An existing record is never
-                            registered again, and an editor offering to give
-                            somebody an old number would be offering to change
-                            the number already written on their file. */}
-                        {creating ? (
-                            <OldPatientCard
-                                form={form}
-                                onChange={change}
-                                blank={oldBlank}
-                                errors={oldMalformed}
-                            />
-                        ) : null}
+                        {creating ? <OldProcedures form={form} onChange={change} /> : null}
 
                         <Questions
                             questions={editable}
