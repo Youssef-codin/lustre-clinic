@@ -188,8 +188,10 @@ const STORE_KEY = 'lustre.demo.db';
  * 3: settings carry `patientRefLast`.
  * 4: that column is `patientRefNext` — the number the *next* patient gets, not
  *    the last one handed out — and appointments carry `isImported`.
+ * 5: `patientRefNext` seeds at 1001 rather than 1, so an old patient's number
+ *    is not refused as one the sequence still owes.
  */
-const STORE_VERSION = 4;
+const STORE_VERSION = 5;
 
 let db: DemoDb | null = null;
 

@@ -263,19 +263,36 @@ function OldProcedureRow({
     onDate: (digits: string) => void;
     onRemove: () => void;
 }) {
+    // Two lines, not three columns. With the date squeezed between the name
+    // and the remove button it had the width of a word, and `14 / 03 / 2024`
+    // showed as `024` once typed. The name and the cross share the first line;
+    // the date has the second to itself.
     return (
         <View style={styles.row}>
-            <View style={styles.rowText}>
-                <Text variant="callout" weight="medium" numberOfLines={2}>
-                    {entry.name}
-                </Text>
-                {entry.tooth ? (
-                    <View style={styles.tooth}>
-                        <Text variant="tag" weight="bold" script="mono">
-                            {entry.tooth}
-                        </Text>
-                    </View>
-                ) : null}
+            <View style={styles.rowHead}>
+                <View style={styles.rowText}>
+                    <Text variant="callout" weight="medium" numberOfLines={2}>
+                        {entry.name}
+                    </Text>
+                    {entry.tooth ? (
+                        <View style={styles.tooth}>
+                            <Text variant="tag" weight="bold" script="mono">
+                                {entry.tooth}
+                            </Text>
+                        </View>
+                    ) : null}
+                </View>
+
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${entry.name}`}
+                    onPress={onRemove}
+                    hitSlop={10}
+                    style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
+                    testID={`patient-old-remove-${entry.id}`}
+                >
+                    <CloseIcon size={13} stroke={color.muted} />
+                </Pressable>
             </View>
 
             <NumericField
@@ -287,19 +304,9 @@ function OldProcedureRow({
                 keyboardType="number-pad"
                 size="body"
                 variant="inline"
+                layout="inline"
                 testID={`patient-old-date-${entry.id}`}
             />
-
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${entry.name}`}
-                onPress={onRemove}
-                hitSlop={10}
-                style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
-                testID={`patient-old-remove-${entry.id}`}
-            >
-                <CloseIcon size={13} stroke={color.muted} />
-            </Pressable>
         </View>
     );
 }
@@ -322,13 +329,8 @@ const styles = StyleSheet.create({
     history: { paddingTop: space[2], gap: space[2.5] },
     historyHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
 
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        paddingHorizontal: space[3.5],
-        paddingVertical: space[2.5],
-    },
+    row: { gap: space[2], paddingHorizontal: space[3.5], paddingVertical: space[2.5] },
+    rowHead: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
     rowText: { flex: 1, gap: space[1], alignItems: 'flex-start' },
     tooth: {
         paddingHorizontal: space[1.5],

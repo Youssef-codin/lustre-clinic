@@ -434,8 +434,11 @@ function emptyDb(): DemoDb {
             reminderDismissedOn: null,
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
             // The server's patient counter. The demo still draws random refs,
-            // so this only fills the field.
-            patientRefNext: 1,
+            // so this only fills the field — but it is also the floor an old
+            // patient's number is checked against, and at 1 every number off a
+            // paper file would be refused as one the sequence still owes. A
+            // clinic that has moved over has set it above its old numbers.
+            patientRefNext: 1001,
             migrationBranchId: null,
             migrationCutoffDate: null,
             updatedAt: new Date(),
