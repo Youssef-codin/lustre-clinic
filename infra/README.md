@@ -20,16 +20,19 @@ Done by hand, once per machine:
 Needs `ansible-core` 2.15+ on the operator's machine. No collections.
 
 ```sh
-cd infra/ansible
-ansible-playbook site.yml -K --tags tailscale,base,power     # safe, no lockout risk
-ansible-playbook site.yml -K --tags ssh                      # passwords off
-ansible-playbook site.yml -K --tags firewall                 # LAN locked down
-ansible-playbook site.yml -K --tags docker
+bun play tailscale base power     # safe, no lockout risk
+bun play ssh                      # passwords off
+bun play firewall                 # LAN locked down
+bun play docker
 ```
 
-`-K` asks for the sudo password. The first run is split so each risky step can
-be checked before the next; after that, `ansible-playbook site.yml -K` runs it
-all and changes nothing on a machine that is already set up.
+`bun play` runs `ansible-playbook site.yml -K` from `infra/ansible` with the
+words as `--tags`; flags pass through (`bun play releases --check`). `-K` asks
+for the sudo password each time. To skip that, keep the password in a file
+outside the repo with mode 0600 and set `LUSTRE_SUDO_PASSWORD_FILE` to its path.
+The first run is split so each risky step can be checked before the next; after
+that, `bun play` runs it all and changes nothing on a machine that is already
+set up.
 
 The SSH and firewall steps end by opening a fresh connection. If either fails,
 the session that ran the play has already been closed; get back in over the LAN
@@ -53,7 +56,7 @@ never written into the repo; `read -rs` keeps them out of shell history.
 bun run build:server
 read -rs LUSTRE_DISCORD_WEBHOOK_URL && export LUSTRE_DISCORD_WEBHOOK_URL
 read -rs LUSTRE_HEARTBEAT_URL && export LUSTRE_HEARTBEAT_URL
-cd infra/ansible && ansible-playbook site.yml -K --tags app
+bun play app
 ```
 
 Each stack's `.env` is generated on the server the first time and never
@@ -160,7 +163,7 @@ back to the debug key. Debug builds do not need them.
 ```sh
 LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:apk
 git push origin v<the version it printed>
-cd infra/ansible && ansible-playbook site.yml -K --tags releases
+bun play releases
 ```
 
 `LUSTRE_UPDATES_URL` is the prod stack's address, the one `health.check`
@@ -183,7 +186,7 @@ role and saved address survive because the APK is signed with the same key.
 ```sh
 LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:update
 git push origin v<the version it printed>
-cd infra/ansible && ansible-playbook site.yml -K --tags releases
+bun play releases
 ```
 
 Publish with the same `LUSTRE_UPDATES_URL` the APK was built with. An update is
@@ -222,7 +225,7 @@ Metro build had a different server saved. The red DEV strip remains visible.
 ```sh
 LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3001 bun release:dev:apk
 adb -s <phone serial> install -r dist/releases-dev/android/lustre.apk
-cd infra/ansible && ansible-playbook site.yml -K --tags releases
+bun play releases
 ```
 
 The dev stack serves only the `development` update channel; production serves
@@ -231,9 +234,11 @@ update on the next cold start. The development APK and its OTA updates are
 signed, and only a matching native runtime accepts an update. To publish one:
 
 ```sh
-LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3001 bun release:dev:update
-cd infra/ansible && ansible-playbook site.yml -K --tags releases
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3001 bun ship:dev
 ```
+
+`bun ship:dev` is `release:dev:update` followed by `play releases`; `bun ship`
+is the same for production.
 
 Development versions use `dev-vX.Y.Z` git tags, separate from production's
 `vX.Y.Z`. Push the tag printed by the script. A native change needs
