@@ -11,7 +11,16 @@
  * The age is deliberately coarse. "3 days" is what decides whether this is
  * ignored until Monday; a minute count would be false precision on a number
  * that is only ever read to answer "how bad is it".
+ *
+ * Every sentence here is English copy with an Arabic entry behind it. The view
+ * is built at render, so the screen passes its `t`; the tests, and anything
+ * else with no locale in hand, get the English.
  */
+import { type CopyVars, localizeCopy } from '@lustre/shared';
+
+type Translate = (copy: string, vars?: CopyVars) => string;
+const english: Translate = (copy, vars) => localizeCopy('en', copy, vars);
+
 export interface BackupStatusData {
     lastSuccessAt: string | null;
     stale: boolean;
@@ -55,35 +64,39 @@ export function ageInDays(since: string, now: number): number | null {
 }
 
 /** A duration, not a date: "2 days ago" is when it broke, which is not the question. */
-function stoppedFor(days: number | null): string {
-    if (days === null || days < 1) return 'The off-site copy has stopped.';
-    if (days === 1) return 'The off-site copy has been stopped since yesterday.';
-    return `The off-site copy has been stopped for ${days} days.`;
+function stoppedFor(days: number | null, t: Translate): string {
+    if (days === null || days < 1) return t('The off-site copy has stopped.');
+    if (days === 1) return t('The off-site copy has been stopped since yesterday.');
+    return t('The off-site copy has been stopped for {days} days.', { days });
 }
 
-export function formatAge(days: number): string {
-    if (days < 1) return 'today';
-    if (days === 1) return 'yesterday';
-    return `${days} days ago`;
+export function formatAge(days: number, t: Translate = english): string {
+    if (days < 1) return t('today');
+    if (days === 1) return t('yesterday');
+    return t('{days} days ago', { days });
 }
 
-function lastLine(lastSuccessAt: string | null, now: number): string {
-    if (!lastSuccessAt) return 'No backup yet';
+function lastLine(lastSuccessAt: string | null, now: number, t: Translate): string {
+    if (!lastSuccessAt) return t('No backup yet');
     const days = ageInDays(lastSuccessAt, now);
-    if (days === null) return 'No backup yet';
-    return `Last backup ${formatAge(days)}`;
+    if (days === null) return t('No backup yet');
+    return t('Last backup {age}', { age: formatAge(days, t) });
 }
 
-export function backupView(status: BackupStatusData, now: number = Date.now()): BackupView {
-    const last = lastLine(status.lastSuccessAt, now);
+export function backupView(
+    status: BackupStatusData,
+    now: number = Date.now(),
+    t: Translate = english,
+): BackupView {
+    const last = lastLine(status.lastSuccessAt, now, t);
     const since = status.offsite.reauthorizationRequiredSince;
     const link = { account: status.offsite.account, canSignIn: status.offsite.canSignIn };
 
     if (since) {
         return {
             tone: 'reauthorize',
-            sub: 'Google Drive needs a new sign-in',
-            detail: signInHint(status.offsite.canSignIn, ageInDays(since, now)),
+            sub: t('Google Drive needs a new sign-in'),
+            detail: signInHint(status.offsite.canSignIn, ageInDays(since, now), t),
             ...link,
         };
     }
@@ -94,7 +107,9 @@ export function backupView(status: BackupStatusData, now: number = Date.now()): 
 
     return {
         tone: 'ok',
-        sub: status.offsite.configured ? `${last} · copied off-site` : `${last} · on this machine only`,
+        sub: status.offsite.configured
+            ? t('{last} · copied off-site', { last })
+            : t('{last} · on this machine only', { last }),
         detail: null,
         ...link,
     };
@@ -104,9 +119,9 @@ export function backupView(status: BackupStatusData, now: number = Date.now()): 
  * The card tells the reader what *they* can do about it, which depends on
  * whether this server can run the sign-in from the handset at all.
  */
-function signInHint(canSignIn: boolean, days: number | null): string {
-    const stopped = stoppedFor(days);
+function signInHint(canSignIn: boolean, days: number | null, t: Translate): string {
+    const stopped = stoppedFor(days, t);
     return canSignIn
-        ? `${stopped} Open Backups below to sign in again.`
-        : `${stopped} Ask whoever set up the clinic server to sign in to Google Drive again.`;
+        ? t('{stopped} Open Backups below to sign in again.', { stopped })
+        : t('{stopped} Ask whoever set up the clinic server to sign in to Google Drive again.', { stopped });
 }

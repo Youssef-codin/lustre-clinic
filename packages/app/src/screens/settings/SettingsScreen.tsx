@@ -134,7 +134,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         setToast(
             result.kind === 'linked'
                 ? result.account
-                    ? `Backups now go to ${result.account}`
+                    ? t('Backups now go to {account}', { account: result.account })
                     : 'Google Drive linked'
                 : driveSignInError(result.code),
         );
@@ -512,8 +512,9 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
  */
 function useBackups(): BackupView | null {
     const trpc = useTRPC();
+    const t = useT();
     const status = useQuery(trpc.backup.status.queryOptions(undefined, { refetchInterval: 5 * 60_000 }));
-    return status.data ? backupView(status.data) : null;
+    return status.data ? backupView(status.data, Date.now(), t) : null;
 }
 
 function useSummary() {

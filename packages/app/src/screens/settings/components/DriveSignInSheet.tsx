@@ -13,6 +13,7 @@
  */
 import { StyleSheet, View } from 'react-native';
 import { Button, Sheet } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import { CheckIcon } from './icons';
 
@@ -32,6 +33,7 @@ const EFFECTS: readonly string[] = [
 ];
 
 export function DriveSignInSheet({ visible, account, busy, onConfirm, onCancel }: DriveSignInSheetProps) {
+    const t = useT();
     const relinking = account !== null;
 
     return (
@@ -59,7 +61,7 @@ export function DriveSignInSheet({ visible, account, busy, onConfirm, onCancel }
             {relinking ? (
                 <View style={styles.current}>
                     <Text variant="eyebrow" tone="muted">
-                        BACKING UP TO
+                        {t('BACKING UP TO')}
                     </Text>
                     <Text variant="body" weight="semibold" style={styles.account}>
                         {account}
@@ -71,7 +73,7 @@ export function DriveSignInSheet({ visible, account, busy, onConfirm, onCancel }
                 <View key={effect} style={styles.effect}>
                     <CheckIcon size={15} />
                     <Text variant="subhead" tone="ink2" style={styles.effectText}>
-                        {effect}
+                        {t(effect)}
                     </Text>
                 </View>
             ))}
