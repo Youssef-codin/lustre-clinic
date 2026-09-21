@@ -228,6 +228,42 @@ describe('a booking taken while the lead time is changing', () => {
     });
 });
 
+describe('two saves of the lead time at once', () => {
+    /**
+     * Both read the row before either writes. If the comparison that decides
+     * whether to reschedule used that pre-transaction read, the save writing
+     * the lead it had already seen would conclude nothing had changed and skip
+     * the reschedule — leaving its own number on the row and the other save's
+     * on every reminder. Whichever wins, the two have to agree.
+     */
+    test('leave the setting and the reminders agreeing', async () => {
+        const { appointment } = await bookedAppointment();
+        const { reminderLeadHours: before } = await settingsService.get();
+
+        await Promise.all([
+            settingsService.update({ reminderLeadHours: 9 }),
+            settingsService.update({ reminderLeadHours: before }),
+        ]);
+
+        const { reminderLeadHours: after } = await settingsService.get();
+        expect(await dueAtOf(appointment.id)).toBe(appointment.startsAt.getTime() - after * HOUR);
+    });
+
+    test('agree when the counter is saved beside one of them', async () => {
+        const { appointment, patient } = await bookedAppointment();
+        await sql`UPDATE patients SET ref = '30' WHERE id = ${patient.id}`;
+        const { reminderLeadHours: before } = await settingsService.get();
+
+        await Promise.all([
+            settingsService.update({ reminderLeadHours: 11, patientRefLast: 60 }),
+            settingsService.update({ reminderLeadHours: before }),
+        ]);
+
+        const { reminderLeadHours: after } = await settingsService.get();
+        expect(await dueAtOf(appointment.id)).toBe(appointment.startsAt.getTime() - after * HOUR);
+    });
+});
+
 describe('a refused settings update', () => {
     test('leaves both the lead time and the reminders where they were', async () => {
         const { appointment } = await bookedAppointment();

@@ -194,27 +194,10 @@ export const settingsService = {
             );
         }
 
-        // "How long before the appointment a reminder becomes due" is a
-        // statement about the pending list, not only about the next booking,
-        // so a new lead time moves the reminders already on the books. In the
-        // same transaction as the row: a clinic must never be left reading a
-        // lead time its pending list does not obey.
-        const leadHours =
-            input.reminderLeadHours !== undefined && input.reminderLeadHours !== current.reminderLeadHours
-                ? input.reminderLeadHours
-                : undefined;
-
-        if (input.patientRefLast === undefined) {
-            if (leadHours === undefined) return writeRow({ ...input, durationOptions, defaultDuration });
-
-            const written = await db.transaction(async (tx) => {
-                const row = await updateRow({ ...input, durationOptions, defaultDuration }, tx);
-                await reminderService.rescheduleAllPending(tx, leadHours);
-                return row;
-            });
-
-            broadcast(WS_EVENT.SETTINGS_UPDATED);
-            return toSettings(written);
+        // Neither the reminders nor the ref counter is in play, so there is
+        // nothing the row lock below would protect.
+        if (input.reminderLeadHours === undefined && input.patientRefLast === undefined) {
+            return writeRow({ ...input, durationOptions, defaultDuration });
         }
 
         const patientRefLast = input.patientRefLast;
@@ -222,10 +205,33 @@ export const settingsService = {
             // The row lock comes first, so a registration already numbering
             // itself either commits before the refs are read or waits until
             // this has been written.
-            await tx.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)).for('update');
-            await assertPatientRefLast(patientRefLast, tx);
+            //
+            // It is also what the lead time is compared against. `current` was
+            // read before this transaction, and two saves racing would both see
+            // the old lead: the one writing it back unchanged would decide
+            // nothing had changed and skip the reschedule, leaving its own
+            // value on the row and the other's on every reminder.
+            const [locked] = await tx
+                .select({ reminderLeadHours: settings.reminderLeadHours })
+                .from(settings)
+                .where(eq(settings.id, 1))
+                .for('update')
+                .limit(1);
+
+            if (patientRefLast !== undefined) await assertPatientRefLast(patientRefLast, tx);
+
             const row = await updateRow({ ...input, durationOptions, defaultDuration }, tx);
-            if (leadHours !== undefined) await reminderService.rescheduleAllPending(tx, leadHours);
+
+            // "How long before the appointment a reminder becomes due" is a
+            // statement about the pending list, not only about the next
+            // booking, so a new lead time moves the reminders already on the
+            // books — here, under the same lock, so a clinic is never left
+            // reading a lead time its pending list does not obey.
+            const leadHours = input.reminderLeadHours;
+            if (leadHours !== undefined && leadHours !== locked?.reminderLeadHours) {
+                await reminderService.rescheduleAllPending(tx, leadHours);
+            }
+
             return row;
         });
 
