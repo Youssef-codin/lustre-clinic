@@ -169,7 +169,7 @@ export function ChairCard({
             <View style={styles.eyebrowRow}>
                 <Dot tone={eyebrow.dot} size={7} pulse={eyebrow.pulse} />
                 <Text variant="eyebrow" tone={eyebrow.tone}>
-                    {eyebrow.label}
+                    {t(eyebrow.label)}
                 </Text>
                 {/* The booked time, and only where it earns its place: on NEXT UP
                     it is when they are due, and in the chair it is the slot being
@@ -199,7 +199,7 @@ export function ChairCard({
 
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${eyebrow.label.toLowerCase()}: ${appointment.patient.name}`}
+                accessibilityLabel={`${t(eyebrow.label)}: ${appointment.patient.name}`}
                 onPress={() => onOpen(appointment)}
             >
                 <View style={styles.detail}>

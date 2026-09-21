@@ -50,7 +50,14 @@ const COPY_CHILDREN = ['SectionLabel', 'Tag', 'Callout'];
 
 const T_CALL = /\bt\(\s*(['"])((?:(?!\1)[^\\]|\\.)*)\1/g;
 const PROP = new RegExp(`\\b(?:${COPY_PROPS.join('|')})=(?:"([^"]+)"|\\{'([^']+)'\\})`, 'g');
-const CHILD = new RegExp(`<(${COPY_CHILDREN.join('|')})\\b[^<>]*>\\s*([A-Za-z][^<>{}]*?)\\s*</\\1>`, 'g');
+// The opening tag may carry a JSX prop — `icon={<InfoIcon size={16} />}` —
+// so its attributes are matched as anything outside braces or a brace pair
+// nested one deep, not as "anything but `<`". The first form missed the
+// inactive-branch notice for exactly that prop.
+const CHILD = new RegExp(
+    `<(${COPY_CHILDREN.join('|')})\\b(?:[^<>{}]|\\{(?:[^{}]|\\{[^{}]*\\})*\\})*>\\s*([A-Za-z][^<>{}]*?)\\s*</\\1>`,
+    'g',
+);
 
 /**
  * `screens/dev/` is the component gallery, which is not in the production

@@ -13,7 +13,7 @@ import {
 } from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
-import { useLocale, useT } from '../i18n';
+import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
@@ -48,7 +48,6 @@ const LAN_ALLOWED = allowsLan(BUILD_VARIANT);
 const DEMO_ALLOWED = allowsDemo(BUILD_VARIANT);
 
 export function SetupScreen() {
-    const locale = useLocale();
     const t = useT();
     const current = serverAddresses();
     const [lan, setLan] = useState(current.lan ?? '');
@@ -162,9 +161,10 @@ export function SetupScreen() {
                         </View>
                         <Text variant="footnote" tone={attempt.ok ? 'successText' : 'danger'}>
                             {attempt.ok
-                                ? locale === 'ar'
-                                    ? `تم الاتصال عبر ${attempt.address === 'lan' ? 'شبكة العيادة' : 'تايل سكيل'} خلال ${seconds(attempt.ms)}`
-                                    : `Answered over ${ADDRESS_LABEL[attempt.address]} in ${seconds(attempt.ms)}`
+                                ? t('Answered over {route} in {seconds}', {
+                                      route: t(ADDRESS_LABEL[attempt.address]),
+                                      seconds: t('{seconds}s', { seconds: (attempt.ms / 1000).toFixed(1) }),
+                                  })
                                 : t(attempt.message)}
                         </Text>
                     </View>
@@ -198,10 +198,6 @@ export function SetupScreen() {
             </View>
         </ScrollView>
     );
-}
-
-function seconds(ms: number): string {
-    return `${(ms / 1000).toFixed(1)}s`;
 }
 
 const styles = StyleSheet.create({

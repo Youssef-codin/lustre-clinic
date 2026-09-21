@@ -30,7 +30,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { clock12 } from '../../../components/domain';
 import { Chevron, Field } from '../../../components/ui';
-import { useLocale } from '../../../i18n';
+import { useLocale, useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 
 const WheelPicker = withVirtualized(BaseWheelPicker);
@@ -78,13 +78,14 @@ export type TimeFieldProps = {
 
 export function TimeField({ label, value, onPress, hint, error, disabled = false, testID }: TimeFieldProps) {
     const locale = useLocale();
+    const t = useT();
     const shown = formatClock(value, locale);
 
     return (
         <Field label={label} hint={hint} error={error}>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={label}
+                accessibilityLabel={t(label)}
                 accessibilityValue={{ text: shown }}
                 accessibilityState={{ disabled }}
                 disabled={disabled}

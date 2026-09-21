@@ -608,6 +608,18 @@ export const COPY_AR = {
     '{count} visit': 'زيارة واحدة',
     '{count} visits': '{count} زيارة',
     'Collected ahead': 'محصّل مقدمًا',
+    'Answered over {route} in {seconds}': 'تم الاتصال عبر {route} خلال {seconds}',
+    '{seconds}s': '{seconds} ث',
+    'the clinic wifi': 'شبكة العيادة',
+    'DURATION OPTIONS': 'خيارات المدة',
+    'This branch is inactive. You can still edit its details and reopen it at any time.':
+        'هذا الفرع موقوف. ما زال بإمكانك تعديل بياناته وإعادة تشغيله في أي وقت.',
+    'Neither address answered. Check the clinic computer is on, that you are on the clinic wifi or signed in to Tailscale, and that the address ends in the port (:3000).':
+        'لم يستجب أي من العنوانين. تأكد أن كمبيوتر العيادة يعمل، وأنك متصل بشبكة العيادة أو مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
+    'That address did not answer. Check the clinic computer is on, that you are on the clinic wifi or signed in to Tailscale, and that the address ends in the port (:3000).':
+        'لم يستجب هذا العنوان. تأكد أن كمبيوتر العيادة يعمل، وأنك متصل بشبكة العيادة أو مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
+    'That address did not answer. Check the clinic computer is on, that you are signed in to Tailscale, and that the address ends in the port (:3000).':
+        'لم يستجب هذا العنوان. تأكد أن كمبيوتر العيادة يعمل، وأنك مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;
