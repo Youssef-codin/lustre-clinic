@@ -1,11 +1,15 @@
-// The **Old patient** block of the New patient screen: the switch, and the
+// The **Old patient** part of the New patient screen: the switch, and the
 // three things a patient the clinic already had brings with them.
 //
 // There is no mockup for it — the Open Design folder has fourteen screens and
 // none of them is this one — so it is built from the tokens and from the shapes
-// `patient-edit.html` already settles: an eyebrow, a card of ruled rows, and a
-// list under its own eyebrow. Recorded in DECISIONS.md rather than passed off
-// as drawn.
+// `patient-edit.html` already settles. It is two pieces, not one block: the
+// switch is the last row of the BASICS card (`OldPatientRows`, passed in as
+// its `trailing`), with the ref and the balance opening under it in the same
+// card — it is one more fact read off the paper file, next to the age and the
+// sex, not a section of its own. The procedures are a list under their own
+// eyebrow below the card (`OldProcedures`). Recorded in DECISIONS.md rather
+// than passed off as drawn.
 //
 // Off is the default and off sends nothing. The fields keep what is in them
 // while the switch is off rather than being wiped — a mis-tap that lost a typed
@@ -33,17 +37,20 @@
 // file often says what was done and not when. Blank goes to the server as
 // nothing and the record draws it as *before migration*.
 import type { Tooth } from '@lustre/shared';
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+// biome-ignore lint/style/noRestrictedImports: the Reveal tween is an animation driven by the switch
+import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import {
     AddButton,
     Callout,
     Card,
     CardDivider,
     duration,
+    easing,
     NumericField,
     Switch,
     TextField,
+    useReducedMotion,
 } from '../../../components/ui';
 import { border, color, radius, space, Text } from '../../../theme';
 import { type PickedProcedure, ProcedureSheet } from '../../day/components/ProcedureSheet';
@@ -53,7 +60,7 @@ import type { OldField, OldPatientForm, OldProcedureDraft, PatientForm } from '.
 import { oldDateDigits, oldDateDisplay, oldDateError, owesInput } from '../patientForm';
 import { CloseIcon } from './icons';
 
-export type OldPatientCardProps = {
+export type OldPatientProps = {
     form: PatientForm;
     onChange: (patch: Partial<PatientForm>) => void;
     /** Required and still empty — the label goes `due` and the footer counts it. */
@@ -65,7 +72,64 @@ export type OldPatientCardProps = {
 /** Which question is open: the catalogue, or the tooth a pick turned out to owe. */
 type Asking = null | { step: 'procedure' } | { step: 'toothFor'; picked: PickedProcedure };
 
-export function OldPatientCard({ form, onChange, blank, errors }: OldPatientCardProps) {
+/** The switch row and, once it is on, the ref and the balance — inside the BASICS card. */
+export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProps) {
+    const old = form.old;
+    const change = (patch: Partial<OldPatientForm>) => onChange({ old: { ...old, ...patch } });
+
+    return (
+        <>
+            <View style={styles.switchRow}>
+                <View style={styles.switchText}>
+                    <Text variant="callout" weight="medium">
+                        Already a patient here
+                    </Text>
+                    <Text variant="caption" tone="muted">
+                        They have a number from before the clinic moved over.
+                    </Text>
+                </View>
+                <Switch
+                    value={old.on}
+                    onValueChange={(on) => change({ on })}
+                    accessibilityLabel="Old patient"
+                    testID="patient-old-switch"
+                />
+            </View>
+
+            <Reveal open={old.on}>
+                <CardDivider />
+                <View style={styles.fields}>
+                    <TextField
+                        label="Old ref number"
+                        required
+                        value={old.ref}
+                        onChangeText={(ref) => change({ ref })}
+                        placeholder="710"
+                        due={blank.includes('ref')}
+                        hint="The number on the front of their paper file. It becomes their patient number here."
+                        autoCapitalize="characters"
+                        testID="patient-old-ref"
+                    />
+                    <NumericField
+                        label="Owes"
+                        value={old.owes}
+                        onChangeText={(text) => change({ owes: owesInput(text) })}
+                        placeholder="0"
+                        prefix="EGP"
+                        error={errors.owes}
+                        keyboardType="number-pad"
+                        size="body"
+                        hint="What they still owed the old system. Leave blank if nothing."
+                        testID="patient-old-owes"
+                    />
+                </View>
+            </Reveal>
+        </>
+    );
+}
+
+/** The OLD PROCEDURES list under the card, shown while the switch is on. */
+export function OldProcedures({ form, onChange }: Pick<OldPatientProps, 'form' | 'onChange'>) {
     const [asking, setAsking] = useState<Asking>(null);
 
     const catalogue = useLocalQuery('patients:procedureTree', () => dayApi.procedureTree(), {
@@ -104,62 +168,8 @@ export function OldPatientCard({ form, onChange, blank, errors }: OldPatientCard
     }
 
     return (
-        <View style={styles.block}>
-            <Text variant="eyebrow" tone="muted" style={styles.eyebrow}>
-                OLD PATIENT
-            </Text>
-
-            <Card>
-                <View style={styles.switchRow}>
-                    <View style={styles.switchText}>
-                        <Text variant="callout" weight="medium">
-                            Already a patient here
-                        </Text>
-                        <Text variant="caption" tone="muted">
-                            They have a number from before the clinic moved over.
-                        </Text>
-                    </View>
-                    <Switch
-                        value={old.on}
-                        onValueChange={(on) => change({ on })}
-                        accessibilityLabel="Old patient"
-                        testID="patient-old-switch"
-                    />
-                </View>
-
-                {old.on ? (
-                    <>
-                        <CardDivider />
-                        <View style={styles.fields}>
-                            <TextField
-                                label="Old ref number"
-                                required
-                                value={old.ref}
-                                onChangeText={(ref) => change({ ref })}
-                                placeholder="710"
-                                due={blank.includes('ref')}
-                                hint="The number on the front of their paper file. It becomes their patient number here."
-                                autoCapitalize="characters"
-                                testID="patient-old-ref"
-                            />
-                            <NumericField
-                                label="Owes"
-                                value={old.owes}
-                                onChangeText={(text) => change({ owes: owesInput(text) })}
-                                placeholder="0"
-                                prefix="EGP"
-                                error={errors.owes}
-                                keyboardType="number-pad"
-                                size="body"
-                                hint="What they still owed the old system. Leave blank if nothing."
-                                testID="patient-old-owes"
-                            />
-                        </View>
-                    </>
-                ) : null}
-            </Card>
-
-            {old.on ? (
+        <View>
+            <Reveal open={old.on}>
                 <View style={styles.history}>
                     <View style={styles.historyHead}>
                         <Text variant="eyebrow" tone="muted">
@@ -217,7 +227,7 @@ export function OldPatientCard({ form, onChange, blank, errors }: OldPatientCard
                         </Callout>
                     ) : null}
                 </View>
-            ) : null}
+            </Reveal>
 
             <ToothSheet
                 visible={asking?.step === 'toothFor'}
@@ -243,6 +253,56 @@ export function OldPatientCard({ form, onChange, blank, errors }: OldPatientCard
                 tooth={null}
             />
         </View>
+    );
+}
+
+/**
+ * The switch's fields and list open and close rather than appearing: a short height
+ * tween with the content fading a touch ahead of it, the same shape as the
+ * agenda's *Before this* fold. Closed content stays mounted so the fields keep
+ * what was typed (see the file comment) and so there is a height to open to —
+ * it is clipped, untouchable, and out of the accessibility tree.
+ */
+function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
+    const [contentHeight, setContentHeight] = useState(0);
+    const reducedMotion = useReducedMotion();
+    const progress = useRef(new Animated.Value(open ? 1 : 0)).current;
+
+    useEffect(() => {
+        const to = open ? 1 : 0;
+        if (reducedMotion) {
+            progress.setValue(to);
+            return;
+        }
+        const tween = Animated.timing(progress, {
+            toValue: to,
+            duration: duration.fadeup,
+            easing: easing.promote,
+            // `height` is layout, so the native driver is out.
+            useNativeDriver: false,
+        });
+        tween.start();
+        return () => tween.stop();
+    }, [open, reducedMotion, progress]);
+
+    const height = progress.interpolate({ inputRange: [0, 1], outputRange: [0, contentHeight] });
+    const opacity = progress.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0, 0.85, 1] });
+    const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [-space[2], 0] });
+
+    return (
+        <Animated.View
+            style={[styles.reveal, { height, opacity }]}
+            pointerEvents={open ? 'auto' : 'none'}
+            accessibilityElementsHidden={!open}
+            importantForAccessibility={open ? 'auto' : 'no-hide-descendants'}
+        >
+            <Animated.View
+                onLayout={(event) => setContentHeight(event.nativeEvent.layout.height)}
+                style={[styles.revealBody, { transform: [{ translateY }] }]}
+            >
+                {children}
+            </Animated.View>
+        </Animated.View>
     );
 }
 
@@ -312,9 +372,6 @@ function OldProcedureRow({
 }
 
 const styles = StyleSheet.create({
-    block: { paddingTop: space[4], gap: space[2] },
-    eyebrow: { paddingBottom: space[1.5] },
-
     switchRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -324,9 +381,12 @@ const styles = StyleSheet.create({
     },
     switchText: { flex: 1, gap: space[0.5] },
 
+    reveal: { overflow: 'hidden' },
+    revealBody: { position: 'absolute', start: 0, end: 0, top: 0 },
+
     fields: { paddingHorizontal: space[3.5], paddingVertical: space[3.5], gap: space[4] },
 
-    history: { paddingTop: space[2], gap: space[2.5] },
+    history: { paddingTop: space[4], gap: space[2.5] },
     historyHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
 
     row: { gap: space[2], paddingHorizontal: space[3.5], paddingVertical: space[2.5] },
