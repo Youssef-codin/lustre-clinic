@@ -83,7 +83,7 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
                                 surplus it would be counting the wrong thing. */}
                             {ahead > 0 ? null : (
                                 <Text variant="body" weight="semibold" tone="inverse" style={styles.faint}>
-                                    {` · ${duePatients} ${duePatients === 1 ? 'patient' : 'patients'}`}
+                                    {` · ${t(duePatients === 1 ? '{count} patient' : '{count} patients', { count: duePatients })}`}
                                 </Text>
                             )}
                         </Text>
@@ -129,12 +129,13 @@ function HeroStat({
     dim?: boolean;
     last?: boolean;
 }) {
+    const t = useT();
     return (
         <View style={[styles.stat, last && styles.statLast]}>
             <View style={styles.statLabel}>
                 <View style={[styles.dot, { backgroundColor: dot }]} />
                 <Text variant="tag" script="sans" weight="bold" tone="inverse" style={styles.label}>
-                    {label}
+                    {t(label)}
                 </Text>
             </View>
 

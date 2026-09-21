@@ -29,7 +29,8 @@
  * 24-hour `HH:MM` the server sends, and nothing in this cluster writes one back
  * — the schedule is edited in settings, which has its own `timeFromMinutes`.
  */
-import { dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey } from '@lustre/shared';
+import { dateKey, localizeCopy, localOffsetMinutes, offsetForDate, parseKey, todayKey } from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 
 export {
     clock12,
@@ -111,6 +112,12 @@ export function weekdayName(weekday: number): string {
     return WEEKDAYS[weekday] ?? '';
 }
 
+/** Weekday and month names are copy, and the date helpers below are called
+ * from plain functions rather than rendered, so they localize themselves. */
+function say(copy: string): string {
+    return localizeCopy(getLocale(), copy);
+}
+
 /**
  * "Thursday, 12 June 2026" — the visit screens' identity line. Spelled out in
  * full because those screens are the record of what happened on a day, and
@@ -118,28 +125,31 @@ export function weekdayName(weekday: number): string {
  */
 export function formatLongDate(key: string): string {
     const date = parseKey(key);
-    return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+    return `${say(WEEKDAYS[date.getDay()] ?? '')}, ${date.getDate()} ${say(MONTHS[date.getMonth()] ?? '')} ${date.getFullYear()}`;
 }
 
 export function formatDate(key: string): string {
     const date = parseKey(key);
-    return `${WEEKDAYS_SHORT[date.getDay()]} ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
+    return `${say(WEEKDAYS_SHORT[date.getDay()] ?? '')} ${date.getDate()} ${say(MONTHS_SHORT[date.getMonth()] ?? '')}`;
 }
 
 export function formatDatePill(key: string, today: string = todayKey()): string {
     const date = parseKey(key);
-    const stamp = `${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`.toUpperCase();
-    return key === today ? stamp : `${WEEKDAYS_SHORT[date.getDay()]?.toUpperCase()} ${stamp}`;
+    const month = MONTHS_SHORT[date.getMonth()] ?? '';
+    const stamp = `${date.getDate()} ${getLocale() === 'ar' ? say(month) : month.toUpperCase()}`;
+    if (key === today) return stamp;
+    const weekday = WEEKDAYS_SHORT[date.getDay()] ?? '';
+    return `${getLocale() === 'ar' ? say(weekday) : weekday.toUpperCase()} ${stamp}`;
 }
 
 /** The month a date tile shows under its number. */
 export function monthShort(key: string): string {
-    return MONTHS_SHORT[parseKey(key).getMonth()] ?? '';
+    return say(MONTHS_SHORT[parseKey(key).getMonth()] ?? '');
 }
 
 export function formatMonth(key: string): string {
     const date = parseKey(key);
-    return `${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
+    return `${say(MONTHS_SHORT[date.getMonth()] ?? '')} ${date.getFullYear()}`;
 }
 
 export function relativeDayLabel(key: string, today: string = todayKey()): string {

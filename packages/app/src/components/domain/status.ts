@@ -11,7 +11,8 @@
  * Leaving `inChair` out keeps the old wording for callers that have no queue
  * to hand.
  */
-import type { AppointmentStatus } from '@lustre/shared';
+import { type AppointmentStatus, localizeCopy } from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 
 export type StatusTone = 'muted' | 'accent' | 'due' | 'success';
 
@@ -38,7 +39,7 @@ function waiting(status: AppointmentStatus, inChair: boolean | undefined): boole
 }
 
 export function statusLabel(status: AppointmentStatus, inChair?: boolean): string {
-    return waiting(status, inChair) ? 'Waiting' : LABEL[status];
+    return localizeCopy(getLocale(), waiting(status, inChair) ? 'Waiting' : LABEL[status]);
 }
 
 /** The pill's colour without the pill, for rows that only have room for a word. */

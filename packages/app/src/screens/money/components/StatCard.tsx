@@ -3,6 +3,7 @@
 // a unit rather than leading it as a currency mark — that is what the design
 // draws and it is what keeps the two cards' figures on the same left edge.
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import { MoneyValue } from '../MoneyValue';
 import { SkeletonBlock } from './LoadState';
@@ -24,10 +25,11 @@ export type StatCardProps = {
 };
 
 export function StatCard({ label, amount, sub, tone = 'ink', testID }: StatCardProps) {
+    const t = useT();
     return (
         <View style={styles.card} testID={testID}>
             <Text variant="eyebrow" script="sans" weight="bold" tone="muted">
-                {label}
+                {t(label)}
             </Text>
 
             <MoneyValue

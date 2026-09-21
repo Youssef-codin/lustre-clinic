@@ -152,7 +152,7 @@ export function SlotPicker({
                     </Text>
                     {!loading && !error && slots.length > 0 ? (
                         <Text variant="caption" weight="medium" tone="muted">
-                            {free.length} free
+                            {t('{count} free', { count: free.length })}
                         </Text>
                     ) : null}
                 </View>

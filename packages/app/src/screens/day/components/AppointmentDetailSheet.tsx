@@ -80,6 +80,7 @@ export function AppointmentDetailSheet({
     onClosed,
     inChair = false,
 }: AppointmentDetailSheetProps) {
+    const t = useT();
     const [confirming, setConfirming] = useState<Confirming>(null);
 
     const awaitPayment = useLocalMutation(api.awaitPayment);
@@ -127,7 +128,7 @@ export function AppointmentDetailSheet({
             subtitle={`${formatSpan(
                 startMinutes,
                 startMinutes + appointment.durationMinutes,
-            )} · ${appointment.durationMinutes} min`}
+            )} · ${t('{minutes} min', { minutes: appointment.durationMinutes })}`}
             testID="appointment-detail"
             footer={
                 confirming ? null : (

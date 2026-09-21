@@ -14,6 +14,10 @@
  * - A copy prop on a primitive that localizes for its callers, such as
  *   `<Button label="Save" />`. `COPY_PROPS` is that list, and it has to be a
  *   list: `title` on a `Sheet` is copy, `name` on anything is a patient.
+ * - The *children* of a primitive that localizes them rather than a prop —
+ *   `<SectionLabel>BOOKED ANYWAY</SectionLabel>`. `COPY_CHILDREN` is that
+ *   list. This is the shape the first sweep missed: the eyebrow over the
+ *   closed day's appointments stayed English because nothing looked here.
  *
  * Only string literals are checked. A value built at runtime — a branch name, a
  * formatted total, an already-localized `ERROR_CODE` sentence — cannot be
@@ -41,8 +45,12 @@ const COPY_PROPS = [
     'accessibilityLabel',
 ];
 
+/** Primitives that put their own children through `t`. */
+const COPY_CHILDREN = ['SectionLabel', 'Tag', 'Callout'];
+
 const T_CALL = /\bt\(\s*(['"])((?:(?!\1)[^\\]|\\.)*)\1/g;
 const PROP = new RegExp(`\\b(?:${COPY_PROPS.join('|')})=(?:"([^"]+)"|\\{'([^']+)'\\})`, 'g');
+const CHILD = new RegExp(`<(${COPY_CHILDREN.join('|')})\\b[^<>]*>\\s*([A-Za-z][^<>{}]*?)\\s*</\\1>`, 'g');
 
 /**
  * `screens/dev/` is the component gallery, which is not in the production
@@ -79,12 +87,12 @@ describe('copy catalogue', () => {
         const missing = new Set<string>();
 
         for (const { file, text } of await sources()) {
-            for (const pattern of [T_CALL, PROP]) {
+            for (const pattern of [T_CALL, PROP, CHILD]) {
                 pattern.lastIndex = 0;
                 for (const match of text.matchAll(pattern)) {
-                    const raw = match[2] ?? match[1] ?? match[3];
+                    const raw = pattern === CHILD ? match[2] : (match[2] ?? match[1] ?? match[3]);
                     if (raw === undefined) continue;
-                    const value = unquoted(raw);
+                    const value = unquoted(raw.replace(/\s+/g, ' ').trim());
                     if (!isCopy(value)) continue;
                     if (value in COPY_AR) continue;
                     missing.add(`${value}  (${file})`);

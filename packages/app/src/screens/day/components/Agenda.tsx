@@ -135,6 +135,7 @@ function RowBody({
     trailing,
     projectedMinutes = null,
 }: AgendaRowProps) {
+    const t = useT();
     const { time, meridiem } = time12(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > minutesOfDay(appointment.startsAt);
     // The day has moved, so the row shows where it moved to. The booked time is
@@ -186,8 +187,8 @@ function RowBody({
                     <ClockIcon size={13} />
                     <Text variant="subhead" tone="muted" numberOfLines={1} style={styles.name}>
                         {procedure
-                            ? `${procedure} · ${appointment.durationMinutes} min`
-                            : `${appointment.durationMinutes} min`}
+                            ? `${procedure} · ${t('{minutes} min', { minutes: appointment.durationMinutes })}`
+                            : t('{minutes} min', { minutes: appointment.durationMinutes })}
                     </Text>
                 </View>
             </View>

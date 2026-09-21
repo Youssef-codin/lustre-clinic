@@ -10,6 +10,7 @@
 // it is hidden while searching rather than recomputed over the filtered rows,
 // because a figure that shrank as you typed would read as the clinic being owed
 // less than it is.
+import type { CopyVars } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the `AppState` subscription that re-reads the day on foreground
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
@@ -158,7 +159,7 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                         {statsPeriodLabel()}
                     </Text>
                     <Text variant="caption" weight="semibold" tone="muted">
-                        {periodLabel}
+                        {t(periodLabel)}
                     </Text>
                 </View>
 
@@ -199,14 +200,16 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                                 <StatCard
                                     label={t('Older visits')}
                                     amount={summary.data.olderCollected}
-                                    sub={`collected · ${plural(summary.data.olderVisits, 'visit')}`}
+                                    sub={t('collected · {count}', {
+                                        count: plural(t, summary.data.olderVisits, 'visit'),
+                                    })}
                                     tone="older"
                                     testID="money-stat-older"
                                 />
                                 <StatCard
                                     label={t('Total due')}
                                     amount={outstanding.data.total}
-                                    sub={plural(outstanding.data.patients.length, 'patient')}
+                                    sub={plural(t, outstanding.data.patients.length, 'patient')}
                                     tone="due"
                                     testID="money-stat-total-due"
                                 />
@@ -343,8 +346,10 @@ function DebtorList({
     );
 }
 
-function plural(count: number, noun: string): string {
-    return `${count} ${count === 1 ? noun : `${noun}s`}`;
+// The English plural is a suffix and the Arabic one is a different word, so
+// both forms are catalogue keys and the count picks between them.
+function plural(t: (copy: string, vars?: CopyVars) => string, count: number, noun: string): string {
+    return t(count === 1 ? `{count} ${noun}` : `{count} ${noun}s`, { count });
 }
 
 // Which local day the period pills are measured from.

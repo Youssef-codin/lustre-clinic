@@ -470,7 +470,7 @@ export function BookingScreen({
                 {lengths.map((option) => (
                     <View key={option} style={styles.duration}>
                         <Chip
-                            label={`${option} min`}
+                            label={t('{minutes} min', { minutes: option })}
                             grow
                             selected={duration === option}
                             onPress={() => {
@@ -697,7 +697,11 @@ export function BookingScreen({
                                     icon={<CalendarIcon size={15} />}
                                 />
                             ) : null}
-                            <SummaryRow label="How long" value={`${duration} min`} icon={<DurationIcon />} />
+                            <SummaryRow
+                                label="How long"
+                                value={t('{minutes} min', { minutes: duration })}
+                                icon={<DurationIcon />}
+                            />
                             {branches.length > 1 ? (
                                 <SummaryRow
                                     label="Branch"

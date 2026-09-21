@@ -599,7 +599,7 @@ export function VisitScreen({
                                                         <PlusIcon size={12} stroke={color.ink2} />
                                                     </View>
                                                     <Text variant="footnote" weight="semibold" tone="ink2">
-                                                        Add to {group.tooth}
+                                                        {t('Add to {tooth}', { tooth: group.tooth })}
                                                     </Text>
                                                 </Pressable>
                                             ) : null}

@@ -213,7 +213,7 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                                         >
                                             <PlusIcon size={13} stroke={color.ink2} />
                                             <Text variant="caption" weight="semibold" tone="ink2">
-                                                Add to {group.tooth}
+                                                {t('Add to {tooth}', { tooth: group.tooth })}
                                             </Text>
                                         </Pressable>
                                     ) : null

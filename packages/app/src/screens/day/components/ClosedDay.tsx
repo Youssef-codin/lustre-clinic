@@ -37,8 +37,9 @@ export function ClosedDay({ dateKey, appointments, onSelect, pull, chairId = nul
                     {t('Closed')}
                 </Text>
                 <Text variant="body" tone="muted" style={styles.body}>
-                    The clinic does not open on {weekdayName(weekdayOf(dateKey))}s. Change that in Settings →
-                    Opening hours.
+                    {t('The clinic does not open on {day}s. Change that in Settings → Opening hours.', {
+                        day: t(weekdayName(weekdayOf(dateKey))),
+                    })}
                 </Text>
             </View>
 
