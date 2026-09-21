@@ -874,6 +874,49 @@ not installed because it is a native module.
 and Expo config. The wheel is JavaScript-only, so adding or removing it does not
 require a native rebuild.
 
+**The columns are virtualized, and that is load-bearing.** The library's default
+list mounts every datum and gives each row an `Animated.View` carrying animated
+opacity, `rotateX` and `translateY`. Animated opacity on a view group is an
+offscreen `saveLayer` and a 3D rotate is a render layer, so sixty minutes plus
+twelve hours plus two meridiems came to seventy-four rotated, alpha-blended
+layers re-rasterised every frame. Measured on the emulator that pinned
+`RenderThread` at 99% for the length of a scroll and blocked the UI thread
+behind it: one swipe moved the column a single row, took ninety-five seconds,
+and raised `Input dispatching timed out` every five. `withVirtualized` at
+`windowSize={3}` keeps the projection and mounts about fifteen rows a column.
+
+`_enableSyncScrollAfterScrollEnd` is off for a related reason. It re-issues
+`scrollToIndex` after every scroll to pull a column back onto its value, and
+against a `FlatList` that programmatic animated scroll never reports an end on
+Android — so the resync re-arms itself and the column scrolls for ever. Tapping
+a row was enough to trigger it. The effect keyed on `valueIndex` still scrolls
+when `value` changes, which is the path that makes the control controlled.
+
+`Sheet` carries `scrollBody` for this one caller. React Native refuses to window
+a `VirtualizedList` nested in a scroll view of the same orientation, and the
+wheel is a control rather than a list, so it does not belong in one.
+
+## `ui/` localizes its own copy, and the boundary test says so
+
+`components/ui/boundaries.test.ts` keeps Lustre out of the design system, and
+`../../i18n` is on its allow-list. That needed deciding rather than noting.
+
+A primitive already holds copy: `Button` renders a label, `Select` a
+placeholder, `ErrorState` a whole sentence. The question was never whether
+`ui/` may know English words — it is which language it shows them in. `useT` is
+`(string) => string` against a catalogue keyed by the English copy, which makes
+it a locale service in the same class as the device chrome
+`react-native-safe-area-context` reports: it cannot couple a primitive to a
+domain type, and that coupling — not vocabulary — is the invariant the rule
+protects. The alternative was to leave every primitive English and translate at
+each call site, which puts the same copy in fifty screens instead of one
+component.
+
+What stays forbidden is what the rule was written for: a primitive importing
+`@lustre/shared` for a domain enum, a tRPC client, or `../domain`. Reaching the
+catalogue through the `theme` barrel to dodge the list is not a third option —
+it is this decision, taken quietly, and it is how the rule was first got around.
+
 ## Locale is a reactive app concern; clinic names remain stored as written
 
 `LocaleProvider` owns the persisted handset locale, the shared catalogue, and
@@ -882,9 +925,26 @@ root direction for the current tree, and calls `I18nManager.forceRTL` so the
 native window starts in the same direction next time. Direction-sensitive
 controls read the provider rather than a module-load snapshot.
 
-The catalogue lives in `@lustre/shared`; receipt headings and error-code copy
-therefore use the same translations without importing the app. Client failures
-still switch only on `ERROR_CODE` and never inspect server messages.
+The catalogue lives in `@lustre/shared`, keyed by the English copy, so
+server-side rendering can read the same strings without importing the app.
+Client failures still switch only on `ERROR_CODE` and never inspect server
+messages: the switch picks the English sentence and the catalogue translates it
+on the way out, which is why there is one table and not a second one keyed by
+code. There is no receipt renderer anywhere in the repo yet, and no receipt
+string table stands in for one — when it lands it reads this catalogue.
+
+A key may carry `{slot}` markers, filled from `CopyVars`. The slot is in the
+English key as well as the Arabic, so the two can order a sentence differently —
+`Open on {day}` against `مفتوح يوم {day}` — rather than a call site
+concatenating a translated fragment onto a name. Where English pluralises with
+a suffix and Arabic uses a different word, both forms are keys and the count
+picks between them.
+
+`packages/app/src/i18n/catalogue.test.ts` is the guard. `localizeCopy` falls
+back to its English key by design, so a missing entry is silent at runtime and
+invisible in review; the test reads the source for `t('…')`, for copy props on
+the primitives that localize them, and for the children of the ones that
+localize children, and fails on anything with no Arabic.
 
 This does not invent bilingual database fields. Custom questions continue to
 use `label_ar`; procedure names, branch names, and `clinic_name` remain the
