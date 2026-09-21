@@ -46,6 +46,137 @@ record came across; the old number itself is still not drawn on the header,
 which was already the call when the phone was the only number on that line and
 is more clearly right now there is a ref beside it.
 
+**Superseded, 21 Sep 2026, by the entry below.** An old patient has one number
+now, not two, and it is theirs.
+
+## Correction: an old patient has one number, and it is the one on their file
+
+The entry above is right about the two *kinds* of ref and wrong about what
+happens when a patient predates the clinic's move to this app.
+
+What it described was built, and it did this: a patient entered with old ref
+**710** was written with `legacy_ref = '710'` and then handed a fresh
+`patients.ref` off the counter anyway, so the record read **909**. The header
+drew 909 and a generic `LEGACY` badge, deliberately not drawing 710. The desk
+was holding a paper file marked 710 and looking at a screen that said 909, with
+nothing joining the two, and the migration had silently eaten a number the next
+genuinely new patient was owed.
+
+**Decided:** an old patient's `ref` **is** their old number. `legacy_ref` holds
+the same string — it is what marks the record as having come across — and
+`ref`'s UNIQUE constraint is what refuses the same number twice. Registering one
+allocates nothing, so the sequence is untouched. Search matches on `ref` and
+`legacy_ref` as well as name and phone, because the number on the file is what
+the desk types. The badge draws the old number inside it (`OLD 710`) only where
+it differs from the ref — which is now only the records written under the old
+flow, and exactly the case where hiding it costs something.
+
+Two refusals fall out of it, both the server's because only it can see the
+register: a number another patient already has (`PATIENT_REF_TAKEN`), and a
+plain number **at or above** the next patient number (`PATIENT_REF_RESERVED`).
+The second looks strict and is not: the whole premise of a cutoff is that every
+old number is below it, so it only fires on a mis-key (9100 for 910) or on a
+clinic that has not set its next number yet. Left alone, that record is one that
+cannot be kept — the sequence reaches 9100 eventually and refuses the *new*
+patient, months later, for something typed today.
+
+The records already written the wrong way are repaired by `bun db:repair-refs`
+(`modules/migration/repair.ts`), which reports first and writes only with
+`--apply`. It is a script and not part of `0011_patient_ref_next.sql` because it
+cannot always succeed — an old number may already be another patient's ref — and
+a migration that runs unattended on boot would have to either fail the boot or
+skip silently. Neither is a thing to do to a clinic's register. It is idempotent,
+and the two verdicts it refuses to act on (`taken`, `reserved`) each name what a
+person has to decide first.
+
+## Correction: `patient_ref_last` was read as "next" by everybody, including us
+
+`settings.patient_ref_last` was the last number handed out, and the field in
+Settings → Clinic said `Last patient number`. A clinic carrying on from a paper
+count typed **910** and the next patient came out as **911**.
+
+That was the documented behaviour and it was wrong about what the words mean. A
+clinic setting up does not think "the last number I used"; it thinks "start
+here". The column is `patient_ref_next` now, the field says **Next patient
+number**, and the value is handed out as it stands: set 910 and the next two new
+patients are 910 and 911. `0011_patient_ref_next.sql` renames the column and
+adds one to every stored value, so no clinic's next registration shifts across
+the rename.
+
+The floor moved with it. Settings used to refuse a value *below* the highest ref
+on file; it now refuses one at or below, because the value is handed out rather
+than incremented first.
+
+## Imported history is an appointment with no visit
+
+An old patient's file often records work: two fillings in 2024, a root canal
+last year. That belongs in the record's History and in nothing else — it must
+not create revenue, a balance, a reminder, a queue entry or a statistic, and the
+single figure a patient carries over stays **Owes**, the opening balance.
+
+**Decided:** it is an `appointments` row flagged `is_imported`, `done`, carrying
+`appointment_procedures` and **no visit at all**. No visit is the whole of it: a
+visit is where money lives (§10), so a row without one cannot charge, owe or be
+paid, and every money reader already joins through visits. The two readers that
+count *appointments* rather than visits — the day view and `stats.summary` —
+exclude it explicitly, the same way they already exclude an opening balance.
+
+A dedicated `imported_procedures` table was the alternative and was not taken:
+it would make `PatientHistoryEntry` a union and touch every renderer, to store
+exactly what `appointment_procedures` already stores.
+
+Lines are grouped by the day the file gives, so an afternoon reads as one
+afternoon, and §5's once-per-list rule applies per day — the same tooth
+extracted on two different days is two real lines. `date_unknown` marks the rows
+the file did not date: `starts_at` is NOT NULL so they carry the cutoff instant,
+and the flag is what stops the record reading that out as though it were the
+day. The row draws a blank stamp and says *Before migration* instead.
+
+## These rows are stamped at noon UTC, and nothing else in the app is
+
+Every other date the API takes arrives with an `offsetMinutes` and is turned
+into a day's bounds, because the question is always *which local day does this
+instant fall in* (§12, `dates.ts`). An opening balance and an imported procedure
+ask the opposite. They carry a day somebody wrote on a paper file years ago, and
+all that has to survive is the day being **read back**.
+
+Local midnight cannot do that. Egypt keeps DST, so midnight stored under one
+offset is 23:00 the previous day under another: a procedure dated 14 March 2024
+and stamped with a summer offset reads as the 13th. Getting it right would need
+the offset in force on each of those dates — and the registration form cannot
+know the one in force on a cutoff it never sees, because the cutoff lives in
+Settings.
+
+**Decided:** these rows are stamped at **noon UTC** on the day they name. Noon
+reads back as that same day at every offset from −12 to +12, which is every
+offset there is, so the `old` block sends no `offsetMinutes` at all. It is safe
+precisely because nothing rounds these rows into a day's bounds: the day view,
+revenue and statistics all exclude them by flag, so no range query ever has to
+agree with the stamp.
+
+This does not generalise. A real appointment is an event at a time and keeps the
+offset it was booked with; only a row whose date is a label may do this.
+
+## The Old patient block was built without a design
+
+`patient-edit.html` draws BASICS and the clinic's questions and nothing else;
+the Open Design folder has fourteen screens and none of them has a switch on it.
+So `components/OldPatientCard.tsx` is built from the tokens and from the shapes
+that screen already settles — an eyebrow, a card of ruled rows, a list under its
+own eyebrow — and recorded here rather than passed off as drawn.
+
+Two choices in it are worth keeping:
+
+- **The switch does not clear the fields.** Turning it off hides them and sends
+  nothing; what is typed stays typed. A mis-tap that loses a number read off a
+  paper file is worse than one that does not, and the guarantee the criteria
+  actually ask for is about the *payload*, which `createInputOf` owns.
+- **The catalogue and tooth sheets are the day cluster's, reused.** A procedure
+  the doctor may record is exactly a procedure the old system may have recorded,
+  and a second catalogue would be a second thing to keep in step with §5. They
+  are driven by the day cluster's own query hook for one reason: `ProcedureSheet`
+  takes a `RequestError`, and that hook is what produces one.
+
 ## An age is stored as 1 January
 
 `patient-edit.html`'s basics row is `Age · sex` and holds a whole number.
@@ -512,14 +643,16 @@ unconfigured clinic does not render seven closed days.
 ## The settings cluster localizes failures in one place
 
 `data/errors.ts` holds one sentence per `ERROR_CODE`, and a pane that can say
-something better for a code passes it in. Data entry is the reason the override
-exists: during a migration session, "something went wrong" is the one thing the
-desk must not be told, because what it needs to know is that the row is still on
-screen and nothing was lost.
+something better for a code passes it in. The now-deleted Data entry pane is why
+the override exists: during a migration session, "something went wrong" is the
+one thing the desk must not be told, because what it needs to know is that the
+row is still on screen and nothing was lost. The override mechanism outlived the
+pane and is still the right shape — a `NOT_FOUND` on a branch picker is worth
+naming, and only the pane knows it was a branch.
 
-This replaced two error mappers — the cluster's and the data entry pane's own —
-which existed because that pane ran on the real client while everything around
-it ran on `data/_LocalApi`. Both are gone with the stand-in.
+It replaced two error mappers — the cluster's and that pane's own — which existed
+because the pane ran on the real client while everything around it ran on
+`data/_LocalApi`. Both are gone with the stand-in.
 
 ---
 
@@ -776,9 +909,11 @@ Three things that look like duplication and are not. Do not merge them.
 - **`HistoryRow` is not `domain/VisitRow`.** It replaced `_LocalVisitRow` and
   knows about `AppointmentStatus`, so it is *further* from shared than what it
   replaced, not closer. If it is ever promoted the name is `domain/HistoryRow`.
-- **The cutoff-date parse in `dataEntry/entryForm.ts`** looks like
-  `day/patientDraft`'s `birthDateIso` and is a different rule: a date of birth is
-  refused for being too early, a cutoff for being in the future.
+- **The cutoff-date parse in `settings/data/clinic.ts`** looks like
+  `domain/patientDraft`'s `birthDateIso` and is a different rule: a date of birth
+  is refused for being too early, a cutoff for being in the future. (It was in
+  `dataEntry/entryForm.ts` until that screen went; the rule did not change with
+  the address.)
 - **`SexToggle` is not `ui/SegmentedControl`.** Two reasons, the second being the
   real one. *Look:* `SegmentedControl` is System A's pill — a white thumb on
   `surface2`, sized for the two panes of a screen — where the design's toggle is

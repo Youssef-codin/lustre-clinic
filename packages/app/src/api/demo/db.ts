@@ -75,6 +75,8 @@ export interface AppointmentRow {
     status: AppointmentStatus;
     channel: AppointmentChannel;
     isOpeningBalance: boolean;
+    isImported: boolean;
+    dateUnknown: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -150,7 +152,9 @@ export interface SettingsRow {
     reminderRepeatMinutes: number;
     reminderDismissedOn: string | null;
     reminderTemplate: string;
-    patientRefLast: number;
+    patientRefNext: number;
+    migrationBranchId: string | null;
+    migrationCutoffDate: string | null;
     updatedAt: Date;
 }
 
@@ -182,8 +186,10 @@ const STORE_KEY = 'lustre.demo.db';
  *    "Closed on Tuesdays". A phone that already stored that database has to drop
  *    it, or the fix does not reach it.
  * 3: settings carry `patientRefLast`.
+ * 4: that column is `patientRefNext` — the number the *next* patient gets, not
+ *    the last one handed out — and appointments carry `isImported`.
  */
-const STORE_VERSION = 3;
+const STORE_VERSION = 4;
 
 let db: DemoDb | null = null;
 

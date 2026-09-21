@@ -8,6 +8,7 @@
  * when the patient reached the chair — those carry the price actually billed —
  * and from the booking when they did not.
  */
+import { ERROR_CODE } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
 import {
@@ -20,6 +21,7 @@ import {
 } from '../rules';
 import type { Dated } from '../wire';
 import { type Answers, customQuestionHandlers } from './customQuestion';
+import { planOldPatientHistory, writeOldPatientHistory } from './migration';
 
 type Patient = Dated<RouterOutput['patient']['search'][number]>;
 type PatientDetail = Dated<RouterOutput['patient']['byId']>;
@@ -80,7 +82,13 @@ export const patientHandlers = {
         const needle = term.toLowerCase();
 
         return [...getDb().patients]
-            .filter((row) => row.name.toLowerCase().includes(needle) || row.phone.includes(phoneTerm))
+            .filter(
+                (row) =>
+                    row.name.toLowerCase().includes(needle) ||
+                    row.phone.includes(phoneTerm) ||
+                    row.ref.toLowerCase().includes(needle) ||
+                    (row.legacyRef ?? '').toLowerCase().includes(needle),
+            )
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
             .slice(0, input.limit ?? 25)
             .map(toPatient);
@@ -155,6 +163,8 @@ export const patientHandlers = {
                     startsAt: appointment.startsAt,
                     status: appointment.status,
                     isOpeningBalance: appointment.isOpeningBalance,
+                    isImported: appointment.isImported,
+                    dateUnknown: appointment.dateUnknown,
                     checkedInAt: visit?.checkedInAt ?? null,
                     completedAt: visit?.completedAt ?? null,
                     computedTotal: visit?.computedTotal ?? 0,
@@ -172,11 +182,37 @@ export const patientHandlers = {
         };
     },
 
+    /**
+     * Registering someone, new or old. `old` is what the **Old patient** switch
+     * reveals; its absence is the whole of what makes this a new registration.
+     *
+     * An old patient keeps the number on their paper file as their `ref` — the
+     * desk was given one number for them and must not be handed a second — and
+     * `legacyRef` carries the same string, which is what marks the record as
+     * having come across. The demo has no counter to protect, so the only thing
+     * it refuses is the number twice.
+     */
     create(input: RouterInput['patient']['create']): Patient {
         const custom = customQuestionHandlers.validateIntake(input.custom ?? {});
 
-        const row = createMinimalPatient(input);
+        if (input.old === undefined) {
+            const row = createMinimalPatient(input);
+            row.custom = custom;
+            save();
+            return toPatient(row);
+        }
+
+        const old = input.old;
+        if (getDb().patients.some((patient) => patient.ref === old.ref)) {
+            throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
+        }
+
+        const plan = planOldPatientHistory(old);
+
+        const row = createMinimalPatient({ ...input, legacyRef: old.ref });
+        row.ref = old.ref;
         row.custom = custom;
+        if (plan) writeOldPatientHistory(row.id, plan);
 
         save();
         return toPatient(row);

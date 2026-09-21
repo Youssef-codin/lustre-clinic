@@ -287,6 +287,8 @@ export const appointmentHandlers = {
                 status: 'booked',
                 channel: 'desk',
                 isOpeningBalance: false,
+                isImported: false,
+                dateUnknown: false,
             },
             offsetMinutes,
         );
@@ -322,6 +324,8 @@ export const appointmentHandlers = {
                 status: 'booked',
                 channel: 'walk_in',
                 isOpeningBalance: false,
+                isImported: false,
+                dateUnknown: false,
             },
             offsetMinutes,
         );

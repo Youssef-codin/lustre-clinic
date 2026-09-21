@@ -1,17 +1,40 @@
 /**
- * The old system's records are being moved across by hand — there is no export
- * and no import script, so the secretary types them in. This module is what she
- * types them into.
+ * What a patient who predates the cutoff brings with them: the money they
+ * already owed, and whatever the paper file records they had done. It is
+ * written by `patient.create` when the **Old patient** switch is on, and
+ * nothing else writes it — the separate Settings → Data entry screen and its
+ * `migration.enter` procedure are gone, because two ways to register an old
+ * patient is how one of them ends up allocating a fresh number to someone who
+ * already has one.
  *
- * It is deliberately not `patient.create`. That procedure validates the whole
- * questionnaire, because a new registration is the form answered in one
- * sitting; a migrated patient is a name and a number off a list, and their
- * answers are collected the next time they are in the chair. So the write goes
- * through `createMinimal`, the same path booking uses for the same reason.
+ * ## Where it is dated
  *
- * Nothing here refuses a duplicate. Two siblings share a mother's number, and
- * the desk is the only thing that can tell that apart from the same patient
- * typed twice — so `patient.byPhone` warns and this accepts what it is given.
+ * `branch_id` is NOT NULL and a date has to be something, so both come from the
+ * clinic's migration configuration (`settings.migration_branch_id`,
+ * `settings.migration_cutoff_date`) rather than from the registration form. The
+ * form asks for the patient; the cutoff is a fact about the clinic, answered
+ * once. Without it nothing is written and the registration is refused, because
+ * the alternative is inventing a branch and a day the clinic was open.
+ *
+ * ## Noon, and why these dates alone are not bounded by an offset
+ *
+ * Every other date this API takes arrives with an `offsetMinutes` and is turned
+ * into a day's bounds, because the question is always "which local day does
+ * this instant fall in" (§12, `dates.ts`). These rows ask the opposite: they
+ * carry a day the clinic wrote on a paper file years ago, and all that has to
+ * survive is the day being *read back*.
+ *
+ * Local midnight cannot do that. Egypt keeps DST, so an instant stored as
+ * midnight under one offset is 23:00 the previous day under another — a
+ * procedure dated 14 March 2024 and stamped with a summer offset reads as the
+ * 13th. Getting it right would need the offset in force on each of those dates,
+ * and the registration form has no way to know the one in force on a cutoff it
+ * never sees.
+ *
+ * So they are stamped at **noon UTC** on the day they name, which reads back as
+ * that same day at every offset between −12 and +12 — every offset there is.
+ * Nothing rounds these rows into a day's bounds, because nothing counts them:
+ * the day view, revenue and statistics all exclude them by flag.
  *
  * ## Opening balances
  *
@@ -24,110 +47,257 @@
  * it, but nothing was billed and nobody sat in the chair, so `balance.summary`,
  * `stats.summary` and the day view leave it out.
  *
- * The synthetic appointment is `done` rather than `booked`. `done` does not
+ * ## Imported procedures
+ *
+ * Work the old system recorded is an appointment with planned procedures and
+ * **no visit at all**, flagged `is_imported`. No visit is the whole trick: a
+ * visit is where money lives, so a row without one cannot charge anything, owe
+ * anything or be paid — it appears in the record's history and in no total. The
+ * single figure a patient carries over is **Owes**, and it is the opening
+ * balance.
+ *
+ * Lines are grouped by the day they were done, so a file recording three
+ * procedures on one afternoon reads as one afternoon. Lines the file does not
+ * date go into one row dated at the cutoff and flagged `date_unknown`, which
+ * the record draws as *before migration* rather than reading the cutoff out as
+ * though it were the day.
+ *
+ * Both synthetic appointments are `done` rather than `booked`. `done` does not
  * hold a slot, so four hundred of them at the same instant on the cutoff date
  * do not trip `appointments_no_overlap` — which is the only reason this fits
  * inside the existing model at all.
  *
- * Patient and balance are written in one transaction. A patient on file owing
- * nothing they actually owe is a wrong number told to them at the desk months
- * later, so if the visit cannot be written neither is the patient, and the row
- * is typed again.
+ * Every part of this is written in the caller's transaction. A patient on file
+ * owing nothing they actually owe is a wrong number told to them at the desk
+ * months later, so if any of it cannot be written none of it is, the patient
+ * included, and the row is typed again.
  */
+import { ERROR_CODE } from '@lustre/shared';
 import { count, eq, sql } from 'drizzle-orm';
-import { db } from '../../db/index.ts';
-import { appointments, patients, visits } from '../../db/schema.ts';
+import { db, type Executor } from '../../db/index.ts';
+import { appointmentProcedures, appointments, patients, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { assertAmount } from '../../util/money.ts';
-import { dayRange } from '../../util/time.ts';
-import { insertWithRef } from '../appointment/appointment.service.ts';
-import { branchService } from '../branch/branch.service.ts';
-import type { Patient } from '../patient/patient.service.ts';
-import { patientService, toPatient } from '../patient/patient.service.ts';
-import type { EnterPatientInput } from './migration.schema.ts';
+import type { OldPatientInput } from '../patient/patient.schema.ts';
+import type { ResolvedLine } from '../procedure/procedure.rules.ts';
+import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
+import { settingsService } from '../settings/settings.service.ts';
 
 /** Nominal. Nobody attended and the day view never draws these, but the column is NOT NULL and checked positive. */
 const SYNTHETIC_DURATION_MINUTES = 5;
 
 /** English, for logs and for the appointment detail screen if anyone ever opens one of these. */
-const SYNTHETIC_NOTE = 'Opening balance carried over from the old system';
+const OPENING_BALANCE_NOTE = 'Opening balance carried over from the old system';
+const IMPORTED_NOTE = 'Recorded by the old system before the migration';
 
-interface EnteredPatient {
-    patient: Patient;
-    /** The synthetic visit carrying the opening balance, or null when the patient owed nothing. */
-    openingBalanceVisitId: string | null;
+/** One day off the paper file, or — when it does not say — everything it does not date. */
+interface OldHistoryDay {
+    performedOn: string | null;
+    lines: ResolvedLine[];
 }
 
-/** How far the migration has got. The screen draws this beside its own count for the session. */
+/**
+ * Everything the write needs, resolved and checked, before a transaction is
+ * open. The catalogue reads and the configuration read are about the request
+ * rather than the write, so they happen first — the same order booking uses.
+ */
+export interface OldPatientPlan {
+    branchId: string;
+    cutoffDate: string;
+    openingBalance?: number;
+    days: OldHistoryDay[];
+}
+
+/**
+ * Midday on the day this names, in UTC. Read back through any offset from −12
+ * to +12 it is still that day — which is the whole requirement for a row that
+ * carries a date rather than occupying a slot. See the note at the top.
+ */
+function noonUtc(date: string): Date {
+    return new Date(`${date}T12:00:00.000Z`);
+}
+
+export interface OldPatientWrite {
+    /** The synthetic visit carrying the opening balance, or null when they owed nothing. */
+    openingBalanceVisitId: string | null;
+    importedAppointmentIds: string[];
+}
+
+/**
+ * Resolves what an old patient brings with them, and refuses it here if it
+ * cannot be written — before the patient row exists, so there is nothing to
+ * roll back.
+ *
+ * Nothing is needed when they arrive owing nothing and with an empty file: that
+ * is a patient with an old number and no history, which is most of them, and
+ * asking such a clinic to configure a cutoff first would be asking for a fact
+ * nothing is about to use.
+ */
+export async function planOldPatientHistory(old: OldPatientInput): Promise<OldPatientPlan | null> {
+    if (old.openingBalance === undefined && old.procedures.length === 0) return null;
+
+    if (old.openingBalance !== undefined) assertAmount(old.openingBalance, 'opening balance');
+
+    const { migrationBranchId, migrationCutoffDate } = await settingsService.get();
+    if (migrationBranchId === null || migrationCutoffDate === null) {
+        throw new AppError(
+            ERROR_CODE.MIGRATION_NOT_CONFIGURED,
+            'an old patient with money owed or work done needs a migration branch and cutoff date',
+            422,
+        );
+    }
+
+    return {
+        branchId: migrationBranchId,
+        cutoffDate: migrationCutoffDate,
+        ...(old.openingBalance === undefined ? {} : { openingBalance: old.openingBalance }),
+        days: await resolveDays(old.procedures),
+    };
+}
+
+/**
+ * Grouped by the day the file gives, in the order the lines were typed. §5's
+ * once-per-list rule is applied per day, which is what it means here: the same
+ * tooth extracted on two different days is two real lines, and twice on one day
+ * is the file being typed twice.
+ */
+async function resolveDays(procedures: OldPatientInput['procedures']): Promise<OldHistoryDay[]> {
+    const byDay = new Map<string | null, OldPatientInput['procedures']>();
+
+    for (const line of procedures) {
+        const day = line.performedOn ?? null;
+        const bucket = byDay.get(day);
+        if (bucket) bucket.push(line);
+        else byDay.set(day, [line]);
+    }
+
+    const days: OldHistoryDay[] = [];
+    for (const [performedOn, lines] of byDay) {
+        days.push({
+            performedOn,
+            lines: await resolveProcedureLines(
+                lines.map((line) => ({
+                    procedureId: line.procedureId,
+                    quantity: line.quantity,
+                    tooth: line.tooth ?? null,
+                })),
+            ),
+        });
+    }
+    return days;
+}
+
+/**
+ * Writes the plan against a patient that already exists, in the caller's
+ * transaction. `insertWithRef` is imported here rather than at the top of the
+ * file: `patient.create` calls into this module and `appointment.service`
+ * imports `patient.service`, so a static import would close a cycle between the
+ * three.
+ */
+export async function writeOldPatientHistory(
+    tx: Executor,
+    patientId: string,
+    plan: OldPatientPlan,
+): Promise<OldPatientWrite> {
+    const { insertWithRef } = await import('../appointment/appointment.service.ts');
+
+    const cutoffAt = noonUtc(plan.cutoffDate);
+
+    let openingBalanceVisitId: string | null = null;
+
+    if (plan.openingBalance !== undefined) {
+        const appointment = await insertWithRef(
+            tx,
+            {
+                patientId,
+                branchId: plan.branchId,
+                startsAt: cutoffAt,
+                durationMinutes: SYNTHETIC_DURATION_MINUTES,
+                status: 'done',
+                isOpeningBalance: true,
+                note: OPENING_BALANCE_NOTE,
+            },
+            0,
+        );
+
+        const [visit] = await tx
+            .insert(visits)
+            .values({
+                id: Bun.randomUUIDv7(),
+                appointmentId: appointment.id,
+                checkedInAt: cutoffAt,
+                // Settled from the moment it exists: there is nothing here
+                // to price, and the amount is whatever the old system said.
+                pricedAt: cutoffAt,
+                completedAt: cutoffAt,
+                computedTotal: plan.openingBalance,
+                chargedTotal: plan.openingBalance,
+            })
+            .returning();
+
+        if (!visit) throw AppError.internal('opening balance visit insert returned nothing');
+        openingBalanceVisitId = visit.id;
+    }
+
+    const importedAppointmentIds: string[] = [];
+
+    for (const day of plan.days) {
+        const at = day.performedOn ? noonUtc(day.performedOn) : cutoffAt;
+
+        const appointment = await insertWithRef(
+            tx,
+            {
+                patientId,
+                branchId: plan.branchId,
+                startsAt: at,
+                durationMinutes: SYNTHETIC_DURATION_MINUTES,
+                status: 'done',
+                isImported: true,
+                dateUnknown: day.performedOn === null,
+                note: IMPORTED_NOTE,
+            },
+            0,
+        );
+
+        await tx.insert(appointmentProcedures).values(
+            day.lines.map((line, sortOrder) => ({
+                id: Bun.randomUUIDv7(),
+                appointmentId: appointment.id,
+                procedureId: line.procedure.id,
+                quantity: line.quantity,
+                tooth: line.tooth,
+                note: line.note,
+                sortOrder,
+            })),
+        );
+
+        importedAppointmentIds.push(appointment.id);
+    }
+
+    return { openingBalanceVisitId, importedAppointmentIds };
+}
+
+/** How far the migration has got. Settings draws this beside the cutoff it is dated at. */
 interface MigrationProgress {
     patients: number;
+    oldPatients: number;
     openingBalances: number;
     openingBalanceTotal: number;
 }
 
 export const migrationService = {
-    async enter(input: EnterPatientInput): Promise<EnteredPatient> {
-        const { openingBalance, branchId, cutoffDate, offsetMinutes, ...details } = input;
-
-        // Reference data, and the checks are about the request rather than the
-        // write, so they happen before the transaction opens — the same order
-        // booking uses.
-        if (openingBalance !== undefined) assertAmount(openingBalance, 'opening balance');
-        if (branchId !== undefined) await branchService.byId(branchId);
-
-        return db.transaction(async (tx) => {
-            const row = await patientService.createMinimal(details, tx);
-
-            // The schema's `refine` guarantees these three travel together; the
-            // narrowing is for the compiler, which cannot read it.
-            if (openingBalance === undefined || branchId === undefined || cutoffDate === undefined) {
-                return { patient: toPatient(row), openingBalanceVisitId: null };
-            }
-
-            const { from: at } = dayRange(cutoffDate, offsetMinutes);
-
-            const appointment = await insertWithRef(
-                tx,
-                {
-                    patientId: row.id,
-                    branchId,
-                    startsAt: at,
-                    durationMinutes: SYNTHETIC_DURATION_MINUTES,
-                    status: 'done',
-                    isOpeningBalance: true,
-                    note: SYNTHETIC_NOTE,
-                },
-                offsetMinutes,
-            );
-
-            const [visit] = await tx
-                .insert(visits)
-                .values({
-                    id: Bun.randomUUIDv7(),
-                    appointmentId: appointment.id,
-                    checkedInAt: at,
-                    // Settled from the moment it exists: there is nothing here
-                    // to price, and the amount is whatever the old system said.
-                    pricedAt: at,
-                    completedAt: at,
-                    computedTotal: openingBalance,
-                    chargedTotal: openingBalance,
-                })
-                .returning();
-
-            if (!visit) throw AppError.internal('opening balance visit insert returned nothing');
-
-            return { patient: toPatient(row), openingBalanceVisitId: visit.id };
-        });
-    },
-
     /**
-     * `patients` is the whole register rather than this session's tally — the
-     * screen counts its own session, and the two answer different questions:
-     * how many she has done today, and how many are in the system at all.
+     * `patients` is the whole register rather than the old ones alone — the two
+     * answer different questions: how many came across, and how many are on
+     * file at all.
      */
     async progress(): Promise<MigrationProgress> {
         const [entered] = await db.select({ total: count() }).from(patients);
+
+        const [old] = await db
+            .select({ total: count() })
+            .from(patients)
+            .where(sql`${patients.legacyRef} IS NOT NULL`);
 
         const [carried] = await db
             .select({
@@ -140,6 +310,7 @@ export const migrationService = {
 
         return {
             patients: entered?.total ?? 0,
+            oldPatients: old?.total ?? 0,
             openingBalances: carried?.total ?? 0,
             openingBalanceTotal: carried?.amount ?? 0,
         };

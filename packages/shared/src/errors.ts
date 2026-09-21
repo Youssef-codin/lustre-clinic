@@ -69,8 +69,20 @@ export const ERROR_CODE = {
     CUSTOM_QUESTION_REQUIRED: 'CUSTOM_QUESTION_REQUIRED',
     /** A custom question `key` is already in use. */
     DUPLICATE_KEY: 'DUPLICATE_KEY',
-    /** The patient number was set below a patient ref already handed out. */
+    /** The next patient number was set at or below a ref a patient already has. */
     PATIENT_REF_BELOW_EXISTING: 'PATIENT_REF_BELOW_EXISTING',
+    /** An old patient's ref is already another patient's ref. */
+    PATIENT_REF_TAKEN: 'PATIENT_REF_TAKEN',
+    /**
+     * An old patient's ref is a number the new-patient sequence has still to
+     * hand out. Taking it would hand the same number to two patients.
+     */
+    PATIENT_REF_RESERVED: 'PATIENT_REF_RESERVED',
+    /**
+     * An old patient arrived with money owed or work done, and the clinic has
+     * not said which branch and cutoff date that history hangs on (§12).
+     */
+    MIGRATION_NOT_CONFIGURED: 'MIGRATION_NOT_CONFIGURED',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
