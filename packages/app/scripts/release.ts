@@ -46,8 +46,12 @@ interface ExportMetadata {
 }
 
 interface ApkOutputMetadata {
+    applicationId?: string;
     elements?: { versionCode?: number; versionName?: string; outputFile?: string }[];
 }
+
+/** What the clinic's APK installs as. A dev build takes a suffix (`plugins/withDevIdentity.js`). */
+const APPLICATION_ID = 'com.lustre.clinic';
 
 function say(line: string): void {
     process.stdout.write(`${line}\n`);
@@ -206,6 +210,11 @@ async function buildApk(major: boolean): Promise<void> {
     const element = outputs.elements?.[0];
     if (!element?.versionCode || !element.versionName || !element.outputFile) {
         fail('the build wrote no release APK metadata');
+    }
+    // A release built under the dev build type's id would install beside the
+    // clinic's app rather than update it, and take no OTA update meant for it.
+    if (outputs.applicationId !== APPLICATION_ID) {
+        fail(`the build installs as ${outputs.applicationId}, not ${APPLICATION_ID}`);
     }
     if (element.versionName !== version) {
         fail(

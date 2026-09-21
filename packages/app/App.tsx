@@ -6,7 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ApiProvider } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
 import { renderErrorReporter } from './src/reporting';
-import { AppShell, SetupScreen, useServerSetup } from './src/shell';
+import { AppShell, DevBanner, SetupScreen, useServerSetup } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
 // The entry point mounts the shell (F3): the bottom tab bar and four clusters,
@@ -51,6 +51,10 @@ export default function App() {
                             onError={renderErrorReporter('root')}
                         >
                             <SafeAreaView style={styles.screen} edges={['top']}>
+                                {/* Above both screens, not inside either: a dev
+                                    build says so on the setup screen it opens
+                                    on as well as on the day it lands in. */}
+                                <DevBanner />
                                 {showSetup ? <SetupScreen /> : <AppShell />}
                                 <StatusBar style="dark" />
                             </SafeAreaView>

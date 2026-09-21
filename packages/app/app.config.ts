@@ -70,6 +70,26 @@ export function glitchtipDsn(dsn: string | undefined, demo: boolean): string | n
     return trimmed && !demo ? trimmed : null;
 }
 
+/**
+ * Where a dev build looks for the server before anybody has configured one, from
+ * `LUSTRE_DEV_SERVER`. `scripts/device.sh` and the two beside it set it to the
+ * port the API actually binds, which they have already reversed onto the device,
+ * so `localhost` there is the machine running `bun dev`.
+ *
+ * It is baked into every build and read by none but a dev one (`api/config.ts`):
+ * `__DEV__` is false in a release bundle whatever this says, so the value rides
+ * along in a clinic's APK as a string nothing looks at.
+ *
+ * It is hashed into the runtime fingerprint the way `LUSTRE_UPDATES_URL` and
+ * `LUSTRE_GLITCHTIP_DSN` are, so a release is built without it set — which is
+ * what `bun release:apk` does, since only the three device scripts export it.
+ */
+export const DEV_SERVER = 'http://localhost:3000';
+
+export function devServer(address: string | undefined): string {
+    return address?.trim().replace(/\/+$/, '') || DEV_SERVER;
+}
+
 export default function appConfig({ config }: ConfigContext): ExpoConfig {
     const demo = config.extra?.demo === true;
     return {
@@ -78,6 +98,10 @@ export default function appConfig({ config }: ConfigContext): ExpoConfig {
         slug: config.slug ?? 'lustre-clinic',
         version: releaseVersion(process.env.LUSTRE_VERSION, config.version),
         updates: updatesConfig(process.env.LUSTRE_UPDATES_URL, demo),
-        extra: { ...config.extra, glitchtipDsn: glitchtipDsn(process.env.LUSTRE_GLITCHTIP_DSN, demo) },
+        extra: {
+            ...config.extra,
+            glitchtipDsn: glitchtipDsn(process.env.LUSTRE_GLITCHTIP_DSN, demo),
+            devServer: devServer(process.env.LUSTRE_DEV_SERVER),
+        },
     };
 }
