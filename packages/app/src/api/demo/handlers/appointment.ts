@@ -15,16 +15,9 @@ import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, WS_EVENT } from '@lus
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, save } from '../db';
 import { broadcast } from '../events';
-import {
-    assignDefined,
-    buildRef,
-    clinicDayOf,
-    DemoError,
-    dayRange,
-    resolveProcedureLines,
-    uuidv7,
-} from '../rules';
+import { assignDefined, clinicDayOf, DemoError, dayRange, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
+import { insertAppointment } from './appointmentRow';
 import { createMinimalPatient, requirePatient } from './patient';
 import { rescheduleReminder, scheduleReminderFor, skipReminderFor } from './reminder';
 import { settingsHandlers } from './settings';
@@ -151,23 +144,6 @@ function withPatient(row: AppointmentRow): AppointmentWithPatient {
         },
         procedures: linesFor(row.id),
     };
-}
-
-export function insertAppointment(
-    values: Omit<AppointmentRow, 'id' | 'ref' | 'createdAt' | 'updatedAt'>,
-    offsetMinutes: number,
-): AppointmentRow {
-    const now = new Date();
-    const row: AppointmentRow = {
-        ...values,
-        id: uuidv7(),
-        ref: buildRef(values.startsAt, offsetMinutes),
-        createdAt: now,
-        updatedAt: now,
-    };
-
-    getDb().appointments.push(row);
-    return row;
 }
 
 /**

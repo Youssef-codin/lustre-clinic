@@ -24,7 +24,7 @@ import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentProcedureRow, getDb, type VisitRow } from '../db';
 import { assertAmount, DemoError, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
-import { insertAppointment } from './appointment';
+import { insertAppointment } from './appointmentRow';
 import { branchHandlers } from './branch';
 
 type OldPatientInput = NonNullable<RouterInput['patient']['create']['old']>;

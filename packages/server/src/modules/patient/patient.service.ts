@@ -229,12 +229,17 @@ async function nextPatientRef(executor: Executor): Promise<number> {
 async function assertOldRefUnreserved(tx: Executor, oldRef: string): Promise<void> {
     if (!/^\d+$/.test(oldRef)) return;
 
-    await settingsService.ensureSeeded();
-    const [row] = await tx
-        .select({ next: settings.patientRefNext })
-        .from(settings)
-        .where(eq(settings.id, 1))
-        .for('update');
+    const read = () =>
+        tx.select({ next: settings.patientRefNext }).from(settings).where(eq(settings.id, 1)).for('update');
+
+    let [row] = await read();
+    if (!row) {
+        // Seeded on first read, and nothing has read it yet — the same shape
+        // `nextPatientRef` uses, and the reason the seed is not attempted up
+        // front: it writes on another connection, and this one holds locks.
+        await settingsService.ensureSeeded();
+        [row] = await read();
+    }
 
     if (!row) throw AppError.internal('settings row could not be seeded');
 

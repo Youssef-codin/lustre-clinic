@@ -277,7 +277,7 @@ export async function writeOldPatientHistory(
     return { openingBalanceVisitId, importedAppointmentIds };
 }
 
-/** How far the migration has got. Settings draws this beside the cutoff it is dated at. */
+/** How far the changeover has got. Settings → Clinic draws it beside the cutoff it is dated at. */
 interface MigrationProgress {
     patients: number;
     oldPatients: number;

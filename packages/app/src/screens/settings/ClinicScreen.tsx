@@ -65,6 +65,9 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const clinic = useQuery(trpc.settings.get.queryOptions());
     // Active branches only — a balance is dated at a branch that still exists.
     const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: false }));
+    // How much has actually come across. It reads beside the cutoff because
+    // that is the only place in the app the changeover is visible at all now.
+    const carried = useQuery(trpc.migration.progress.queryOptions());
     const save = useMutation(
         trpc.settings.update.mutationOptions({
             onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
@@ -246,11 +249,24 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                         The day the old system stopped being the truth. A patient registered with an old
                         number who owes money or had work recorded has it dated here. Leave it unset if
                         nothing is being carried over.
+                        {carried.data && carried.data.oldPatients > 0 ? ` ${carriedSoFar(carried.data)}` : ''}
                     </Text>
                 </>
             ) : null}
         </Pane>
     );
+}
+
+/**
+ * What has come across, in one sentence. Plural-aware because "1 patients" on a
+ * settings pane is the kind of thing that makes the rest of it look untended.
+ */
+function carriedSoFar(progress: { oldPatients: number; openingBalances: number }): string {
+    const patients = `${progress.oldPatients} patient${progress.oldPatients === 1 ? '' : 's'}`;
+    if (progress.openingBalances === 0) return `${patients} carried over so far.`;
+
+    const owing = `${progress.openingBalances} owing something`;
+    return `${patients} carried over so far, ${owing}.`;
 }
 
 const styles = StyleSheet.create({
