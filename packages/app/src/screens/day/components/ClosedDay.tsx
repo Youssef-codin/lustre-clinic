@@ -7,6 +7,7 @@
  */
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Callout, type PullToRefresh, SectionLabel } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { weekdayName, weekdayOf } from '../time';
@@ -23,6 +24,7 @@ export type ClosedDayProps = {
 };
 
 export function ClosedDay({ dateKey, appointments, onSelect, pull, chairId = null }: ClosedDayProps) {
+    const t = useT();
     return (
         <ScrollView
             contentContainerStyle={styles.content}
@@ -32,11 +34,12 @@ export function ClosedDay({ dateKey, appointments, onSelect, pull, chairId = nul
         >
             <View style={styles.panel}>
                 <Text variant="title3" weight="semibold">
-                    Closed
+                    {t('Closed')}
                 </Text>
                 <Text variant="body" tone="muted" style={styles.body}>
-                    The clinic does not open on {weekdayName(weekdayOf(dateKey))}s. Change that in Settings →
-                    Opening hours.
+                    {t('The clinic does not open on {day}s. Change that in Settings → Opening hours.', {
+                        day: t(weekdayName(weekdayOf(dateKey))),
+                    })}
                 </Text>
             </View>
 

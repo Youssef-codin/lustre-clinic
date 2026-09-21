@@ -21,6 +21,7 @@
 // screen-reader label is always the full figure, never the compact one.
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { StyleSheet, View } from 'react-native';
+import { getLocale } from '../../i18n/runtime';
 import type { TextTone, TextVariant, TextWeight } from '../../theme';
 import { space, Text } from '../../theme';
 import { currencyLeads, currencyOf, formatEgp, type MoneyLocale } from './money';
@@ -58,7 +59,7 @@ export function MoneyValue({
     tone = 'ink',
     weight,
     compact = false,
-    locale = 'en',
+    locale = getLocale(),
     showCurrency = true,
     currencySuffix = false,
     face = 'sans',

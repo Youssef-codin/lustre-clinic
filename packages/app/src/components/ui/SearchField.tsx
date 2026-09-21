@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import type { TextInputProps } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, containsArabic, font, radius, size, space, Text, type } from '../../theme';
 import { Placeholder } from './Placeholder';
 
@@ -25,8 +26,10 @@ export function SearchField({
     leading,
     ...input
 }: SearchFieldProps) {
+    const t = useT();
+    const shownPlaceholder = placeholder ? t(placeholder) : undefined;
     const [focused, setFocused] = useState(false);
-    const arabic = containsArabic(input.value || placeholder || '');
+    const arabic = containsArabic(input.value || shownPlaceholder || '');
 
     return (
         <View style={[styles.box, variant === 'sheet' ? styles.sheet : styles.inline]}>
@@ -38,7 +41,7 @@ export function SearchField({
 
             <View style={styles.inputWrap}>
                 <TextInput
-                    accessibilityLabel={placeholder}
+                    accessibilityLabel={shownPlaceholder}
                     {...input}
                     accessibilityRole="search"
                     returnKeyType="search"
@@ -53,13 +56,13 @@ export function SearchField({
                     }}
                     style={[styles.input, { fontFamily: arabic ? font.arabic.regular : font.sans.regular }]}
                 />
-                <Placeholder text={placeholder} visible={!input.value && !focused} />
+                <Placeholder text={shownPlaceholder} visible={!input.value && !focused} />
             </View>
 
             {input.value.length > 0 ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Clear search"
+                    accessibilityLabel={t('Clear search')}
                     hitSlop={10}
                     onPress={() => {
                         input.onChangeText('');

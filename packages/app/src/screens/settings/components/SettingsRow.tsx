@@ -11,6 +11,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Chevron } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 
 export type SettingsRowProps = {
@@ -22,10 +23,13 @@ export type SettingsRowProps = {
 };
 
 export function SettingsRow({ icon, label, sub, onPress, testID }: SettingsRowProps) {
+    const t = useT();
+    const shownLabel = t(label);
+    const shownSub = t(sub);
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${label}. ${sub}`}
+            accessibilityLabel={`${shownLabel}. ${shownSub}`}
             onPress={onPress}
             testID={testID}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
@@ -34,10 +38,10 @@ export function SettingsRow({ icon, label, sub, onPress, testID }: SettingsRowPr
 
             <View style={styles.text}>
                 <Text variant="body" weight="semibold">
-                    {label}
+                    {shownLabel}
                 </Text>
                 <Text variant="footnote" tone="muted" numberOfLines={1}>
-                    {sub}
+                    {shownSub}
                 </Text>
             </View>
 

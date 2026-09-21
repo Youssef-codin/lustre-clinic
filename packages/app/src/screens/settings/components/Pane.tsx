@@ -15,6 +15,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PullToRefresh } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { BackIcon } from './icons';
 
@@ -42,12 +43,13 @@ export function Pane({
     pull,
     testID,
 }: PaneProps) {
+    const t = useT();
     return (
         <View style={styles.pane} testID={testID}>
             <View style={styles.header}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Back"
+                    accessibilityLabel={t('Back')}
                     onPress={onBack}
                     hitSlop={12}
                     style={({ pressed }) => [styles.back, pressed && styles.pressed]}
@@ -57,11 +59,11 @@ export function Pane({
 
                 <View style={styles.titles}>
                     <Text variant="title3" numberOfLines={1} accessibilityRole="header">
-                        {title}
+                        {t(title)}
                     </Text>
                     {subtitle ? (
                         <Text variant="caption" tone="muted" numberOfLines={1}>
-                            {subtitle}
+                            {t(subtitle)}
                         </Text>
                     ) : null}
                 </View>

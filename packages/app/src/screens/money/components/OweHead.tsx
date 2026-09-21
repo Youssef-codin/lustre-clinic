@@ -11,6 +11,7 @@ import { useRef } from 'react';
 import type { View as RNView } from 'react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { MenuAnchor } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { MoneyValue } from '../MoneyValue';
 import type { DebtorSort } from '../money';
@@ -27,6 +28,7 @@ export type OweHeadProps = {
 };
 
 export function OweHead({ total, sort, onOpenSort, sortOpen }: OweHeadProps) {
+    const t = useT();
     const button = useRef<RNView>(null);
 
     // The menu is a Modal, so it wants window coordinates; the button's own
@@ -43,7 +45,7 @@ export function OweHead({ total, sort, onOpenSort, sortOpen }: OweHeadProps) {
         <View style={styles.head}>
             <View style={styles.left}>
                 <Text variant="eyebrow" script="sans" weight="bold" tone="muted">
-                    Who owe
+                    {t('Who owe')}
                 </Text>
 
                 {total === null ? null : (
@@ -64,7 +66,7 @@ export function OweHead({ total, sort, onOpenSort, sortOpen }: OweHeadProps) {
             <Pressable
                 ref={button}
                 accessibilityRole="button"
-                accessibilityLabel={`Sort patients — ${DEBTOR_SORT_LABEL[sort]}`}
+                accessibilityLabel={`${t('Sort patients')} — ${t(DEBTOR_SORT_LABEL[sort])}`}
                 accessibilityState={{ expanded: sortOpen }}
                 onPress={open}
                 // The target is 44 without the row being 44: the design hangs
@@ -75,7 +77,7 @@ export function OweHead({ total, sort, onOpenSort, sortOpen }: OweHeadProps) {
                 testID="money-owe-sort"
             >
                 <Text variant="callout" weight="semibold" tone="ink2">
-                    {DEBTOR_SORT_LABEL[sort]}
+                    {t(DEBTOR_SORT_LABEL[sort])}
                 </Text>
                 <CaretDownIcon />
             </Pressable>

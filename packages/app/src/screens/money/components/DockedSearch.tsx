@@ -25,6 +25,7 @@
 import type { Animated as RNAnimated } from 'react-native';
 import { Animated, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Placeholder } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, containsArabic, font, radius, shadow, size, space, Text, type } from '../../../theme';
 import { SearchIcon } from './icons';
 
@@ -62,7 +63,9 @@ export function DockedSearch({
     dockOpacity,
     dockScale,
 }: DockedSearchProps) {
-    const arabic = containsArabic(value || placeholder);
+    const t = useT();
+    const shown = t(placeholder);
+    const arabic = containsArabic(value || shown);
 
     return (
         <Animated.View style={[styles.pill, { transform: [{ translateY }, { scale: dockScale }] }]}>
@@ -80,14 +83,14 @@ export function DockedSearch({
                     onChangeText={onChangeText}
                     onFocus={onFocus}
                     onBlur={onBlur}
-                    accessibilityLabel={placeholder}
+                    accessibilityLabel={shown}
                     accessibilityRole="search"
                     returnKeyType="search"
                     autoCorrect={false}
                     style={[styles.input, { fontFamily: arabic ? font.arabic.regular : font.sans.regular }]}
                     testID="money-debtor-search"
                 />
-                <Placeholder text={placeholder} visible={value === ''} />
+                <Placeholder text={shown} visible={value === ''} />
             </View>
 
             {value.length > 0 ? (

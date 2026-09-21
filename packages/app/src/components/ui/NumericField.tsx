@@ -22,7 +22,8 @@
  */
 import { forwardRef, useState } from 'react';
 import type { TextInputProps } from 'react-native';
-import { I18nManager, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
+import { useIsRTL, useT } from '../../i18n';
 import { color, font, radius, size as sizes, space, Text, type } from '../../theme';
 import type { FieldLayout } from './Field';
 import { Field } from './Field';
@@ -68,6 +69,8 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
     },
     ref,
 ) {
+    const isRTL = useIsRTL();
+    const t = useT();
     const [focused, setFocused] = useState(false);
     const display = variant === 'display';
     const figure = display ? 'figure' : size;
@@ -92,7 +95,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                 <View style={styles.inputWrap}>
                     <TextInput
                         ref={ref}
-                        accessibilityLabel={label ?? placeholder}
+                        accessibilityLabel={t(label ?? placeholder ?? '') || undefined}
                         {...input}
                         keyboardType={keyboardType}
                         onFocus={(event) => {
@@ -106,7 +109,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                         style={[
                             styles.input,
                             styles[FIGURE_STYLE[figure]],
-                            variant === 'end' && styles.endAligned,
+                            variant === 'end' && { textAlign: isRTL ? 'left' : 'right' },
                         ]}
                     />
                     <Placeholder
@@ -128,8 +131,6 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
     );
 });
 
-const END_ALIGN = I18nManager.isRTL ? 'left' : 'right';
-
 const styles = StyleSheet.create({
     box: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     boxed: {
@@ -150,5 +151,4 @@ const styles = StyleSheet.create({
     figure: { ...type.figure, fontFamily: font.mono.medium },
     amount: { ...type.amount, fontFamily: font.mono.medium },
     bodySize: { ...type.body, fontFamily: font.mono.regular },
-    endAligned: { textAlign: END_ALIGN },
 });

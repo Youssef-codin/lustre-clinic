@@ -12,7 +12,8 @@
  * until the F4 localization scaffold lands.
  */
 import type { Locale } from '@lustre/shared';
-import { I18nManager, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useLocale } from '../../i18n';
 import type { TextTone, TextVariant, TextWeight } from '../../theme';
 import { space, Text } from '../../theme';
 import { clock12, formatClock12 } from './clock';
@@ -43,10 +44,6 @@ const MERIDIEM_VARIANT: Partial<Record<TextVariant, TextVariant>> = {
     headline: 'tag',
 };
 
-function currentLanguage(): Locale {
-    return I18nManager.isRTL ? 'ar' : 'en';
-}
-
 export function TimeValue({
     minutes,
     variant = 'amount',
@@ -56,7 +53,8 @@ export function TimeValue({
     language,
     testID,
 }: TimeValueProps) {
-    const locale = language ?? currentLanguage();
+    const appLocale = useLocale();
+    const locale = language ?? appLocale;
     const { time, meridiem } = clock12(minutes, locale);
 
     const figure = (

@@ -18,6 +18,7 @@
  */
 import { StyleSheet, View } from 'react-native';
 import { ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { AppointmentProcedure } from '../data';
 import { toothGroupsOf, toothPosition } from '../procedures';
@@ -29,6 +30,7 @@ export type PlanSummaryProps = {
 };
 
 export function PlanSummary({ procedures, label }: PlanSummaryProps) {
+    const t = useT();
     const groups = toothGroupsOf(procedures);
 
     return (
@@ -48,7 +50,7 @@ export function PlanSummary({ procedures, label }: PlanSummaryProps) {
                 // reads as a failed load.
                 <View style={styles.blank}>
                     <Text variant="subhead" tone="muted">
-                        Nothing planned — it will be decided in the chair.
+                        {t('Nothing planned — it will be decided in the chair.')}
                     </Text>
                 </View>
             ) : (

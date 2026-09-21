@@ -29,6 +29,7 @@ import {
     BottomSheetBackdrop,
     BottomSheetModal,
     BottomSheetScrollView,
+    BottomSheetView,
     useBottomSheetTimingConfigs,
 } from '@gorhom/bottom-sheet';
 import type { ReactNode } from 'react';
@@ -36,6 +37,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { Chevron } from './Chevron';
 import { duration } from './motion';
@@ -99,6 +101,22 @@ export type SheetProps = {
      * but the shortcut.
      */
     dragFromBody?: boolean;
+    /**
+     * Whether the body scrolls.
+     *
+     * Off for a body that is a control rather than a list — the time wheel,
+     * whose columns are `FlatList`s of their own. React Native refuses to
+     * window a `VirtualizedList` nested in a scroll view of the same
+     * orientation and says so as a red console error on every open, which is a
+     * real complaint even though the wheel's own height is fixed and its
+     * windowing works: the rule exists because the outer scroll usually leaves
+     * the inner list unbounded.
+     *
+     * The cost is that nothing saves a body taller than `maxHeightRatio` — it
+     * is clipped instead of scrolled — so this is only for content whose height
+     * is known and small.
+     */
+    scrollBody?: boolean;
     testID?: string;
 };
 
@@ -115,6 +133,7 @@ export function Sheet({
     maxHeightRatio = 0.86,
     dismissable = true,
     dragFromBody = true,
+    scrollBody = true,
     testID,
 }: SheetProps) {
     const sheet = useRef<BottomSheetModal>(null);
@@ -297,6 +316,13 @@ export function Sheet({
         [title, subtitle, onTitlePress, titleAccessibilityLabel],
     );
 
+    const body = (
+        <>
+            {children}
+            {footer ? <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View> : null}
+        </>
+    );
+
     return (
         <BottomSheetModal
             ref={sheet}
@@ -356,16 +382,23 @@ export function Sheet({
              * came up with no button at all. The cost is that on a sheet tall
              * enough to scroll, the action scrolls with the content.
              */}
-            <BottomSheetScrollView
-                testID={testID}
-                contentContainerStyle={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="interactive"
-            >
-                {children}
-
-                {footer ? <View style={[styles.footer, { paddingBottom: floor }]}>{footer}</View> : null}
-            </BottomSheetScrollView>
+            {scrollBody ? (
+                <BottomSheetScrollView
+                    testID={testID}
+                    contentContainerStyle={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="interactive"
+                >
+                    {body}
+                </BottomSheetScrollView>
+            ) : (
+                <BottomSheetView
+                    testID={testID}
+                    style={[styles.scrollContent, footer ? null : { paddingBottom: floor }]}
+                >
+                    {body}
+                </BottomSheetView>
+            )}
         </BottomSheetModal>
     );
 }
@@ -386,12 +419,13 @@ function TitleBlock({
     onPress?: () => void;
     accessibilityLabel?: string;
 }) {
+    const t = useT();
     const text = (
         <View style={styles.headerText}>
-            <Text variant="title3">{title}</Text>
+            <Text variant="title3">{t(title)}</Text>
             {subtitle ? (
                 <Text variant="subhead" tone="muted">
-                    {subtitle}
+                    {t(subtitle)}
                 </Text>
             ) : null}
         </View>
@@ -402,7 +436,7 @@ function TitleBlock({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={accessibilityLabel ?? title}
+            accessibilityLabel={t(accessibilityLabel ?? title)}
             onPress={onPress}
             style={({ pressed }) => [styles.header, styles.headerButton, pressed && styles.headerPressed]}
         >

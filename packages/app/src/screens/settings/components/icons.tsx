@@ -43,7 +43,7 @@ import {
     Tags,
     X,
 } from 'lucide-react-native';
-import { I18nManager } from 'react-native';
+import { useIsRTL } from '../../../i18n';
 import { color } from '../../../theme';
 
 export type IconProps = {
@@ -148,7 +148,7 @@ const ArrowBack = icon(ArrowLeft, { size: 18, stroke: color.muted, width: 2.2 })
 
 /** The role sheet's from → to arrow. */
 export function ArrowRightIcon(props: IconProps) {
-    return I18nManager.isRTL ? <ArrowBack {...props} /> : <ArrowForward {...props} />;
+    return useIsRTL() ? <ArrowBack {...props} /> : <ArrowForward {...props} />;
 }
 
 const ChevronBack = icon(ChevronLeft, { size: 15, stroke: color.ink, width: 2.4 });
@@ -156,5 +156,5 @@ const ChevronForward = icon(ChevronRight, { size: 15, stroke: color.ink, width: 
 
 /** The pane header's back button. */
 export function BackIcon(props: IconProps) {
-    return I18nManager.isRTL ? <ChevronForward {...props} /> : <ChevronBack {...props} />;
+    return useIsRTL() ? <ChevronForward {...props} /> : <ChevronBack {...props} />;
 }

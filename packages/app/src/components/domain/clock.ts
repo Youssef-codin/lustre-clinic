@@ -22,7 +22,8 @@
  * `timeFromMinutes` in `settings/data/reminders` writes it back out. Neither
  * string reaches a screen.
  */
-import type { Locale } from '@lustre/shared';
+import { type Locale, localizeCopy } from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 
 export interface Clock12 {
     /** "6:00" — Latin digits, no leading zero on the hour. */
@@ -101,7 +102,12 @@ export function formatStamp(at: number, locale: Locale = 'en'): string {
  * how the bar came to format hours on the overrun and not on the line above it.
  */
 export function formatDuration(minutes: number): string {
-    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+    const locale = getLocale();
+    if (minutes < 60) return localizeCopy(locale, '{minutes} min', { minutes });
+    return localizeCopy(locale, '{hours}h {minutes}m', {
+        hours: Math.floor(minutes / 60),
+        minutes: minutes % 60,
+    });
 }
 
 /**

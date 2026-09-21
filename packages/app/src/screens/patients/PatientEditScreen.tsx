@@ -45,7 +45,7 @@ import {
     SkeletonRows,
     useKeyboardHeight,
 } from '../../components/ui';
-import { useLocale } from '../../shell/localeStore';
+import { useLocale, useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
@@ -97,6 +97,7 @@ export type PatientEditScreenProps = {
 };
 
 export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
+    const t = useT();
     const creating = patientId === undefined;
 
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
@@ -265,7 +266,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                         )}
 
                         <Text variant="eyebrow" tone="muted" style={styles.eyebrow}>
-                            BASICS
+                            {t('BASICS')}
                         </Text>
 
                         {/* The old-patient switch is registration only. An
@@ -381,6 +382,7 @@ function Questions({
     loading,
     error,
 }: QuestionsProps) {
+    const t = useT();
     const missingKeys = useMemo(() => new Set(missing), [missing]);
     const total = questions.length;
 
@@ -420,7 +422,7 @@ function Questions({
         <View style={styles.section}>
             <View style={styles.sectionHead}>
                 <Text variant="eyebrow" tone="muted">
-                    CLINIC QUESTIONS
+                    {t('CLINIC QUESTIONS')}
                 </Text>
                 <Text variant="caption" weight="medium" tone="muted">
                     {`${answered} of ${total} answered`}

@@ -32,6 +32,7 @@
 import { useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Callout, Chip } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import type { Slot } from '../booking';
 import type { RequestError } from '../data';
@@ -75,6 +76,7 @@ export function SlotPicker({
     branchName,
     duration,
 }: SlotPickerProps) {
+    const t = useT();
     const picked = slots.find((slot) => slot.minutes === slotMinutes) ?? null;
     const free = slots.filter((slot) => slot.state === 'free');
 
@@ -93,7 +95,7 @@ export function SlotPicker({
 
             <View style={styles.section}>
                 <Text variant="eyebrow" tone="muted">
-                    WHICH DAY
+                    {t('WHICH DAY')}
                 </Text>
                 {daysLoading ? (
                     <Text variant="subhead" tone="muted">
@@ -146,11 +148,11 @@ export function SlotPicker({
             <View style={styles.section}>
                 <View style={styles.timesHead}>
                     <Text variant="eyebrow" tone="muted">
-                        WHAT TIME
+                        {t('WHAT TIME')}
                     </Text>
                     {!loading && !error && slots.length > 0 ? (
                         <Text variant="caption" weight="medium" tone="muted">
-                            {free.length} free
+                            {t('{count} free', { count: free.length })}
                         </Text>
                     ) : null}
                 </View>
@@ -198,7 +200,7 @@ export function SlotPicker({
                             </Callout>
                         ) : picked?.runsLate ? (
                             <Text variant="caption" tone="muted">
-                                That visit ends after the clinic closes.
+                                {t('That visit ends after the clinic closes.')}
                             </Text>
                         ) : null}
                     </>

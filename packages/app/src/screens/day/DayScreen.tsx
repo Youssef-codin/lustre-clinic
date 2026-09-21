@@ -23,6 +23,7 @@ import {
     useAfterSheet,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { border, color, radius, size, space, Text } from '../../theme';
 // Imported from the file rather than from `../patients`, which re-exports the
@@ -154,6 +155,7 @@ type DayScreenProps = {
 };
 
 function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome = 0 }: DayScreenProps = {}) {
+    const t = useT();
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
     const [branchId, setBranchId] = useState<string | null>(null);
@@ -692,7 +694,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                             <View style={styles.late}>
                                 <ClockIcon size={13} stroke={color.due} />
                                 <Text variant="footnote" weight="bold" tone="due" style={styles.lateText}>
-                                    Running {lateText}
+                                    {t('Running {late}', { late: lateText })}
                                 </Text>
                                 <Pressable
                                     accessibilityRole="button"

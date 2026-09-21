@@ -38,8 +38,8 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
-import { useLocale } from '../../shell/localeStore';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
@@ -255,6 +255,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
 }
 
 function FixedDetailsCard() {
+    const t = useT();
     return (
         <View style={styles.section}>
             <SectionLabel inset={false}>ALWAYS ON THE RECORD</SectionLabel>
@@ -269,7 +270,7 @@ function FixedDetailsCard() {
                     ))}
                 </View>
                 <Text variant="footnote" tone="muted">
-                    Built in — these five can't be renamed, reordered or removed.
+                    {t("Built in — these five can't be renamed, reordered or removed.")}
                 </Text>
             </Card>
         </View>
@@ -365,6 +366,7 @@ type QuestionEditorProps = {
 };
 
 function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionEditorProps) {
+    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
     const onQuestionWritten = () => queryClient.invalidateQueries(trpc.customQuestion.pathFilter());
@@ -528,7 +530,7 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 </View>
                 {question ? (
                     <Text variant="footnote" tone="muted" style={styles.note}>
-                        Fixed once patients have answered.
+                        {t('Fixed once patients have answered.')}
                     </Text>
                 ) : null}
             </View>

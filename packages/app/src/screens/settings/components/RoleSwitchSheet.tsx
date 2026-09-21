@@ -14,6 +14,7 @@
 import type { ClientRole } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Button, Sheet } from '../../../components/ui';
+import { useLocale, useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import { ArrowRightIcon, CheckIcon } from './icons';
 
@@ -58,6 +59,8 @@ export function RoleSwitchSheet({
     onCancel,
     onClosed,
 }: RoleSwitchSheetProps) {
+    const locale = useLocale();
+    const t = useT();
     const other: ClientRole = role === 'doctor' ? 'secretary' : 'doctor';
     const word = ROLE_WORD[other];
 
@@ -66,13 +69,15 @@ export function RoleSwitchSheet({
             visible={visible}
             onClose={onCancel}
             onClosed={onClosed}
-            title={`Switch to ${word}?`}
-            subtitle="Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do."
+            title={locale === 'ar' ? `التبديل إلى ${t(toName)}؟` : `Switch to ${word}?`}
+            subtitle={t(
+                'Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do.',
+            )}
             testID="settings-role-sheet"
             footer={
                 <>
                     <Button
-                        label={`Switch to ${word}`}
+                        label={locale === 'ar' ? `التبديل إلى ${t(toName)}` : `Switch to ${word}`}
                         onPress={onConfirm}
                         block
                         testID="settings-role-confirm"
@@ -84,10 +89,10 @@ export function RoleSwitchSheet({
             <View style={styles.swap}>
                 <View style={styles.end}>
                     <Text variant="eyebrow" tone="muted">
-                        FROM
+                        {t('FROM')}
                     </Text>
                     <Text variant="body" weight="semibold" style={styles.name}>
-                        {fromName}
+                        {t(fromName)}
                     </Text>
                 </View>
 
@@ -95,10 +100,10 @@ export function RoleSwitchSheet({
 
                 <View style={[styles.end, styles.toEnd]}>
                     <Text variant="eyebrow" tone="muted">
-                        TO
+                        {t('TO')}
                     </Text>
                     <Text variant="body" weight="semibold" style={styles.name}>
-                        {toName}
+                        {t(toName)}
                     </Text>
                 </View>
             </View>
@@ -107,7 +112,7 @@ export function RoleSwitchSheet({
                 <View key={effect} style={styles.effect}>
                     <CheckIcon size={15} />
                     <Text variant="subhead" tone="ink2" style={styles.effectText}>
-                        {effect}
+                        {t(effect)}
                     </Text>
                 </View>
             ))}

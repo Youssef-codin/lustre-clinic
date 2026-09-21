@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, shadow, space, Text } from '../../theme';
 import { Button } from './Button';
 
@@ -26,11 +27,12 @@ export type EmptyStateProps = {
 };
 
 export function EmptyState({ title, body, icon, actionLabel, onAction, weight = 'ring' }: EmptyStateProps) {
+    const t = useT();
     if (weight === 'line') {
         return (
             <View style={styles.line}>
                 <Text variant="subhead" tone="muted">
-                    {title}
+                    {t(title)}
                 </Text>
             </View>
         );
@@ -52,10 +54,10 @@ export function EmptyState({ title, body, icon, actionLabel, onAction, weight = 
                 <View style={[styles.glyph, panel ? styles.tile : styles.ring]}>{glyph}</View>
             )}
 
-            <Text variant="headline">{title}</Text>
+            <Text variant="headline">{t(title)}</Text>
             {body ? (
                 <Text variant="subhead" tone="muted" style={styles.body}>
-                    {body}
+                    {t(body)}
                 </Text>
             ) : null}
 

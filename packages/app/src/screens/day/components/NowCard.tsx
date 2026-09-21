@@ -9,6 +9,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Dot } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
@@ -93,6 +94,7 @@ export function NowCard({
     onOpenRecord,
     checkingInId,
 }: NowCardProps) {
+    const t = useT();
     if (active) {
         const inChair = active.status === 'checked_in';
         const progress = slotProgress(active, nowMinutes, seatedAt);
@@ -143,7 +145,7 @@ export function NowCard({
                 <View style={styles.eyebrowRow}>
                     <Dot tone="accent" size={7} />
                     <Text variant="eyebrow" tone="muted">
-                        NEXT UP
+                        {t('NEXT UP')}
                     </Text>
                     <StartedAt appointment={next} />
                 </View>
@@ -176,13 +178,13 @@ export function NowCard({
     return (
         <View style={[styles.card, styles.empty]}>
             <Text variant="eyebrow" tone="muted">
-                THE CHAIR
+                {t('THE CHAIR')}
             </Text>
             <Text variant="headline" weight="medium" tone="inverse">
-                Nobody in the chair
+                {t('Nobody in the chair')}
             </Text>
             <Text variant="subhead" tone="muted">
-                Nothing left to check in today.
+                {t('Nothing left to check in today.')}
             </Text>
         </View>
     );
