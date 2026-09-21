@@ -31,6 +31,7 @@ import {
     Hospital,
     Info,
     ListPlus,
+    LogIn,
     LogOut,
     MapPin,
     MessageSquareWarning,
@@ -121,6 +122,9 @@ export const ResetDemoIcon = icon(RotateCcw, ROW);
 
 /** Leaving the demo for the clinic server. No mockup counterpart. */
 export const LeaveDemoIcon = icon(LogOut, ROW);
+
+/** Entering the demo from a connected dev build. No mockup counterpart. */
+export const EnterDemoIcon = icon(LogIn, ROW);
 
 /** "Report a problem". No mockup counterpart. */
 export const ReportProblemIcon = icon(MessageSquareWarning, ROW);

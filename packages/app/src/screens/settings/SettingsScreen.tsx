@@ -16,7 +16,7 @@ import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
-import { type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
+import { allowsDemo, BUILD_VARIANT, type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import {
     Button,
@@ -42,6 +42,7 @@ import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
 import {
     DataEntryIcon,
+    EnterDemoIcon,
     LeaveDemoIcon,
     ReportProblemIcon,
     ResetDemoIcon,
@@ -315,6 +316,24 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                         void demo.disable();
                                     }}
                                     testID="settings-leave-demo"
+                                />
+                            </Group>
+                        ) : allowsDemo(BUILD_VARIANT) ? (
+                            /* The setup screen's demo button, for a dev build
+                               that is already connected: setup never shows
+                               again once an address is saved, so this is the
+                               only way in. The saved address stays put and
+                               Leave demo above returns to it. A prod build
+                               allows no demo, so its Settings never has this. */
+                            <Group title="DEMO">
+                                <SettingsRow
+                                    icon={<EnterDemoIcon />}
+                                    label="Enter demo"
+                                    sub="A fake register, off the clinic server"
+                                    onPress={() => {
+                                        void demo.enable();
+                                    }}
+                                    testID="settings-enter-demo"
                                 />
                             </Group>
                         ) : null}
