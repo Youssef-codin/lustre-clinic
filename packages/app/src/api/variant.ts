@@ -28,6 +28,27 @@ export function allowsDemo(variant: BuildVariant): boolean {
     return variant !== 'prod';
 }
 
+// The DEV strip (`shell/DevBanner.tsx`). A demo build does not get one: it is
+// handed to someone across a table and its own screens say what it is, while
+// this says "you are looking at a server", which a demo has none of.
+export function showsDevBanner(variant: BuildVariant): boolean {
+    return variant === 'dev';
+}
+
+// A dev build points at the dev server on the machine that built it, which is
+// what the three device scripts reverse onto the phone. Only when nothing was
+// configured: an `app.json` a developer pointed somewhere else stays pointed
+// there. Shipped builds never take it, so the address can be baked into every
+// build and read by the one kind that can reach it.
+export function bootAddresses(
+    variant: BuildVariant,
+    configured: ServerAddresses,
+    devServer: string | null,
+): ServerAddresses {
+    if (variant !== 'dev' || configured.lan) return configured;
+    return { ...configured, lan: devServer };
+}
+
 // The shapes a tailnet address comes in: a MagicDNS name under `.ts.net`, an
 // IPv4 address in Tailscale's 100.64.0.0/10 (the range the server itself checks
 // `TAILSCALE_IP` against), or its fd7a:115c:a1e0::/48 IPv6 range. A bare short
