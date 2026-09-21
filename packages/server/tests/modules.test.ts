@@ -906,16 +906,21 @@ describe('patient', () => {
         refs.push((await patientService.createMinimal({ name: 'Booked In', phone: '01011110003' })).ref);
 
         expect(refs).toEqual(['1', '2', '3']);
-        expect((await settingsService.get()).patientRefLast).toBe(3);
+        expect((await settingsService.get()).patientRefNext).toBe(4);
     });
 
-    test('carries on from the number the clinic sets', async () => {
-        await settingsService.update({ patientRefLast: 4417 });
+    // The reported figure, the other way round from the bug: a clinic that sets
+    // the next patient number to 910 gets 910, and the one after it gets 911.
+    // `patient_ref_last` gave them 911 and 912, because the field said "last"
+    // and everybody read it as "next".
+    test('hands out the number the clinic sets, then the one after it', async () => {
+        await settingsService.update({ patientRefNext: 910 });
 
-        const next = await patientService.create({ name: 'Carried On', phone: '01011112222', custom: {} });
+        const first = await patientService.create({ name: 'Carried On', phone: '01011112222', custom: {} });
+        const second = await patientService.create({ name: 'And Then', phone: '01011112223', custom: {} });
 
-        expect(next.ref).toBe('4418');
-        expect((await settingsService.get()).patientRefLast).toBe(4418);
+        expect([first.ref, second.ref]).toEqual(['910', '911']);
+        expect((await settingsService.get()).patientRefNext).toBe(912);
     });
 
     test('two registrations at once get two numbers', async () => {
@@ -942,17 +947,32 @@ describe('patient', () => {
         expect(next.ref).toBe('1');
     });
 
-    test('refuses a number below one a patient already has, and leaves the counter alone', async () => {
+    test('two simultaneous registrations still get consecutive numbers', async () => {
+        await settingsService.update({ patientRefNext: 910 });
+
+        const together = await Promise.all(
+            ['01030000001', '01030000002'].map((phone) =>
+                patientService.create({ name: 'At Once', phone, custom: {} }),
+            ),
+        );
+
+        expect(together.map((row) => row.ref).sort()).toEqual(['910', '911']);
+        expect((await settingsService.get()).patientRefNext).toBe(912);
+    });
+
+    // At, not below: the value is handed out as it stands, so a next number
+    // equal to a ref on file would hand that number out twice.
+    test('refuses a next number a patient already has, and leaves the counter alone', async () => {
         await patientService.create({ name: 'One', phone: '01011110001', custom: {} });
         await patientService.create({ name: 'Two', phone: '01011110002', custom: {} });
 
         await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
-            settingsService.update({ patientRefLast: 1 }),
+            settingsService.update({ patientRefNext: 2 }),
         );
-        expect((await settingsService.get()).patientRefLast).toBe(2);
+        expect((await settingsService.get()).patientRefNext).toBe(3);
 
-        const kept = await settingsService.update({ patientRefLast: 2 });
-        expect(kept.patientRefLast).toBe(2);
+        const kept = await settingsService.update({ patientRefNext: 3 });
+        expect(kept.patientRefNext).toBe(3);
     });
 
     // Patients from before numbering keep their codes. One that happens to be
@@ -965,18 +985,20 @@ describe('patient', () => {
                          (${oldNumber}, '2345', 'Old Digits', '+201000000002')`;
 
         await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
-            settingsService.update({ patientRefLast: 2344 }),
+            settingsService.update({ patientRefNext: 2345 }),
         );
-        await settingsService.update({ patientRefLast: 2345 });
+        await settingsService.update({ patientRefNext: 2346 });
 
         const next = await patientService.createMinimal({ name: 'New', phone: '01011115555' });
         expect(next.ref).toBe('2346');
         expect((await patientService.byId(oldCode)).patient.ref).toBe('W5F5');
     });
 
-    test('refuses a counter with no number left after it', () => {
-        expect(updateSettingsInput.safeParse({ patientRefLast: MAX_PATIENT_REF }).success).toBe(false);
-        expect(updateSettingsInput.safeParse({ patientRefLast: MAX_PATIENT_REF - 1 }).success).toBe(true);
+    test('refuses a next number the column cannot hold, and one below the first', () => {
+        expect(updateSettingsInput.safeParse({ patientRefNext: MAX_PATIENT_REF + 1 }).success).toBe(false);
+        expect(updateSettingsInput.safeParse({ patientRefNext: MAX_PATIENT_REF }).success).toBe(true);
+        expect(updateSettingsInput.safeParse({ patientRefNext: 0 }).success).toBe(false);
+        expect(updateSettingsInput.safeParse({ patientRefNext: 1 }).success).toBe(true);
     });
 
     test('a ref survives an update that touches everything else', async () => {

@@ -100,7 +100,6 @@ const handlers = {
 
     'stats.summary': statsHandlers.summary,
 
-    'migration.enter': migrationHandlers.enter,
     'migration.progress': migrationHandlers.progress,
 } as const satisfies Record<Path, Handler>;
 

@@ -12,6 +12,11 @@
  * picker would offer an unpickable default, and `setDay` resolves the branch
  * first so the client gets a localizable `NOT_FOUND` rather than a foreign-key
  * violation.
+ *
+ * `patient_ref_next` is the number the next *new* patient is given. It was
+ * `patient_ref_last` — the number already handed out — and the field was read
+ * as this one by everybody who typed into it, which is how a clinic that typed
+ * 910 got 911. An old patient keeps their own number and never moves it.
  */
 import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -33,8 +38,11 @@ interface Settings {
     reminderRepeatMinutes: number;
     reminderDismissedOn: string | null;
     reminderTemplate: string;
-    /** The last patient number handed out. The next registration gets one more. */
-    patientRefLast: number;
+    /** The number the next new patient is given — handed out as it stands, not one more. */
+    patientRefNext: number;
+    /** Where an old patient's carried-over money and history are dated. Null until the clinic says. */
+    migrationBranchId: string | null;
+    migrationCutoffDate: string | null;
     updatedAt: Date;
 }
 
@@ -51,7 +59,9 @@ function toSettings(row: SettingsRow): Settings {
         reminderRepeatMinutes: row.reminderRepeatMinutes,
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
-        patientRefLast: row.patientRefLast,
+        patientRefNext: row.patientRefNext,
+        migrationBranchId: row.migrationBranchId,
+        migrationCutoffDate: row.migrationCutoffDate,
         updatedAt: row.updatedAt,
     };
 }
@@ -93,24 +103,33 @@ async function writeRow(values: Partial<typeof settings.$inferInsert>): Promise<
 }
 
 /**
- * Refuses a patient counter below the highest all-digit ref on file: the next
- * registration would be handed a number a patient already has. Old random codes
- * count when they happen to be all digits (`2345`).
+ * Refuses a next patient number at or below the highest all-digit ref on file:
+ * the next registration would be handed a number a patient already has. Old
+ * random codes count when they happen to be all digits (`2345`), and so does an
+ * old patient's own number, which is their `ref` (§5).
+ *
+ * At, not merely below: this value is handed out as it stands now, where
+ * `patient_ref_last` was handed out plus one.
  */
-async function assertPatientRefLast(value: number, executor: Executor): Promise<void> {
+async function assertPatientRefNext(value: number, executor: Executor): Promise<void> {
+    const highest = await highestTakenRef(executor);
+
+    if (value <= highest) {
+        throw new AppError(
+            ERROR_CODE.PATIENT_REF_BELOW_EXISTING,
+            `patientRefNext must be above ${highest}, the highest patient ref in use`,
+            422,
+        );
+    }
+}
+
+async function highestTakenRef(executor: Executor): Promise<number> {
     const taken = await executor
         .select({ ref: patients.ref })
         .from(patients)
         .where(sql`${patients.ref} ~ '^[0-9]+$'`);
 
-    const highest = highestNumericRef(taken.map((row) => row.ref));
-    if (value < highest) {
-        throw new AppError(
-            ERROR_CODE.PATIENT_REF_BELOW_EXISTING,
-            `patientRefLast must not be below ${highest}, the highest patient ref in use`,
-            422,
-        );
-    }
+    return highestNumericRef(taken.map((row) => row.ref));
 }
 
 interface ClinicDay {
@@ -156,17 +175,21 @@ export const settingsService = {
             );
         }
 
-        if (input.patientRefLast === undefined) {
+        // A branch that is not on file would otherwise reach the client as a
+        // foreign-key violation instead of a localizable NOT_FOUND.
+        if (input.migrationBranchId) await branchService.byId(input.migrationBranchId);
+
+        if (input.patientRefNext === undefined) {
             return writeRow({ ...input, durationOptions, defaultDuration });
         }
 
-        const patientRefLast = input.patientRefLast;
+        const patientRefNext = input.patientRefNext;
         const updated = await db.transaction(async (tx) => {
             // The row lock comes first, so a registration already numbering
             // itself either commits before the refs are read or waits until
             // this has been written.
             await tx.select({ id: settings.id }).from(settings).where(eq(settings.id, 1)).for('update');
-            await assertPatientRefLast(patientRefLast, tx);
+            await assertPatientRefNext(patientRefNext, tx);
             return updateRow({ ...input, durationOptions, defaultDuration }, tx);
         });
 
