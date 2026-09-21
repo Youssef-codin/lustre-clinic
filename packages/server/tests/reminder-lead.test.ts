@@ -34,6 +34,54 @@ async function dueAtOf(appointmentId: string): Promise<number> {
     return (await reminderFor(appointmentId)).dueAt.getTime();
 }
 
+async function backendsWaitingOnALock(): Promise<number> {
+    const [row] = await sql<{ waiting: number }[]>`
+        SELECT count(*)::int AS waiting
+        FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'
+    `;
+    return row?.waiting ?? 0;
+}
+
+/**
+ * Runs `contenders` against a settings row another transaction is holding.
+ * Each is started only once the one before it is seen waiting on the lock, so
+ * they queue on it in this order; then the row is let go and they run back to
+ * back. Every one of them has taken whatever it reads before its transaction,
+ * and none has written, so the interleaving is the same on every run rather
+ * than whatever `Promise.all` happened to produce.
+ */
+async function queuedOnTheSettingsRow<T>(contenders: Array<() => Promise<T>>): Promise<T[]> {
+    let held!: () => void;
+    let release!: () => void;
+    const isHeld = new Promise<void>((resolve) => {
+        held = resolve;
+    });
+    const letGo = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+
+    const holder = sql.begin(async (tx) => {
+        await tx`SELECT id FROM settings WHERE id = 1 FOR UPDATE`;
+        held();
+        await letGo;
+    });
+    await isHeld;
+
+    const running: Promise<T>[] = [];
+    for (const [index, start] of contenders.entries()) {
+        running.push(start());
+        for (let tries = 0; (await backendsWaitingOnALock()) < index + 1; tries++) {
+            if (tries > 200) throw new Error(`contender ${index} never queued on the settings row`);
+            await Bun.sleep(10);
+        }
+    }
+
+    release();
+    await holder;
+    return Promise.all(running);
+}
+
 beforeAll(async () => {
     await setupDatabase();
 });
@@ -230,36 +278,39 @@ describe('a booking taken while the lead time is changing', () => {
 
 describe('two saves of the lead time at once', () => {
     /**
-     * Both read the row before either writes. If the comparison that decides
-     * whether to reschedule used that pre-transaction read, the save writing
-     * the lead it had already seen would conclude nothing had changed and skip
-     * the reschedule — leaving its own number on the row and the other save's
-     * on every reminder. Whichever wins, the two have to agree.
+     * Both read the row before either writes, and the one changing the lead
+     * goes first. If the comparison that decides whether to reschedule used
+     * that pre-transaction read, the second save — writing the lead it had
+     * already seen — would conclude nothing had changed and skip the
+     * reschedule, leaving its own number on the row and the first save's on
+     * every reminder. The two have to agree.
      */
     test('leave the setting and the reminders agreeing', async () => {
         const { appointment } = await bookedAppointment();
         const { reminderLeadHours: before } = await settingsService.get();
 
-        await Promise.all([
-            settingsService.update({ reminderLeadHours: 9 }),
-            settingsService.update({ reminderLeadHours: before }),
+        await queuedOnTheSettingsRow([
+            () => settingsService.update({ reminderLeadHours: 9 }),
+            () => settingsService.update({ reminderLeadHours: before }),
         ]);
 
         const { reminderLeadHours: after } = await settingsService.get();
+        expect(after).toBe(before);
         expect(await dueAtOf(appointment.id)).toBe(appointment.startsAt.getTime() - after * HOUR);
     });
 
-    test('agree when the counter is saved beside one of them', async () => {
+    test('agree when the counter is saved beside the one that goes first', async () => {
         const { appointment, patient } = await bookedAppointment();
         await sql`UPDATE patients SET ref = '30' WHERE id = ${patient.id}`;
         const { reminderLeadHours: before } = await settingsService.get();
 
-        await Promise.all([
-            settingsService.update({ reminderLeadHours: 11, patientRefLast: 60 }),
-            settingsService.update({ reminderLeadHours: before }),
+        await queuedOnTheSettingsRow([
+            () => settingsService.update({ reminderLeadHours: 11, patientRefLast: 60 }),
+            () => settingsService.update({ reminderLeadHours: before }),
         ]);
 
         const { reminderLeadHours: after } = await settingsService.get();
+        expect(after).toBe(before);
         expect(await dueAtOf(appointment.id)).toBe(appointment.startsAt.getTime() - after * HOUR);
     });
 });
