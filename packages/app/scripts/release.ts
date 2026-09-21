@@ -34,20 +34,33 @@ import {
 import { type ExportedFile, manifestFor, signManifest } from './updateManifest';
 
 const APP_DIR = resolve(import.meta.dir, '..');
-const OUT_DIR = resolve(process.env.LUSTRE_RELEASES_DIR ?? join(APP_DIR, '../../dist/releases'));
-const APK_OUTPUTS = join(APP_DIR, 'android/app/build/outputs/apk/release');
+const TRACK = process.env.LUSTRE_RELEASE_TRACK ?? 'production';
+if (TRACK !== 'production' && TRACK !== 'development') {
+    throw new Error('LUSTRE_RELEASE_TRACK must be production or development');
+}
+const DEV = TRACK === 'development';
+const OUT_DIR = resolve(
+    process.env.LUSTRE_RELEASES_DIR ?? join(APP_DIR, DEV ? '../../dist/releases-dev' : '../../dist/releases'),
+);
+const BUILD_TYPE = DEV ? 'devRelease' : 'release';
+const APK_OUTPUTS = join(APP_DIR, `android/app/build/outputs/apk/${BUILD_TYPE}`);
 // The release keystore's certificate (infra/README.md, Release signing). A phone
 // installs an APK over the clinic app only when it carries this certificate, and
 // a new keystore means an uninstall on every phone, so changing this is deliberate.
 const RELEASE_CERT_SHA256 = 'a1fedfaa3ebc517c829c680a41419669079bf6d5b6a340334efc8dfe57245ecc';
+const DEV_CERT_SHA256 = 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c';
 
 interface ExportMetadata {
     fileMetadata?: { android?: { bundle: string; assets: { path: string; ext: string }[] } };
 }
 
 interface ApkOutputMetadata {
+    applicationId?: string;
     elements?: { versionCode?: number; versionName?: string; outputFile?: string }[];
 }
+
+/** What the clinic's APK installs as. A dev build takes a suffix (`plugins/withDevIdentity.js`). */
+const APPLICATION_ID = DEV ? 'com.lustre.clinic.dev' : 'com.lustre.clinic';
 
 function say(line: string): void {
     process.stdout.write(`${line}\n`);
@@ -101,8 +114,12 @@ async function assertCleanTree(): Promise<void> {
 
 /** Every `vX.Y.Z` tag in the repository. */
 async function taggedVersions(): Promise<string[]> {
-    const tags = await $`git tag --list ${'v*'}`.cwd(APP_DIR).quiet().text();
-    return tags.split('\n').filter((tag) => parseVersion(tag) !== null);
+    const prefix = DEV ? 'dev-v' : 'v';
+    const tags = await $`git tag --list ${`${prefix}*`}`.cwd(APP_DIR).quiet().text();
+    return tags
+        .split('\n')
+        .filter((tag) => tag.startsWith(prefix) && parseVersion(tag.slice(prefix.length)) !== null)
+        .map((tag) => tag.slice(prefix.length));
 }
 
 async function headCommit(): Promise<string> {
@@ -110,7 +127,7 @@ async function headCommit(): Promise<string> {
 }
 
 async function tagRelease(version: Version, message: string): Promise<void> {
-    const tag = tagFor(version);
+    const tag = `${DEV ? 'dev-' : ''}${tagFor(version)}`;
     await $`git tag --annotate ${tag} --message ${message}`.cwd(APP_DIR);
     say(`Tagged ${tag}. Push it with: git push origin ${tag}`);
 }
@@ -153,7 +170,7 @@ async function resolvedRuntimeVersion(): Promise<string> {
     return parsed.runtimeVersion;
 }
 
-async function assertReleaseKey(apk: string): Promise<void> {
+async function assertApkKey(apk: string): Promise<void> {
     const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? '/opt/android-sdk';
     const versions = await readdir(join(sdk, 'build-tools')).catch(() => []);
     const latest = versions.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1);
@@ -162,8 +179,12 @@ async function assertReleaseKey(apk: string): Promise<void> {
     const certs = await $`${join(sdk, 'build-tools', latest, 'apksigner')} verify --print-certs ${apk}`
         .quiet()
         .text();
-    if (certs.includes('CN=Android Debug')) fail(`${apk} is signed with the debug key`);
     const digest = certs.match(/certificate SHA-256 digest: ([0-9a-f]{64})/)?.[1];
+    if (DEV) {
+        if (digest !== DEV_CERT_SHA256) fail(`${apk} is not signed with the existing dev app's key`);
+        return;
+    }
+    if (certs.includes('CN=Android Debug')) fail(`${apk} is signed with the debug key`);
     if (digest !== RELEASE_CERT_SHA256) {
         fail(
             `${apk} is signed with certificate ${digest ?? '(none found)'}, not the Lustre release key ${RELEASE_CERT_SHA256}. Phones on the current APK could not install it.`,
@@ -190,7 +211,8 @@ async function buildApk(major: boolean): Promise<void> {
     // `kotlin.compiler.execution.strategy=in-process` that happens inside the
     // Gradle daemon: a 512 MiB metaspace runs out part-way and fails as a bare
     // InvocationTargetException. The flag outranks `~/.gradle/gradle.properties`.
-    await $`./gradlew assembleRelease -Dorg.gradle.jvmargs=${'-Xmx2048m -XX:MaxMetaspaceSize=1024m'}`
+    const task = DEV ? 'assembleDevRelease' : 'assembleRelease';
+    await $`./gradlew ${task} -Dorg.gradle.jvmargs=${'-Xmx2048m -XX:MaxMetaspaceSize=1024m'}`
         .cwd(join(APP_DIR, 'android'))
         .env({
             ...env,
@@ -207,13 +229,18 @@ async function buildApk(major: boolean): Promise<void> {
     if (!element?.versionCode || !element.versionName || !element.outputFile) {
         fail('the build wrote no release APK metadata');
     }
+    // A release built under the dev build type's id would install beside the
+    // clinic's app rather than update it, and take no OTA update meant for it.
+    if (outputs.applicationId !== APPLICATION_ID) {
+        fail(`the build installs as ${outputs.applicationId}, not ${APPLICATION_ID}`);
+    }
     if (element.versionName !== version) {
         fail(
             `the build is named ${element.versionName}, not ${version}. Delete packages/app/android and run again.`,
         );
     }
     const apk = join(APK_OUTPUTS, element.outputFile);
-    await assertReleaseKey(apk);
+    await assertApkKey(apk);
 
     // The Settings banner offers only a strictly higher build, so a build that is
     // not higher than the one already staged would reach no phone.

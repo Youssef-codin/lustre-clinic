@@ -38,6 +38,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, space, Text } from '../../theme';
@@ -198,6 +199,7 @@ type BranchEditorProps = {
 };
 
 function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
+    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
     const onBranchWritten = () => queryClient.invalidateQueries(trpc.branch.pathFilter());
@@ -334,7 +336,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                         />
 
                         <Text variant="caption" tone="muted" style={styles.noDelete}>
-                            Branches can't be deleted — history stays attached.
+                            {t("Branches can't be deleted — history stays attached.")}
                         </Text>
                     </Card>
                 </View>

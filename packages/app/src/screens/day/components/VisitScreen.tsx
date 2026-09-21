@@ -24,6 +24,7 @@ import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Callout, Chevron, duration, Toast, useKeyboardHeight } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
@@ -163,6 +164,7 @@ export function VisitScreen({
     onConfirm,
     onSentToDesk,
 }: VisitScreenProps) {
+    const t = useT();
     const keyboard = useKeyboardHeight();
     const [lines, setLines] = useState<DraftLine[]>(() => seed(appointment, visit));
     const [asking, setAsking] = useState<Asking>(null);
@@ -397,7 +399,7 @@ export function VisitScreen({
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
                 <Text variant="eyebrow" tone="muted">
-                    VISIT
+                    {t('VISIT')}
                 </Text>
             </View>
 
@@ -551,13 +553,13 @@ export function VisitScreen({
                                                                 tone="muted"
                                                                 style={styles.variant}
                                                             >
-                                                                Not charged — other work was done
+                                                                {t('Not charged — other work was done')}
                                                             </Text>
                                                         ) : null}
                                                     </View>
 
                                                     <Text variant="eyebrow" tone="muted">
-                                                        EGP
+                                                        {t('EGP')}
                                                     </Text>
                                                     <TextInput
                                                         value={String(
@@ -597,7 +599,7 @@ export function VisitScreen({
                                                         <PlusIcon size={12} stroke={color.ink2} />
                                                     </View>
                                                     <Text variant="footnote" weight="semibold" tone="ink2">
-                                                        Add to {group.tooth}
+                                                        {t('Add to {tooth}', { tooth: group.tooth })}
                                                     </Text>
                                                 </Pressable>
                                             ) : null}
@@ -620,7 +622,7 @@ export function VisitScreen({
                             <PlusIcon size={13} stroke={color.inverse} />
                         </View>
                         <Text variant="subhead" weight="semibold" tone="ink2">
-                            Add procedure
+                            {t('Add procedure')}
                         </Text>
                     </Pressable>
                 )}

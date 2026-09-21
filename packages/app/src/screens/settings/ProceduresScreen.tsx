@@ -68,6 +68,7 @@ import {
     Toast,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
@@ -88,6 +89,7 @@ type EditorRoute =
     | { kind: 'category'; name: string };
 
 export function ProceduresScreen({ onBack }: { onBack: () => void }) {
+    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
@@ -310,7 +312,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         >
                             <CategoryIcon />
                             <Text variant="callout" weight="medium" tone="muted">
-                                Category
+                                {t('Category')}
                             </Text>
                         </Pressable>
                     </View>
@@ -503,6 +505,7 @@ function ProcedureEditor({
     onClose,
     onSaved,
 }: ProcedureEditorProps) {
+    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
     const onProcedureWritten = () => queryClient.invalidateQueries(trpc.procedure.pathFilter());
@@ -724,7 +727,7 @@ function ProcedureEditor({
                         block
                     />
                     <Text variant="caption" tone="muted" style={styles.dangerHint}>
-                        Procedures are never deleted — past visits still reference them.
+                        {t('Procedures are never deleted — past visits still reference them.')}
                     </Text>
                 </Card>
             ) : null}

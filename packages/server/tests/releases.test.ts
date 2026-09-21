@@ -20,6 +20,7 @@ const SIGNATURE = 'sig="c2lnbmVk", keyid="main"';
 let server: TestServer;
 let dir: string;
 let previousDir: string;
+let previousChannel: 'production' | 'development';
 
 async function put(path: string, contents: string): Promise<void> {
     await mkdir(dirname(join(dir, path)), { recursive: true });
@@ -70,17 +71,20 @@ function askForUpdate(headers: Record<string, string> = {}): Promise<Response> {
 
 beforeAll(() => {
     previousDir = config.RELEASES_DIR;
+    previousChannel = config.UPDATES_CHANNEL;
     server = startTestServer();
 });
 
 afterAll(() => {
     server.stop();
     config.RELEASES_DIR = previousDir;
+    config.UPDATES_CHANNEL = previousChannel;
 });
 
 beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'lustre-releases-'));
     config.RELEASES_DIR = dir;
+    config.UPDATES_CHANNEL = 'production';
 });
 
 afterEach(async () => {
@@ -157,6 +161,13 @@ describe(UPDATES_MANIFEST_PATH, () => {
         expect((await askForUpdate({ 'expo-runtime-version': 'an-older-apk' })).status).toBe(204);
         expect((await askForUpdate({ 'expo-channel-name': 'demo' })).status).toBe(204);
         expect((await askForUpdate({ 'expo-current-update-id': UPDATE_ID })).status).toBe(204);
+    });
+
+    test('the dev stack serves only the development channel', async () => {
+        await publishUpdate();
+        config.UPDATES_CHANNEL = 'development';
+        expect((await askForUpdate()).status).toBe(204);
+        expect((await askForUpdate({ 'expo-channel-name': 'development' })).status).toBe(200);
     });
 
     test('refuses a request that is not expo-updates protocol 1 from Android', async () => {

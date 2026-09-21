@@ -310,6 +310,8 @@ function writeClosedVisit(
         status: 'done',
         channel: 'desk',
         isOpeningBalance: false,
+        isImported: false,
+        dateUnknown: false,
         createdAt: new Date(startsAt.getTime() - 3 * DAY),
         updatedAt: new Date(startsAt.getTime() + durationMinutes * MINUTE),
     };
@@ -388,6 +390,8 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
         status: 'done',
         channel: 'desk',
         isOpeningBalance: true,
+        isImported: false,
+        dateUnknown: false,
         createdAt: cutoff,
         updatedAt: cutoff,
     };
@@ -430,8 +434,13 @@ function emptyDb(): DemoDb {
             reminderDismissedOn: null,
             reminderTemplate: DEFAULT_REMINDER_TEMPLATE,
             // The server's patient counter. The demo still draws random refs,
-            // so this only fills the field.
-            patientRefLast: 0,
+            // so this only fills the field — but it is also the floor an old
+            // patient's number is checked against, and at 1 every number off a
+            // paper file would be refused as one the sequence still owes. A
+            // clinic that has moved over has set it above its old numbers.
+            patientRefNext: 1001,
+            migrationBranchId: null,
+            migrationCutoffDate: null,
             updatedAt: new Date(),
         },
     };

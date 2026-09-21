@@ -30,6 +30,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MoneyValue, StatusPill } from '../../../components/domain';
 import { Button, Callout, Sheet, Tag } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import {
     type Appointment,
@@ -98,6 +99,7 @@ export function AppointmentDetailSheet({
     onClosed,
     inChair = false,
 }: AppointmentDetailSheetProps) {
+    const t = useT();
     const [confirming, setConfirming] = useState<Confirming>(null);
 
     const awaitPayment = useLocalMutation(api.awaitPayment);
@@ -145,7 +147,7 @@ export function AppointmentDetailSheet({
             subtitle={`${formatSpan(
                 startMinutes,
                 startMinutes + appointment.durationMinutes,
-            )} · ${appointment.durationMinutes} min`}
+            )} · ${t('{minutes} min', { minutes: appointment.durationMinutes })}`}
             // Off while a write is in flight, for the reason `dismissable`
             // is: leaving takes the failure with it, and this sheet is where
             // a failure is reported. The chevron and the button role go with
@@ -158,7 +160,7 @@ export function AppointmentDetailSheet({
                           onOpenRecord(appointment);
                       }
             }
-            titleAccessibilityLabel={`Open ${appointment.patient.name}'s record`}
+            titleAccessibilityLabel={t("Open {name}'s record", { name: appointment.patient.name })}
             testID="appointment-detail"
             footer={
                 confirming ? null : (
@@ -413,6 +415,7 @@ function VisitPanel({
     failed: boolean;
     onRetry: () => void;
 }) {
+    const t = useT();
     if (loading) {
         return (
             <View style={styles.panel}>
@@ -427,7 +430,7 @@ function VisitPanel({
         return (
             <View style={styles.panel}>
                 <Text variant="subhead" tone="due">
-                    The visit could not be loaded.
+                    {t('The visit could not be loaded.')}
                 </Text>
                 <Button label="Try again" variant="text" size="md" onPress={onRetry} />
             </View>
@@ -449,20 +452,20 @@ function VisitPanel({
         <View style={styles.panel}>
             <View style={styles.money}>
                 <Text variant="subhead" tone="muted">
-                    Charged
+                    {t('Charged')}
                 </Text>
                 <MoneyValue piastres={visit.chargedTotal} />
             </View>
             <View style={styles.money}>
                 <Text variant="subhead" tone="muted">
-                    Paid
+                    {t('Paid')}
                 </Text>
                 <MoneyValue piastres={visit.paidTotal} tone="success" />
             </View>
             {visit.balance > 0 ? (
                 <View style={styles.money}>
                     <Text variant="subhead" tone="muted">
-                        Outstanding
+                        {t('Outstanding')}
                     </Text>
                     <MoneyValue piastres={visit.balance} tone="due" />
                 </View>
@@ -497,10 +500,11 @@ function Fact({ label, value, mono = false }: { label: string; value: string; mo
 
 /** The note is prose and gets the full width; a value column would ladder it. */
 function Note({ text }: { text: string }) {
+    const t = useT();
     return (
         <View style={styles.note}>
             <Text variant="subhead" tone="muted">
-                Note
+                {t('Note')}
             </Text>
             <Text variant="body" tone="ink2">
                 {text}

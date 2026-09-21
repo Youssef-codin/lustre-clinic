@@ -17,6 +17,7 @@
 import { type ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Card, CardDivider, Placeholder } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, font, radius, space, Text, type } from '../../../theme';
 import type { BasicsField, PatientForm } from '../patientForm';
 import { ageDigits, FEMALE, MALE } from '../patientForm';
@@ -36,9 +37,16 @@ export type BasicsCardProps = {
      * underneath it.
      */
     errors: Partial<Record<BasicsField, string>>;
+    /**
+     * Rows that belong to the card but not to every screen — registration's
+     * *Already a patient here* switch. Rendered after the ruled four, inside
+     * the same white card, so it reads as one more fact off the card and not
+     * as a section of its own.
+     */
+    trailing?: ReactNode;
 };
 
-export function BasicsCard({ form, onChange, blank, errors }: BasicsCardProps) {
+export function BasicsCard({ form, onChange, blank, errors, trailing }: BasicsCardProps) {
     const owed = new Set(blank);
 
     // A message waits until the field has been left once. `s@` is not a valid
@@ -142,6 +150,13 @@ export function BasicsCard({ form, onChange, blank, errors }: BasicsCardProps) {
                         <SexToggle value={form.gender} onChange={(gender) => onChange({ gender })} />
                     </View>
                 </Row>
+
+                {trailing ? (
+                    <>
+                        <CardDivider />
+                        {trailing}
+                    </>
+                ) : null}
             </Card>
         </View>
     );
@@ -160,11 +175,12 @@ function Row({
     align?: 'center' | 'flex-start';
     children: ReactNode;
 }) {
+    const t = useT();
     return (
         <View style={styles.row}>
             <View style={[styles.line, align === 'center' && styles.lineCentred]}>
                 <Text variant="footnote" tone={owed ? 'due' : 'muted'} style={styles.label}>
-                    {label}
+                    {t(label)}
                 </Text>
                 <View style={styles.field}>{children}</View>
             </View>
@@ -173,7 +189,7 @@ function Row({
                 and a sentence in it would reflow the card. */}
             {error ? (
                 <Text variant="caption" tone="danger" style={styles.error}>
-                    {error}
+                    {t(error)}
                 </Text>
             ) : null}
         </View>
@@ -206,11 +222,12 @@ function SexToggle({ value, onChange }: { value: string; onChange: (value: strin
 }
 
 function Half({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+    const t = useT();
     return (
         <Pressable
             accessibilityRole="radio"
             accessibilityState={{ selected }}
-            accessibilityLabel={label === 'F' ? 'Female' : 'Male'}
+            accessibilityLabel={t(label === 'F' ? 'Female' : 'Male')}
             onPress={onPress}
             style={({ pressed }) => [styles.half, selected && styles.halfOn, pressed && styles.pressed]}
             testID={`patient-sex-${label}`}

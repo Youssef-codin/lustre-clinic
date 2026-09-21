@@ -409,8 +409,11 @@ export const appointmentService = {
                     // Nobody came to these. They exist so a migrated balance
                     // has a visit to hang on, and a schedule showing four
                     // hundred of them on the cutoff date is a schedule the
-                    // secretary stops reading.
+                    // secretary stops reading. Imported work is the same: it
+                    // happened at the old clinic, and a row dated the day an
+                    // undated file was typed in is not a day's schedule.
                     eq(appointments.isOpeningBalance, false),
+                    eq(appointments.isImported, false),
                     ...(input.branchId ? [eq(appointments.branchId, input.branchId)] : []),
                 ),
             )

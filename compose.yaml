@@ -92,6 +92,7 @@ services:
             BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
             # The APK and OTA updates, copied in by the ansible `releases` tag (§15).
             RELEASES_DIR: /app/releases
+            UPDATES_CHANNEL: ${LUSTRE_ENVIRONMENT:-development}
         volumes:
             - ./backups:/app/backups
             - ./releases:/app/releases:ro

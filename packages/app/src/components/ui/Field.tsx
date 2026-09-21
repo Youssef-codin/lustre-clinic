@@ -13,13 +13,17 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { space, Text } from '../../theme';
 
 export type FieldLayout = 'stacked' | 'inline';
 
 export type FieldProps = {
+    /** English copy; the field localizes it, the way `Button` does its label. */
     label?: string;
     required?: boolean;
+    /** English copy, localized here. `error` is not: it arrives already
+     * localized from an `ERROR_CODE`, which is the only direction §4 allows. */
     hint?: string;
     error?: string;
     /**
@@ -41,10 +45,12 @@ export function Field({
     layout = 'stacked',
     children,
 }: FieldProps) {
+    const t = useT();
+
     const labelBlock = label ? (
         <View style={styles.labelRow}>
             <Text variant="subhead" weight="medium" tone={error ? 'danger' : due ? 'due' : 'ink2'}>
-                {label}
+                {t(label)}
             </Text>
             {required ? (
                 <Text variant="subhead" tone="danger">
@@ -57,7 +63,9 @@ export function Field({
     const footer =
         error || hint ? (
             <Text variant="footnote" tone={error ? 'danger' : 'muted'}>
-                {error ?? hint}
+                {/* The error is a rule's sentence from a plain module, so it
+                    is localized here rather than where it was decided. */}
+                {t(error ?? hint ?? '')}
             </Text>
         ) : null;
 

@@ -305,7 +305,7 @@ describe('two saves of the lead time at once', () => {
         const { reminderLeadHours: before } = await settingsService.get();
 
         await queuedOnTheSettingsRow([
-            () => settingsService.update({ reminderLeadHours: 11, patientRefLast: 60 }),
+            () => settingsService.update({ reminderLeadHours: 11, patientRefNext: 60 }),
             () => settingsService.update({ reminderLeadHours: before }),
         ]);
 
@@ -336,7 +336,7 @@ describe('a refused settings update', () => {
         const dueAt = await dueAtOf(appointment.id);
 
         await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
-            settingsService.update({ reminderLeadHours: 2, patientRefLast: 10 }),
+            settingsService.update({ reminderLeadHours: 2, patientRefNext: 10 }),
         );
 
         expect((await settingsService.get()).reminderLeadHours).toBe(before.reminderLeadHours);
@@ -347,11 +347,11 @@ describe('a refused settings update', () => {
         const { appointment, patient } = await bookedAppointment();
         await sql`UPDATE patients SET ref = '40' WHERE id = ${patient.id}`;
 
-        await settingsService.update({ reminderLeadHours: 7, patientRefLast: 80 });
+        await settingsService.update({ reminderLeadHours: 7, patientRefNext: 80 });
 
         const after = await settingsService.get();
         expect(after.reminderLeadHours).toBe(7);
-        expect(after.patientRefLast).toBe(80);
+        expect(after.patientRefNext).toBe(80);
         expect(await dueAtOf(appointment.id)).toBe(appointment.startsAt.getTime() - 7 * HOUR);
     });
 });

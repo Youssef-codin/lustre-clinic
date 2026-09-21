@@ -8,7 +8,7 @@ import { hydratingSubscribe } from './hydratingSubscribe';
 // the phone: every cold launch put a secretary's handset back into the doctor's
 // day view, with the clinic's rows under it.
 //
-// Same shape as `localeStore`: a module store read through
+// Same shape as `i18n`'s locale store: a module store read through
 // `useSyncExternalStore`, hydrated by the first subscriber rather than at
 // import, so nothing touches the native module until something renders.
 const ROLE_KEY = 'lustre.role';
@@ -61,7 +61,7 @@ export function createRoleStore() {
     return {
         subscribe,
         getSnapshot: (): RoleState => state,
-        // Applied before the write settles, for the reason `localeStore` gives:
+        // Applied before the write settles, for the reason `LocaleProvider` gives:
         // the switch has to feel immediate, and a failed write costs one
         // re-pick on the next launch rather than a wrong screen now.
         set(next: ClientRole): void {

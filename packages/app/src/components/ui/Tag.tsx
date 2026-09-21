@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextTone } from '../../theme';
 import { color, radius, space, Text } from '../../theme';
 
@@ -39,6 +40,7 @@ const TEXT: Record<TagTone, TextTone> = {
 };
 
 export function Tag({ children, tone = 'muted', variant = 'outline' }: TagProps) {
+    const t = useT();
     return (
         <View
             style={[
@@ -49,7 +51,7 @@ export function Tag({ children, tone = 'muted', variant = 'outline' }: TagProps)
             ]}
         >
             <Text variant="tag" tone={TEXT[tone]}>
-                {children}
+                {t(children)}
             </Text>
         </View>
     );

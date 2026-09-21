@@ -13,12 +13,13 @@
  * and `settings` is a single enforced row (id = 1).
  *
  * `patients.legacy_ref` is the number the *old* system knew this patient by. It
- * is free text and not a `ref`: the old system's format is its own, the app
- * never generates one, and nothing joins on it. It exists because the paper
- * files already have that number written on them, and after the migration it is
- * the only way to match a paper file to a record here. Nullable and
- * unbackfilled — a patient registered since the cutoff has no old number, and a
- * blank says so.
+ * is free text and not generated here: the old system's format is its own, and
+ * the paper files already have that number written on them. For a patient
+ * registered as an old patient it is also their `ref` — the desk was given one
+ * number for them and must not be shown a second — so the two columns hold the
+ * same string and `ref`'s UNIQUE constraint is what refuses the number twice.
+ * Nullable and unbackfilled: a patient registered since the cutoff has no old
+ * number, and a blank says so.
  *
  * `appointments.is_opening_balance` marks a row that stands for debt carried
  * over from the old system rather than for anything that happened here. A
@@ -28,6 +29,14 @@
  * owed, so `balance.outstanding` counts them, but nothing was billed and nobody
  * sat in the chair, so `balance.summary`, `stats.summary` and the day view
  * leave them out.
+ *
+ * `appointments.is_imported` is the same trick for work the old system recorded:
+ * a row with planned procedures, no visit and therefore no money at all. It
+ * belongs in the record's history and nowhere else, so every reader that counts
+ * something — the day view, revenue, statistics, reminders, the queue — excludes
+ * it the way it already excludes an opening balance. `date_unknown` says the row
+ * carries a date only because the column demands one; the record labels it
+ * *before migration* rather than reading it out.
  *
  * `appointment_procedures` is the work a booking plans (§7). It mirrors
  * `visit_procedures` minus `unit_price`: a booking made three weeks out must
@@ -146,6 +155,8 @@ export const appointments = pgTable(
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
         channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
         isOpeningBalance: boolean('is_opening_balance').notNull().default(false),
+        isImported: boolean('is_imported').notNull().default(false),
+        dateUnknown: boolean('date_unknown').notNull().default(false),
         createdAt: timestamptz('created_at').notNull().defaultNow(),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
@@ -153,6 +164,9 @@ export const appointments = pgTable(
         index('appointments_starts_at_idx').on(t.startsAt),
         index('appointments_patient_id_idx').on(t.patientId),
         check('appointments_duration_positive', sql`${t.durationMinutes} > 0`),
+        // `starts_at` is NOT NULL, so a row whose real date nobody knows still
+        // carries one. The flag is what stops it being read as that date.
+        check('appointments_date_unknown_imported', sql`NOT ${t.dateUnknown} OR ${t.isImported}`),
     ],
 );
 
@@ -291,9 +305,16 @@ export const settings = pgTable(
             .default(DEFAULT_REMINDER_REPEAT_MINUTES),
         reminderDismissedOn: date('reminder_dismissed_on'),
         reminderTemplate: text('reminder_template').notNull(),
-        // The last patient ref handed out. Incremented in the same transaction
-        // as the patient insert, so two registrations at once cannot share one.
-        patientRefLast: integer('patient_ref_last').notNull().default(0),
+        // The ref the next *new* patient will be given. Read and incremented in
+        // the same transaction as the patient insert, so two registrations at
+        // once cannot share one. An old patient keeps their own number and
+        // never touches this.
+        patientRefNext: integer('patient_ref_next').notNull().default(1),
+        // Where an old patient's carried-over money and history are dated, and
+        // which branch carries them. Null until the clinic says (§12), and a
+        // registration that needs them is refused rather than inventing either.
+        migrationBranchId: uuid('migration_branch_id').references(() => branches.id),
+        migrationCutoffDate: date('migration_cutoff_date'),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],
@@ -305,6 +326,7 @@ export const schema = {
     patients,
     procedureTypes,
     appointments,
+    appointmentProcedures,
     visits,
     payments,
     visitProcedures,

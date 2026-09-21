@@ -1,11 +1,13 @@
 // What a failed call says to the user. The client switches on `ERROR_CODE` and
 // never parses or renders the server's message — those stay English, for logs.
-// There is no localisation scaffold yet, so the strings are English here; when
-// the dictionaries land, these values become keys into them and no call site
-// changes. Offline is its own line: the clinic server is a PC that is off
+// The English sentence is the key into the shared catalogue, so this table did
+// not change when the Arabic landed and no call site did either. Offline is its
+// own line: the clinic server is a PC that is off
 // during a power cut, and "check the connection" is the useful instruction.
 // An unrecognised code falls back to the same line as a transport failure —
 // from the desk they are the same event.
+import { localizeCopy } from '@lustre/shared';
+import { getLocale } from '../../../i18n/runtime';
 import { PatientsRequestError } from './requestError';
 
 const TEXT: Record<string, string> = {
@@ -22,13 +24,28 @@ const TEXT: Record<string, string> = {
     NOTHING_OUTSTANDING: 'This patient owes nothing.',
     PAYMENT_NOTE_REQUIRED: 'Say what the payment was.',
     INVALID_AMOUNT: 'That amount is not valid.',
+    // The three an old-patient registration can come back with. Each names the
+    // field or the setting to go and fix, because each is something the desk
+    // can actually do something about.
+    PATIENT_REF_TAKEN: 'Another patient already has that number. Check the old ref and try again.',
+    PATIENT_REF_RESERVED:
+        'That number has not been given out yet. Check the old ref, or raise the next patient number in Settings → Clinic.',
+    MIGRATION_NOT_CONFIGURED:
+        'Set the cutoff date and branch in Settings → Clinic before entering what an old patient owes or had done.',
+    IMPORTED_DATE_AFTER_CUTOFF:
+        'One of the old procedures is dated after the cutoff. Work done since then belongs in a visit, not here.',
+    INVALID_PHONE: 'That phone number was not accepted. Check it and try again.',
+    TOOTH_REQUIRED: 'One of the old procedures is done to a tooth and has none. Remove it and add it again.',
+    TOOTH_NOT_APPLICABLE: 'One of the old procedures is not done to a tooth. Remove it and add it again.',
+    PROCEDURE_DUPLICATE: 'The same procedure is listed twice on one day. Remove one of them.',
     DB_UNAVAILABLE: 'The clinic server could not answer. Try again in a moment.',
 };
 
 const OFFLINE = 'Could not reach the clinic server. Check the connection and try again.';
 
 export function errorText(error: unknown): string {
-    if (!(error instanceof PatientsRequestError)) return OFFLINE;
-    if (error.offline) return OFFLINE;
-    return TEXT[error.code] ?? OFFLINE;
+    const locale = getLocale();
+    if (!(error instanceof PatientsRequestError)) return localizeCopy(locale, OFFLINE);
+    if (error.offline) return localizeCopy(locale, OFFLINE);
+    return localizeCopy(locale, TEXT[error.code] ?? OFFLINE);
 }

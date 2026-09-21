@@ -25,6 +25,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, SearchField } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { api, type Patient, useLocalQuery } from '../data';
 import type { PatientDraft } from '../patientDraft';
@@ -40,6 +41,7 @@ export type PatientPickerProps = {
 };
 
 export function PatientPicker({ value, onChange, active, onRegisterNew }: PatientPickerProps) {
+    const t = useT();
     const query = useDebounced(value.term.trim(), 250);
 
     const search = useLocalQuery<Patient[]>(
@@ -73,7 +75,7 @@ export function PatientPicker({ value, onChange, active, onRegisterNew }: Patien
 
             <View style={styles.register}>
                 <Text variant="subhead" tone="muted">
-                    Not been here before?
+                    {t('Not been here before?')}
                 </Text>
                 <Button
                     label="Register a new patient"
@@ -104,10 +106,11 @@ function PatientResults({
     onPick: (patient: Patient) => void;
     onRetry: () => void;
 }) {
+    const t = useT();
     if (term.trim().length < 2) {
         return (
             <Text variant="subhead" tone="muted">
-                Type two letters of a name, or part of a phone number.
+                {t('Type two letters of a name, or part of a phone number.')}
             </Text>
         );
     }
@@ -124,7 +127,7 @@ function PatientResults({
         return (
             <View style={styles.resultsError}>
                 <Text variant="subhead" tone="due">
-                    The patient list could not be searched.
+                    {t('The patient list could not be searched.')}
                 </Text>
                 <Button label="Try again" variant="text" size="md" onPress={onRetry} />
             </View>
@@ -134,7 +137,7 @@ function PatientResults({
     if (results.length === 0) {
         return (
             <Text variant="subhead" tone="muted">
-                Nobody matches. If they are new here, register them below.
+                {t('Nobody matches. If they are new here, register them below.')}
             </Text>
         );
     }

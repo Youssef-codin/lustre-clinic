@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MoneyValue } from '../../../components/domain';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { space, Text } from '../../../theme';
 import type { SettleInput } from '../data/types';
 import { clampToOutstanding, formatMoney, isWholePounds, methodLabel, toPounds } from './money';
@@ -48,6 +49,7 @@ export function RecordPaymentSheet({
     error,
     onSubmit,
 }: RecordPaymentSheetProps) {
+    const t = useT();
     const duePounds = toPounds(outstanding);
 
     const [amount, setAmount] = useState('');
@@ -125,7 +127,7 @@ export function RecordPaymentSheet({
         >
             <View style={styles.due}>
                 <Text variant="subhead" tone="muted">
-                    Outstanding
+                    {t('Outstanding')}
                 </Text>
                 <MoneyValue piastres={outstanding} variant="amount" tone="due" weight="bold" />
             </View>

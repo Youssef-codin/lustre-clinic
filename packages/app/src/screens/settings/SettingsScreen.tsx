@@ -16,7 +16,7 @@ import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
-import { type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
+import { allowsDemo, BUILD_VARIANT, type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import {
     Button,
@@ -28,11 +28,11 @@ import {
     Toast,
     useAfterSheet,
 } from '../../components/ui';
-import { isOpen, rendered, useRouteStack } from '../../navigation';
-import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
-import { setLocale, useLocale } from '../../shell/localeStore';
+import { setLocale, useLocale, useT } from '../../i18n';
+import { isOpen, rendered, useRouteStack } from '../../navigation';
+import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 import { setRole, useRole } from '../../shell/roleStore';
 import { color, size, space, Text } from '../../theme';
 import { AppointmentsScreen } from './AppointmentsScreen';
@@ -41,7 +41,7 @@ import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
 import {
-    DataEntryIcon,
+    EnterDemoIcon,
     LeaveDemoIcon,
     ReportProblemIcon,
     ResetDemoIcon,
@@ -55,7 +55,6 @@ import { versionLine } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 import { errorText } from './data/errors';
 import { minutesFromTime } from './data/reminders';
-import { DataEntryScreen } from './dataEntry';
 import { PatientFieldsScreen } from './PatientFieldsScreen';
 import { ProceduresScreen } from './ProceduresScreen';
 import { RemindersScreen } from './RemindersScreen';
@@ -70,8 +69,7 @@ type Route =
     | 'branches'
     | 'hours'
     | 'procedures'
-    | 'patientFields'
-    | 'dataEntry';
+    | 'patientFields';
 
 const ROLE_NAME: Record<ClientRole, string> = { doctor: 'Doctor', secretary: 'Secretary' };
 const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' };
@@ -116,6 +114,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     // shell holds neither, and this screen is where both are changed.
     const { role } = useRole();
     const locale = useLocale();
+    const t = useT();
 
     const summary = useSummary();
     const connection = useConnectionView();
@@ -129,18 +128,22 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     function report() {
         const result = reportProblem();
         setToast(
-            result.queued ? `Report queued · ref ${result.ref}` : 'Problem reports are off on this build',
+            result.queued
+                ? locale === 'ar'
+                    ? `تم وضع التقرير في قائمة الإرسال · المرجع ${result.ref}`
+                    : `Report queued · ref ${result.ref}`
+                : t('Problem reports are off on this build'),
         );
     }
 
     // Not behind the summary: a report is most wanted when the server is not
     // answering and the summary never loads.
     const problem = (
-        <Group title="HELP">
+        <Group title={t('HELP')}>
             <SettingsRow
                 icon={<ReportProblemIcon />}
-                label="Report a problem"
-                sub={reports ? 'Sends your last taps, never patient details' : 'Off on this build'}
+                label={t('Report a problem')}
+                sub={t(reports ? 'Sends your last taps, never patient details' : 'Off on this build')}
                 onPress={report}
                 testID="settings-report-problem"
             />
@@ -149,7 +152,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
 
     return (
         <View style={styles.screen}>
-            <ScreenHeader title="Settings" trailing={<BrandMark variant="lockup" size={13} tone="muted" />} />
+            <ScreenHeader
+                title={t('Settings')}
+                trailing={<BrandMark variant="lockup" size={13} tone="muted" />}
+            />
 
             <IdentityCard
                 roleName={ROLE_NAME[role]}
@@ -169,10 +175,12 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     <Card padded style={styles.update} testID="settings-apk-update">
                         <View style={styles.updateText}>
                             <Text variant="body" weight="semibold">
-                                New version ready
+                                {t('New version ready')}
                             </Text>
                             <Text variant="footnote" tone="muted">
-                                {`Lustre ${apkUpdate.version} (build ${apkUpdate.versionCode}). Download it, then tap Install.`}
+                                {locale === 'ar'
+                                    ? `لستر ${apkUpdate.version} (البنية ${apkUpdate.versionCode}). نزّله ثم اضغط تثبيت.`
+                                    : `Lustre ${apkUpdate.version} (build ${apkUpdate.versionCode}). Download it, then tap Install.`}
                             </Text>
                         </View>
                         <Button
@@ -196,11 +204,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
 
                 {summary.data ? (
                     <>
-                        <Group title="GENERAL">
+                        <Group title={t('GENERAL')}>
                             <SettingsRow
                                 icon={<SettingsIcon glyph="app" />}
                                 label="App"
-                                sub="Language, server connection, version"
+                                sub={t('Language, server connection, version')}
                                 onPress={() => routes.push('app')}
                                 testID="settings-app-row"
                             />
@@ -208,7 +216,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="appointments" />}
                                 label="Appointments"
-                                sub={`Durations · default ${summary.data.defaultDuration} min`}
+                                sub={
+                                    locale === 'ar'
+                                        ? `المدد · الافتراضي ${summary.data.defaultDuration} دقيقة`
+                                        : `Durations · default ${summary.data.defaultDuration} min`
+                                }
                                 onPress={() => routes.push('appointments')}
                                 testID="settings-appointments-row"
                             />
@@ -216,18 +228,22 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="reminders" />}
                                 label="Reminders"
-                                sub={`Due ${summary.data.leadHours}h before · notify ${formatClock12(summary.data.notifyAt)}`}
+                                sub={
+                                    locale === 'ar'
+                                        ? `قبل الموعد بـ ${summary.data.leadHours} س · التنبيه ${formatClock12(summary.data.notifyAt, locale)}`
+                                        : `Due ${summary.data.leadHours}h before · notify ${formatClock12(summary.data.notifyAt, locale)}`
+                                }
                                 onPress={() => routes.push('reminders')}
                                 testID="settings-reminders-row"
                             />
                         </Group>
 
                         {isDoctor ? (
-                            <Group title="CLINIC">
+                            <Group title={t('CLINIC')}>
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="clinic" />}
                                     label="Clinic"
-                                    sub="Name, phone"
+                                    sub={t('Name, phone')}
                                     onPress={() => routes.push('clinic')}
                                     testID="settings-clinic-row"
                                 />
@@ -235,7 +251,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="branches" />}
                                     label="Branches"
-                                    sub={`${summary.data.activeBranches} active · ${summary.data.inactiveBranches} inactive`}
+                                    sub={
+                                        locale === 'ar'
+                                            ? `${summary.data.activeBranches} نشط · ${summary.data.inactiveBranches} غير نشط`
+                                            : `${summary.data.activeBranches} active · ${summary.data.inactiveBranches} inactive`
+                                    }
                                     onPress={() => routes.push('branches')}
                                     testID="settings-branches"
                                 />
@@ -244,7 +264,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"
-                                    sub={`${summary.data.openDays} days open`}
+                                    sub={
+                                        locale === 'ar'
+                                            ? `${summary.data.openDays} أيام عمل`
+                                            : `${summary.data.openDays} days open`
+                                    }
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
@@ -252,7 +276,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="procedures" />}
                                     label="Procedures & prices"
-                                    sub={`${summary.data.procedures} procedures · ${summary.data.activeProcedures} active`}
+                                    sub={
+                                        locale === 'ar'
+                                            ? `${summary.data.procedures} إجراء · ${summary.data.activeProcedures} نشط`
+                                            : `${summary.data.procedures} procedures · ${summary.data.activeProcedures} active`
+                                    }
                                     onPress={() => routes.push('procedures')}
                                     testID="settings-procedures"
                                 />
@@ -260,30 +288,16 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="fields" />}
                                     label="Patient fields"
-                                    sub={`${summary.data.questions} questions · ${summary.data.requiredQuestions} required`}
+                                    sub={
+                                        locale === 'ar'
+                                            ? `${summary.data.questions} سؤال · ${summary.data.requiredQuestions} مطلوب`
+                                            : `${summary.data.questions} questions · ${summary.data.requiredQuestions} required`
+                                    }
                                     onPress={() => routes.push('patientFields')}
                                     testID="settings-patient-fields"
                                 />
                             </Group>
                         ) : null}
-
-                        {/* The secretary's, and only hers: she is the one
-                            retyping the old system's register, and the doctor
-                            tapping into a bulk entry form is a mis-tap with a
-                            patient at the end of it. Like every other row here
-                            the gate is the device-local role, which hides rows
-                            and never guards access (§1). */}
-                        {isDoctor ? null : (
-                            <Group title="MIGRATION">
-                                <SettingsRow
-                                    icon={<DataEntryIcon />}
-                                    label="Data entry"
-                                    sub="Bulk entry from the old system"
-                                    onPress={() => routes.push('dataEntry')}
-                                    testID="settings-data-entry-row"
-                                />
-                            </Group>
-                        )}
 
                         {/* Only in demo mode, and only here: a demo is given
                             more than once, and the second run should not open
@@ -292,11 +306,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             drops the clinic the query cache and the day view's
                             own hooks are still holding. */}
                         {demo.enabled ? (
-                            <Group title="DEMO">
+                            <Group title={t('DEMO')}>
                                 <SettingsRow
                                     icon={<ResetDemoIcon />}
                                     label="Reset demo data"
-                                    sub="Back to the clinic the demo opens on"
+                                    sub={t('Back to the clinic the demo opens on')}
                                     onPress={() => {
                                         void resetDemoData();
                                     }}
@@ -310,20 +324,38 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<LeaveDemoIcon />}
                                     label="Leave demo"
-                                    sub="Connect to the clinic server instead"
+                                    sub={t('Connect to the clinic server instead')}
                                     onPress={() => {
                                         void demo.disable();
                                     }}
                                     testID="settings-leave-demo"
                                 />
                             </Group>
+                        ) : allowsDemo(BUILD_VARIANT) ? (
+                            /* The setup screen's demo button, for a dev build
+                               that is already connected: setup never shows
+                               again once an address is saved, so this is the
+                               only way in. The saved address stays put and
+                               Leave demo above returns to it. A prod build
+                               allows no demo, so its Settings never has this. */
+                            <Group title={t('DEMO')}>
+                                <SettingsRow
+                                    icon={<EnterDemoIcon />}
+                                    label="Enter demo"
+                                    sub="A fake register, off the clinic server"
+                                    onPress={() => {
+                                        void demo.enable();
+                                    }}
+                                    testID="settings-enter-demo"
+                                />
+                            </Group>
                         ) : null}
 
-                        <Group title="ABOUT">
+                        <Group title={t('ABOUT')}>
                             <SettingsRow
                                 icon={<SettingsIcon glyph="about" />}
                                 label="About"
-                                sub={`Version ${INSTALLED.version ?? '0.0.0'}`}
+                                sub={`${t('Version')} ${INSTALLED.version ?? '0.0.0'}`}
                                 onPress={() => {}}
                                 testID="settings-about"
                             />
@@ -384,7 +416,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
                     {pane === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
                     {pane === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
-                    {pane === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
                 </PushView>
             ))}
         </View>

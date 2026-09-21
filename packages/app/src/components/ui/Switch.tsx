@@ -1,6 +1,7 @@
 // biome-ignore lint/style/noRestrictedImports: runs the knob's `Animated.timing` when `value` changes; the animation is imperative and lives outside React's render
 import { useEffect, useRef } from 'react';
-import { Animated, I18nManager, Pressable, StyleSheet } from 'react-native';
+import { Animated, Pressable, StyleSheet } from 'react-native';
+import { useIsRTL, useT } from '../../i18n';
 import { color, radius } from '../../theme';
 import { duration, easing } from './motion';
 import { useReducedMotion } from './useReducedMotion';
@@ -19,6 +20,8 @@ const KNOB = 22;
 const TRAVEL = TRACK_WIDTH - KNOB - 6;
 
 export function Switch({ value, onValueChange, disabled = false, accessibilityLabel, testID }: SwitchProps) {
+    const isRTL = useIsRTL();
+    const t = useT();
     const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
     const reducedMotion = useReducedMotion();
 
@@ -33,13 +36,13 @@ export function Switch({ value, onValueChange, disabled = false, accessibilityLa
 
     const translate = progress.interpolate({
         inputRange: [0, 1],
-        outputRange: [0, I18nManager.isRTL ? -TRAVEL : TRAVEL],
+        outputRange: [0, isRTL ? -TRAVEL : TRAVEL],
     });
 
     return (
         <Pressable
             accessibilityRole="switch"
-            accessibilityLabel={accessibilityLabel}
+            accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
             accessibilityState={{ checked: value, disabled }}
             disabled={disabled}
             onPress={() => onValueChange(!value)}

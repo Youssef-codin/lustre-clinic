@@ -22,8 +22,9 @@
 import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
 import { useState } from 'react';
 import type { ViewStyle } from 'react-native';
-import { I18nManager, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
+import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
@@ -85,6 +86,8 @@ export function VisitPaymentScreen({
     onClosed,
     onWritingChange,
 }: VisitPaymentScreenProps) {
+    const t = useT();
+    const isRTL = useIsRTL();
     const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
     // The desk's discount comes off the total the lines add up to, and never
@@ -296,7 +299,7 @@ export function VisitPaymentScreen({
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
                 <Text variant="eyebrow" tone="muted">
-                    PAYMENT
+                    {t('PAYMENT')}
                 </Text>
             </View>
 
@@ -333,7 +336,7 @@ export function VisitPaymentScreen({
                     </Text>
                     <View style={styles.figure}>
                         <Text variant="footnote" weight="bold" tone="muted">
-                            EGP
+                            {t('EGP')}
                         </Text>
                         <Text variant="display" script="mono">
                             {formatAmount(ceiling)}
@@ -369,7 +372,7 @@ export function VisitPaymentScreen({
                                             {line.tooth ?? '—'}
                                         </Text>
                                         <Text variant="tag" tone="muted" style={styles.toothCaption}>
-                                            TOOTH
+                                            {t('TOOTH')}
                                         </Text>
                                     </View>
 
@@ -391,11 +394,11 @@ export function VisitPaymentScreen({
                 </View>
 
                 <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
-                    DISCOUNT
+                    {t('DISCOUNT')}
                 </Text>
                 <View style={styles.discountField}>
                     <Text variant="footnote" weight="bold" tone="muted">
-                        EGP
+                        {t('EGP')}
                     </Text>
                     <TextInput
                         value={discount}
@@ -405,7 +408,7 @@ export function VisitPaymentScreen({
                         keyboardType="number-pad"
                         accessibilityLabel="Discount"
                         selectTextOnFocus
-                        style={styles.discountInput}
+                        style={[styles.discountInput, { textAlign: isRTL ? 'left' : 'right' }]}
                         testID="visit-payment-discount"
                     />
                 </View>
@@ -420,7 +423,7 @@ export function VisitPaymentScreen({
                 </Text>
                 <View style={styles.paidField}>
                     <Text variant="footnote" weight="bold" tone="muted">
-                        EGP
+                        {t('EGP')}
                     </Text>
                     <TextInput
                         value={paid}
@@ -428,14 +431,14 @@ export function VisitPaymentScreen({
                         keyboardType="decimal-pad"
                         accessibilityLabel="Amount paid"
                         selectTextOnFocus
-                        style={styles.paidInput}
+                        style={[styles.paidInput, { textAlign: isRTL ? 'left' : 'right' }]}
                         testID="visit-payment-amount"
                     />
                 </View>
 
                 {correcting ? (
                     <Text variant="footnote" tone="muted" style={styles.hint}>
-                        Everything paid on this visit, not a payment on top of it.
+                        {t('Everything paid on this visit, not a payment on top of it.')}
                     </Text>
                 ) : null}
 
@@ -609,8 +612,6 @@ function monthOf(iso: string): string {
     return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
 }
 
-const END_ALIGN = I18nManager.isRTL ? 'left' : 'right';
-
 const styles = StyleSheet.create({
     // Canvas, matching `VisitScreen` and the shell's status-bar inset — see the
     // note there. The cards on it keep their white.
@@ -717,7 +718,6 @@ const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         padding: 0,
-        textAlign: END_ALIGN,
         color: color.ink,
         ...type.figure,
         fontFamily: font.mono.medium,
@@ -739,7 +739,6 @@ const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
         padding: 0,
-        textAlign: END_ALIGN,
         color: color.ink,
         ...type.body,
         fontFamily: font.mono.medium,

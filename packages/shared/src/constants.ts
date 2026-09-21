@@ -34,8 +34,14 @@ export const REF_PATTERN = /^\d{6}-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/i;
  */
 export const PATIENT_REF_PATTERN = /^(?:[1-9]\d*|[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{4})$/i;
 
-/** `settings.patient_ref_last` is a Postgres `integer`. */
+/** `settings.patient_ref_next` is a Postgres `integer`. */
 export const MAX_PATIENT_REF = 2_147_483_647;
+
+/**
+ * The longest an old system's number may be. Free text, because the format is
+ * that system's and not this one's — see `patients.legacy_ref`.
+ */
+export const MAX_OLD_REF_LENGTH = 64;
 
 // --- money (§9) -------------------------------------------------------------
 

@@ -7,6 +7,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { StatusPill, TimeValue } from '../../../components/domain';
 import { Chevron } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { formatClock12, minutesOfDay } from '../time';
@@ -30,6 +31,7 @@ export function AppointmentRow({
     projectedMinutes = null,
     inChair = false,
 }: AppointmentRowProps) {
+    const t = useT();
     const past = appointment.status === 'done' || appointment.status === 'cancelled';
     const booked = minutesOfDay(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > booked;
@@ -55,7 +57,7 @@ export function AppointmentRow({
                 </Text>
                 <View style={styles.meta}>
                     <Text variant="subhead" tone="muted">
-                        {appointment.durationMinutes} min
+                        {t('{minutes} min', { minutes: appointment.durationMinutes })}
                     </Text>
                     <StatusPill status={appointment.status} inChair={inChair} />
                 </View>

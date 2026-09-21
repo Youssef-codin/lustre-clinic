@@ -9,7 +9,8 @@
  * that still carries `expo-protocol-version`: without the header the client
  * reads the empty body as a broken server, not as nothing new.
  */
-import { UPDATES_ASSETS_PATH, UPDATES_CHANNEL } from '@lustre/shared';
+import { UPDATES_ASSETS_PATH } from '@lustre/shared';
+import { config } from '../../config.ts';
 import { releaseService } from './release.service.ts';
 
 const PROTOCOL_HEADERS = {
@@ -44,7 +45,7 @@ export async function serveUpdateManifest(req: Request): Promise<Response> {
 
     // Only release builds are configured to ask, and they name this channel.
     // Anything else is told there is nothing, which is true for it.
-    if (req.headers.get('expo-channel-name') !== UPDATES_CHANNEL) return noUpdate();
+    if (req.headers.get('expo-channel-name') !== config.UPDATES_CHANNEL) return noUpdate();
 
     const update = await releaseService.latestUpdate(runtimeVersion);
     if (!update || update.id === req.headers.get('expo-current-update-id')) return noUpdate();

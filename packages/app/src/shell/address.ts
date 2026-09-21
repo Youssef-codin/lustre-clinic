@@ -33,11 +33,14 @@ export function nothingEntered(lanAllowed: boolean): string {
     return lanAllowed ? 'Enter at least one address.' : 'Enter the Tailscale address.';
 }
 
+/** Two English sentences rather than one assembled from three fragments, so
+ * each is a whole key the catalogue can translate as a sentence. */
 export function noAnswer(candidate: ServerCandidate): string {
     const both = candidate.lan && candidate.tailscale;
-    const which = both ? 'Neither address answered' : 'That address did not answer';
-    const route = candidate.lan
-        ? 'that you are on the clinic wifi or signed in to Tailscale'
-        : 'that you are signed in to Tailscale';
-    return `${which}. Check the clinic computer is on, ${route}, and that the address ends in the port (:3000).`;
+    if (both) {
+        return 'Neither address answered. Check the clinic computer is on, that you are on the clinic wifi or signed in to Tailscale, and that the address ends in the port (:3000).';
+    }
+    return candidate.lan
+        ? 'That address did not answer. Check the clinic computer is on, that you are on the clinic wifi or signed in to Tailscale, and that the address ends in the port (:3000).'
+        : 'That address did not answer. Check the clinic computer is on, that you are signed in to Tailscale, and that the address ends in the port (:3000).';
 }

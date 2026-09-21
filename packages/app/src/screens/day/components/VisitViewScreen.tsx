@@ -17,6 +17,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Chevron, SegmentedControl } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment, Visit, VisitPayment } from '../data';
 import { formatAmount, formatMoney } from '../money';
@@ -53,6 +54,7 @@ function monthOf(iso: string): string {
 }
 
 export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitViewScreenProps) {
+    const t = useT();
     const [panel, setPanel] = useState<Panel>('treatment');
 
     const groups = toothGroupsOf(visit.procedures);
@@ -75,7 +77,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
                 <Text variant="eyebrow" tone="muted" style={styles.grow}>
-                    VISIT
+                    {t('VISIT')}
                 </Text>
             </View>
 
@@ -139,7 +141,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                     <>
                         <View style={styles.sectionHead}>
                             <Text variant="eyebrow" tone="muted">
-                                WHAT WAS DONE
+                                {t('WHAT WAS DONE')}
                             </Text>
                             <Text variant="footnote" tone="muted">
                                 {visit.procedures.length === 1
@@ -151,7 +153,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                         {groups.length === 0 ? (
                             <View style={styles.blank}>
                                 <Text variant="subhead" tone="muted">
-                                    Nothing was recorded on this visit.
+                                    {t('Nothing was recorded on this visit.')}
                                 </Text>
                             </View>
                         ) : (
@@ -203,12 +205,12 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                                                                 tone="muted"
                                                                 style={styles.waivedNote}
                                                             >
-                                                                Not charged — other work was done
+                                                                {t('Not charged — other work was done')}
                                                             </Text>
                                                         ) : null}
                                                     </View>
                                                     <Text variant="eyebrow" tone="muted">
-                                                        EGP
+                                                        {t('EGP')}
                                                     </Text>
                                                     <Text variant="body" script="mono" weight="bold">
                                                         {formatAmount(line.lineTotal)}
@@ -223,7 +225,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
 
                         <View style={styles.total}>
                             <Text variant="subhead" tone="muted">
-                                Total cost
+                                {t('Total cost')}
                             </Text>
                             <Text variant="headline" script="mono" weight="bold">
                                 {formatMoney(visit.chargedTotal)}
@@ -234,7 +236,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                     <>
                         <View style={styles.sectionHead}>
                             <Text variant="eyebrow" tone="muted">
-                                PAYMENTS RECEIVED
+                                {t('PAYMENTS RECEIVED')}
                             </Text>
                             <Text variant="footnote" tone="muted">
                                 {`${formatMoney(visit.paidTotal)} of ${formatAmount(visit.chargedTotal)}`}
@@ -244,7 +246,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                         {visit.payments.length === 0 ? (
                             <View style={styles.blank}>
                                 <Text variant="subhead" tone="muted">
-                                    Nothing has been paid on this visit yet.
+                                    {t('Nothing has been paid on this visit yet.')}
                                 </Text>
                             </View>
                         ) : (
@@ -274,7 +276,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                                         </Text>
 
                                         <Text variant="eyebrow" tone="muted">
-                                            EGP
+                                            {t('EGP')}
                                         </Text>
                                         <Text variant="body" script="mono" weight="bold">
                                             {formatAmount(payment.amount)}
@@ -286,7 +288,7 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
 
                         <View style={styles.total}>
                             <Text variant="subhead" tone="muted">
-                                Remaining balance
+                                {t('Remaining balance')}
                             </Text>
                             <Text
                                 variant="headline"

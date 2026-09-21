@@ -19,6 +19,7 @@ import {
     duration as motionDuration,
     useReducedMotion,
 } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
@@ -64,6 +65,7 @@ export function AgendaRow({
     onNoShow,
     projectedMinutes = null,
 }: AgendaRowProps) {
+    const t = useT();
     const slide = useRef(new Animated.Value(0)).current;
     const [armed, setArmed] = useState(false);
 
@@ -98,10 +100,10 @@ export function AgendaRow({
         <View style={styles.swipe} {...pan.panHandlers}>
             <View style={styles.behind} pointerEvents="none">
                 <Text variant="footnote" weight="semibold" tone={armed ? 'due' : 'muted'}>
-                    No-show
+                    {t('No-show')}
                 </Text>
                 <Text variant="footnote" weight="semibold" tone={armed ? 'due' : 'muted'}>
-                    No-show
+                    {t('No-show')}
                 </Text>
             </View>
             <Animated.View style={[styles.front, { transform: [{ translateX: slide }] }]}>
@@ -133,6 +135,7 @@ function RowBody({
     trailing,
     projectedMinutes = null,
 }: AgendaRowProps) {
+    const t = useT();
     const { time, meridiem } = time12(appointment.startsAt);
     const slipped = projectedMinutes !== null && projectedMinutes > minutesOfDay(appointment.startsAt);
     // The day has moved, so the row shows where it moved to. The booked time is
@@ -184,8 +187,8 @@ function RowBody({
                     <ClockIcon size={13} />
                     <Text variant="subhead" tone="muted" numberOfLines={1} style={styles.name}>
                         {procedure
-                            ? `${procedure} · ${appointment.durationMinutes} min`
-                            : `${appointment.durationMinutes} min`}
+                            ? `${procedure} · ${t('{minutes} min', { minutes: appointment.durationMinutes })}`
+                            : t('{minutes} min', { minutes: appointment.durationMinutes })}
                     </Text>
                 </View>
             </View>

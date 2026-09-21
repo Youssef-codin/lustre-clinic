@@ -28,6 +28,7 @@ const ALLOWED = [
     /^react-native$/,
     /^react-native-safe-area-context$/,
     /^@gorhom\/bottom-sheet$/,
+    /^\.\.\/\.\.\/i18n$/,
     /^\.\.\/\.\.\/theme$/,
     /^\.\/[\w.-]+$/,
 ];

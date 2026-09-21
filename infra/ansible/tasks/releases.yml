@@ -13,7 +13,7 @@
   become: false
   delegate_to: localhost
   ansible.builtin.stat:
-    path: "{{ repo_root }}/dist/releases"
+    path: "{{ repo_root }}/dist/{{ 'releases' if stack.name == 'prod' else 'releases-dev' }}"
   register: staged_releases
 
 - name: "{{ stack.name }}: releases directory"
@@ -27,7 +27,7 @@
 - name: "{{ stack.name }}: copy releases"
   become: false
   ansible.builtin.copy:
-    src: "{{ repo_root }}/dist/releases/"
+    src: "{{ repo_root }}/dist/{{ 'releases' if stack.name == 'prod' else 'releases-dev' }}/"
     dest: /opt/lustre-{{ stack.name }}/releases/
     mode: "0644"
     directory_mode: "0755"

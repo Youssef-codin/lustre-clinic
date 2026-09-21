@@ -8,6 +8,7 @@
 // Two different things, and widening `Chip` to be both would leave every other
 // caller with a variant to choose.
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { PERIOD_LABEL, PERIODS, type Period } from '../money';
 
@@ -19,6 +20,7 @@ export type PeriodTabsProps = {
 };
 
 export function PeriodTabs({ value, onChange }: PeriodTabsProps) {
+    const t = useT();
     return (
         <ScrollView
             horizontal
@@ -43,7 +45,7 @@ export function PeriodTabs({ value, onChange }: PeriodTabsProps) {
                         testID={`money-period-${period}`}
                     >
                         <Text variant="subhead" weight="semibold" tone={selected ? 'inverse' : 'muted'}>
-                            {PERIOD_LABEL[period]}
+                            {t(PERIOD_LABEL[period])}
                         </Text>
                     </Pressable>
                 );

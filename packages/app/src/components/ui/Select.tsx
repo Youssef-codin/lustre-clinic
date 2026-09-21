@@ -7,6 +7,7 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { Chevron } from './Chevron';
 import { Field } from './Field';
@@ -15,6 +16,9 @@ import { Sheet } from './Sheet';
 export type SelectOption<T extends string> = { value: T; label: string };
 
 export type SelectProps<T extends string> = {
+    /** The caller's rows, not the control's chrome: a branch or a procedure
+     * name is data and is passed through as it comes. `label`, `placeholder`
+     * and `sheetTitle` are this control's own copy and are localized here. */
     options: readonly SelectOption<T>[];
     value: T | null;
     onChange: (value: T) => void;
@@ -41,15 +45,17 @@ export function Select<T extends string>({
     sheetTitle,
     testID,
 }: SelectProps<T>) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);
+    const shownPlaceholder = t(placeholder);
 
     return (
         <Field label={label} required={required} hint={hint} error={error}>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={label ?? placeholder}
-                accessibilityValue={{ text: selected?.label ?? placeholder }}
+                accessibilityLabel={label ? t(label) : shownPlaceholder}
+                accessibilityValue={{ text: selected?.label ?? shownPlaceholder }}
                 accessibilityState={{ disabled, expanded: open }}
                 disabled={disabled}
                 onPress={() => setOpen(true)}
@@ -62,7 +68,7 @@ export function Select<T extends string>({
                 ]}
             >
                 <Text variant="body" tone={selected ? 'ink' : 'muted'} numberOfLines={1} style={styles.value}>
-                    {selected?.label ?? placeholder}
+                    {selected?.label ?? shownPlaceholder}
                 </Text>
                 <Chevron direction="down" />
             </Pressable>

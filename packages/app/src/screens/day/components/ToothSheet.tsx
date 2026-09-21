@@ -10,6 +10,7 @@ import type { Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SearchField, Sheet } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
 import { QUADRANTS } from '../procedures';
 
@@ -27,6 +28,7 @@ export type ToothSheetProps = {
 };
 
 export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetProps) {
+    const t = useT();
     const [term, setTerm] = useState('');
     const query = term.trim().toUpperCase();
 
@@ -65,7 +67,7 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
                         style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
                     >
                         <Text variant="subhead" weight="medium" tone="muted">
-                            No tooth assigned
+                            {t('No tooth assigned')}
                         </Text>
                     </Pressable>
                 )
@@ -83,7 +85,7 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
 
             {quadrants.length === 0 ? (
                 <Text variant="subhead" tone="muted">
-                    No matching teeth.
+                    {t('No matching teeth.')}
                 </Text>
             ) : (
                 <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled">

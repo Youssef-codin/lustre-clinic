@@ -40,6 +40,7 @@ import {
     Textarea,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { useNotificationsAllowed } from '../../notifications';
 import { color, radius, space, Text } from '../../theme';
 import { PlusIcon, WhatsAppIcon } from './components/icons';
@@ -68,6 +69,7 @@ const SAMPLE: Record<string, string> = {
 };
 
 export function RemindersScreen({ onBack }: { onBack: () => void }) {
+    const t = useT();
     const allowed = useNotificationsAllowed();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
@@ -266,7 +268,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             <View style={styles.previewHead}>
                                 <WhatsAppIcon size={15} />
                                 <Text variant="eyebrow" tone="inverse" style={styles.channel}>
-                                    WHATSAPP
+                                    {t('WHATSAPP')}
                                 </Text>
                                 <Text variant="caption" tone="inverse" script="mono" style={styles.sendAt}>
                                     {formatClock12(notifyAt)}
@@ -278,7 +280,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             </View>
 
                             <Text variant="caption" tone="inverse" script="mono" style={styles.sampleNote}>
-                                Sample patient — real values are filled per appointment.
+                                {t('Sample patient — real values are filled per appointment.')}
                             </Text>
                         </View>
                     </View>
