@@ -451,7 +451,6 @@ export const appointmentService = {
 
     async create(input: CreateAppointmentInput): Promise<AppointmentRow> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
-        const { reminderLeadHours } = await settingsService.get();
         const startsAt = new Date(input.startsAt);
         const resolved = await resolveProcedureLines(input.procedures ?? []);
 
@@ -460,6 +459,13 @@ export const appointmentService = {
             // retry — SLOT_OVERLAP is the honest answer to "book me at four" —
             // but it must not turn that answer into a deadlock either.
             await lockDay(tx, startsAt);
+
+            // Under the settings lock and inside the transaction, so a lead
+            // time changed mid-booking cannot leave this one reminder behind
+            // the setting: the reschedule in `settings.update` either has not
+            // started or has already finished. Taken here, before the patient
+            // is registered, because that bumps the same row.
+            const reminderLeadHours = await settingsService.leadHoursForWrite(tx);
 
             const patientId = await resolvePatient(tx, input.patient);
 
@@ -489,7 +495,6 @@ export const appointmentService = {
         input: WalkInInput,
     ): Promise<{ appointment: AppointmentRow; visitId: string; moved: Moved[] }> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
-        const { reminderLeadHours } = await settingsService.get();
         const arrivedAt = new Date();
         const resolved = await resolveProcedureLines(input.procedures ?? []);
 
@@ -498,6 +503,8 @@ export const appointmentService = {
         const attempt = () =>
             db.transaction(async (tx) => {
                 await lockDay(tx, arrivedAt);
+
+                const reminderLeadHours = await settingsService.leadHoursForWrite(tx);
 
                 const patientId = await resolvePatient(tx, input.patient);
 
@@ -585,6 +592,10 @@ export const appointmentService = {
             // with the other two writers on the day it is moving into.
             await lockDay(tx, startsAt ?? current.startsAt);
 
+            // Before the appointment is touched, so every writer takes the two
+            // locks in the same order: the day, then the settings row.
+            const leadHours = startsAt ? await settingsService.leadHoursForWrite(tx) : undefined;
+
             let updated: AppointmentRow | undefined;
             try {
                 [updated] = await tx
@@ -616,7 +627,9 @@ export const appointmentService = {
 
             if (resolved) await replaceProcedures(tx, id, resolved);
 
-            if (startsAt) await reminderService.reschedule(tx, id, startsAt);
+            if (startsAt && leadHours !== undefined) {
+                await reminderService.reschedule(tx, id, startsAt, leadHours);
+            }
             if (patch.status === 'no_show') await reminderService.skipFor(tx, id);
 
             return updated;

@@ -48,6 +48,25 @@ export function rescheduleReminder(appointmentId: string, startsAt: Date): void 
     if (row) row.dueAt = new Date(startsAt.getTime() - reminderLeadHours * 3_600_000);
 }
 
+/**
+ * `reminderService.rescheduleAllPending`. A new lead time reaches the reminders
+ * already booked, bounded the way the pending list is — still pending, on an
+ * appointment still booked — and to appointments still ahead.
+ */
+export function rescheduleAllPendingReminders(leadHours: number): void {
+    const db = getDb();
+    const now = Date.now();
+
+    for (const reminder of db.reminders) {
+        if (reminder.status !== 'pending') continue;
+
+        const appointment = db.appointments.find((row) => row.id === reminder.appointmentId);
+        if (appointment?.status !== 'booked' || appointment.startsAt.getTime() <= now) continue;
+
+        reminder.dueAt = new Date(appointment.startsAt.getTime() - leadHours * 3_600_000);
+    }
+}
+
 export function skipReminderFor(appointmentId: string): void {
     const row = getDb().reminders.find((reminder) => reminder.appointmentId === appointmentId);
     if (row?.status === 'pending') row.status = 'skipped';

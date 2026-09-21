@@ -10,6 +10,7 @@ import { broadcast } from '../events';
 import { assignDefined, DemoError } from '../rules';
 import type { Dated } from '../wire';
 import { branchHandlers } from './branch';
+import { rescheduleAllPendingReminders } from './reminder';
 
 type Settings = Dated<RouterOutput['settings']['get']>;
 type ClinicDay = Dated<RouterOutput['settings']['schedule'][number]>;
@@ -67,7 +68,16 @@ export const settingsHandlers = {
             );
         }
 
+        // A new lead time is retroactive: the reminders already booked move
+        // with it, so the pending list can never disobey the setting the pane
+        // is showing (`server/src/modules/settings/settings.service.ts`).
+        const leadHours =
+            input.reminderLeadHours !== undefined && input.reminderLeadHours !== current.reminderLeadHours
+                ? input.reminderLeadHours
+                : undefined;
+
         assignDefined(current, input, { durationOptions, defaultDuration, updatedAt: new Date() });
+        if (leadHours !== undefined) rescheduleAllPendingReminders(leadHours);
         save();
 
         broadcast(WS_EVENT.SETTINGS_UPDATED);

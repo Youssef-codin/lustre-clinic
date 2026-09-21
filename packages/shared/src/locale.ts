@@ -359,7 +359,8 @@ export const COPY_AR = {
     'Hide procedure': 'إخفاء الإجراء',
     'Hide this procedure?': 'إخفاء هذا الإجراء؟',
     'How long': 'المدة',
-    'How long before the appointment a reminder becomes due': 'قبل الموعد بكم يصبح التذكير مستحقًا',
+    'How long before the appointment a reminder becomes due. Changing it moves the reminders still waiting to be sent, for appointments still to come.':
+        'قبل الموعد بكم يصبح التذكير مستحقًا. تغييره ينقل التذكيرات التي لم تُرسل بعد، للمواعيد القادمة.',
     'How often the notification repeats while reminders are still pending. Stops when the list is cleared or dismissed for the day, and never runs overnight.':
         'كل كم يتكرر الإشعار ما دامت هناك تذكيرات معلّقة. يتوقف عند إنهاء القائمة أو إخفائها لليوم، ولا يعمل ليلًا.',
     'How was it paid?': 'كيف تم الدفع؟',

@@ -30,6 +30,10 @@ function invalidate(event: WsEvent): void {
             return;
         case WS_EVENT.SETTINGS_UPDATED:
             void queryClient.invalidateQueries(api.settings.pathFilter());
+            // The pending list is rendered from the settings: the template is
+            // its wording and the lead time is which reminders are on it at
+            // all, and a new lead time moves the ones already booked.
+            void queryClient.invalidateQueries(api.reminder.pathFilter());
             return;
     }
 }
