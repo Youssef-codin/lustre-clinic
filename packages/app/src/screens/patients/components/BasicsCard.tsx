@@ -36,9 +36,16 @@ export type BasicsCardProps = {
      * underneath it.
      */
     errors: Partial<Record<BasicsField, string>>;
+    /**
+     * Rows that belong to the card but not to every screen — registration's
+     * *Already a patient here* switch. Rendered after the ruled four, inside
+     * the same white card, so it reads as one more fact off the card and not
+     * as a section of its own.
+     */
+    trailing?: ReactNode;
 };
 
-export function BasicsCard({ form, onChange, blank, errors }: BasicsCardProps) {
+export function BasicsCard({ form, onChange, blank, errors, trailing }: BasicsCardProps) {
     const owed = new Set(blank);
 
     // A message waits until the field has been left once. `s@` is not a valid
@@ -142,6 +149,13 @@ export function BasicsCard({ form, onChange, blank, errors }: BasicsCardProps) {
                         <SexToggle value={form.gender} onChange={(gender) => onChange({ gender })} />
                     </View>
                 </Row>
+
+                {trailing ? (
+                    <>
+                        <CardDivider />
+                        {trailing}
+                    </>
+                ) : null}
             </Card>
         </View>
     );

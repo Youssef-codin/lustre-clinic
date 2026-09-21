@@ -31,3 +31,43 @@ export function timeFromMinutes(minutes: number): string {
     const mm = String(wrapped % 60).padStart(2, '0');
     return `${hh}:${mm}`;
 }
+
+/** What the pane is holding for the template field, and what it may do with it. */
+export interface TemplateDraft {
+    /** What the field shows: the edit if there is one, otherwise the saved message. */
+    text: string;
+    /** An edit that differs from what the server has. Nothing to save without one. */
+    dirty: boolean;
+    /** Why this text cannot be saved, phrased for the field's inline error. */
+    issue: string | null;
+    canSave: boolean;
+}
+
+/**
+ * The template field's whole decision, kept out of the pane so it can be tested
+ * without a renderer.
+ *
+ * `dirty` compares trimmed, because the server trims: adding a trailing space
+ * and saving would write the message back unchanged, and a Save that does
+ * nothing is a Save that should not have offered itself.
+ *
+ * A saved message can itself be too long for this pane — the server accepts
+ * 1000 characters and the mockup's field holds 320 — so `issue` is read off the
+ * text rather than off the edit. It explains a Save that is unavailable; it
+ * does not claim anything about what is stored.
+ */
+export function templateDraft(draft: string | null, saved: string | undefined): TemplateDraft {
+    const text = draft ?? saved ?? '';
+    const over = text.length - TEMPLATE_MAX;
+
+    const issue =
+        over > 0
+            ? `Too long by ${over} ${over === 1 ? 'character' : 'characters'}. The message has to fit ${TEMPLATE_MAX}.`
+            : text.trim() === ''
+              ? 'The message cannot be empty.'
+              : null;
+
+    const dirty = draft !== null && draft.trim() !== (saved ?? '').trim();
+
+    return { text, dirty, issue, canSave: dirty && issue === null };
+}

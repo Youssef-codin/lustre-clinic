@@ -45,7 +45,21 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
                 <View style={styles.meta}>
                     <RefChip value={patient.ref} />
 
-                    {patient.legacyRef !== null ? <LegacyBadge /> : null}
+                    {patient.legacyRef !== null ? (
+                        <LegacyBadge
+                            // The number the old system knew them by is drawn
+                            // only when it is *not* the one already in the chip
+                            // beside it. For a patient registered through the
+                            // Old patient switch the two are the same string —
+                            // they were given one number and the chip is it —
+                            // and repeating it would read as two numbers. Where
+                            // they differ the record came across under the old
+                            // data-entry flow, which allocated a second number
+                            // on top of the real one, and the real one is the
+                            // one the paper file has on its front.
+                            oldRef={patient.legacyRef === patient.ref ? null : patient.legacyRef}
+                        />
+                    ) : null}
 
                     {metaParts(patient).map((part, index) => (
                         <Fragment key={part}>
@@ -112,11 +126,9 @@ function metaParts(patient: Patient): string[] {
         .filter(Boolean)
         .join(', ');
 
-    // The old system's number is stored, and its presence is what `LEGACY` says,
-    // but the figure itself is still not drawn. That was true when the phone was
-    // the only number on this line and it is more true now there is a ref beside
-    // it: three numbers in mono on one line is a line nobody reads. It belongs on
-    // the Details tab if it belongs anywhere on screen.
+    // The old system's number is not one of these. It is either the ref already
+    // in the chip or it is inside the badge beside it; a third mono figure on
+    // this line would read as a second phone number.
     return [who, patient.phone].filter((part): part is string => Boolean(part));
 }
 
@@ -126,18 +138,32 @@ function metaParts(patient: Patient): string[] {
  * it, and without the badge that reads as a patient who has never been in —
  * which is the wrong thing to tell someone standing at the desk.
  *
+ * `oldRef` is the number the old system used, and it is drawn inside the badge
+ * only when the record's own ref is something else. That used to be every
+ * migrated record and the figure was deliberately not drawn anywhere, on the
+ * grounds that three numbers in mono on one line is a line nobody reads. It is
+ * now the exception rather than the rule — an old patient's ref *is* their old
+ * number — and the exception is exactly the case where hiding it costs
+ * something: the desk is holding a file marked 710 and looking at a record that
+ * says 909, with nothing on screen joining the two.
+ *
  * Local rather than `ui/Tag`, which is frozen (§10) and cannot go this loud:
  * its strongest fill is `surface2`, four values off `canvas`, and its `ink`
  * tone puts dark type on that — a chip that disappears into the page. This is
  * the inversion `Tag` has no variant for, drawn the way every other emphatic
  * chip in the app is: solid `ink`, `inverse` type. See BLOCKED.md.
  */
-function LegacyBadge() {
+function LegacyBadge({ oldRef }: { oldRef: string | null }) {
     const t = useT();
     return (
-        <View style={styles.legacy}>
-            <Text variant="tag" weight="bold" tone="inverse">
-                {t('LEGACY')}
+        <View
+            style={styles.legacy}
+            accessibilityLabel={
+                oldRef === null ? t('From the old system') : t('Old system number {ref}', { ref: oldRef })
+            }
+        >
+            <Text variant="tag" weight="bold" tone="inverse" script={oldRef === null ? undefined : 'mono'}>
+                {oldRef === null ? t('LEGACY') : t('OLD {ref}', { ref: oldRef })}
             </Text>
         </View>
     );

@@ -12,7 +12,17 @@ import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { errorMessage } from '../format';
 
-export function SkeletonBlock({ width, height = 12 }: { width: number | `${number}%`; height?: number }) {
+export type SkeletonTone = 'light' | 'dark';
+
+export function SkeletonBlock({
+    width,
+    height = 12,
+    tone = 'light',
+}: {
+    width: number | `${number}%`;
+    height?: number;
+    tone?: SkeletonTone;
+}) {
     const opacity = useRef(new Animated.Value(1)).current;
     const reducedMotion = useReducedMotion();
 
@@ -34,7 +44,11 @@ export function SkeletonBlock({ width, height = 12 }: { width: number | `${numbe
         return () => loop.stop();
     }, [opacity, reducedMotion]);
 
-    return <Animated.View style={[styles.block, { width, height, opacity }]} />;
+    return (
+        <Animated.View
+            style={[styles.block, tone === 'dark' && styles.blockOnDark, { width, height, opacity }]}
+        />
+    );
 }
 
 export function SkeletonRows({ rows = 3 }: { rows?: number }) {
@@ -66,6 +80,24 @@ export function SkeletonCard({ height = 132 }: { height?: number }) {
     );
 }
 
+/**
+ * The hero's own placeholder. A white `Card` under a card that is black flashes
+ * the wrong surface for as long as the summary takes, then repaints — so this
+ * borrows the hero's ground, radius and padding and tints its blocks with the
+ * value that card already uses for the bar track behind the collected figure.
+ */
+export function SkeletonHeroCard({ height = 132 }: { height?: number }) {
+    return (
+        <View style={[styles.heroCard, { minHeight: height }]}>
+            <View style={styles.heroLines}>
+                <SkeletonBlock width="40%" height={11} tone="dark" />
+                <SkeletonBlock width="62%" height={28} tone="dark" />
+                <SkeletonBlock width="80%" height={11} tone="dark" />
+            </View>
+        </View>
+    );
+}
+
 export type LoadStateProps = {
     isLoading: boolean;
     error: ErrorCode | null;
@@ -94,6 +126,7 @@ export function LoadState({ isLoading, error, onRetry, skeleton, children }: Loa
 
 const styles = StyleSheet.create({
     block: { backgroundColor: color.surface2, borderRadius: radius.sm },
+    blockOnDark: { backgroundColor: color.onDarkTrack },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -104,6 +137,17 @@ const styles = StyleSheet.create({
     },
     rowText: { flex: 1, gap: space[1.5] },
     cardLines: { gap: space[2.5] },
+    // The hero's own geometry (`HeroCollectionCard`), minus the gradient and
+    // the lift: a placeholder should hold the shape, not advertise itself.
+    heroCard: {
+        alignSelf: 'stretch',
+        justifyContent: 'center',
+        paddingVertical: space[6],
+        paddingHorizontal: space[6],
+        borderRadius: radius.xl4,
+        backgroundColor: color.inkDeep,
+    },
+    heroLines: { gap: space[2.5] },
     failure: { alignItems: 'flex-start', gap: space[2] },
     failureBody: { marginBottom: space[1] },
 });

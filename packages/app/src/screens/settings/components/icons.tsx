@@ -24,13 +24,13 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
-    ClipboardList,
     Clock,
     EyeOff,
     Folder,
     Hospital,
     Info,
     ListPlus,
+    LogIn,
     LogOut,
     MapPin,
     MessageSquareWarning,
@@ -110,17 +110,14 @@ export const InfoIcon = icon(Info, { size: 16, stroke: color.muted, width: 2 });
 /** Deactivating or reactivating a branch, tinted by its caller. */
 export const PowerIcon = icon(Power, { size: 15, stroke: color.ink, width: 2.2 });
 
-/**
- * The data-entry pane `main` added. It has no mockup counterpart, so there is
- * nothing to match and the nearest library glyph is the honest answer.
- */
-export const DataEntryIcon = icon(ClipboardList, ROW);
-
 /** Putting the demo's clinic back the way it opens. No mockup counterpart either. */
 export const ResetDemoIcon = icon(RotateCcw, ROW);
 
 /** Leaving the demo for the clinic server. No mockup counterpart. */
 export const LeaveDemoIcon = icon(LogOut, ROW);
+
+/** Entering the demo from a connected dev build. No mockup counterpart. */
+export const EnterDemoIcon = icon(LogIn, ROW);
 
 /** "Report a problem". No mockup counterpart. */
 export const ReportProblemIcon = icon(MessageSquareWarning, ROW);

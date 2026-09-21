@@ -59,7 +59,6 @@ export const SCREENS: ReadonlySet<string> = new Set([
     'hours',
     'procedures',
     'patientFields',
-    'dataEntry',
     'new',
     'under',
     'category',

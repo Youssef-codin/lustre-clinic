@@ -54,7 +54,6 @@ const EXPECTED = [
     'reminder.markSkipped',
     'reminder.dismissToday',
     'stats.summary',
-    'migration.enter',
     'migration.progress',
 ];
 

@@ -2,7 +2,15 @@
 // failure this guards: both are silent on a clinic phone until someone notices
 // the fake register or the half-second lost on every reconnect.
 import { describe, expect, it } from 'bun:test';
-import { allowsDemo, allowsLan, isTailnetAddress, usableAddresses, variantOf } from './variant';
+import {
+    allowsDemo,
+    allowsLan,
+    bootAddresses,
+    isTailnetAddress,
+    showsDevBanner,
+    usableAddresses,
+    variantOf,
+} from './variant';
 
 describe('variantOf', () => {
     it('calls a release build with no shipped demo prod', () => {
@@ -16,6 +24,15 @@ describe('variantOf', () => {
     it('lets `__DEV__` win over a shipped demo flag', () => {
         expect(variantOf({ dev: true, shippedDemo: false })).toBe('dev');
         expect(variantOf({ dev: true, shippedDemo: true })).toBe('dev');
+    });
+
+    it('keeps the release-bundled dev app on the dev rules using its native package id', () => {
+        expect(variantOf({ dev: false, shippedDemo: false, applicationId: 'com.lustre.clinic.dev' })).toBe(
+            'dev',
+        );
+        expect(variantOf({ dev: false, shippedDemo: false, applicationId: 'com.lustre.clinic' })).toBe(
+            'prod',
+        );
     });
 });
 
@@ -43,6 +60,45 @@ describe('prod rules', () => {
         expect(usableAddresses('prod', wifi)).toEqual({ lan: null, tailscale: null });
         expect(usableAddresses('dev', wifi)).toEqual(wifi);
         expect(usableAddresses('demo', wifi)).toEqual(wifi);
+    });
+});
+
+describe('showsDevBanner', () => {
+    it('marks a dev build and nothing that ships', () => {
+        expect(showsDevBanner('dev')).toBe(true);
+        expect(showsDevBanner('prod')).toBe(false);
+        expect(showsDevBanner('demo')).toBe(false);
+    });
+
+    // `__DEV__` is Metro's, false in every release bundle whatever app.json
+    // says, so a clinic's APK cannot carry the strip by a forgotten flag.
+    it('follows the build rather than a flag anyone maintains', () => {
+        expect(showsDevBanner(variantOf({ dev: true, shippedDemo: true }))).toBe(true);
+        expect(showsDevBanner(variantOf({ dev: false, shippedDemo: false }))).toBe(false);
+    });
+});
+
+describe('bootAddresses', () => {
+    const none = { lan: null, tailscale: null };
+    const DEV_SERVER = 'http://localhost:3000';
+
+    it('points a dev build at the dev server when nothing was configured', () => {
+        expect(bootAddresses('dev', none, DEV_SERVER)).toEqual({ lan: DEV_SERVER, tailscale: null });
+    });
+
+    it('never gives one to a shipped build, which asks setup instead', () => {
+        expect(bootAddresses('prod', none, DEV_SERVER)).toEqual(none);
+        expect(bootAddresses('demo', none, DEV_SERVER)).toEqual(none);
+    });
+
+    it('leaves a configured LAN address alone', () => {
+        const configured = { lan: 'http://192.168.1.20:3000', tailscale: null };
+        expect(bootAddresses('dev', configured, DEV_SERVER)).toEqual(configured);
+    });
+
+    it('still fills the LAN side of a build configured with a tailnet address only', () => {
+        const tailnet = { lan: null, tailscale: 'http://clinic.ts.net:3000' };
+        expect(bootAddresses('dev', tailnet, DEV_SERVER)).toEqual({ ...tailnet, lan: DEV_SERVER });
     });
 });
 

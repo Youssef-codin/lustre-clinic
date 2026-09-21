@@ -1,10 +1,10 @@
 /**
- * Settings — one screen, not two: the role is a client-side preference, not a
- * permission, so the doctor's rows are simply absent for the secretary. There
- * is no navigator yet, so this screen is its own stack (`src/navigation`) drawn
- * with `ui/PushView`; lifting the panes into a real navigator is `push` →
- * `navigate`. The index is the root, and every pane sits one deep on top of it —
- * a pane's own editors push again from inside it.
+ * Settings — one screen, not two: the role is a device-local preference
+ * (`shell/roleStore`), not a permission, so the doctor's rows are simply absent
+ * for the secretary. There is no navigator yet, so this screen is its own stack
+ * (`src/navigation`) drawn with `ui/PushView`; lifting the panes into a real
+ * navigator is `push` → `navigate`. The index is the root, and every pane sits
+ * one deep on top of it — a pane's own editors push again from inside it.
  *
  * The index is a summary, not a menu. `settings.html` fills every row's sub
  * with that row's current answer — "default 30 min", "2 active · 1 inactive" —
@@ -16,7 +16,7 @@ import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
-import { type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
+import { allowsDemo, BUILD_VARIANT, type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import {
     Button,
@@ -33,6 +33,7 @@ import {
 import { setLocale, useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
+import { setRole, useRole } from '../../shell/roleStore';
 import { color, size, space, Text } from '../../theme';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
@@ -40,7 +41,7 @@ import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { IdentityCard } from './components/IdentityCard';
 import {
-    DataEntryIcon,
+    EnterDemoIcon,
     LeaveDemoIcon,
     ReportProblemIcon,
     ResetDemoIcon,
@@ -54,7 +55,6 @@ import { versionLine } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 import { errorText } from './data/errors';
 import { minutesFromTime } from './data/reminders';
-import { DataEntryScreen } from './dataEntry';
 import { PatientFieldsScreen } from './PatientFieldsScreen';
 import { ProceduresScreen } from './ProceduresScreen';
 import { RemindersScreen } from './RemindersScreen';
@@ -69,15 +69,12 @@ type Route =
     | 'branches'
     | 'hours'
     | 'procedures'
-    | 'patientFields'
-    | 'dataEntry';
+    | 'patientFields';
 
 const ROLE_NAME: Record<ClientRole, string> = { doctor: 'Doctor', secretary: 'Secretary' };
 const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' };
 
 type SettingsScreenProps = {
-    role?: ClientRole;
-    onChangeRole?: (role: ClientRole) => void;
     /**
      * Bumped when the fourth tab is tapped while it is already up. Home is the
      * index; the panes above it are all reads and settings already written, so
@@ -86,7 +83,7 @@ type SettingsScreenProps = {
     goHome?: number;
 };
 
-function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: SettingsScreenProps) {
+function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     const [switching, setSwitching] = useState(false);
     // The switch redraws every tab in the shell, so it waits for the sheet that
     // asked for it to be off the screen.
@@ -113,9 +110,9 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
 
     const demo = useDemoMode();
 
-    const [localRole, setLocalRole] = useState<ClientRole>('doctor');
-    const role = roleProp ?? localRole;
-
+    // From the store rather than from a prop, like the locale below it: the
+    // shell holds neither, and this screen is where both are changed.
+    const { role } = useRole();
     const locale = useLocale();
     const t = useT();
 
@@ -124,11 +121,6 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
     const apkUpdate = useApkUpdate();
 
     const isDoctor = role === 'doctor';
-
-    function changeRole(next: ClientRole) {
-        setLocalRole(next);
-        onChangeRole?.(next);
-    }
 
     const [toast, setToast] = useState<string | null>(null);
     const reports = CRASH_REPORTS_ON && !demo.enabled;
@@ -307,24 +299,6 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                             </Group>
                         ) : null}
 
-                        {/* The secretary's, and only hers: she is the one
-                            retyping the old system's register, and the doctor
-                            tapping into a bulk entry form is a mis-tap with a
-                            patient at the end of it. Like every other row here
-                            the gate is the device-local role, which hides rows
-                            and never guards access (§1). */}
-                        {isDoctor ? null : (
-                            <Group title={t('MIGRATION')}>
-                                <SettingsRow
-                                    icon={<DataEntryIcon />}
-                                    label="Data entry"
-                                    sub={t('Bulk entry from the old system')}
-                                    onPress={() => routes.push('dataEntry')}
-                                    testID="settings-data-entry-row"
-                                />
-                            </Group>
-                        )}
-
                         {/* Only in demo mode, and only here: a demo is given
                             more than once, and the second run should not open
                             on the first one's cancellations. `resetDemoData`
@@ -355,6 +329,24 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                                         void demo.disable();
                                     }}
                                     testID="settings-leave-demo"
+                                />
+                            </Group>
+                        ) : allowsDemo(BUILD_VARIANT) ? (
+                            /* The setup screen's demo button, for a dev build
+                               that is already connected: setup never shows
+                               again once an address is saved, so this is the
+                               only way in. The saved address stays put and
+                               Leave demo above returns to it. A prod build
+                               allows no demo, so its Settings never has this. */
+                            <Group title="DEMO">
+                                <SettingsRow
+                                    icon={<EnterDemoIcon />}
+                                    label="Enter demo"
+                                    sub="A fake register, off the clinic server"
+                                    onPress={() => {
+                                        void demo.enable();
+                                    }}
+                                    testID="settings-enter-demo"
                                 />
                             </Group>
                         ) : null}
@@ -395,7 +387,7 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                 onConfirm={() => {
                     setSwitching(false);
                     roleDone.after(() => {
-                        changeRole(role === 'doctor' ? 'secretary' : 'doctor');
+                        setRole(role === 'doctor' ? 'secretary' : 'doctor');
                         routes.popToRoot();
                     });
                 }}
@@ -424,7 +416,6 @@ function SettingsScreenView({ role: roleProp, onChangeRole, goHome = 0 }: Settin
                     {pane === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
                     {pane === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
                     {pane === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
-                    {pane === 'dataEntry' ? <DataEntryScreen onBack={back} /> : null}
                 </PushView>
             ))}
         </View>

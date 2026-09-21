@@ -255,21 +255,20 @@ export function CalendarSheet({
                             onPress={() => setPending(day)}
                             style={styles.cell}
                         >
-                            {/* A cell carries one edge or none, and a picked day
-                                carries none: `fillOf` already rules that a pick
-                                is a pick before it is anything else, and two
-                                markers on one cell say the same thing twice.
+                            {/* Closed is a fact about the day, not an alternative
+                                to selection: the dark fill says "picked" while
+                                this dashed edge still says "closed".
 
-                                Today's ring is its own view over the fill, not a
-                                border on the cell. A border switched on after
-                                the first draw, on a view with a radius and
-                                `overflow: hidden`, is not repainted on Android:
-                                today opens picked with no edge, so picking any
-                                other day left today with no marker at all. iOS
-                                repainted it, which is why it only showed on the
-                                phone. Mounting a view is always drawn. */}
-                            <View style={[styles.cellBox, !picked && closed && styles.closedEdge]}>
+                                Both edges are views over the fill, not borders
+                                toggled on the clipped cell box. Android does not
+                                reliably repaint such a border after the first
+                                draw. A closed cell mounts its edge with the cell
+                                and selection only changes the fill beneath it,
+                                so moving the pick cannot make the treatment
+                                disappear or depend on a repaint. */}
+                            <View style={styles.cellBox}>
                                 <View style={[styles.fill, { backgroundColor: fillTone }]} />
+                                {closed ? <View pointerEvents="none" style={styles.closedEdge} /> : null}
                                 {/* Not on a closed day either: the ring would hide
                                     the dashed closed edge, and in booking mode
                                     dress a day that cannot be picked as live. */}
@@ -434,8 +433,18 @@ const styles = StyleSheet.create({
         borderRadius: radius.md,
         overflow: 'hidden',
     },
-    closedEdge: { borderWidth: border.hair, borderStyle: 'dashed', borderColor: color.line },
     fill: { position: 'absolute', top: 0, bottom: 0, start: 0, end: 0 },
+    closedEdge: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        start: 0,
+        end: 0,
+        borderWidth: border.hair,
+        borderStyle: 'dashed',
+        borderColor: color.line,
+        borderRadius: radius.md,
+    },
     todayRing: {
         position: 'absolute',
         top: 0,

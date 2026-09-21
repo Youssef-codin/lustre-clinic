@@ -522,26 +522,19 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
     }
 
     /**
-     * Where a check-in ends up: the patient's record, with what just happened
-     * raised by the shell, because a toast raised here would draw inside a pane
-     * the shell is about to hide. It is two lines, not one — the record already
-     * has the patient's name as the largest thing on it, and the day view, which
-     * has no record to open, has to say who it is talking about.
+     * Declining the book-next offer, however it was declined. The check-in has
+     * already happened, so the only thing left to do is say so and leave the
+     * desk on the day it was reading — same date, same branch, same queue, with
+     * the patient now in it.
      *
-     * The move waits for the sheet to be off the screen (`useAfterSheet`). The
-     * record is the heavier of the two answers to mount — a pane swap and a
-     * query — so doing it in this tick is what left the sheet sitting over the
-     * day view with nothing appearing to have happened.
+     * Nothing waits on the sheet here. `useAfterSheet` is for the answers that
+     * mount something heavy over this pane; a toast is neither heavy nor
+     * elsewhere, and holding it back only delayed the one piece of feedback the
+     * check-in gets.
      */
-    function landOnRecord(patient: EmbeddedPatient, onRecord: string, onDay: string) {
+    function stayOnDay(patient: EmbeddedPatient, standing: string) {
         setBookNextOpen(false);
-        bookNextDone.after(() => {
-            if (onOpenRecord) {
-                onOpenRecord(patient.id, onRecord);
-                return;
-            }
-            setToast(onDay);
-        });
+        setToast(`${patient.name} is ${standing}`);
     }
 
     /**
@@ -575,8 +568,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
 
     /**
      * The one moment the patient is standing there is the moment to offer them
-     * a return. The sheet is offered, never imposed: dismissing it lands where
-     * a check-in always did.
+     * a return. The sheet is offered, never imposed: declining it leaves the
+     * desk on the day, which is where the check-in was made from.
      */
     function offerBookNext(patient: EmbeddedPatient) {
         setBookNext((current) => ({ patient, seated: seated(), seq: (current?.seq ?? 0) + 1 }));
@@ -788,6 +781,10 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                     setSelected((current) => ({ ...current, open: false }));
                     detailDone.after(() => openVisit(appointment, loaded));
                 }}
+                // The record lives on the Patients tab, so the shell takes it.
+                // The day pane stays mounted behind it with its date, branch
+                // and scroll, which is what Back comes back to.
+                onOpenRecord={(appointment) => detailDone.after(() => onOpenRecord?.(appointment.patient.id))}
                 onClosed={detailDone.closed}
             />
 
@@ -799,17 +796,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                     visible={bookNextOpen}
                     patientName={bookNext.patient.name}
                     onBookNow={() => bookNextOn(bookNext.patient)}
-                    onLater={() =>
-                        landOnRecord(
-                            bookNext.patient,
-                            `Checked in · ${bookNext.seated}`,
-                            `${bookNext.patient.name} is ${bookNext.seated}`,
-                        )
-                    }
-                    onDismiss={() => {
-                        setBookNextOpen(false);
-                        setToast(`${bookNext.patient.name} is ${bookNext.seated}`);
-                    }}
+                    onLater={() => stayOnDay(bookNext.patient, bookNext.seated)}
                     onClosed={bookNextDone.closed}
                 />
             ) : null}

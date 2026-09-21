@@ -1,6 +1,7 @@
 import { TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
+import * as Application from 'expo-application';
 import Constants from 'expo-constants';
-import { type BuildVariant, usableAddresses, variantOf } from './variant';
+import { type BuildVariant, bootAddresses, usableAddresses, variantOf } from './variant';
 
 // Server addressing lives entirely here (SPEC §14). The server is a PC in the
 // clinic that listens only on Tailscale, so a prod build has one address: the
@@ -15,8 +16,10 @@ import { type BuildVariant, usableAddresses, variantOf } from './variant';
 // clinic and wrong for every other one, and the wrong address is the worse
 // failure of the two: it sends a fresh install to a screen that says the
 // clinic did not answer, when the truth is that nobody has said where it is.
-// Empty says that, and setup asks. A dev machine puts its own LAN address in
-// `app.json` locally and does not commit it.
+// Empty says that, and setup asks. A dev build fills the gap with
+// `extra.devServer` (`bootAddresses`) — the dev server the device scripts have
+// already reversed onto the phone — and a dev machine that wants a different
+// one puts it in `app.json` locally and does not commit it.
 //
 // `normalize` takes `unknown` on purpose: an unconfigured address arrives as
 // JSON `null` (or `{}` through the manifest), so a declared `string | null` is
@@ -30,6 +33,7 @@ export interface ServerAddresses {
 
 interface BuildExtra {
     server?: Partial<ServerAddresses>;
+    devServer?: unknown;
     demo?: unknown;
 }
 
@@ -41,12 +45,20 @@ function normalize(address: unknown): string | null {
 
 const extra = (Constants.expoConfig?.extra ?? {}) as BuildExtra;
 
-export const BUILD_VARIANT: BuildVariant = variantOf({ dev: __DEV__, shippedDemo: extra.demo === true });
-
-let addresses: ServerAddresses = usableAddresses(BUILD_VARIANT, {
-    lan: normalize(extra.server?.lan),
-    tailscale: normalize(extra.server?.tailscale),
+export const BUILD_VARIANT: BuildVariant = variantOf({
+    dev: __DEV__,
+    shippedDemo: extra.demo === true,
+    applicationId: Application.applicationId,
 });
+
+let addresses: ServerAddresses = usableAddresses(
+    BUILD_VARIANT,
+    bootAddresses(
+        BUILD_VARIANT,
+        { lan: normalize(extra.server?.lan), tailscale: normalize(extra.server?.tailscale) },
+        normalize(extra.devServer),
+    ),
+);
 
 export function serverAddresses(): ServerAddresses {
     return addresses;

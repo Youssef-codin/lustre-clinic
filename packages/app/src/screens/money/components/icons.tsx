@@ -11,16 +11,7 @@
  * something else there is the inconsistency this whole change is about.
  */
 import type { PaymentMethod } from '@lustre/shared';
-import {
-    ChevronDown,
-    Coins,
-    CreditCard,
-    Landmark,
-    MoreHorizontal,
-    Receipt,
-    Search,
-    Zap,
-} from 'lucide-react-native';
+import { ChevronDown, Coins, CreditCard, Landmark, Receipt, Search, Zap } from 'lucide-react-native';
 import { color } from '../../../theme';
 
 export type IconProps = {
@@ -49,9 +40,6 @@ export function MethodIcon({ method, size = 18, tone = color.muted }: IconProps 
 }
 
 export const BankIcon = icon(Landmark, 18, color.muted);
-
-/** The header overflow. */
-export const MoreIcon = icon(MoreHorizontal, 20, color.ink, 2.4);
 
 export const SearchIcon = icon(Search, 18, color.muted);
 

@@ -15,8 +15,20 @@
  * collected and deliberately skips questionnaire validation — the secretary is
  * on the phone, and the questions are answered at the desk.
  *
- * Both paths number the patient off `settings.patient_ref_last`, moved on by
- * one in the same transaction as the insert.
+ * ## Numbering, and old patients
+ *
+ * A *new* patient is numbered off `settings.patient_ref_next` — handed that
+ * number as it stands, which is then moved on by one, in the same transaction
+ * as the insert.
+ *
+ * An **old** patient is not numbered at all. They arrived with a number written
+ * on their paper file and that number is their `ref`, so the desk is given one
+ * number for them rather than being shown a fresh one and told the real one is
+ * elsewhere. `legacy_ref` carries the same string, which is what marks the
+ * record as having come across. Two consequences the code has to enforce:
+ * registering one must not consume the number the next new patient is owed, and
+ * an old number that is a plain digit string the sequence has still to reach is
+ * refused — taking it would hand the same number to two patients later.
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { ERROR_CODE } from '@lustre/shared';
@@ -37,9 +49,11 @@ import { normalizePhone } from '../../util/phone.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
+import { planOldPatientHistory, writeOldPatientHistory } from '../migration/migration.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import type {
     CreatePatientInput,
+    OldPatientInput,
     PatientByPhoneInput,
     RecentPatientsInput,
     SearchPatientInput,
@@ -78,6 +92,10 @@ interface PatientHistoryEntry {
     completedAt: Date | null;
     /** Debt carried over from the old system, not a visit. The record labels it rather than drawing it as one. */
     isOpeningBalance: boolean;
+    /** Work the old system recorded. No visit behind it, so no money on it — the record marks it as prior history. */
+    isImported: boolean;
+    /** The file did not say when. `startsAt` is the cutoff only because the column demands a value. */
+    dateUnknown: boolean;
     computedTotal: number;
     chargedTotal: number;
     paidTotal: number;
@@ -101,30 +119,42 @@ interface RecentPatients {
     total: number;
 }
 
-/** Exported for callers that already hold the row — `migration.enter` writes one and returns it. */
+/** Exported for callers that already hold the row rather than the shape a read returns. */
 export function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
 }
 
 /**
- * The one way a patient row is written, so both registration paths get a `ref`
- * and neither can forget one.
+ * The one way a patient row is written, so every registration path gets a `ref`
+ * and none of them can forget one.
  *
- * The counter is moved on and the row inserted in one transaction (a savepoint
- * when the caller is already in one, as booking is). The `UPDATE` takes the
- * settings row's lock, so a second registration waits for the first to commit
- * and reads its number, and a failed insert rolls the counter back with it.
+ * `oldRef` is the number an old patient already has; without it the row is
+ * numbered off the counter. Either way the number is settled and the row
+ * inserted in one transaction (a savepoint when the caller is already in one,
+ * as booking and the old-patient write both are). The counter's `UPDATE` takes
+ * the settings row's lock, so a second registration waits for the first to
+ * commit and reads its number, and a failed insert rolls the counter back with
+ * it.
  *
- * A collision is not retried. Settings refuses a counter below the highest
- * numbered ref, so one means a row was written around the counter, and the
- * next number would most likely collide too.
+ * An allocated ref that collides is not retried. Settings refuses a next number
+ * at or below the highest ref on file, so a collision means a row was written
+ * around the counter, and the next number would most likely collide too. An
+ * *old* ref that collides is a different event entirely — the desk typed a
+ * number another patient has — and says so.
  */
 async function insertPatientWithRef(
     executor: Executor,
     values: Omit<typeof patients.$inferInsert, 'id' | 'ref'>,
+    oldRef?: string,
 ): Promise<PatientRow> {
     return executor.transaction(async (tx) => {
-        const ref = String(await nextPatientRef(tx));
+        let ref: string;
+        if (oldRef === undefined) {
+            ref = String(await nextPatientRef(tx));
+        } else {
+            await assertOldRefUnreserved(tx, oldRef);
+            ref = oldRef;
+        }
 
         try {
             const [row] = await tx
@@ -136,6 +166,14 @@ async function insertPatientWithRef(
             return row;
         } catch (err) {
             if (pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION && isRefCollision(err)) {
+                if (oldRef !== undefined) {
+                    throw new AppError(
+                        ERROR_CODE.PATIENT_REF_TAKEN,
+                        'another patient already has that number',
+                        409,
+                        { cause: err },
+                    );
+                }
                 throw new AppError(
                     ERROR_CODE.REF_GENERATION_FAILED,
                     'the next patient ref is already taken',
@@ -148,23 +186,70 @@ async function insertPatientWithRef(
     });
 }
 
+/**
+ * Hands out `settings.patient_ref_next` and moves it on. `RETURNING` sees the
+ * incremented value, so the number actually handed out is the one before it —
+ * which is the whole difference between this and the `patient_ref_last` it
+ * replaced, where a clinic that typed 910 watched the next patient get 911.
+ */
 async function nextPatientRef(executor: Executor): Promise<number> {
-    const bump = () =>
+    const take = () =>
         executor
             .update(settings)
-            .set({ patientRefLast: sql`${settings.patientRefLast} + 1` })
+            .set({ patientRefNext: sql`${settings.patientRefNext} + 1` })
             .where(eq(settings.id, 1))
-            .returning({ last: settings.patientRefLast });
+            .returning({ next: settings.patientRefNext });
 
-    let [counter] = await bump();
+    let [counter] = await take();
     if (!counter) {
         // The row is seeded on first read, and nothing has read it yet.
         await settingsService.ensureSeeded();
-        [counter] = await bump();
+        [counter] = await take();
     }
 
     if (!counter) throw AppError.internal('settings row could not be seeded');
-    return counter.last;
+    return counter.next - 1;
+}
+
+/**
+ * Refuses an old number the new-patient sequence has still to hand out.
+ *
+ * The premise of the cutoff is that every old number is below it — a clinic
+ * sets the next number above the last one its old system used. A number typed
+ * at or above it (9100 for 910, say) is not a record that can be kept: the
+ * sequence reaches it eventually and the unique constraint refuses the *new*
+ * patient, months later, for something typed today. Refusing it now names the
+ * field instead.
+ *
+ * A ref that is not a plain number cannot collide with the sequence and is
+ * taken as it stands. `FOR UPDATE` on the settings row is what makes this and
+ * the counter agree: a registration numbering itself and a settings write
+ * moving the counter both queue behind it.
+ */
+async function assertOldRefUnreserved(tx: Executor, oldRef: string): Promise<void> {
+    if (!/^\d+$/.test(oldRef)) return;
+
+    const read = () =>
+        tx.select({ next: settings.patientRefNext }).from(settings).where(eq(settings.id, 1)).for('update');
+
+    let [row] = await read();
+    if (!row) {
+        // Seeded on first read, and nothing has read it yet — the same shape
+        // `nextPatientRef` uses, and the reason the seed is not attempted up
+        // front: it writes on another connection, and this one holds locks.
+        await settingsService.ensureSeeded();
+        [row] = await read();
+    }
+
+    if (!row) throw AppError.internal('settings row could not be seeded');
+
+    if (Number(oldRef) >= row.next) {
+        throw new AppError(
+            ERROR_CODE.PATIENT_REF_RESERVED,
+            `${oldRef} is at or above the next patient number (${row.next}) and is not yet a patient's`,
+            422,
+        );
+    }
 }
 
 function isRefCollision(err: unknown): boolean {
@@ -242,6 +327,15 @@ async function requireRow(id: string): Promise<PatientRow> {
 }
 
 export const patientService = {
+    /**
+     * Name, phone, or the number on the file. The ref is in here because an old
+     * patient's ref *is* the number written on their paper file — the desk
+     * reads `710` off the front of it and types it — and `legacy_ref` is here
+     * beside it for the records that came across before that was true, whose
+     * `ref` is a number this app allocated and nobody has ever seen. Both are
+     * matched as a substring, like the name: a half-typed number should narrow
+     * the list rather than find nothing until the last digit.
+     */
     async search(input: SearchPatientInput): Promise<Patient[]> {
         const term = input.q.trim();
         if (!term) return [];
@@ -254,7 +348,14 @@ export const patientService = {
         const rows = await db
             .select()
             .from(patients)
-            .where(or(ilike(patients.name, `%${term}%`), ilike(patients.phone, `%${phoneTerm}%`)))
+            .where(
+                or(
+                    ilike(patients.name, `%${term}%`),
+                    ilike(patients.phone, `%${phoneTerm}%`),
+                    ilike(patients.ref, `%${term}%`),
+                    ilike(patients.legacyRef, `%${term}%`),
+                ),
+            )
             .orderBy(desc(patients.createdAt))
             .limit(input.limit);
 
@@ -336,6 +437,8 @@ export const patientService = {
                 startsAt: appointments.startsAt,
                 status: appointments.status,
                 isOpeningBalance: appointments.isOpeningBalance,
+                isImported: appointments.isImported,
+                dateUnknown: appointments.dateUnknown,
                 checkedInAt: visits.checkedInAt,
                 completedAt: visits.completedAt,
                 computedTotal: visits.computedTotal,
@@ -371,10 +474,26 @@ export const patientService = {
         };
     },
 
+    /**
+     * Registering someone, new or old — one screen, one procedure. `old` is what
+     * the **Old patient** switch reveals, and its absence is the whole of what
+     * makes this a new registration.
+     *
+     * An old patient is written in one transaction with everything they brought
+     * with them: their number, what they owed, and whatever the paper file
+     * records they had done. Half of that landing is worse than none of it — a
+     * record on file owing nothing they actually owe is a wrong figure read out
+     * at the desk months later — so any failure takes the patient down with it
+     * and the row is typed again.
+     *
+     * Everything that can be refused is refused before the transaction opens:
+     * the questionnaire, the catalogue lines, and whether the clinic has said
+     * where an old patient's history is dated.
+     */
     async create(input: CreatePatientInput): Promise<Patient> {
         const custom = await customQuestionService.validateIntake(input.custom);
 
-        const row = await insertPatientWithRef(db, {
+        const values = {
             name: input.name,
             phone: normalizePhone(input.phone),
             email: input.email ?? null,
@@ -383,6 +502,19 @@ export const patientService = {
             custom,
             notes: input.notes ?? null,
             legacyRef: input.legacyRef ?? null,
+        };
+
+        if (input.old === undefined) return toPatient(await insertPatientWithRef(db, values));
+
+        const old: OldPatientInput = input.old;
+        const plan = await planOldPatientHistory(old);
+
+        const row = await db.transaction(async (tx) => {
+            // The old number is both the ref the desk reads and the mark that
+            // says this record came across, so it is written to both columns.
+            const inserted = await insertPatientWithRef(tx, { ...values, legacyRef: old.ref }, old.ref);
+            if (plan) await writeOldPatientHistory(tx, inserted.id, plan);
+            return inserted;
         });
 
         return toPatient(row);

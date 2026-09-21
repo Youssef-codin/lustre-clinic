@@ -33,10 +33,12 @@ const STEP_MS = 10_000;
 
 const BLOCK = `${MARKER}
 androidComponents {
-    onVariants(selector().withBuildType('release')) { variant ->
-        def forced = findProperty('LUSTRE_VERSION_CODE')
-        int lustreVersionCode = forced ? forced.toInteger() : ((System.currentTimeMillis() - ${EPOCH_MS}L).intdiv(${STEP_MS}L)) as int
-        variant.outputs.each { output -> output.versionCode.set(lustreVersionCode) }
+    ['release', 'devRelease'].each { buildType ->
+        onVariants(selector().withBuildType(buildType)) { variant ->
+            def forced = findProperty('LUSTRE_VERSION_CODE')
+            int lustreVersionCode = forced ? forced.toInteger() : ((System.currentTimeMillis() - ${EPOCH_MS}L).intdiv(${STEP_MS}L)) as int
+            variant.outputs.each { output -> output.versionCode.set(lustreVersionCode) }
+        }
     }
 }
 `;

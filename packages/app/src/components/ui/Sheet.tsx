@@ -35,10 +35,11 @@ import {
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: drives `BottomSheetModal`'s imperative present/dismiss ref, which is the animation running outside React. The hardware back is `useHardwareBack`'s.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
+import { Chevron } from './Chevron';
 import { duration } from './motion';
 import { useHardwareBack } from './useHardwareBack';
 import { useKeyboardHeight } from './useKeyboardHeight';
@@ -74,6 +75,18 @@ export type SheetProps = {
     onClosed?: () => void;
     title?: string;
     subtitle?: string;
+    /**
+     * Makes the title block a button — for a sheet whose title names something
+     * that has a screen of its own, like the patient an appointment is with.
+     * A chevron is drawn and the block takes a button role; without it the
+     * title is plain text, which is what every other sheet wants.
+     *
+     * It is an answer, so it belongs on `onClosed`'s side: close the sheet,
+     * then go. See `onClose` above.
+     */
+    onTitlePress?: () => void;
+    /** What the title button announces. Defaults to the title itself. */
+    titleAccessibilityLabel?: string;
     children?: ReactNode;
     footer?: ReactNode;
     maxHeightRatio?: number;
@@ -113,6 +126,8 @@ export function Sheet({
     onClosed,
     title,
     subtitle,
+    onTitlePress,
+    titleAccessibilityLabel,
     children,
     footer,
     maxHeightRatio = 0.86,
@@ -121,7 +136,6 @@ export function Sheet({
     scrollBody = true,
     testID,
 }: SheetProps) {
-    const t = useT();
     const sheet = useRef<BottomSheetModal>(null);
     const insets = useSafeAreaInsets();
     const window = useWindowDimensions();
@@ -290,18 +304,16 @@ export function Sheet({
                 </View>
 
                 {title ? (
-                    <View style={styles.header}>
-                        <Text variant="title3">{t(title)}</Text>
-                        {subtitle ? (
-                            <Text variant="subhead" tone="muted">
-                                {t(subtitle)}
-                            </Text>
-                        ) : null}
-                    </View>
+                    <TitleBlock
+                        title={title}
+                        subtitle={subtitle}
+                        onPress={onTitlePress}
+                        accessibilityLabel={titleAccessibilityLabel}
+                    />
                 ) : null}
             </View>
         ),
-        [t, title, subtitle],
+        [title, subtitle, onTitlePress, titleAccessibilityLabel],
     );
 
     const body = (
@@ -391,6 +403,49 @@ export function Sheet({
     );
 }
 
+/**
+ * The title and its subtitle, plain or pressable. Pressable gets the chevron
+ * every other "this opens something" row in the app carries, so the affordance
+ * is the one already learned rather than a new one taught here.
+ */
+function TitleBlock({
+    title,
+    subtitle,
+    onPress,
+    accessibilityLabel,
+}: {
+    title: string;
+    subtitle?: string;
+    onPress?: () => void;
+    accessibilityLabel?: string;
+}) {
+    const t = useT();
+    const text = (
+        <View style={styles.headerText}>
+            <Text variant="title3">{t(title)}</Text>
+            {subtitle ? (
+                <Text variant="subhead" tone="muted">
+                    {t(subtitle)}
+                </Text>
+            ) : null}
+        </View>
+    );
+
+    if (!onPress) return <View style={styles.header}>{text}</View>;
+
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(accessibilityLabel ?? title)}
+            onPress={onPress}
+            style={({ pressed }) => [styles.header, styles.headerButton, pressed && styles.headerPressed]}
+        >
+            {text}
+            <Chevron direction="forward" tone="muted" />
+        </Pressable>
+    );
+}
+
 const styles = StyleSheet.create({
     backdrop: { backgroundColor: color.scrim },
     sheet: {
@@ -400,7 +455,12 @@ const styles = StyleSheet.create({
     },
     handleRow: { alignItems: 'center', paddingTop: space[2.5], paddingBottom: space[1] },
     handle: { width: 38, height: 4, borderRadius: radius.full, backgroundColor: color.line },
-    header: { paddingHorizontal: size.gutter, paddingTop: space[2], paddingBottom: space[3], gap: space[1] },
+    header: { paddingHorizontal: size.gutter, paddingTop: space[2], paddingBottom: space[3] },
+    // A pressable title is a row: the text keeps the column it had, the
+    // chevron sits at the end of it.
+    headerButton: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+    headerText: { flex: 1, minWidth: 0, gap: space[1] },
+    headerPressed: { backgroundColor: color.surface2 },
     scrollContent: { paddingHorizontal: size.gutter, gap: space[3] },
     footer: {
         // Bleeds back out of the scroll's gutter so the rule above the action
