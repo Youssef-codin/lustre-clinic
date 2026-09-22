@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet } from 'react-native';
+import { useT } from '../../i18n';
 import { color, size, space, Text } from '../../theme';
 import type { MenuAnchor } from './PopoverMenu';
 import { MenuSurface } from './PopoverMenu';
@@ -26,6 +27,8 @@ export function DropdownMenu<T extends string>({
     accessibilityLabel,
     testID,
 }: DropdownMenuProps<T>) {
+    const t = useT();
+
     return (
         <MenuSurface
             visible={visible}
@@ -48,7 +51,7 @@ export function DropdownMenu<T extends string>({
                         style={({ pressed }) => [styles.item, pressed && styles.pressed]}
                     >
                         <Text variant="body" weight={selected ? 'semibold' : 'regular'} style={styles.label}>
-                            {option.label}
+                            {t(option.label)}
                         </Text>
                         {selected ? (
                             <Text variant="body" tone="accent">

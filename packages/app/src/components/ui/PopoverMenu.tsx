@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: runs the open/close `Animated.timing` and unmounts on its completion callback, so the menu finishes leaving before it goes
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, shadow, size, space, Text } from '../../theme';
 import { duration, easing } from './motion';
 import { Scrim } from './Scrim';
@@ -47,6 +48,8 @@ export function PopoverMenu({
     accessibilityLabel,
     testID,
 }: PopoverMenuProps) {
+    const t = useT();
+
     return (
         <MenuSurface
             visible={visible}
@@ -74,7 +77,7 @@ export function PopoverMenu({
                     >
                         {item.icon}
                         <Text variant="body" tone={item.danger ? 'danger' : 'ink'}>
-                            {item.label}
+                            {t(item.label)}
                         </Text>
                     </Pressable>
                 </View>
@@ -100,6 +103,7 @@ export function MenuSurface({
     accessibilityLabel,
     testID,
 }: MenuSurfaceProps) {
+    const t = useT();
     const progress = useRef(new Animated.Value(0)).current;
     const [mounted, setMounted] = useState(visible);
     const reducedMotion = useReducedMotion();
@@ -129,7 +133,7 @@ export function MenuSurface({
             <Scrim opacity={progress} onPress={onClose} />
             <Animated.View
                 accessibilityRole="menu"
-                accessibilityLabel={accessibilityLabel}
+                accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
                 // Every item closes the menu before it acts, and the menu is
                 // still on screen for the whole exit — so without this a second
                 // tap lands on a row that has already run, and runs it again.

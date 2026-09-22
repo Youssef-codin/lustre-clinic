@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { AddButton } from './AddButton';
 import { IconButton } from './IconButton';
@@ -29,6 +30,7 @@ export function ListEditor({
     minItemsHint = 'Add at least two options.',
     testID,
 }: ListEditorProps) {
+    const t = useT();
     const [draft, setDraft] = useState('');
 
     function update(index: number, value: string) {
@@ -68,7 +70,9 @@ export function ListEditor({
 
                     <IconButton
                         variant="bare"
-                        accessibilityLabel={`Remove ${item || `option ${index + 1}`}`}
+                        accessibilityLabel={t('Remove {name}', {
+                            name: item || `${t('Option')} ${index + 1}`,
+                        })}
                         onPress={() => remove(index)}
                         icon={
                             <Text variant="callout" tone="muted">

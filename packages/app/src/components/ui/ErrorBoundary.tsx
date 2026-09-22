@@ -18,6 +18,7 @@
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, space, Text } from '../../theme';
 import { Button } from './Button';
 
@@ -77,31 +78,58 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         if (!this.state.failed) return this.props.children;
 
         return (
-            <View style={styles.root}>
-                <View style={styles.card}>
-                    <View style={styles.glyph}>
-                        <Text variant="title2" tone="muted">
-                            {'!'}
-                        </Text>
-                    </View>
-
-                    <Text variant="title3">{this.props.title}</Text>
-                    <Text variant="subhead" tone="muted" style={styles.body}>
-                        {this.props.message}
-                    </Text>
-
-                    <Button
-                        label={this.props.actionLabel ?? 'Reload'}
-                        onPress={this.retry}
-                        variant="primary"
-                        size="lg"
-                        block
-                        style={styles.action}
-                    />
-                </View>
-            </View>
+            <Fallback
+                title={this.props.title}
+                message={this.props.message}
+                actionLabel={this.props.actionLabel ?? 'Reload'}
+                onRetry={this.retry}
+            />
         );
     }
+}
+
+/**
+ * The tripped state, as a function so it can localize. `useT` is a hook and
+ * this file's outer component is a class, which is why the two are split.
+ */
+function Fallback({
+    title,
+    message,
+    actionLabel,
+    onRetry,
+}: {
+    title: string;
+    message: string;
+    actionLabel: string;
+    onRetry: () => void;
+}) {
+    const t = useT();
+
+    return (
+        <View style={styles.root}>
+            <View style={styles.card}>
+                <View style={styles.glyph}>
+                    <Text variant="title2" tone="muted">
+                        {'!'}
+                    </Text>
+                </View>
+
+                <Text variant="title3">{t(title)}</Text>
+                <Text variant="subhead" tone="muted" style={styles.body}>
+                    {t(message)}
+                </Text>
+
+                <Button
+                    label={actionLabel}
+                    onPress={onRetry}
+                    variant="primary"
+                    size="lg"
+                    block
+                    style={styles.action}
+                />
+            </View>
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({

@@ -16,6 +16,7 @@
 // biome-ignore lint/style/noRestrictedImports: an `Animated.timing` driven imperatively — the fill chases a prop and the tween has to be stopped on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius } from '../../theme';
 import { easing, duration as motionDuration } from './motion';
 import { useReducedMotion } from './useReducedMotion';
@@ -45,6 +46,7 @@ export function ProgressBar({
     onDark = false,
     accessibilityLabel,
 }: ProgressBarProps) {
+    const t = useT();
     const clamped = Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
     const reducedMotion = useReducedMotion();
     const filled = useRef(new Animated.Value(clamped)).current;
@@ -69,7 +71,7 @@ export function ProgressBar({
     return (
         <View
             accessibilityRole="progressbar"
-            accessibilityLabel={accessibilityLabel}
+            accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
             accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
             style={[
                 styles.track,

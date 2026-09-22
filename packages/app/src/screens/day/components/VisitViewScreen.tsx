@@ -209,7 +209,7 @@ export function VisitViewScreen({
                     onChange={setPanel}
                     segments={[
                         { value: 'treatment', label: 'Treatment' },
-                        { value: 'payment', label: `Payment · ${visit.payments.length}` },
+                        { value: 'payment', label: `${t('Payment')} · ${visit.payments.length}` },
                     ]}
                 />
             </View>

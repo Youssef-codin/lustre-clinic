@@ -20,7 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
-import { useIsRTL } from '../../i18n';
+import { useIsRTL, useT } from '../../i18n';
 import { border, color, radius, shadow, space, Text } from '../../theme';
 import { duration, easing } from './motion';
 import { useReducedMotion } from './useReducedMotion';
@@ -66,6 +66,7 @@ export function SegmentedControl<T extends string>({
     const placed = useRef(false);
     const reducedMotion = useReducedMotion();
     const isRTL = useIsRTL();
+    const t = useT();
 
     // The first segment sits at the far end in RTL, so the thumb walks back
     // from it; `layout.x` and `translateX` are both physical, neither flips.
@@ -102,7 +103,7 @@ export function SegmentedControl<T extends string>({
     return (
         <View
             accessibilityRole="tablist"
-            accessibilityLabel={accessibilityLabel}
+            accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
             style={styles.track}
             testID={testID}
         >
@@ -130,7 +131,7 @@ export function SegmentedControl<T extends string>({
                             weight={selected ? 'semibold' : 'medium'}
                             tone={selected ? 'ink' : 'ink2'}
                         >
-                            {segment.label}
+                            {t(segment.label)}
                         </Text>
                     </Pressable>
                 );

@@ -16,6 +16,7 @@ import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, space } from '../../theme';
 
 export type IconButtonVariant = 'circle' | 'filled' | 'square' | 'bare';
@@ -61,6 +62,7 @@ export function IconButton({
     style,
     testID,
 }: IconButtonProps) {
+    const t = useT();
     const box = size ?? BOX[variant];
     const lockedUntil = useRef(0);
 
@@ -75,7 +77,7 @@ export function IconButton({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={accessibilityLabel}
+            accessibilityLabel={t(accessibilityLabel)}
             accessibilityState={{ disabled }}
             disabled={disabled}
             onPress={handlePress}
