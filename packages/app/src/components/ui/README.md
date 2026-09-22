@@ -43,6 +43,33 @@ a second appointment. So `Button` has `loading`, and it is not decoration:
 `loading` is a bug, not a shortcut — every one of them has a spinner-shaped hole
 where the double-booking gets in.
 
+The press lock is half of it, and only the half the control can see: it covers a
+repeat press on *that* button, for those frames. It cannot refuse the second of
+two taps that land on two different controls driving the same write, and it does
+not know that `isPending` is state — a tap in the frame before the re-render
+reads the old `false` and goes through. `usePendingAction` is the other half, and
+the one a screen reaches for:
+
+```tsx
+const write = usePendingAction((job: () => Promise<unknown>) => job());
+
+<Button label="Save" loading={write.pending} onPress={() => write.run(async () => {
+    await save.mutateAsync(input);
+    onSaved();
+})} />;
+```
+
+An in-flight write is held in a ref, so an overlapping call is refused outright
+rather than queued. `pending` beside it is the state the spinner reads. A failure
+clears the flag exactly like a success, so the action is immediately retryable,
+and the rejection is swallowed — the error belongs on screen, off the mutation
+that holds it, not in an unhandled rejection.
+
+It is the same guarantee `screens/day/data` and `screens/patients/data` build
+into their own `useLocalMutation` / `useMutation`; screens on those clusters get
+it from the hook they already call and need nothing extra. Everything writing
+over TanStack directly — all of `screens/settings` — wraps the press in this.
+
 **The keyboard.** Half the sheets hold inputs: the tooth picker's search, the
 catalogue search, the payment amount, every settings editor. `Sheet` handles it
 in three separate pieces, because they fail separately:

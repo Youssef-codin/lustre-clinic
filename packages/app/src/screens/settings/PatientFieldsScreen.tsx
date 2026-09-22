@@ -36,6 +36,7 @@ import {
     Tag,
     TextField,
     Toast,
+    usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
@@ -98,6 +99,16 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     const active = rows.filter((q) => q.active);
     const inactive = rows.filter((q) => !q.active);
 
+    /**
+     * An arrow is an `IconButton`, so its own press lock covers a repeat on the
+     * same one — not the arrow on the row below, and not the frame before
+     * `isPending` re-renders. Both orders would be computed from the list as it
+     * was before the first write landed, and the second would undo the first.
+     */
+    const moveRow = usePendingAction((input: Parameters<typeof reorder.mutateAsync>[0]) =>
+        reorder.mutateAsync(input),
+    );
+
     // One write for the whole list, so a dropped connection leaves the order it
     // had rather than half of the new one.
     function move(index: number, delta: number) {
@@ -107,7 +118,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
         if (!moved || !target) return;
         next[index] = target;
         next[index + delta] = moved;
-        reorder.mutate({ ids: next.map((row) => row.id) });
+        moveRow.run({ ids: next.map((row) => row.id) });
     }
 
     // Not while reordering — the same reason as `ProceduresScreen`.
@@ -188,7 +199,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                                             <QuestionRow
                                                 question={question}
                                                 reordering={reordering}
-                                                reorderDisabled={reorder.isPending}
+                                                reorderDisabled={moveRow.pending}
                                                 isFirst={index === 0}
                                                 isLast={index === active.length - 1}
                                                 onPress={() => editing.push(question)}
@@ -391,8 +402,16 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
             : undefined;
     const optionsError =
         submitted && kind === 'select' && options.length < 2 ? 'A dropdown needs at least two options.' : '';
-    const saving = create.isPending || (update.isPending && !confirming);
-    const busy = create.isPending || update.isPending;
+    /**
+     * One lock for the pane's two writes. Save and the deactivate confirm are the
+     * same `update`, and `isPending` is state: the second of two taps landing in
+     * one frame reads the old `false` and adds the question twice. The guard's
+     * ref refuses it, and clears on failure so it can be tried again.
+     */
+    const write = usePendingAction((job: () => Promise<unknown>) => job());
+
+    const saving = write.pending && !confirming;
+    const busy = write.pending;
     const failure = create.error ?? update.error;
 
     function onChangeLabel(next: string) {
@@ -406,22 +425,20 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
         if (!question && !/^[a-z][a-z0-9_]*$/.test(key)) return;
         if (kind === 'select' && options.length < 2) return;
 
-        if (question) {
-            update.mutate(
-                {
+        write.run(async () => {
+            if (question) {
+                await update.mutateAsync({
                     id: question.id,
                     label: label.trim(),
                     labelAr,
                     options: kind === 'select' ? options : undefined,
                     required,
-                },
-                { onSuccess: () => onSaved('Question saved') },
-            );
-            return;
-        }
+                });
+                onSaved('Question saved');
+                return;
+            }
 
-        create.mutate(
-            {
+            await create.mutateAsync({
                 key,
                 label: label.trim(),
                 labelAr,
@@ -429,22 +446,18 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 options: kind === 'select' ? options : null,
                 required,
                 sortOrder: nextSortOrder,
-            },
-            { onSuccess: () => onSaved('Question added') },
-        );
+            });
+            onSaved('Question added');
+        });
     }
 
     function onToggleActive() {
         if (!question) return;
-        update.mutate(
-            { id: question.id, active: !question.active },
-            {
-                onSuccess: (updated) => {
-                    setConfirming(false);
-                    onSaved(updated.active ? 'Question reactivated' : 'Question deactivated');
-                },
-            },
-        );
+        write.run(async () => {
+            const updated = await update.mutateAsync({ id: question.id, active: !question.active });
+            setConfirming(false);
+            onSaved(updated.active ? 'Question reactivated' : 'Question deactivated');
+        });
     }
 
     // A write in flight swallows Back, the same as the header's.
@@ -572,7 +585,7 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                     label={question.active ? 'Deactivate question' : 'Reactivate question'}
                     variant={question.active ? 'danger' : 'secondary'}
                     onPress={() => setConfirming(true)}
-                    loading={update.isPending && confirming}
+                    loading={write.pending && confirming}
                     block
                 />
             ) : null}
@@ -587,7 +600,7 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 }
                 confirmLabel={question?.active ? 'Deactivate' : 'Reactivate'}
                 destructive={question?.active}
-                loading={update.isPending && confirming}
+                loading={write.pending && confirming}
                 onConfirm={onToggleActive}
                 onCancel={() => setConfirming(false)}
             />
