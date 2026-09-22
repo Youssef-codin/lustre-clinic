@@ -28,6 +28,7 @@
 // evening visit on 31 December is UTC 1 January and would sit under the wrong
 // heading. Answers to deactivated questions are hidden but still on the record
 // (§7.8).
+import type { CopyVars } from '@lustre/shared';
 import { type RefObject, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue } from '../../components/domain';
@@ -47,7 +48,7 @@ import {
 } from '../../components/ui';
 import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
-import { dateKey, todayKey } from '../day/time';
+import { dateKey, formatMonth, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
 import { MoreIcon } from './components/icons';
@@ -348,7 +349,7 @@ function RecordBar({
             {onBack ? (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Back to ${backLabel}`}
+                    accessibilityLabel={t('Back to {where}', { where: t(backLabel) })}
                     onPress={onBack}
                     hitSlop={10}
                     style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
@@ -414,11 +415,13 @@ function Openers({
 /** The count rides on the tab, as the design draws it: `Visits · 32`. The
  * label is composed here rather than by `SegmentedControl`, which can only
  * look up a whole literal, so the word is localized before the count is
- * appended. */
+ * appended — and `Details`, which needs no count, goes through `t` beside it
+ * rather than relying on the control to look up a bare literal, so the two
+ * halves of the strip are localized the same way. */
 function segments(visits: number, t: (copy: string) => string) {
     return [
         { value: 'visits' as const, label: visits > 0 ? `${t('Visits')} · ${visits}` : t('Visits') },
-        { value: 'details' as const, label: 'Details' },
+        { value: 'details' as const, label: t('Details') },
     ];
 }
 
@@ -460,6 +463,7 @@ function Outstanding({ amount, onRecordPayment }: { amount: number; onRecordPaym
  * twice the height of a control that rides on the end of a line of type.
  */
 function Pill({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
+    const t = useT();
     return (
         <Pressable
             accessibilityRole="button"
@@ -469,7 +473,7 @@ function Pill({ label, onPress, testID }: { label: string; onPress: () => void; 
             testID={testID}
         >
             <Text variant="footnote" weight="bold">
-                {label}
+                {t(label)}
             </Text>
         </Pressable>
     );
@@ -512,7 +516,7 @@ function History({
         <View>
             <View style={styles.summary}>
                 <Text variant="footnote" tone="muted">
-                    {sinceLabel(history)}
+                    {sinceLabel(history, t)}
                 </Text>
                 {/* Nothing paid yet is a patient who has not been through the
                     desk — the clause is left off rather than reading `EGP 0`. */}
@@ -547,13 +551,18 @@ function History({
     );
 }
 
-/** `Since Mar 2019`, off the oldest row — the list is newest first. */
-function sinceLabel(history: PatientHistoryEntry[]): string {
+/** `Since Mar 2019`, off the oldest row — the list is newest first.
+ *
+ * The month is `formatMonth`'s, not `toLocaleString('en')`'s: the month name is
+ * copy like any other word on the screen, and pinning the format to `en` meant
+ * an Arabic record said `Since Mar 2019` under a page of Arabic. The sentence
+ * around it is a slot rather than a concatenation, so Arabic can order it its
+ * own way. */
+function sinceLabel(history: PatientHistoryEntry[], t: (copy: string, vars?: CopyVars) => string): string {
     const oldest = history.at(-1);
     if (!oldest) return '';
 
-    const date = new Date(oldest.startsAt);
-    return `Since ${date.toLocaleString('en', { month: 'short' })} ${date.getFullYear()}`;
+    return t('Since {month}', { month: formatMonth(dateKey(new Date(oldest.startsAt))) });
 }
 
 function groupByYear(history: PatientHistoryEntry[]): Array<[string, PatientHistoryEntry[]]> {
@@ -580,6 +589,7 @@ type DetailsProps = {
  * only the part that differs from clinic to clinic.
  */
 function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
+    const t = useT();
     const gapByKey = useMemo(() => new Map(gaps.map((gap) => [gap.key, gap])), [gaps]);
 
     const hidden = useMemo(() => {
@@ -595,7 +605,9 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
         <View style={styles.details}>
             <View style={styles.sectionHead}>
                 <Text variant="eyebrow" tone="muted">
-                    {questions.data ? `CLINIC QUESTIONS · ${questions.data.length}` : 'CLINIC QUESTIONS'}
+                    {questions.data
+                        ? `${t('CLINIC QUESTIONS')} · ${questions.data.length}`
+                        : t('CLINIC QUESTIONS')}
                 </Text>
                 {questions.data && questions.data.length > 0 ? (
                     <Pill label="Edit" onPress={onEdit} testID="answer" />
@@ -606,8 +618,10 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
                 <View style={styles.gap}>
                     <Callout tone="warning" title="Still to ask">
                         {[
-                            unanswered > 0 ? `${unanswered} never asked` : null,
-                            stale > 0 ? `${stale} answered before the question changed` : null,
+                            unanswered > 0 ? t('{count} never asked', { count: unanswered }) : null,
+                            stale > 0
+                                ? t('{count} answered before the question changed', { count: stale })
+                                : null,
                         ]
                             .filter(Boolean)
                             .join(' · ')}
@@ -644,14 +658,22 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
             )}
 
             <Text variant="caption" tone="muted" style={styles.footnote}>
-                Answers follow the question set in Settings — deactivated questions keep their answers but
-                stop showing.
+                {t(
+                    'Answers follow the question set in Settings — deactivated questions keep their answers but stop showing.',
+                )}
             </Text>
 
             {hidden > 0 && (
                 <View style={styles.gap}>
                     <Callout tone="note">
-                        {`${hidden} ${hidden === 1 ? 'answer is' : 'answers are'} kept from questions the clinic no longer asks. They are hidden, not deleted, and come back if the question is reactivated.`}
+                        {hidden === 1
+                            ? t(
+                                  '1 answer is kept from questions the clinic no longer asks. It is hidden, not deleted, and comes back if the question is reactivated.',
+                              )
+                            : t(
+                                  '{count} answers are kept from questions the clinic no longer asks. They are hidden, not deleted, and come back if the question is reactivated.',
+                                  { count: hidden },
+                              )}
                     </Callout>
                 </View>
             )}
