@@ -3,9 +3,9 @@
  * half is the filesystem; this is the off-site half, behind one interface so
  * the run itself does not care which it is talking to.
  *
- * Google Drive is what the clinic actually uses. S3 stays because the interface
- * is the same shape either way and an object store is the obvious fallback if
- * Drive's service-account storage rules (see `drive.ts`) get in the way.
+ * Google Drive is what the clinic actually uses. OAuth works with the doctor's
+ * personal Gmail or Workspace account; the old service-account mode remains a
+ * compatibility fallback for Workspace shared drives and domain delegation.
  *
  * Anything in an off-site store whose name does not parse as a dump is somebody
  * else's file and is dropped before retention sees it — pruning must never
@@ -15,7 +15,8 @@
  */
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
-import { createDriveClient, normalizePrivateKey } from './drive.ts';
+import { createDriveClient, type DriveCredentials, normalizePrivateKey } from './drive.ts';
+import { readDriveGrant } from './grant.ts';
 import { type BackupFile, parseBackupFileName } from './retention.ts';
 
 export interface OffsiteFile extends BackupFile {
@@ -40,32 +41,112 @@ export function selectOffsiteDumps(entries: readonly { name: string; handle: str
     });
 }
 
-function driveDestination(): OffsiteDestination | null {
-    const { BACKUP_DRIVE_FOLDER_ID, BACKUP_DRIVE_CLIENT_EMAIL, BACKUP_DRIVE_PRIVATE_KEY } = config;
-    if (!BACKUP_DRIVE_FOLDER_ID || !BACKUP_DRIVE_CLIENT_EMAIL || !BACKUP_DRIVE_PRIVATE_KEY) {
-        const missing = [
-            BACKUP_DRIVE_FOLDER_ID ? null : 'BACKUP_DRIVE_FOLDER_ID',
-            BACKUP_DRIVE_CLIENT_EMAIL ? null : 'BACKUP_DRIVE_CLIENT_EMAIL',
-            BACKUP_DRIVE_PRIVATE_KEY ? null : 'BACKUP_DRIVE_PRIVATE_KEY',
-        ].filter((name) => name !== null);
+type DriveEnvironment = Pick<
+    typeof config,
+    | 'BACKUP_DRIVE_FOLDER_ID'
+    | 'BACKUP_DRIVE_OAUTH_CLIENT_ID'
+    | 'BACKUP_DRIVE_OAUTH_CLIENT_SECRET'
+    | 'BACKUP_DRIVE_REFRESH_TOKEN'
+    | 'BACKUP_DRIVE_CLIENT_EMAIL'
+    | 'BACKUP_DRIVE_PRIVATE_KEY'
+    | 'BACKUP_DRIVE_SUBJECT'
+>;
 
-        if (missing.length < 3) {
+export function resolveDriveCredentials(env: DriveEnvironment): {
+    credentials: DriveCredentials | null;
+    missing: string[];
+} {
+    // Trimmed, not just checked for empty: every one of these is copied by hand
+    // out of what `bun drive:authorize` prints, and a folder id with a trailing
+    // space fails at Google as `'<id> ' in parents` with nothing naming the cause.
+    const set = (value: string | undefined): string | undefined => value?.trim() || undefined;
+
+    const oauth = {
+        BACKUP_DRIVE_FOLDER_ID: set(env.BACKUP_DRIVE_FOLDER_ID),
+        BACKUP_DRIVE_OAUTH_CLIENT_ID: set(env.BACKUP_DRIVE_OAUTH_CLIENT_ID),
+        BACKUP_DRIVE_OAUTH_CLIENT_SECRET: set(env.BACKUP_DRIVE_OAUTH_CLIENT_SECRET),
+        BACKUP_DRIVE_REFRESH_TOKEN: set(env.BACKUP_DRIVE_REFRESH_TOKEN),
+    };
+    const oauthConfigured = Boolean(
+        oauth.BACKUP_DRIVE_OAUTH_CLIENT_ID ||
+            oauth.BACKUP_DRIVE_OAUTH_CLIENT_SECRET ||
+            oauth.BACKUP_DRIVE_REFRESH_TOKEN,
+    );
+    const oauthMissing = Object.entries(oauth)
+        .filter(([, value]) => !value)
+        .map(([name]) => name);
+
+    if (oauthConfigured && oauthMissing.length === 0) {
+        return {
+            credentials: {
+                kind: 'oauth',
+                clientId: oauth.BACKUP_DRIVE_OAUTH_CLIENT_ID as string,
+                clientSecret: oauth.BACKUP_DRIVE_OAUTH_CLIENT_SECRET as string,
+                refreshToken: oauth.BACKUP_DRIVE_REFRESH_TOKEN as string,
+                folderId: oauth.BACKUP_DRIVE_FOLDER_ID as string,
+            },
+            missing: [],
+        };
+    }
+
+    const serviceAccount = {
+        BACKUP_DRIVE_FOLDER_ID: oauth.BACKUP_DRIVE_FOLDER_ID,
+        BACKUP_DRIVE_CLIENT_EMAIL: set(env.BACKUP_DRIVE_CLIENT_EMAIL),
+        BACKUP_DRIVE_PRIVATE_KEY: set(env.BACKUP_DRIVE_PRIVATE_KEY),
+    };
+    const serviceAccountConfigured = Object.values(serviceAccount).some(Boolean);
+    const serviceAccountMissing = Object.entries(serviceAccount)
+        .filter(([, value]) => !value)
+        .map(([name]) => name);
+
+    if (!oauthConfigured && serviceAccountConfigured && serviceAccountMissing.length === 0) {
+        return {
+            credentials: {
+                kind: 'service-account',
+                clientEmail: serviceAccount.BACKUP_DRIVE_CLIENT_EMAIL as string,
+                privateKey: normalizePrivateKey(serviceAccount.BACKUP_DRIVE_PRIVATE_KEY as string),
+                folderId: serviceAccount.BACKUP_DRIVE_FOLDER_ID as string,
+                subject: set(env.BACKUP_DRIVE_SUBJECT),
+            },
+            missing: [],
+        };
+    }
+
+    if (oauthConfigured) return { credentials: null, missing: oauthMissing };
+    if (serviceAccountConfigured) return { credentials: null, missing: serviceAccountMissing };
+    return { credentials: null, missing: [] };
+}
+
+/**
+ * A grant made from the doctor's phone outranks the environment: it is the more
+ * recent statement of which Drive the clinic backs up to, and the operator's
+ * pasted values are what it was before somebody signed in again.
+ */
+async function driveDestination(): Promise<OffsiteDestination | null> {
+    const grant = await readDriveGrant();
+    const resolved = grant
+        ? {
+              credentials: {
+                  kind: 'oauth' as const,
+                  clientId: grant.clientId,
+                  refreshToken: grant.refreshToken,
+                  folderId: grant.folderId,
+              },
+              missing: [],
+          }
+        : resolveDriveCredentials(config);
+
+    if (!resolved.credentials) {
+        if (resolved.missing.length > 0) {
             logger.warn(
-                { missing },
+                { missing: resolved.missing },
                 'Google Drive backups are partially configured — the off-site copy is disabled',
             );
         }
         return null;
     }
 
-    const client = createDriveClient({
-        credentials: {
-            clientEmail: BACKUP_DRIVE_CLIENT_EMAIL,
-            privateKey: normalizePrivateKey(BACKUP_DRIVE_PRIVATE_KEY),
-            folderId: BACKUP_DRIVE_FOLDER_ID,
-            subject: config.BACKUP_DRIVE_SUBJECT,
-        },
-    });
+    const client = createDriveClient({ credentials: resolved.credentials });
 
     return {
         kind: 'drive',
@@ -112,6 +193,6 @@ function s3Destination(): OffsiteDestination | null {
     };
 }
 
-export function offsiteDestination(): OffsiteDestination | null {
-    return driveDestination() ?? s3Destination();
+export async function offsiteDestination(): Promise<OffsiteDestination | null> {
+    return (await driveDestination()) ?? s3Destination();
 }

@@ -25,6 +25,8 @@ import {
     ChevronLeft,
     ChevronRight,
     Clock,
+    CloudAlert,
+    DatabaseBackup,
     EyeOff,
     Folder,
     Hospital,
@@ -80,6 +82,7 @@ const ROW_ICON = {
     fields: icon(ListPlus, ROW),
     about: icon(Info, ROW),
     hours: icon(Clock, ROW),
+    backups: icon(DatabaseBackup, ROW),
 } as const;
 
 export type SettingsGlyph = keyof typeof ROW_ICON;
@@ -92,6 +95,12 @@ export function SettingsIcon({ glyph, ...rest }: SettingsIconProps) {
     const Glyph = ROW_ICON[glyph];
     return <Glyph {...rest} />;
 }
+
+/**
+ * The off-site backup warning. A cloud rather than a database or a key: what
+ * stopped is the copy leaving the building, and the local dumps are fine.
+ */
+export const DriveAlertIcon = icon(CloudAlert, { size: 18, stroke: color.dueText, width: 2 });
 
 /** The identity card's "Switch role" — two arrows doubling back on each other. */
 export const SwitchRoleIcon = icon(Repeat, { size: 16, stroke: color.inverse, width: 2 });

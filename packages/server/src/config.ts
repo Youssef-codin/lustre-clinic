@@ -6,9 +6,9 @@
  * the tailnet, so the server pings `HEARTBEAT_URL` and the monitor alerts on
  * silence (§17). `BACKUP_ENCRYPTION_KEY` (32 bytes, hex/base64) is NOT stored on
  * the clinic machine; off-site upload is refused without it and local dumps are
- * unencrypted. Drive backups use a service account and need a shared-drive
- * folder or a `BACKUP_DRIVE_SUBJECT` to impersonate. Drive wins over S3 when
- * both are configured.
+ * unencrypted. Drive normally uses the doctor's one-time OAuth grant; the
+ * service-account fields remain for Workspace compatibility. Drive wins over
+ * S3 when both are configured.
  */
 import { z } from 'zod';
 
@@ -60,6 +60,18 @@ const envSchema = z.object({
     UPDATES_CHANNEL: z.enum(['production', 'development']).default('production'),
 
     BACKUP_DRIVE_FOLDER_ID: z.string().optional(),
+    BACKUP_DRIVE_OAUTH_CLIENT_ID: z.string().optional(),
+    BACKUP_DRIVE_OAUTH_CLIENT_SECRET: z.string().optional(),
+    BACKUP_DRIVE_REFRESH_TOKEN: z.string().optional(),
+    // The Android OAuth client the phone consents against (§16). Public: Google
+    // issues no secret for it, and PKCE is what stands in for one.
+    BACKUP_DRIVE_ANDROID_CLIENT_ID: z.string().optional(),
+    // Google requires the scheme to be the package name, so a `.dev` stack sets
+    // `com.lustre.clinic.dev:/oauth2redirect`. Compose passes '' when unset.
+    BACKUP_DRIVE_ANDROID_REDIRECT_URI: z.preprocess(
+        (v) => (v === '' ? undefined : v),
+        z.string().default('com.lustre.clinic:/oauth2redirect'),
+    ),
     BACKUP_DRIVE_CLIENT_EMAIL: z.string().optional(),
     BACKUP_DRIVE_PRIVATE_KEY: z.string().optional(),
     BACKUP_DRIVE_SUBJECT: z.string().optional(),

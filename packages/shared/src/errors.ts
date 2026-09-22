@@ -89,6 +89,12 @@ export const ERROR_CODE = {
      * imported history that every operational view leaves out.
      */
     IMPORTED_DATE_AFTER_CUTOFF: 'IMPORTED_DATE_AFTER_CUTOFF',
+
+    // --- backups (§16) ------------------------------------------------------
+    /** No Android OAuth client is configured, so the phone cannot run the consent step. */
+    DRIVE_SIGN_IN_UNCONFIGURED: 'DRIVE_SIGN_IN_UNCONFIGURED',
+    /** Google refused the authorization code, or the backup folder could not be created. */
+    DRIVE_LINK_FAILED: 'DRIVE_LINK_FAILED',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];

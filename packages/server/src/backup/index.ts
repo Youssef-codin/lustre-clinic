@@ -11,14 +11,15 @@
  * environment uploads to the clinic's actual Drive folder and prunes it against
  * the run's own timestamp.
  */
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { mkdir, readdir, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import postgres from 'postgres';
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
-import { alert } from '../monitoring/index.ts';
+import { type Alert, alert } from '../monitoring/index.ts';
 import { encrypt, parseKey } from './crypto.ts';
 import { offsiteDestination } from './destination.ts';
+import { DRIVE_REAUTHORIZATION_CODE, isDriveReauthorizationRequired } from './drive.ts';
 import { databaseName, pgDump, pgRestore, withScratchDatabase } from './pg.ts';
 import {
     type BackupFile,
@@ -34,6 +35,7 @@ export * from './destination.ts';
 export * from './retention.ts';
 
 const MARKER_FILE = 'last-success.json';
+const OFFSITE_STATE_FILE = 'offsite-state.json';
 
 export interface BackupResult {
     readonly file: string;
@@ -50,6 +52,22 @@ export interface BackupOptions {
     now?: Date;
     verify?: boolean;
     offsite?: boolean;
+}
+
+export function backupFailureAlert(error: unknown, file: string): Alert {
+    if (isDriveReauthorizationRequired(error)) {
+        return {
+            code: DRIVE_REAUTHORIZATION_CODE,
+            summary:
+                'Google Drive authorization expired or was revoked. Run `bun drive:authorize` on the operator machine.',
+            context: { file },
+        };
+    }
+    return {
+        code: 'backup.failed',
+        summary: 'A backup run failed. The clinic is running without a fresh backup.',
+        context: { file, error: error instanceof Error ? error.message.slice(0, 200) : 'unknown' },
+    };
 }
 
 export async function listLocalBackups(directory: string): Promise<BackupFile[]> {
@@ -120,7 +138,7 @@ async function countRows(sql: postgres.Sql, tables: readonly string[]): Promise<
 }
 
 async function uploadOffsite(localPath: string, name: string): Promise<string | null> {
-    const destination = offsiteDestination();
+    const destination = await offsiteDestination();
     if (!destination) return null;
 
     if (!config.BACKUP_ENCRYPTION_KEY) {
@@ -149,7 +167,7 @@ async function pruneLocal(directory: string, policy: RetentionPolicy): Promise<s
 }
 
 async function pruneOffsite(policy: RetentionPolicy): Promise<number> {
-    const destination = offsiteDestination();
+    const destination = await offsiteDestination();
     if (!destination) return 0;
 
     const doomed = selectForDeletion(await destination.list(), policy);
@@ -172,6 +190,48 @@ export async function readLastSuccess(directory = config.BACKUP_DIR): Promise<Ba
     } catch {
         return null;
     }
+}
+
+/**
+ * A revoked Drive grant outlives the run that found it: the Discord alert fires
+ * once and dedupes for fifteen minutes, but the clinic stays un-backed-up until
+ * a person signs in again. So the state is written down, and Settings reads it.
+ * `since` is the first run that failed this way, not the latest — how long the
+ * off-site copy has been dead is the part worth showing.
+ */
+export interface OffsiteState {
+    reauthorizationRequiredSince: string;
+}
+
+export async function readOffsiteState(directory = config.BACKUP_DIR): Promise<OffsiteState | null> {
+    try {
+        return (await Bun.file(join(directory, OFFSITE_STATE_FILE)).json()) as OffsiteState;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Only a revoked grant is written down, and only the first one: a later run
+ * failing the same way must not reset the clock the doctor is being shown.
+ */
+export async function recordOffsiteFailure(directory: string, error: unknown, at: Date): Promise<void> {
+    if (!isDriveReauthorizationRequired(error)) return;
+    if (await readOffsiteState(directory)) return;
+
+    // Written through a temporary file and renamed over: `backup.status` can be
+    // reading this while the job writes it, and `Bun.write` truncates in place,
+    // so a plain write can be read back as half a file. `readOffsiteState`
+    // answers null on a parse error, which would report the grant as healthy.
+    const state: OffsiteState = { reauthorizationRequiredSince: at.toISOString() };
+    const target = join(directory, OFFSITE_STATE_FILE);
+    const scratch = `${target}.${process.pid}.tmp`;
+    await Bun.write(scratch, JSON.stringify(state));
+    await rename(scratch, target);
+}
+
+export async function clearOffsiteState(directory: string): Promise<void> {
+    await unlink(join(directory, OFFSITE_STATE_FILE)).catch(() => {});
 }
 
 export async function runBackup(options: BackupOptions = {}): Promise<BackupResult> {
@@ -197,6 +257,9 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         if (verify) await verifyDump(databaseUrl, path, now);
 
         const offsiteKey = offsite ? await uploadOffsite(path, name) : null;
+        // Only a real upload clears it. An unconfigured destination returns null
+        // too, and that must not read as "the grant is good again".
+        if (offsiteKey !== null) await clearOffsiteState(directory);
 
         const pruned = await pruneLocal(directory, retention);
         const prunedOffsite = offsite ? await pruneOffsite(retention) : 0;
@@ -219,11 +282,15 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
         return { file: name, bytes: size, verified: verify, offsiteKey, pruned };
     } catch (err) {
         logger.error({ err }, 'backup failed');
-        await alert({
-            code: 'backup.failed',
-            summary: 'A backup run failed. The clinic is running without a fresh backup.',
-            context: { file: name, error: err instanceof Error ? err.message.slice(0, 200) : 'unknown' },
-        });
+        // The alert is the escalation; nothing escalates a failure to write the
+        // state file. A full disk here must not swallow the one message that
+        // tells somebody the off-site copy has stopped.
+        try {
+            await recordOffsiteFailure(directory, err, now);
+        } catch (stateErr) {
+            logger.error({ err: stateErr }, 'could not record the off-site backup state');
+        }
+        await alert(backupFailureAlert(err, name));
         throw err;
     }
 }

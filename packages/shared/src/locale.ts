@@ -691,6 +691,43 @@ export const COPY_AR = {
 
     // --- the appointment sheet
     "Open {name}'s record": 'فتح سجل {name}',
+
+    // --- backups and the Google Drive sign-in (§16)
+    Backups: 'النسخ الاحتياطية',
+    'Checking…': 'جارٍ التحقق…',
+    'No backup yet': 'لا توجد نسخة احتياطية بعد',
+    yesterday: 'أمس',
+    '{days} days ago': 'منذ {days} أيام',
+    'Last backup {age}': 'آخر نسخة احتياطية {age}',
+    '{last} · copied off-site': '{last} · منسوخة خارج العيادة',
+    '{last} · on this machine only': '{last} · على هذا الجهاز فقط',
+    'Google Drive needs a new sign-in': 'جوجل درايف يحتاج إلى تسجيل دخول جديد',
+    'The off-site copy has stopped.': 'توقفت النسخة الخارجية.',
+    'The off-site copy has been stopped since yesterday.': 'النسخة الخارجية متوقفة منذ أمس.',
+    'The off-site copy has been stopped for {days} days.': 'النسخة الخارجية متوقفة منذ {days} أيام.',
+    '{stopped} Open Backups below to sign in again.':
+        '{stopped} افتح النسخ الاحتياطية بالأسفل لتسجيل الدخول مرة أخرى.',
+    '{stopped} Ask whoever set up the clinic server to sign in to Google Drive again.':
+        '{stopped} اطلب ممن جهّز خادم العيادة تسجيل الدخول إلى جوجل درايف مرة أخرى.',
+    'Backups now go to {account}': 'النسخ الاحتياطية تذهب الآن إلى {account}',
+    'Google Drive linked': 'تم ربط جوجل درايف',
+    'Drive sign-in is not set up on the clinic server': 'تسجيل الدخول إلى درايف غير مُعدّ على خادم العيادة',
+    'Google refused the sign-in — try again': 'رفض جوجل تسجيل الدخول — حاول مرة أخرى',
+    'Could not link Google Drive': 'تعذر ربط جوجل درايف',
+    'Change the backup account?': 'تغيير حساب النسخ الاحتياطي؟',
+    'Link a Google account?': 'ربط حساب جوجل؟',
+    'This decides where a copy of the whole clinic — every patient, visit and payment — is sent each night. Only do this if you were asked to.':
+        'هذا يحدد إلى أين تُرسل نسخة من العيادة كاملة — كل مريض وزيارة ودفعة — كل ليلة. لا تفعل هذا إلا إذا طُلب منك.',
+    'Opening Google…': 'جارٍ فتح جوجل…',
+    'Change account': 'تغيير الحساب',
+    'Sign in with Google': 'تسجيل الدخول بحساب جوجل',
+    'BACKING UP TO': 'النسخ الاحتياطي إلى',
+    'Google opens in a browser — sign in as the doctor, not as yourself':
+        'يفتح جوجل في المتصفح — سجّل الدخول بحساب الطبيب، لا بحسابك',
+    'Every backup from tonight goes to that account instead':
+        'كل نسخة احتياطية بدءًا من الليلة تذهب إلى ذلك الحساب',
+    'Older backups stay where they are; nothing is moved or deleted':
+        'النسخ الأقدم تبقى مكانها؛ لا يُنقل شيء ولا يُحذف',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

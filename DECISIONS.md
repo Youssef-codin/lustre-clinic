@@ -1143,6 +1143,124 @@ shipped; a tag is the code it shipped from. The number is the higher of the two,
 so losing either cannot repeat a number. Rolling back is checking out a tag and
 publishing again as the next patch, never re-using an old number.
 
+## The off-site backup signs in as the doctor, and the refresh token is the cost
+
+`drive.ts` used a **service account**, and the reason written into its header was
+operational: no browser step, no refresh token to babysit, and nothing to
+re-authorize when the clinic machine reboots at 07:00 with nobody watching. That
+reasoning was sound and the setup still never worked, because of a fact it did
+not account for: **a service account has no Drive storage of its own.** Uploading
+into a folder in somebody's My Drive fails with `storageQuotaExceeded`. The way
+out is a shared drive or domain-wide delegation, and the doctor's account is
+personal Gmail, which has neither. The unattended path was unattended and
+uploaded nothing.
+
+So off-site backup is now the doctor's own Drive, authorized once through OAuth
+(SPEC §16). `bun drive:authorize` runs on the **operator's** machine, not the
+clinic's: loopback callback on `127.0.0.1`, OAuth state, PKCE,
+`access_type=offline`, and one scope — `drive.file`, which sees only what the app
+itself created, so a grant for backups is not a grant to read the rest of the
+doctor's Drive. The
+script creates the **Lustre Clinic Backups** folder itself, which is what makes
+that narrow scope sufficient.
+
+**What it costs.** Exactly what the old header warned about, and the warning was
+right — it was simply cheaper than not backing up. The clinic server holds a
+refresh token in its private environment file (mode `0600`), mints access tokens
+from it into memory, and writes none of them to disk. A reboot at 07:00 is still
+unattended: the refresh token survives it and the server mints a new access token
+on the first backup. What is *not* unattended is revocation. The doctor changing
+their Google password, withdrawing the grant, or leaving the consent app in
+Google's **Testing** state — where refresh tokens expire after seven days, which
+is why a personal-account deployment must publish to **In production** — all end
+the same way: Google answers the refresh with `invalid_grant`.
+
+**Which is why that one error is not a generic failure.** It becomes
+`DriveReauthorizationRequiredError`, and the nightly job alerts Discord as
+`backup.drive_reauthorization_required` instead of `backup.failed`, naming the
+command to run. A generic "backup failed" would be read as a machine problem and
+someone would go looking at the server; the real fix is a person signing in
+again, on the operator's machine, and replacing one line in the environment file.
+The alert carries the dump's filename and nothing else — no error text, because
+no error text on this path tells the operator anything the code already did. Pass
+the existing `BACKUP_DRIVE_FOLDER_ID` back into the flow when re-authorizing and
+it keeps the same folder rather than creating a second one beside it.
+
+**Why the service account stays anyway.** It is the only thing that works for a
+Workspace shared drive or domain-wide delegation, it costs three optional env
+vars, and deleting it would strand any deployment already using it. It is a
+fallback, not a default: if *any* OAuth field is set, OAuth must be complete, and
+a half-configured OAuth setup disables the off-site copy loudly rather than
+silently backing up as a different Drive identity. Silently falling back would
+mean the dumps quietly land somewhere nobody is looking.
+
+**Settings shows it, even though Settings cannot fix it.** The first cut left
+the app out: the sign-in happens on the operator's laptop, not on either phone,
+and Discord already tells the person who can act. That was wrong, and the reason
+is how quiet this failure is rather than how invisible. The dump runs and
+verifies before the upload is attempted, so the local copy is fine and nothing
+in the clinic changes; what stops is the copy that survives the building. The
+run itself does fail — `uploadOffsite` throws, so pruning and the success marker
+never happen and `backup.stale` does eventually fire — but not for
+`BACKUP_STALE_AFTER_HOURS`, two days by default, and the one Discord message
+that goes out immediately is deduped for fifteen minutes and lands in a channel
+the doctor does not read. For those two days nothing on the device the doctor
+actually holds says a word.
+
+So `backup.status` is a procedure (`modules/backup`, file-backed like `release`,
+no database), and Settings draws it two ways. A **Backups row** in the CLINIC
+group carries the state in its sub the way every other row on that index carries
+its own answer — "Last backup today · copied off-site". A **card above the
+summary** appears only for `reauthorize`, next to where the APK banner goes,
+because a row's sub is the wrong weight for "the off-site copy has been dead for
+three days". Doctor-only, like the rest of the CLINIC group: it is his Google
+account. §1 still holds — the role hides rows, it never guards anything.
+
+**The state had to be written down to be shown.** `runBackup` alerted and forgot;
+the alert then deduped for fifteen minutes while the clinic stayed un-backed-up
+for days. `offsite-state.json` sits beside the success marker and holds the
+*first* run that failed this way, so the age on screen is how long the off-site
+copy has been dead rather than how long ago the last attempt was. Only a real
+upload clears it — an unconfigured destination also uploads nothing, and that
+must not read as the grant being good again.
+
+**The doctor can now sign in from the phone, and the reason that took a second
+pass is worth keeping.** The first answer was that a phone *cannot* do it —
+`drive:authorize` redirects to `127.0.0.1`, which no handset receives. That is
+this script's choice, not OAuth's: an **Android** OAuth client carries no secret
+at all, and the PKCE already in use is what replaces one. The browser was never
+the obstacle.
+
+The real question was §1, and it was answered rather than dodged. The refresh
+token has to reach a server that read it from the environment at boot and had
+nowhere to put one at runtime, and the mutation that writes it is unauthenticated
+like every other — so any peer on the tailnet can point the clinic's off-site
+backups at their own Drive. That is outbound and silent, unlike the reading the
+tailnet already allows. **Accepted on the owner's call**, on the grounds that a
+peer who can reach the API already reads every patient record, and
+`BACKUP_ENCRYPTION_KEY` means what a thief collects is ciphertext whose key is
+not on the clinic machine.
+
+Two things follow from accepting it rather than pretending it away.
+
+**The token never touches the phone.** The handset runs the consent, gets an
+authorization *code*, and posts that to `backup.linkDrive`; the server does the
+exchange and keeps the refresh token. A code is single-use and worthless without
+the verifier that produced it, so the durable credential goes Google → server and
+is never on a device that can be lost in a waiting room.
+
+**A confirm stands in front of it.** The role is a device preference, so the
+secretary can switch to the doctor's view and land on these rows, and this is the
+one control in the app that changes where every future copy of the clinic goes. A
+mis-tap does not lose data — it quietly starts sending it somewhere else, which
+is worse for being invisible. `DriveSignInSheet` names the account in use, says
+the old backups are not moved, and puts that before the button.
+
+`drive-grant.json` sits beside the dumps, 0600, written through a rename, and
+**outranks the environment**: it is the more recent statement of which Drive the
+clinic uses, and the operator's pasted values are what it was before somebody
+signed in again.
+
 ---
 
 # Corrections

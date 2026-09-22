@@ -4,6 +4,7 @@
  * hand-written.
  */
 import { appointmentRouter } from '../modules/appointment/appointment.router.ts';
+import { backupRouter } from '../modules/backup/backup.router.ts';
 import { balanceRouter } from '../modules/balance/balance.router.ts';
 import { branchRouter } from '../modules/branch/branch.router.ts';
 import { customQuestionRouter } from '../modules/customQuestion/customQuestion.router.ts';
@@ -30,6 +31,7 @@ export const appRouter = router({
     balance: balanceRouter,
     reminder: reminderRouter,
     stats: statsRouter,
+    backup: backupRouter,
     migration: migrationRouter,
     release: releaseRouter,
 });

@@ -1393,7 +1393,12 @@ describe('appointment', () => {
 
     test('never lists an appointment awaiting payment as missed', async () => {
         const { branch, patient } = await fixtures();
-        const past = new Date(Date.now() - 3 * 3_600_000).toISOString();
+        // Ended already, but still on today's clinic day (offset 0 → UTC), or
+        // the check-in below refuses it. Within three hours of UTC midnight
+        // "three hours ago" is yesterday, which is when CI happens to run.
+        const now = Date.now();
+        const sinceMidnight = now % 86_400_000;
+        const past = new Date(now - Math.min(3 * 3_600_000, Math.floor(sinceMidnight / 2))).toISOString();
 
         const appointment = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },

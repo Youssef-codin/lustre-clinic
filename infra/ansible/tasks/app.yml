@@ -129,6 +129,19 @@
     stack_urls:
       discord: "{{ (lookup('ansible.builtin.env', stack.discord_env) if stack.discord_env else '') or existing.DISCORD_WEBHOOK_URL | default('') }}"
       heartbeat: "{{ (lookup('ansible.builtin.env', stack.heartbeat_env) if stack.heartbeat_env else '') or existing.HEARTBEAT_URL | default('') }}"
+    # The dump encryption key. Supplied by the operator, never generated here:
+    # a key this play invented would only ever live on the clinic machine.
+    stack_backup_key: "{{ lookup('ansible.builtin.env', 'BACKUP_ENCRYPTION_KEY') or existing.BACKUP_ENCRYPTION_KEY | default('') }}"
+    stack_drive:
+      folder_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_FOLDER_ID') or existing.BACKUP_DRIVE_FOLDER_ID | default('') }}"
+      oauth_client_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_OAUTH_CLIENT_ID') or existing.BACKUP_DRIVE_OAUTH_CLIENT_ID | default('') }}"
+      oauth_client_secret: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_OAUTH_CLIENT_SECRET') or existing.BACKUP_DRIVE_OAUTH_CLIENT_SECRET | default('') }}"
+      refresh_token: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_REFRESH_TOKEN') or existing.BACKUP_DRIVE_REFRESH_TOKEN | default('') }}"
+      android_client_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_ANDROID_CLIENT_ID') or existing.BACKUP_DRIVE_ANDROID_CLIENT_ID | default('') }}"
+      android_redirect_uri: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_ANDROID_REDIRECT_URI') or existing.BACKUP_DRIVE_ANDROID_REDIRECT_URI | default('') }}"
+      client_email: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_CLIENT_EMAIL') or existing.BACKUP_DRIVE_CLIENT_EMAIL | default('') }}"
+      private_key: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_PRIVATE_KEY') or existing.BACKUP_DRIVE_PRIVATE_KEY | default('') }}"
+      subject: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_SUBJECT') or existing.BACKUP_DRIVE_SUBJECT | default('') }}"
 
 - name: "{{ stack.name }}: environment file"
   become: false

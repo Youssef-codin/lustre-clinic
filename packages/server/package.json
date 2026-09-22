@@ -13,6 +13,7 @@
         "db:seed": "bun --env-file=../../.env scripts/seed.ts",
         "db:repair-refs": "bun --env-file=../../.env scripts/repair-patient-refs.ts",
         "backup": "bun --env-file=../../.env scripts/backup.ts",
+        "drive:authorize": "bun --env-file=../../.env scripts/drive-authorize.ts",
         "restore": "bun --env-file=../../.env scripts/restore.ts"
     },
     "dependencies": {

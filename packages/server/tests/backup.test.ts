@@ -1,10 +1,14 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { rm } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DriveReauthorizationRequiredError } from '../src/backup/drive.ts';
+import { clearDriveGrant, readDriveGrant, writeDriveGrant } from '../src/backup/grant.ts';
 import {
     type BackupFile,
+    backupFailureAlert,
     backupFileName,
+    clearOffsiteState,
     decrypt,
     encrypt,
     generateKey,
@@ -13,12 +17,15 @@ import {
     parseBackupFileName,
     parseKey,
     readLastSuccess,
+    readOffsiteState,
+    recordOffsiteFailure,
     runBackup,
     selectForDeletion,
     selectOffsiteDumps,
     selectRetained,
 } from '../src/backup/index.ts';
 import { config } from '../src/config.ts';
+import { backupService } from '../src/modules/backup/backup.service.ts';
 import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpers/db.ts';
 
 /**
@@ -124,8 +131,166 @@ describe('retention', () => {
 });
 
 describe('offsiteDestination', () => {
-    test('is null when nothing is configured, so a run stays local', () => {
-        expect(offsiteDestination()).toBeNull();
+    test('is null when nothing is configured, so a run stays local', async () => {
+        expect(await offsiteDestination()).toBeNull();
+    });
+});
+
+describe('backup failure alerts', () => {
+    test('tells the operator to reauthorize Drive when the refresh grant is invalid', () => {
+        const alert = backupFailureAlert(
+            new DriveReauthorizationRequiredError(),
+            'lustre-2026-08-03T08-41-32Z.dump',
+        );
+
+        expect(alert.code).toBe('backup.drive_reauthorization_required');
+        expect(alert.summary).toContain('drive:authorize');
+        expect(alert.context).not.toHaveProperty('error');
+    });
+});
+
+describe('a revoked Drive grant outlives the run that found it', () => {
+    async function scratch(): Promise<string> {
+        const directory = join(tmpdir(), `lustre-offsite-${Bun.randomUUIDv7()}`);
+        await mkdir(directory, { recursive: true });
+        return directory;
+    }
+
+    test('nothing is recorded until a grant actually fails', async () => {
+        const directory = await scratch();
+        try {
+            expect(await readOffsiteState(directory)).toBeNull();
+
+            await recordOffsiteFailure(directory, new Error('pg_dump produced an empty file'), new Date());
+            expect(await readOffsiteState(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('keeps the first failure, so the age shown does not reset every night', async () => {
+        const directory = await scratch();
+        try {
+            const first = new Date('2026-09-17T03:00:00Z');
+            await recordOffsiteFailure(directory, new DriveReauthorizationRequiredError(), first);
+            await recordOffsiteFailure(
+                directory,
+                new DriveReauthorizationRequiredError(),
+                new Date('2026-09-20T03:00:00Z'),
+            );
+
+            expect(await readOffsiteState(directory)).toEqual({
+                reauthorizationRequiredSince: first.toISOString(),
+            });
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a later upload clears it', async () => {
+        const directory = await scratch();
+        try {
+            await recordOffsiteFailure(directory, new DriveReauthorizationRequiredError(), new Date());
+            expect(await readOffsiteState(directory)).not.toBeNull();
+
+            await clearOffsiteState(directory);
+            expect(await readOffsiteState(directory)).toBeNull();
+
+            // Clearing what is already clear is what every healthy run does.
+            await clearOffsiteState(directory);
+            expect(await readOffsiteState(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('leaves no scratch file behind, so status only ever sees whole JSON', async () => {
+        const directory = await scratch();
+        try {
+            await recordOffsiteFailure(directory, new DriveReauthorizationRequiredError(), new Date());
+
+            const left = await readdir(directory);
+            expect(left).toEqual(['offsite-state.json']);
+            expect(await readOffsiteState(directory)).toHaveProperty('reauthorizationRequiredSince');
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a directory that is not there reads as no state, not as a crash', async () => {
+        expect(await readOffsiteState(join(tmpdir(), `lustre-missing-${Bun.randomUUIDv7()}`))).toBeNull();
+    });
+});
+
+describe('the grant the phone makes', () => {
+    async function scratchDir(): Promise<string> {
+        const directory = join(tmpdir(), `lustre-grant-${Bun.randomUUIDv7()}`);
+        await mkdir(directory, { recursive: true });
+        return directory;
+    }
+
+    const grant = {
+        clientId: 'android-client.apps.googleusercontent.com',
+        refreshToken: 'refresh-from-the-phone',
+        folderId: 'folder-linked',
+        account: 'doctor@example.com',
+        linkedAt: '2026-09-20T03:00:00.000Z',
+    };
+
+    test('round-trips, and is readable only by the server user', async () => {
+        const directory = await scratchDir();
+        try {
+            await writeDriveGrant(grant, directory);
+
+            expect(await readDriveGrant(directory)).toEqual(grant);
+            // It holds a refresh token; the dumps beside it are already 0600.
+            const mode = (await stat(join(directory, 'drive-grant.json'))).mode & 0o777;
+            expect(mode).toBe(0o600);
+            expect(await readdir(directory)).toEqual(['drive-grant.json']);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a half-written grant reads as none rather than as a broken one', async () => {
+        const directory = await scratchDir();
+        try {
+            await Bun.write(join(directory, 'drive-grant.json'), '{"clientId":"only-this"}');
+            expect(await readDriveGrant(directory)).toBeNull();
+
+            await Bun.write(join(directory, 'drive-grant.json'), 'not json at all');
+            expect(await readDriveGrant(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('clearing one that is not there is what every unlinked clinic does', async () => {
+        const directory = await scratchDir();
+        try {
+            await clearDriveGrant(directory);
+            expect(await readDriveGrant(directory)).toBeNull();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('backup.status', () => {
+    test('reports a clinic that has never backed up as stale, not as an error', async () => {
+        const status = await backupService.status();
+
+        expect(status.lastSuccessAt).toBeNull();
+        expect(status.stale).toBe(true);
+        expect(status.staleAfterHours).toBe(config.BACKUP_STALE_AFTER_HOURS);
+        // `.env.test` leaves every Drive and S3 field empty on purpose (§16).
+        expect(status.offsite).toEqual({
+            configured: false,
+            reauthorizationRequiredSince: null,
+            account: null,
+            // `.env.test` sets no Android client, so the phone cannot offer sign-in.
+            canSignIn: false,
+        });
     });
 });
 

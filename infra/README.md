@@ -75,6 +75,107 @@ docker compose run --rm server backup
 
 `lustre seed` refuses the production database, whatever its connection string.
 
+## Google Drive backups
+
+The production stack can push each verified, encrypted dump into a folder in
+the doctor's own Google Drive. There are two ways to authorize it. The operator
+flow below always works and needs no app. The doctor can also do it from the
+phone — Settings → Backups, behind a confirm — once
+`BACKUP_DRIVE_ANDROID_CLIENT_ID` names an Android OAuth client; the handset runs
+the consent and the server does the token exchange, so no refresh token is ever
+held on a phone. Settings also reports: a Backups row, and a card when the grant
+needs renewing.
+
+1. Enable the Google Drive API in a Google Cloud project. Configure the consent
+   audience (External for personal Gmail, or Internal for an organization-owned
+   Workspace project), add only `drive.file`, and create a Desktop OAuth client.
+2. On the operator machine, from the repository, run:
+
+   ```sh
+   read -r BACKUP_DRIVE_OAUTH_CLIENT_ID && export BACKUP_DRIVE_OAUTH_CLIENT_ID
+   read -rs BACKUP_DRIVE_OAUTH_CLIENT_SECRET && export BACKUP_DRIVE_OAUTH_CLIENT_SECRET
+   bun drive:authorize
+   ```
+
+   The loopback callback listens only on `127.0.0.1`, verifies OAuth state, and
+   uses PKCE. Sign in as the doctor. The command creates **Lustre Clinic
+   Backups** itself so `drive.file` is sufficient.
+3. Securely copy the four printed values into the production stack, together
+   with `BACKUP_ENCRYPTION_KEY` (32 bytes, hex or base64 — `.env.example` shows
+   how to generate one). The server refuses to upload without the key, and it
+   is the only thing that reads a Drive dump back, so keep a copy off the
+   clinic machine. For an Ansible deploy, export them before running the `app`
+   tag; the generated `/opt/lustre-prod/.env` is mode `0600`, and later deploys
+   preserve values already there. Unset the variables and clear the terminal
+   afterwards.
+4. Restart the server and run `docker compose run --rm server backup`. Confirm
+   an encrypted `.dump.enc` file exists in the folder.
+
+### Letting the doctor sign in from the phone
+
+Optional. Without it the app hides the sign-in and `bun drive:authorize` stays
+the only way in.
+
+1. In the same Google Cloud project, create a second OAuth client of type
+   **Android**. Package name `com.lustre.clinic`; SHA-1 from the certificate the
+   APK is signed with. Google issues no secret for this type — PKCE covers it.
+2. A debug build and a release build are signed with **different keys**, so they
+   have different SHA-1s. Register the release cert for the clinic's real APK,
+   and the debug cert too if you want it to work on a development build:
+
+   ```sh
+   # release
+   keytool -list -v -alias <your alias> -keystore <your release keystore> | grep SHA1
+   # debug
+   keytool -list -v -alias androiddebugkey -storepass android \
+       -keystore packages/app/android/app/debug.keystore | grep SHA1
+   ```
+3. In the client's **Advanced Settings**, turn on **Enable custom URI scheme**.
+   Google leaves it off on new Android clients, and without it the consent page
+   stops at "Custom URI scheme is not enabled for your Android client".
+4. Put the client id in `BACKUP_DRIVE_ANDROID_CLIENT_ID` on the clinic server and
+   restart. Settings → Backups then opens a confirm, and the doctor signs in
+   there.
+
+The redirect Google sends the code to is `com.lustre.clinic:/oauth2redirect`
+by default, and Google requires that scheme to be the client's package name.
+The `Lustre DEV` build is `com.lustre.clinic.dev`, so testing the sign-in on the
+dev stack takes a third Android client — package `com.lustre.clinic.dev`, the
+debug SHA-1, custom URI scheme enabled — with
+`BACKUP_DRIVE_ANDROID_REDIRECT_URI=com.lustre.clinic.dev:/oauth2redirect` set
+beside its id on the dev stack. The app registers both schemes.
+
+The handset never holds a refresh token: it returns an authorization code, and
+the server exchanges it. A grant made this way is written to
+`drive-grant.json` beside the dumps (mode `0600`) and **takes precedence over the
+`BACKUP_DRIVE_*` environment values** — it is the more recent statement of which
+Drive the clinic uses. Delete that file to fall back to the environment.
+
+This mutation is unauthenticated, like every other procedure (SPEC §1): anyone
+who can reach the API on the tailnet can re-point the clinic's off-site backups.
+That was accepted deliberately — see DECISIONS.md — on the grounds that such a
+peer already reads every patient record, and the dumps leave encrypted with a key
+that is not on this machine. Leave `BACKUP_DRIVE_ANDROID_CLIENT_ID` empty if you
+would rather not take it.
+
+Never put these values in inventory, shell history, or the repository. The
+server persists the refresh token, not access tokens. A revoked or expired grant
+alerts Discord as `backup.drive_reauthorization_required`, and is recorded in
+`offsite-state.json` beside the dumps so `backup.status` can keep reporting it
+after the alert has deduped — the doctor's Settings reads that. Repeat the flow
+and replace the refresh token; the next successful upload clears the state by
+itself. Supply the existing `BACKUP_DRIVE_FOLDER_ID` to the
+flow so reauthorization keeps the same folder. External apps left in Google's
+Testing state receive seven-day grants, so a personal-account deployment must
+use In production. `drive.file` is non-sensitive; a one-clinic personal-use app
+can be unverified, while a Workspace administrator may use an Internal app or
+trust the client according to organization policy.
+
+The legacy service-account variables are preserved only for Workspace shared
+drives or domain-wide delegation. They cannot write into personal My Drive and
+are ignored when any OAuth credential field is present. OAuth configuration
+must then be complete.
+
 ## Releases
 
 The phones get new code two ways (SPEC §15), both from the clinic server over
@@ -256,11 +357,11 @@ curl -i http://<clinic>:3000/updates/manifest \
 
 A `204` means nothing is published for that runtime.
 
-## Off-site backups on the operator's machine
+## Optional backup copies on the operator's machine
 
-The server dumps, restore-verifies and prunes its own backups (SPEC §16). The
-off-site copy is pulled to the operator's machine over Tailscale instead of
-pushed to a cloud, so patient data stays with people who already have it.
+In addition to Google Drive, the operator machine can pull another encrypted
+copy over Tailscale. The server still restore-verifies and prunes its own dumps
+(SPEC §16).
 
 ```sh
 sudo pacman -S age
