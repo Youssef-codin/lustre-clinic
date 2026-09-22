@@ -40,6 +40,6 @@
             },
             "demo": false
         },
-        "scheme": "com.lustre.clinic"
+        "scheme": ["com.lustre.clinic", "com.lustre.clinic.dev"]
     }
 }

@@ -66,7 +66,12 @@ const envSchema = z.object({
     // The Android OAuth client the phone consents against (§16). Public: Google
     // issues no secret for it, and PKCE is what stands in for one.
     BACKUP_DRIVE_ANDROID_CLIENT_ID: z.string().optional(),
-    BACKUP_DRIVE_ANDROID_REDIRECT_URI: z.string().default('com.lustre.clinic:/oauth2redirect'),
+    // Google requires the scheme to be the package name, so a `.dev` stack sets
+    // `com.lustre.clinic.dev:/oauth2redirect`. Compose passes '' when unset.
+    BACKUP_DRIVE_ANDROID_REDIRECT_URI: z.preprocess(
+        (v) => (v === '' ? undefined : v),
+        z.string().default('com.lustre.clinic:/oauth2redirect'),
+    ),
     BACKUP_DRIVE_CLIENT_EMAIL: z.string().optional(),
     BACKUP_DRIVE_PRIVATE_KEY: z.string().optional(),
     BACKUP_DRIVE_SUBJECT: z.string().optional(),

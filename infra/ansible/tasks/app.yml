@@ -135,6 +135,7 @@
       oauth_client_secret: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_OAUTH_CLIENT_SECRET') or existing.BACKUP_DRIVE_OAUTH_CLIENT_SECRET | default('') }}"
       refresh_token: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_REFRESH_TOKEN') or existing.BACKUP_DRIVE_REFRESH_TOKEN | default('') }}"
       android_client_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_ANDROID_CLIENT_ID') or existing.BACKUP_DRIVE_ANDROID_CLIENT_ID | default('') }}"
+      android_redirect_uri: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_ANDROID_REDIRECT_URI') or existing.BACKUP_DRIVE_ANDROID_REDIRECT_URI | default('') }}"
       client_email: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_CLIENT_EMAIL') or existing.BACKUP_DRIVE_CLIENT_EMAIL | default('') }}"
       private_key: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_PRIVATE_KEY') or existing.BACKUP_DRIVE_PRIVATE_KEY | default('') }}"
       subject: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_SUBJECT') or existing.BACKUP_DRIVE_SUBJECT | default('') }}"
