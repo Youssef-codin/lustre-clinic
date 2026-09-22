@@ -21,7 +21,7 @@
 // runs over Tailscale; stale answers are dropped by `useQuery`.
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { PatientRow } from '../../components/domain';
 import {
     Banner,
@@ -108,6 +108,23 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         scroller.current?.scrollTo({ y: 0, animated: true });
     }, [goHome]);
 
+    // `keyboardShouldPersistTaps="handled"` below is what lets a result be
+    // tapped in one go while typing: the tap reaches the row instead of being
+    // spent closing the keyboard. The other half of that bargain is this. With
+    // the tap handled, nothing dismisses the keyboard for us, and the list
+    // stays mounted under the record, so the caret stayed in the search field
+    // and the keys were drawn over the record that had just opened — its
+    // contact row, its balance, its actions. `ui/Button` makes the same call on
+    // every press, for the same reason; a row is not a `Button`.
+    //
+    // Every row, not only a search result: with the keyboard already down this
+    // is nothing, and the rule "opening a patient ends the typing that found
+    // them" is easier to keep than one that asks which list the row came from.
+    function openPatient(patientId: string) {
+        Keyboard.dismiss();
+        onOpen(patientId);
+    }
+
     return (
         <View style={styles.screen}>
             {/* The search field is at the top of this scroll, so it is never
@@ -176,7 +193,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                                 key={patient.id}
                                 patient={patient}
                                 balance={dueByPatient.get(patient.id) ?? 0}
-                                onPress={() => onOpen(patient.id)}
+                                onPress={() => openPatient(patient.id)}
                             />
                         ))}
                     </View>
