@@ -199,8 +199,14 @@ export function slotProgress(appointment: Appointment, nowMinutes: number, seate
     const total = duration * 60;
     const over = elapsed - total;
 
+    // English in both languages, `'en'` said rather than left to the default.
+    // The readout is one Latin run — a mono count, a slash, and what it is
+    // counted against — and `ChairProgress` draws it left to right in Arabic
+    // too. A localized `دقيقة` on the end of that is a word running the other
+    // way inside a figure that cannot, which is the half of this the reader
+    // notices after the digits stop reading backwards.
     const count = formatElapsed(over > 0 ? over : elapsed);
-    const of = over > 0 ? 'over' : `/ ${formatDuration(duration)}`;
+    const of = over > 0 ? 'over' : `/ ${formatDuration(duration, 'en')}`;
 
     return {
         value: total > 0 ? elapsed / total : 0,
