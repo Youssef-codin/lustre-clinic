@@ -100,10 +100,14 @@ needs renewing.
    The loopback callback listens only on `127.0.0.1`, verifies OAuth state, and
    uses PKCE. Sign in as the doctor. The command creates **Lustre Clinic
    Backups** itself so `drive.file` is sufficient.
-3. Securely copy the four printed values into the production stack. For an
-   Ansible deploy, export them before running the `app` tag; the generated
-   `/opt/lustre-prod/.env` is mode `0600`, and later deploys preserve values
-   already there. Unset the variables and clear the terminal afterwards.
+3. Securely copy the four printed values into the production stack, together
+   with `BACKUP_ENCRYPTION_KEY` (32 bytes, hex or base64 — `.env.example` shows
+   how to generate one). The server refuses to upload without the key, and it
+   is the only thing that reads a Drive dump back, so keep a copy off the
+   clinic machine. For an Ansible deploy, export them before running the `app`
+   tag; the generated `/opt/lustre-prod/.env` is mode `0600`, and later deploys
+   preserve values already there. Unset the variables and clear the terminal
+   afterwards.
 4. Restart the server and run `docker compose run --rm server backup`. Confirm
    an encrypted `.dump.enc` file exists in the folder.
 
@@ -126,9 +130,20 @@ the only way in.
    keytool -list -v -alias androiddebugkey -storepass android \
        -keystore packages/app/android/app/debug.keystore | grep SHA1
    ```
-3. Put the client id in `BACKUP_DRIVE_ANDROID_CLIENT_ID` on the clinic server and
+3. In the client's **Advanced Settings**, turn on **Enable custom URI scheme**.
+   Google leaves it off on new Android clients, and without it the consent page
+   stops at "Custom URI scheme is not enabled for your Android client".
+4. Put the client id in `BACKUP_DRIVE_ANDROID_CLIENT_ID` on the clinic server and
    restart. Settings → Backups then opens a confirm, and the doctor signs in
    there.
+
+The redirect Google sends the code to is `com.lustre.clinic:/oauth2redirect`
+by default, and Google requires that scheme to be the client's package name.
+The `Lustre DEV` build is `com.lustre.clinic.dev`, so testing the sign-in on the
+dev stack takes a third Android client — package `com.lustre.clinic.dev`, the
+debug SHA-1, custom URI scheme enabled — with
+`BACKUP_DRIVE_ANDROID_REDIRECT_URI=com.lustre.clinic.dev:/oauth2redirect` set
+beside its id on the dev stack. The app registers both schemes.
 
 The handset never holds a refresh token: it returns an authorization code, and
 the server exchanges it. A grant made this way is written to

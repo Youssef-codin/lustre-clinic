@@ -129,6 +129,9 @@
     stack_urls:
       discord: "{{ (lookup('ansible.builtin.env', stack.discord_env) if stack.discord_env else '') or existing.DISCORD_WEBHOOK_URL | default('') }}"
       heartbeat: "{{ (lookup('ansible.builtin.env', stack.heartbeat_env) if stack.heartbeat_env else '') or existing.HEARTBEAT_URL | default('') }}"
+    # The dump encryption key. Supplied by the operator, never generated here:
+    # a key this play invented would only ever live on the clinic machine.
+    stack_backup_key: "{{ lookup('ansible.builtin.env', 'BACKUP_ENCRYPTION_KEY') or existing.BACKUP_ENCRYPTION_KEY | default('') }}"
     stack_drive:
       folder_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_FOLDER_ID') or existing.BACKUP_DRIVE_FOLDER_ID | default('') }}"
       oauth_client_id: "{{ lookup('ansible.builtin.env', 'BACKUP_DRIVE_OAUTH_CLIENT_ID') or existing.BACKUP_DRIVE_OAUTH_CLIENT_ID | default('') }}"
