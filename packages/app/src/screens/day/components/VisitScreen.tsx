@@ -14,22 +14,36 @@
  * is where a line starts, not what it is, and a discount given in the chair is
  * given on this screen. Whole pounds in, integer piastres held (§7.12).
  *
- * Two things the design draws that the server cannot hold, and so are not here:
- * the clinical note (`visits` has no column, and PRODUCT.md puts clinical
- * records out of scope), and the category a variant belongs to. `visit_procedures`
- * stores the leaf, so a re-opened "Composite filling · Class II" reads back as
- * "Class II" — the line is right, its heading is not remembered.
+ * The note is the appointment's (`appointments.note`), the same one the
+ * booking page writes and the doctor's sheet reads — `visits` has no column of
+ * its own, and a second note would leave the desk and the chair each holding
+ * half of what was said. It is seeded from the appointment, edited here, and
+ * written with the rest on Confirm; blank clears it.
+ *
+ * One thing the design draws that the server cannot hold, and so is not here:
+ * the category a variant belongs to. `visit_procedures` stores the leaf, so a
+ * re-opened "Composite filling · Class II" reads back as "Class II" — the line
+ * is right, its heading is not remembered.
  */
 import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { Button, Callout, Chevron, duration, Toast, useKeyboardHeight } from '../../../components/ui';
+import {
+    Button,
+    Callout,
+    Chevron,
+    duration,
+    Textarea,
+    Toast,
+    useKeyboardHeight,
+} from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
 import { formatAmount, formatMoney, poundsEntry } from '../money';
+import { noteChanged, noteDraft, noteValue } from '../notes';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
@@ -111,6 +125,12 @@ export type VisitScreenProps = {
     onBack: () => void;
     /** The visit as the server priced it. Where that goes is the caller's. */
     onConfirm: (visit: Visit) => void;
+    /**
+     * The note as it was written, when Confirm changed it. It is the
+     * appointment's, not the visit's, so a caller holding an appointment of its
+     * own has to be told — nothing in the priced visit carries it back.
+     */
+    onNoteSaved?: (note: string | null) => void;
     /** Priced and handed to the desk; the chair is free and nobody has paid. */
     onSentToDesk?: (message: string) => void;
 };
@@ -162,11 +182,13 @@ export function VisitScreen({
     standing,
     onBack,
     onConfirm,
+    onNoteSaved,
     onSentToDesk,
 }: VisitScreenProps) {
     const t = useT();
     const keyboard = useKeyboardHeight();
     const [lines, setLines] = useState<DraftLine[]>(() => seed(appointment, visit));
+    const [note, setNote] = useState(() => noteDraft(appointment.note));
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
     const [toast, setToast] = useState<string | null>(null);
@@ -317,6 +339,10 @@ export function VisitScreen({
             tooth: line.tooth,
         }));
 
+    /** The note as the write takes it: `undefined` when nobody touched it. */
+    const notePatch = (): string | null | undefined =>
+        noteChanged(appointment.note, note) ? noteValue(note) : undefined;
+
     /**
      * Both checkout buttons write the same list first — what was done is
      * recorded either way, and the only difference is who takes the money next.
@@ -332,12 +358,25 @@ export function VisitScreen({
         }
         if (!visit) return;
 
+        const savedNote = notePatch();
+
         // `closed` is what turns this into a correction: the visit is reopened
         // as part of the write, never on the way in. A visit sent to the desk
         // and not yet paid for is already open and needs no such thing.
         price.mutate(
-            { visitId: visit.id, closed: visit.completedAt !== null, procedures: written() },
-            { onSuccess: then },
+            {
+                visitId: visit.id,
+                appointmentId: appointment.id,
+                closed: visit.completedAt !== null,
+                procedures: written(),
+                note: savedNote,
+            },
+            {
+                onSuccess: (priced) => {
+                    if (savedNote !== undefined) onNoteSaved?.(savedNote);
+                    then(priced);
+                },
+            },
         );
     }
 
@@ -353,9 +392,16 @@ export function VisitScreen({
             return;
         }
 
+        const savedNote = notePatch();
+
         checkIn.mutate(
-            { appointmentId: appointment.id, procedures: written(), edited },
-            { onSuccess: onConfirm },
+            { appointmentId: appointment.id, procedures: written(), edited, note: savedNote },
+            {
+                onSuccess: (created) => {
+                    if (savedNote !== undefined) onNoteSaved?.(savedNote);
+                    onConfirm(created);
+                },
+            },
         );
     }
 
@@ -627,6 +673,21 @@ export function VisitScreen({
                         </Text>
                     </Pressable>
                 )}
+
+                <View style={styles.noteSection}>
+                    <View style={styles.sectionHead}>
+                        <Text variant="eyebrow" tone="muted">
+                            {t('NOTE')}
+                        </Text>
+                    </View>
+                    <Textarea
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="Anything the doctor should know."
+                        accessibilityLabel="Visit note"
+                        testID="visit-note"
+                    />
+                </View>
 
                 <View style={[styles.total, empty && styles.totalIdle]}>
                     <Text variant="subhead" tone="muted">
@@ -928,6 +989,7 @@ const styles = StyleSheet.create({
         backgroundColor: color.ink,
     },
 
+    noteSection: { gap: space[2] },
     total: {
         flexDirection: 'row',
         alignItems: 'center',

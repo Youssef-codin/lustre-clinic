@@ -11,8 +11,9 @@
  * a closed visit standing open here — the same mistake as checking a patient in
  * the moment their arrival screen was opened.
  *
- * The mock's clinical and billing notes are left out for the same reason as on
- * `VisitScreen`: `visits` has no column to hold either.
+ * The note is the appointment's, shown here because the visit editor writes it
+ * and a note that only appears on the booking page is one nobody reads back.
+ * The mock's billing note is left out: `visits` has no column to hold it.
  *
  * The two deletes are written from here rather than handed up. Both mounts of
  * this screen would only have run the same confirm and the same call, and what
@@ -305,6 +306,17 @@ export function VisitViewScreen({
                             </View>
                         )}
 
+                        {appointment.note ? (
+                            <View style={styles.note}>
+                                <Text variant="eyebrow" tone="muted">
+                                    {t('NOTE')}
+                                </Text>
+                                <Text variant="body" tone="ink2">
+                                    {appointment.note}
+                                </Text>
+                            </View>
+                        ) : null}
+
                         <View style={styles.total}>
                             <Text variant="subhead" tone="muted">
                                 {t('Total cost')}
@@ -548,6 +560,14 @@ const styles = StyleSheet.create({
     blank: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
     grow: { flex: 1, minWidth: 0 },
     waivedNote: { marginTop: space[1] },
+    note: {
+        gap: space[1.5],
+        padding: space[3.5],
+        borderRadius: radius.lg,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
+    },
 
     groups: { gap: space[3], paddingHorizontal: size.gutter, paddingTop: space[0.5] },
     group: {
