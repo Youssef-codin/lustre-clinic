@@ -31,6 +31,7 @@
             "./plugins/withNavigationBarContrast",
             "./plugins/withReleaseSigning",
             "./plugins/withReleaseVersionCode",
+            "@react-native-community/datetimepicker",
             "@sentry/react-native/expo"
         ],
         "extra": {

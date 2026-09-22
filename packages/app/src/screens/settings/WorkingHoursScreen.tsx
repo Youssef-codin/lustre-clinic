@@ -36,7 +36,7 @@ import { useLocale, useT } from '../../i18n';
 import { color, size, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { formatClock, TimeField, TimeWheel } from './components/TimeWheel';
+import { TimePickerField } from './components/TimePickerField';
 import { errorText } from './data/errors';
 import { minutesFromTime, timeFromMinutes } from './data/reminders';
 
@@ -193,21 +193,7 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
 
     const [opens, setOpens] = useState(minutesFromTime(day?.opensAt ?? '10:00'));
     const [closes, setCloses] = useState(minutesFromTime(day?.closesAt ?? '18:00'));
-    const [picking, setPicking] = useState<'opens' | 'closes' | null>(null);
-    const [draft, setDraft] = useState(0);
-    const locale = useLocale();
     const openLabel = t('Open on {day}', { day: name });
-
-    function pick(which: 'opens' | 'closes') {
-        setDraft(which === 'opens' ? opens : closes);
-        setPicking(which);
-    }
-
-    function setPicked() {
-        if (picking === 'opens') setOpens(draft);
-        if (picking === 'closes') setCloses(draft);
-        setPicking(null);
-    }
 
     const options = branches
         .filter((branch) => branch.active || branch.id === day?.branchId)
@@ -251,77 +237,50 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     }
 
     return (
-        <>
-            <Sheet
-                visible
-                onClose={pending ? () => {} : onClose}
-                dismissable={!pending}
-                title={name}
-                subtitle={open ? 'Open this day' : 'Closed all day'}
-                footer={<Button label="Save" onPress={onSave} loading={pending} disabled={!canSave} block />}
-            >
-                {failure ? (
-                    <Callout tone="warning" title="Not saved">
-                        {errorText(failure, {
-                            NOT_FOUND: 'That branch is no longer set up. Pick another one.',
-                        })}
-                    </Callout>
-                ) : null}
-
-                <View style={styles.switchRow}>
-                    <View style={styles.rowText}>
-                        <Text variant="body" weight="medium">
-                            {openLabel}
-                        </Text>
-                        <Text variant="subhead" tone="muted">
-                            {t('Off means closed all day.')}
-                        </Text>
-                    </View>
-                    <Switch value={open} onValueChange={setOpen} accessibilityLabel={openLabel} />
-                </View>
-
-                {open ? (
-                    <>
-                        <Select
-                            label="Branch"
-                            required
-                            options={options}
-                            value={branchId}
-                            onChange={setBranchId}
-                            placeholder="Pick a branch"
-                            sheetTitle="Branch"
-                        />
-                        <TimeField label="Opens" value={opens} onPress={() => pick('opens')} />
-                        <TimeField
-                            label="Closes"
-                            value={closes}
-                            onPress={() => pick('closes')}
-                            error={orderError}
-                        />
-                    </>
-                ) : null}
-            </Sheet>
-
-            {picking ? (
-                <Sheet
-                    visible
-                    onClose={() => setPicking(null)}
-                    dragFromBody={false}
-                    scrollBody={false}
-                    title={picking === 'opens' ? 'Opens' : 'Closes'}
-                    subtitle={formatClock(draft, locale)}
-                    testID="working-hours-wheel"
-                    footer={
-                        <>
-                            <Button label="Set" block onPress={setPicked} testID="working-hours-set" />
-                            <Button label="Cancel" variant="ghost" block onPress={() => setPicking(null)} />
-                        </>
-                    }
-                >
-                    <TimeWheel key={picking} value={draft} onChange={setDraft} />
-                </Sheet>
+        <Sheet
+            visible
+            onClose={pending ? () => {} : onClose}
+            dismissable={!pending}
+            title={name}
+            subtitle={open ? 'Open this day' : 'Closed all day'}
+            footer={<Button label="Save" onPress={onSave} loading={pending} disabled={!canSave} block />}
+        >
+            {failure ? (
+                <Callout tone="warning" title="Not saved">
+                    {errorText(failure, {
+                        NOT_FOUND: 'That branch is no longer set up. Pick another one.',
+                    })}
+                </Callout>
             ) : null}
-        </>
+
+            <View style={styles.switchRow}>
+                <View style={styles.rowText}>
+                    <Text variant="body" weight="medium">
+                        {openLabel}
+                    </Text>
+                    <Text variant="subhead" tone="muted">
+                        {t('Off means closed all day.')}
+                    </Text>
+                </View>
+                <Switch value={open} onValueChange={setOpen} accessibilityLabel={openLabel} />
+            </View>
+
+            {open ? (
+                <>
+                    <Select
+                        label="Branch"
+                        required
+                        options={options}
+                        value={branchId}
+                        onChange={setBranchId}
+                        placeholder="Pick a branch"
+                        sheetTitle="Branch"
+                    />
+                    <TimePickerField label="Opens" value={opens} onChange={setOpens} />
+                    <TimePickerField label="Closes" value={closes} onChange={setCloses} error={orderError} />
+                </>
+            ) : null}
+        </Sheet>
     );
 }
 

@@ -989,48 +989,17 @@ tabular. That split is why `clock12` hands back the figure and the marker
 separately — the marker has to reach the Naskh face without taking the digits
 with it, the same problem `ج.م` has in `MoneyValue`.
 
-## Working hours use an app-owned, localized time wheel
+## Working hours are back on the native time dialog, for now
 
-Working hours no longer opens the platform dialog. It mounts a nested `Sheet`
-with `stackBehavior="push"` over the day editor: the editor remains visible and
-dimmed behind it, while `dragFromBody={false}` leaves vertical gestures to the
-wheel. Set commits the draft; Cancel, backdrop, and Back discard it and reveal
-the untouched editor.
-
-The mechanics come from `@quidone/react-native-wheel-picker`, the proven
-implementation from `69b26c5`. Its native-driven row projection supplies the
-cylinder, foreshortening, opacity ramp, fling weight, and snap that the earlier
-hand-rolled `ScrollView` did not. Rows, the continuous selection band, and all
-labels remain ours. All sixty minutes are present, and the meridiem comes from
-the same localized `clock12` formatter as the value being edited, so English
-AM/PM and Arabic ص/م cannot disagree. The optional per-row feedback package is
-not installed because it is a native module.
-
-`@react-native-community/datetimepicker` is removed from the dependency graph
-and Expo config. The wheel is JavaScript-only, so adding or removing it does not
-require a native rebuild.
-
-**The columns are virtualized, and that is load-bearing.** The library's default
-list mounts every datum and gives each row an `Animated.View` carrying animated
-opacity, `rotateX` and `translateY`. Animated opacity on a view group is an
-offscreen `saveLayer` and a 3D rotate is a render layer, so sixty minutes plus
-twelve hours plus two meridiems came to seventy-four rotated, alpha-blended
-layers re-rasterised every frame. Measured on the emulator that pinned
-`RenderThread` at 99% for the length of a scroll and blocked the UI thread
-behind it: one swipe moved the column a single row, took ninety-five seconds,
-and raised `Input dispatching timed out` every five. `withVirtualized` at
-`windowSize={3}` keeps the projection and mounts about fifteen rows a column.
-
-`_enableSyncScrollAfterScrollEnd` is off for a related reason. It re-issues
-`scrollToIndex` after every scroll to pull a column back onto its value, and
-against a `FlatList` that programmatic animated scroll never reports an end on
-Android — so the resync re-arms itself and the column scrolls for ever. Tapping
-a row was enough to trigger it. The effect keyed on `valueIndex` still scrolls
-when `value` changes, which is the path that makes the control controlled.
-
-`Sheet` carries `scrollBody` for this one caller. React Native refuses to window
-a `VirtualizedList` nested in a scroll view of the same orientation, and the
-wheel is a control rather than a list, so it does not belong in one.
+Working hours briefly used an app-owned wheel (`3d6ad2d`, on
+`@quidone/react-native-wheel-picker`) so the picker could be localized and
+skinned. It was pulled before it reached a phone: the control still needs work,
+and the clinic's release could not wait on it. `TimePickerField` is the earlier
+`DateTimePickerAndroid` dialog again, with the value it shows localized like
+every other clock in the app. The wheel's code, and what was learned making it
+perform — virtualize the columns, keep `_enableSyncScrollAfterScrollEnd` off,
+give `Sheet` a `scrollBody` escape — is in that commit for when it is picked up
+again.
 
 ## `ui/` localizes its own copy, and the boundary test says so
 
