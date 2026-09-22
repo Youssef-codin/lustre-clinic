@@ -55,7 +55,10 @@ export type HistoryRowProps = {
      * failed — and the row says Checked in rather than guess either way.
      */
     inChair?: boolean;
-    /** Absent on a row with no visit behind it — there is nothing to open. */
+    /**
+     * Opens the visit behind a row that came, or the booking page for one still
+     * `booked`. Absent leaves every row inert.
+     */
     onOpen?: (entry: PatientHistoryEntry) => void;
 };
 
@@ -107,12 +110,13 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const came = entry.visitId !== null;
     const due = entry.balance > 0;
 
-    // A row is a way into the visit it stands for. One with no visit — booked,
-    // cancelled, a no-show — has nothing behind it and stays inert rather than
-    // offering a tap that goes nowhere. An opening balance has one, and it is
-    // an empty visit with no procedures on it, so there is nothing to open
+    // A row is a way into what it stands for: the visit behind a row that came,
+    // or the booking itself while it is still to come. One with neither — a
+    // cancellation, a no-show — has nothing behind it and stays inert rather
+    // than offering a tap that goes nowhere. An opening balance has a visit,
+    // but an empty one with no procedures on it, so there is nothing to open
     // either.
-    const openable = came && !carried && onOpen !== undefined;
+    const openable = ((came && !carried) || entry.status === 'booked') && onOpen !== undefined;
 
     // An imported row's date is the cutoff only because `starts_at` is NOT
     // NULL. Drawing it would be this record telling the desk a day the work was

@@ -217,6 +217,7 @@ export const COPY_AR = {
     'This week': 'هذا الأسبوع',
     'This month': 'هذا الشهر',
     'This year': 'هذه السنة',
+    'This booking has moved on and can no longer be edited.': 'تغيّرت حالة هذا الحجز ولم يعد بالإمكان تعديله.',
     'All time': 'كل الوقت',
     'Who owe': 'المدينون',
     'Nothing is shown rather than a figure that may have moved since.':
@@ -435,6 +436,7 @@ export const COPY_AR = {
     'Question in Arabic': 'السؤال بالعربية',
     'Question in English': 'السؤال بالإنجليزية',
     'Read-only for now': 'للقراءة فقط حاليًا',
+    'Reading the booking…': 'جارٍ قراءة الحجز…',
     'Record section': 'قسم الملف',
     'Refunds cancelled out what was taken, so there is no split to show.':
         'المرتجعات عادلت ما تم تحصيله، فلا يوجد تفصيل لعرضه.',

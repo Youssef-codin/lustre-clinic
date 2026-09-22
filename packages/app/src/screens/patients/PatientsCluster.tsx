@@ -33,7 +33,7 @@ import { memo, useRef, useState } from 'react';
 import { PushView } from '../../components/ui';
 import { beneath, isOpen, isTop, rendered, useRouteStack } from '../../navigation';
 import type { PatientTarget } from '../../shell/routes';
-import { VisitPage } from '../day';
+import { ReschedulePage, VisitPage } from '../day';
 import { useInvalidatePatients } from './data/hooks';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
@@ -42,7 +42,8 @@ import { PatientRecordScreen } from './PatientRecordScreen';
 type Route =
     | { name: 'record'; patientId: string; backLabel?: string }
     | { name: 'edit'; patientId?: string }
-    | { name: 'visit'; appointmentId: string; visitId: string };
+    | { name: 'visit'; appointmentId: string; visitId: string }
+    | { name: 'reschedule'; appointmentId: string };
 
 export type OpenRecordRequest = {
     patientId: string;
@@ -182,6 +183,10 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
                             onBook={onBook}
                             onWalkIn={onWalkIn}
                             onOpenVisit={(entry) => {
+                                if (entry.status === 'booked') {
+                                    routes.push({ name: 'reschedule', appointmentId: entry.appointmentId });
+                                    return;
+                                }
                                 if (!entry.visitId) return;
                                 routes.push({
                                     name: 'visit',
@@ -218,6 +223,15 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
                             // write happened in the day cluster, over the raw
                             // tRPC client, so nothing has touched this cluster's
                             // cache — `reread` is what makes the remount real.
+                            onChanged={reread}
+                        />
+                    ) : null}
+
+                    {route.name === 'reschedule' ? (
+                        <ReschedulePage
+                            key={`reschedule:${route.appointmentId}`}
+                            appointmentId={route.appointmentId}
+                            onClose={routes.pop}
                             onChanged={reread}
                         />
                     ) : null}

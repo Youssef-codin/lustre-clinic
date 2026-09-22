@@ -78,7 +78,7 @@ export type PatientRecordScreenProps = {
      */
     onBook: (patient: Patient) => void;
     onWalkIn: (patient: Patient) => void;
-    /** A history row that became a visit — the cluster above opens it. */
+    /** A history row tapped — a visit, or a booking still to come. The cluster above opens it. */
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
 };
 
