@@ -15,6 +15,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as AuthSession from 'expo-auth-session';
 import { useTRPC } from '../../../api';
+import { getLocale } from '../../../i18n/runtime';
 
 const DISCOVERY: AuthSession.DiscoveryDocument = {
     authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -45,9 +46,11 @@ export function useDriveSignIn() {
             redirectUri: config.redirectUri,
             scopes: [config.scope],
             usePKCE: true,
-            // Without it Google returns an access token only, and the server has
-            // nothing to mint tomorrow night's upload with.
-            extraParams: { access_type: 'offline', prompt: 'consent' },
+            // Without `access_type` Google returns an access token only, and the
+            // server has nothing to mint tomorrow night's upload with. `hl` keeps
+            // Google's own screens in the app's language: they otherwise follow
+            // the Google account, which on a clinic phone is often not Arabic.
+            extraParams: { access_type: 'offline', prompt: 'consent', hl: getLocale() },
         });
 
         const result = await request.promptAsync(DISCOVERY);
