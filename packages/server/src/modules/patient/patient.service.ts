@@ -31,7 +31,7 @@
  * refused — taking it would hand the same number to two patients later.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
@@ -40,6 +40,7 @@ import {
     patients,
     payments,
     procedureTypes,
+    reminders,
     settings,
     visitProcedures,
     visits,
@@ -47,6 +48,7 @@ import {
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
 import { normalizePhone } from '../../util/phone.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
+import { broadcast } from '../../ws/index.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
 import { planOldPatientHistory, writeOldPatientHistory } from '../migration/migration.service.ts';
@@ -539,6 +541,41 @@ export const patientService = {
 
         if (!row) throw AppError.notFound('patient');
         return toPatient(row);
+    },
+
+    /**
+     * Remove a record that should never have existed — a duplicate, a test
+     * entry — and everything under it: bookings, visits, their lines, their
+     * reminders. Refused if any visit has a payment on it, for the reason
+     * `visitService.delete` gives; a record with money on it is a ledger, and
+     * the way to be rid of it is to delete the payments first.
+     */
+    async delete(id: string): Promise<void> {
+        await db.transaction(async (tx) => {
+            await requireRow(id);
+
+            const [paid] = await tx
+                .select({ id: payments.id })
+                .from(payments)
+                .innerJoin(visits, eq(visits.id, payments.visitId))
+                .innerJoin(appointments, eq(appointments.id, visits.appointmentId))
+                .where(eq(appointments.patientId, id))
+                .limit(1);
+            if (paid) {
+                throw new AppError(ERROR_CODE.HAS_PAYMENTS, 'this patient has payments recorded', 409);
+            }
+
+            const owned = tx
+                .select({ id: appointments.id })
+                .from(appointments)
+                .where(eq(appointments.patientId, id));
+            await tx.delete(reminders).where(inArray(reminders.appointmentId, owned));
+            await tx.delete(visits).where(inArray(visits.appointmentId, owned));
+            await tx.delete(appointments).where(eq(appointments.patientId, id));
+            await tx.delete(patients).where(eq(patients.id, id));
+        });
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id });
     },
 
     async createMinimal(input: MinimalPatientInput, executor: Executor = db): Promise<PatientRow> {

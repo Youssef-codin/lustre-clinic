@@ -63,6 +63,7 @@ const handlers = {
     'patient.byPhone': patientHandlers.byPhone,
     'patient.create': patientHandlers.create,
     'patient.update': patientHandlers.update,
+    'patient.delete': patientHandlers.delete,
 
     'customQuestion.list': customQuestionHandlers.list,
     'customQuestion.create': customQuestionHandlers.create,
@@ -87,6 +88,8 @@ const handlers = {
     'visit.recordPayment': visitHandlers.recordPayment,
     'visit.reopen': visitHandlers.reopen,
     'visit.setPaid': visitHandlers.setPaid,
+    'visit.delete': visitHandlers.delete,
+    'visit.deletePayment': visitHandlers.deletePayment,
 
     'balance.outstanding': balanceHandlers.outstanding,
     'balance.byPatient': balanceHandlers.byPatient,

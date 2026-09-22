@@ -4,6 +4,7 @@
 import { publicProcedure, router } from '../../trpc/init.ts';
 import {
     createPatientInput,
+    deletePatientInput,
     patientByIdInput,
     patientByPhoneInput,
     recentPatientsInput,
@@ -24,4 +25,8 @@ export const patientRouter = router({
     create: publicProcedure.input(createPatientInput).mutation(({ input }) => patientService.create(input)),
 
     update: publicProcedure.input(updatePatientInput).mutation(({ input }) => patientService.update(input)),
+
+    delete: publicProcedure
+        .input(deletePatientInput)
+        .mutation(({ input }) => patientService.delete(input.id)),
 });

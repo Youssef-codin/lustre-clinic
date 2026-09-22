@@ -903,6 +903,15 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                             // The editor opens on the visit as it stands; the
                             // reopen it needs rides along with Confirm.
                             onEdit={() => pushPage({ name: 'treatment' })}
+                            onDeleted={() => {
+                                routes.popToRoot();
+                                setToast('Visit deleted.');
+                                day.refetch();
+                            }}
+                            onPaymentDeleted={(updated) => {
+                                setVisit({ ...visit, visit: updated });
+                                day.refetch();
+                            }}
                         />
                     ) : null}
 

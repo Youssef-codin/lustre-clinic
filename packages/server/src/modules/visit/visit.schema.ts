@@ -46,6 +46,11 @@ export const setPriceInput = z.object({
 /** Undo a checkout so the visit can be corrected. Payments taken are kept. */
 export const reopenInput = z.object({ visitId: z.uuid() });
 
+/** Undo a check-in that should not have happened. Refused if money was taken. */
+export const deleteVisitInput = z.object({ visitId: z.uuid(), offsetMinutes });
+
+export const deletePaymentInput = z.object({ paymentId: z.uuid() });
+
 const payment = {
     method: paymentMethodSchema,
     methodNote: z.string().trim().max(200).nullish(),
@@ -96,6 +101,8 @@ export type CheckInInput = z.input<typeof checkInInput>;
 export type SetProceduresInput = z.infer<typeof setProceduresInput>;
 export type SetPriceInput = z.infer<typeof setPriceInput>;
 export type ReopenInput = z.infer<typeof reopenInput>;
+export type DeleteVisitInput = z.input<typeof deleteVisitInput>;
+export type DeletePaymentInput = z.infer<typeof deletePaymentInput>;
 export type CheckOutInput = z.input<typeof checkOutInput>;
 export type SetPaidInput = z.infer<typeof setPaidInput>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentInput>;

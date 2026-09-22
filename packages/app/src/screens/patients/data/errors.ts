@@ -22,6 +22,8 @@ const TEXT: Record<string, string> = {
     // means the balance moved on the other phone between opening and submitting.
     PAYMENT_EXCEEDS_BALANCE: 'That is more than this patient owes. Reopen the record and try again.',
     NOTHING_OUTSTANDING: 'This patient owes nothing.',
+    HAS_PAYMENTS:
+        'This patient has payments on file, so the record stays. Remove the payments from their visits first if they were entered by mistake.',
     PAYMENT_NOTE_REQUIRED: 'Say what the payment was.',
     INVALID_AMOUNT: 'That amount is not valid.',
     // The three an old-patient registration can come back with. Each names the

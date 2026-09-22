@@ -247,6 +247,18 @@ export const api = {
      * they were standing at the desk.
      */
     reopenVisit: (visitId: string): Promise<Visit> => wrap(() => trpcClient.visit.reopen.mutate({ visitId })),
+
+    /**
+     * Undo a check-in altogether. The appointment goes back to `booked` (a
+     * walk-in, which was made for the visit, goes with it). Refused while a
+     * payment is on the visit — those come off first, one at a time.
+     */
+    deleteVisit: (visitId: string): Promise<void> =>
+        wrap(() => trpcClient.visit.delete.mutate({ visitId, offsetMinutes: localOffsetMinutes() })),
+
+    /** A payment that was never taken. `setPaid` is for one that was, at the wrong figure. */
+    deletePayment: (paymentId: string): Promise<Visit> =>
+        wrap(() => trpcClient.visit.deletePayment.mutate({ paymentId })),
 };
 
 /**

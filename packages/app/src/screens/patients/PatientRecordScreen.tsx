@@ -28,7 +28,7 @@
 // evening visit on 31 December is UTC 1 January and would sit under the wrong
 // heading. Answers to deactivated questions are hidden but still on the record
 // (§7.8).
-import { useMemo, useState } from 'react';
+import { type RefObject, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue } from '../../components/domain';
 import {
@@ -36,7 +36,9 @@ import {
     Button,
     Callout,
     Chevron,
+    ConfirmSheet,
     EmptyState,
+    PopoverMenu,
     RefreshView,
     SegmentedControl,
     SkeletonRows,
@@ -48,7 +50,7 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { dateKey, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
-import { EditIcon } from './components/icons';
+import { MoreIcon } from './components/icons';
 import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
@@ -93,13 +95,32 @@ export function PatientRecordScreen({
     onWalkIn,
     onOpenVisit,
 }: PatientRecordScreenProps) {
+    const t = useT();
     const [tab, setTab] = useState<Tab>('visits');
     const [toast, setToast] = useState<string | null>(null);
     const [payingOpen, setPayingOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    // Measured in the window on press: the menu is a Modal, and where the bar
+    // sits under the status bar (and the DEV strip) is not this screen's to know.
+    const more = useRef<View>(null);
+    const [menuTop, setMenuTop] = useState<number>(space[12]);
+
+    function openMenu() {
+        more.current?.measureInWindow((_x, y, _w, h) => {
+            setMenuTop(y + h + space[1]);
+            setMenuOpen(true);
+        });
+    }
+    const [deleting, setDeleting] = useState(false);
+    // Deleted, and on the way out. The mutation invalidates the cluster, and
+    // the re-read of a record that no longer exists would flash its error
+    // banner over the slide back; nothing is drawn instead.
+    const [gone, setGone] = useState(false);
 
     const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
     const settle = useMutation(patientsApi.settle);
+    const remove = useMutation(patientsApi.delete);
 
     const patient = record.data?.patient;
     const history = record.data?.history ?? [];
@@ -149,15 +170,29 @@ export function PatientRecordScreen({
         setToast(paymentReceipt(report));
     }
 
+    /**
+     * A failure leaves the sheet open with its reason under the body —
+     * `HAS_PAYMENTS` is the one the desk will actually meet, and its line says
+     * what to do about it. `mutate` resolves rather than throws on failure, and
+     * `remove.error` is read at render, so the sheet is what shows it.
+     */
+    async function deletePatient() {
+        const done = await remove.mutate(patientId);
+        if (done === undefined) return;
+        setDeleting(false);
+        setGone(true);
+        onBack();
+    }
+
     return (
         <View style={styles.screen}>
-            <RecordBar onBack={onBack} backLabel={backLabel} onEdit={edit} />
+            <RecordBar onBack={onBack} backLabel={backLabel} onMore={openMenu} moreRef={more} />
 
-            {record.error && record.data && (
+            {record.error && record.data && !gone && (
                 <Banner tone="warning" message="Could not refresh this record. Showing what was last read." />
             )}
 
-            {record.loading && !record.data ? (
+            {gone || (record.loading && !record.data) ? (
                 <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : record.error && !record.data ? (
                 <RefreshView pull={pull}>
@@ -236,6 +271,51 @@ export function PatientRecordScreen({
                 />
             ) : null}
 
+            <PopoverMenu
+                visible={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                anchor={{ top: menuTop, end: size.gutter }}
+                items={[
+                    {
+                        key: 'edit',
+                        label: t('Edit patient'),
+                        onPress: () => {
+                            setMenuOpen(false);
+                            edit();
+                        },
+                    },
+                    {
+                        key: 'delete',
+                        label: t('Delete patient'),
+                        danger: true,
+                        onPress: () => {
+                            setMenuOpen(false);
+                            remove.reset();
+                            setDeleting(true);
+                        },
+                    },
+                ]}
+            />
+
+            <ConfirmSheet
+                visible={deleting}
+                title="Delete this patient?"
+                body="The record goes, with every booking and visit on it. A patient with a payment on file cannot be deleted. This cannot be undone."
+                detail={
+                    remove.error ? (
+                        <Text variant="subhead" tone="due" style={styles.deleteError}>
+                            {errorText(remove.error)}
+                        </Text>
+                    ) : null
+                }
+                confirmLabel="Delete patient"
+                onConfirm={() => void deletePatient()}
+                onCancel={() => setDeleting(false)}
+                destructive
+                loading={remove.pending}
+                testID="record-delete-confirm"
+            />
+
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
@@ -247,20 +327,20 @@ export function PatientRecordScreen({
  * the name is the heading, twenty pixels below, and a bar repeating it at 17px
  * would make the screen look like it says the name twice.
  *
- * The trailing button is Edit, not the design's `⋯`. A `⋯` promises a menu, and
- * everything a menu here would hold is still unbuilt (merge, deactivate,
- * export) — so it would be three dots that open one thing, which is worse than
- * the one thing named. It goes back to `⋯` over `ui/PopoverMenu`, with Edit at
- * the top, the day a second action lands.
+ * The `⋯` opens `ui/PopoverMenu` with Edit at the top and Delete under the
+ * divider. It was a named Edit button while Edit was the only action; three
+ * dots that open one thing are worse than the one thing named.
  */
 function RecordBar({
     onBack,
     backLabel,
-    onEdit,
+    onMore,
+    moreRef,
 }: {
     onBack?: () => void;
     backLabel: string;
-    onEdit: () => void;
+    onMore: () => void;
+    moreRef: RefObject<View | null>;
 }) {
     const t = useT();
     return (
@@ -284,14 +364,15 @@ function RecordBar({
             </Text>
 
             <Pressable
+                ref={moreRef}
                 accessibilityRole="button"
-                accessibilityLabel="Edit this patient"
-                onPress={onEdit}
+                accessibilityLabel="More"
+                onPress={onMore}
                 hitSlop={10}
                 style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-                testID="record-edit"
+                testID="record-more"
             >
-                <EditIcon size={15} stroke={color.ink} />
+                <MoreIcon size={16} stroke={color.ink} />
             </Pressable>
         </View>
     );
@@ -578,6 +659,7 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
     content: { paddingBottom: size.nav + space[6] },
+    deleteError: { marginTop: space[3] },
 
     bar: {
         flexDirection: 'row',

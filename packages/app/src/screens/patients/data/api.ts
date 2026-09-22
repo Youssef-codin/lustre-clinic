@@ -124,6 +124,17 @@ export const patientsApi = {
     },
 
     /**
+     * The record and everything under it. Refused while any of their visits
+     * has a payment. Resolves to `true` rather than nothing: `useMutation`
+     * hands back `undefined` for a failure, and a call that returned nothing
+     * on success would be indistinguishable from one.
+     */
+    async delete(id: string): Promise<true> {
+        await wrap(() => trpcClient.patient.delete.mutate({ id }));
+        return true;
+    },
+
+    /**
      * The app's one payment entry point. The money goes against the patient and
      * the server allocates it across their unsettled visits oldest-first, so
      * nothing here names a visit and nothing here does arithmetic on a balance

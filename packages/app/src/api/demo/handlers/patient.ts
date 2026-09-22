@@ -8,9 +8,10 @@
  * when the patient reached the chair — those carry the price actually billed —
  * and from the booking when they did not.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
+import { broadcast } from '../events';
 import {
     ageFromBirthDate,
     assignDefined,
@@ -244,6 +245,32 @@ export const patientHandlers = {
 
         save();
         return toPatient(current);
+    },
+
+    delete(input: RouterInput['patient']['delete']): void {
+        const db = getDb();
+        requirePatient(input.id);
+
+        const owned = new Set(
+            db.appointments.filter((row) => row.patientId === input.id).map((row) => row.id),
+        );
+        const visitIds = new Set(
+            db.visits.filter((row) => owned.has(row.appointmentId)).map((row) => row.id),
+        );
+
+        if (db.payments.some((row) => visitIds.has(row.visitId))) {
+            throw new DemoError(ERROR_CODE.HAS_PAYMENTS, 'this patient has payments recorded', 409);
+        }
+
+        db.visitProcedures = db.visitProcedures.filter((row) => !visitIds.has(row.visitId));
+        db.visits = db.visits.filter((row) => !visitIds.has(row.id));
+        db.reminders = db.reminders.filter((row) => !owned.has(row.appointmentId));
+        db.appointmentProcedures = db.appointmentProcedures.filter((row) => !owned.has(row.appointmentId));
+        db.appointments = db.appointments.filter((row) => !owned.has(row.id));
+        db.patients = db.patients.filter((row) => row.id !== input.id);
+
+        save();
+        broadcast(WS_EVENT.VISIT_UPDATED);
     },
 };
 

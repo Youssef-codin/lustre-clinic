@@ -8,7 +8,7 @@
  * WhatsApp is `MessageCircle`: Lucide carries no brand marks, and a traced logo
  * is how a project ends up with two icon sets and a trademark question.
  */
-import { MessageCircle, Pencil, Phone, Plus, Search, X } from 'lucide-react-native';
+import { Ellipsis, MessageCircle, Phone, Plus, Search, X } from 'lucide-react-native';
 import { color } from '../../../theme';
 
 type IconProps = {
@@ -39,7 +39,5 @@ export const PlusIcon = icon(Plus, 2.4);
 // leaving an editor abandons an edit rather than walking back a step.
 export const CloseIcon = icon(X, 2.4);
 
-// The way into the editor from the record bar. Lighter than the bar's other two
-// glyphs: it opens a screen rather than leaving one, and the name below it is
-// what the eye should land on first.
-export const EditIcon = icon(Pencil, 2);
+// The record bar's menu — Edit, and Delete under the divider.
+export const MoreIcon = icon(Ellipsis, 2.2);
