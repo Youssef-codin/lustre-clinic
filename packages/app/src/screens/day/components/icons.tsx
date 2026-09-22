@@ -15,6 +15,7 @@ import {
     Clock,
     Coins,
     CreditCard,
+    Ellipsis,
     Hourglass,
     MapPin,
     MessageCircle,
@@ -22,6 +23,7 @@ import {
     Receipt,
     Stethoscope,
     Timer,
+    Trash2,
     User,
     X,
     Zap,
@@ -84,3 +86,7 @@ export const CashIcon = icon(Coins, 1.8);
 export const InstapayIcon = icon(Zap, 1.8);
 
 export const OtherMethodIcon = icon(Receipt, 1.8);
+
+export const MoreIcon = icon(Ellipsis, 2.2);
+
+export const TrashIcon = icon(Trash2, 2);

@@ -7,6 +7,8 @@ import { publicProcedure, router } from '../../trpc/init.ts';
 import {
     checkInInput,
     checkOutInput,
+    deletePaymentInput,
+    deleteVisitInput,
     recordPaymentInput,
     reopenInput,
     setPaidInput,
@@ -42,4 +44,10 @@ export const visitRouter = router({
     reopen: publicProcedure.input(reopenInput).mutation(({ input }) => visitService.reopen(input)),
 
     setPaid: publicProcedure.input(setPaidInput).mutation(({ input }) => visitService.setPaid(input)),
+
+    delete: publicProcedure.input(deleteVisitInput).mutation(({ input }) => visitService.delete(input)),
+
+    deletePayment: publicProcedure
+        .input(deletePaymentInput)
+        .mutation(({ input }) => visitService.deletePayment(input)),
 });

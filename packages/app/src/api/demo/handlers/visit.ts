@@ -406,4 +406,59 @@ export const visitHandlers = {
         broadcast(WS_EVENT.VISIT_UPDATED);
         return readVisit(visit.id);
     },
+
+    delete(input: RouterInput['visit']['delete']): void {
+        const db = getDb();
+        const visit = requireVisit(input.visitId);
+
+        if (db.payments.some((row) => row.visitId === visit.id)) {
+            throw new DemoError(ERROR_CODE.HAS_PAYMENTS, 'this visit has payments recorded on it', 409);
+        }
+
+        const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+        if (!appointment) throw DemoError.notFound('appointment');
+
+        db.visitProcedures = db.visitProcedures.filter((line) => line.visitId !== visit.id);
+        db.visits = db.visits.filter((row) => row.id !== visit.id);
+
+        const now = new Date();
+        // Read before the branch below rewrites it: `appointment` is the row
+        // itself here, not a copy, so setting it to `booked` would make the
+        // chair check under it false for every desk booking.
+        const heldTheChair = appointment.status === 'checked_in' && visit.inChairAt !== null;
+
+        if (appointment.channel === 'walk_in' || appointment.isOpeningBalance) {
+            db.reminders = db.reminders.filter((row) => row.appointmentId !== appointment.id);
+            db.appointmentProcedures = db.appointmentProcedures.filter(
+                (row) => row.appointmentId !== appointment.id,
+            );
+            db.appointments = db.appointments.filter((row) => row.id !== appointment.id);
+        } else {
+            appointment.status = 'booked';
+            appointment.updatedAt = now;
+        }
+
+        if (heldTheChair) {
+            seatNextInChair(
+                appointment.branchId,
+                clinicDayOf(appointment.startsAt, input.offsetMinutes ?? 0),
+                now,
+            );
+        }
+
+        save();
+        broadcast(WS_EVENT.VISIT_UPDATED);
+    },
+
+    deletePayment(input: RouterInput['visit']['deletePayment']): Visit {
+        const db = getDb();
+        const row = db.payments.find((payment) => payment.id === input.paymentId);
+        if (!row) throw DemoError.notFound('payment');
+
+        db.payments = db.payments.filter((payment) => payment.id !== row.id);
+
+        save();
+        broadcast(WS_EVENT.VISIT_UPDATED);
+        return readVisit(row.visitId);
+    },
 };

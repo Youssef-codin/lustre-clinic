@@ -124,6 +124,16 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                 // Nothing is written on the way in, so the record underneath is
                 // not stale yet — `onConfirm` is what makes it so.
                 onEdit={() => routes.push('treatment')}
+                // Gone, so there is nothing to come back to: leave the way an
+                // edit leaves, telling the record underneath it moved.
+                onDeleted={() => {
+                    paid.current = true;
+                    close();
+                }}
+                onPaymentDeleted={(updated) => {
+                    paid.current = true;
+                    setEdited(updated);
+                }}
             />
 
             {rendered(routes.stack).map(({ id, route }, index) => (

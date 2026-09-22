@@ -25,6 +25,7 @@ import {
     appointments,
     payments,
     procedureTypes,
+    reminders,
     visitProcedures,
     visits,
 } from '../../db/schema.ts';
@@ -36,6 +37,8 @@ import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
 import type {
     CheckInInput,
     CheckOutInput,
+    DeletePaymentInput,
+    DeleteVisitInput,
     RecordPaymentInput,
     ReopenInput,
     SetPaidInput,
@@ -574,6 +577,80 @@ export const visitService = {
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
         return this.byId(input.visitId);
+    },
+
+    /**
+     * Undo a check-in that should not have happened — the wrong row tapped,
+     * a patient who never came. The visit and its lines go; the appointment
+     * goes back to `booked` so the record still says they were expected, and
+     * the desk can cancel or no-show it from there. A walk-in and an opening
+     * balance have no booking to go back to — the appointment was made for the
+     * visit — so they go with it.
+     *
+     * Refused while a payment is on it. Money handed over is a fact about the
+     * drawer, and a delete that took it along would move a past day's takings
+     * without a trace; the payments are deleted first, one by one, if they too
+     * were a mistake. The chair is handed on if this visit held it, the same
+     * as at checkout.
+     */
+    async delete(input: DeleteVisitInput): Promise<void> {
+        await db.transaction(async (tx) => {
+            const visit = await requireVisit(tx, input.visitId);
+
+            const [paid] = await tx
+                .select({ id: payments.id })
+                .from(payments)
+                .where(eq(payments.visitId, visit.id))
+                .limit(1);
+            if (paid) {
+                throw new AppError(ERROR_CODE.HAS_PAYMENTS, 'this visit has payments recorded on it', 409);
+            }
+
+            const [appointment] = await tx
+                .select()
+                .from(appointments)
+                .where(eq(appointments.id, visit.appointmentId))
+                .limit(1);
+            if (!appointment) throw AppError.notFound('appointment');
+
+            await tx.delete(visits).where(eq(visits.id, visit.id));
+
+            const now = new Date();
+            if (appointment.channel === 'walk_in' || appointment.isOpeningBalance) {
+                await tx.delete(reminders).where(eq(reminders.appointmentId, appointment.id));
+                await tx.delete(appointments).where(eq(appointments.id, appointment.id));
+            } else {
+                await tx
+                    .update(appointments)
+                    .set({ status: 'booked', updatedAt: now })
+                    .where(eq(appointments.id, appointment.id));
+            }
+
+            if (appointment.status === 'checked_in' && visit.inChairAt) {
+                await seatNextInChair(
+                    tx,
+                    appointment.branchId,
+                    clinicDayOf(appointment.startsAt, input.offsetMinutes),
+                    now,
+                );
+            }
+        });
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
+    },
+
+    /**
+     * Remove one payment row that was entered by mistake. This is the one
+     * place a payment is deleted rather than corrected: `setPaid` writes the
+     * difference and keeps both rows, which is right for "800 was really 500"
+     * and wrong for "that was never taken at all".
+     */
+    async deletePayment(input: DeletePaymentInput): Promise<Visit> {
+        const [row] = await db.delete(payments).where(eq(payments.id, input.paymentId)).returning();
+        if (!row) throw AppError.notFound('payment');
+
+        broadcast(WS_EVENT.VISIT_UPDATED, { id: row.visitId });
+        return this.byId(row.visitId);
     },
 
     async byAppointment(appointmentId: string): Promise<VisitRow | null> {

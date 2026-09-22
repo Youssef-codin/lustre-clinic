@@ -754,6 +754,31 @@ export const COPY_AR = {
         'كل نسخة احتياطية بدءًا من الليلة تذهب إلى ذلك الحساب',
     'Older backups stay where they are; nothing is moved or deleted':
         'النسخ الأقدم تبقى مكانها؛ لا يُنقل شيء ولا يُحذف',
+    // Deleting — a visit, a payment row, a patient — and the one refusal.
+    'Edit patient': 'تعديل المريض',
+    'Delete patient': 'حذف المريض',
+    'Delete this patient?': 'حذف هذا المريض؟',
+    'The record goes, with every booking and visit on it. A patient with a payment on file cannot be deleted. This cannot be undone.':
+        'يُحذف السجل مع كل المواعيد والزيارات المسجلة فيه. لا يمكن حذف مريض له دفعة مسجلة. لا يمكن التراجع عن هذا.',
+    'Delete visit': 'حذف الزيارة',
+    'Delete this visit?': 'حذف هذه الزيارة؟',
+    'The visit and the walk-in it was made for are removed. This cannot be undone.':
+        'تُحذف الزيارة والموعد الفوري الذي أُنشئ من أجلها. لا يمكن التراجع عن هذا.',
+    'What was done is removed and the appointment goes back to booked. This cannot be undone.':
+        'يُحذف ما تم تسجيله ويعود الموعد إلى حالة محجوز. لا يمكن التراجع عن هذا.',
+    'This visit has payments on it. Remove them first if they were entered by mistake.':
+        'هذه الزيارة عليها دفعات مسجلة. أزلها أولًا إن كانت قد سُجلت بالخطأ.',
+    'Remove this payment': 'إزالة هذه الدفعة',
+    'Remove this payment?': 'إزالة هذه الدفعة؟',
+    'Remove payment': 'إزالة الدفعة',
+    'Only for a payment that was never taken. One taken at the wrong figure is corrected from Edit visit, and both entries stay on the record.':
+        'فقط لدفعة لم تُستلم أصلًا. الدفعة المستلمة بمبلغ خاطئ تُصحح من تعديل الزيارة، ويبقى القيدان في السجل.',
+    'Visit deleted.': 'تم حذف الزيارة.',
+    'This visit has payments on it': 'هذه الزيارة عليها دفعات مسجلة',
+    'Money that was taken stays on the record. Remove the payments first if they were entered by mistake.':
+        'المال المستلم يبقى في السجل. أزل الدفعات أولًا إن كانت قد سُجلت بالخطأ.',
+    'This patient has payments on file, so the record stays. Remove the payments from their visits first if they were entered by mistake.':
+        'لهذا المريض دفعات مسجلة، لذا يبقى السجل. أزل الدفعات من زياراته أولًا إن كانت قد سُجلت بالخطأ.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

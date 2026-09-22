@@ -13,16 +13,32 @@
  *
  * The mock's clinical and billing notes are left out for the same reason as on
  * `VisitScreen`: `visits` has no column to hold either.
+ *
+ * The two deletes are written from here rather than handed up. Both mounts of
+ * this screen would only have run the same confirm and the same call, and what
+ * they differ on — where to go afterwards — is the one callback they get.
+ * Deleting a payment leaves the screen where it is with the visit re-read;
+ * deleting the visit leaves nothing to show, so `onDeleted` is the way out.
  */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Chevron, SegmentedControl } from '../../../components/ui';
+import {
+    Button,
+    Chevron,
+    ConfirmSheet,
+    IconButton,
+    PopoverMenu,
+    SegmentedControl,
+    Toast,
+} from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import type { Appointment, Visit, VisitPayment } from '../data';
+import { type Appointment, api, useLocalMutation, type Visit, type VisitPayment } from '../data';
+import { describeError } from '../errors';
 import { formatAmount, formatMoney } from '../money';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12 } from '../time';
+import { MoreIcon, TrashIcon } from './icons';
 import { VisitStatusChip } from './VisitStatusChip';
 
 export type VisitViewScreenProps = {
@@ -31,6 +47,10 @@ export type VisitViewScreenProps = {
     onBack: () => void;
     /** Open the editor over this page. Nothing has been written to the visit. */
     onEdit: (visit: Visit) => void;
+    /** The visit is gone; whatever is underneath is stale and this page has nothing left to show. */
+    onDeleted: () => void;
+    /** A payment came off and the visit was re-read. */
+    onPaymentDeleted: (visit: Visit) => void;
 };
 
 type Panel = 'treatment' | 'payment';
@@ -53,9 +73,63 @@ function monthOf(iso: string): string {
     return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
 }
 
-export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitViewScreenProps) {
+export function VisitViewScreen({
+    appointment,
+    visit,
+    onBack,
+    onEdit,
+    onDeleted,
+    onPaymentDeleted,
+}: VisitViewScreenProps) {
     const t = useT();
     const [panel, setPanel] = useState<Panel>('treatment');
+    const [menuOpen, setMenuOpen] = useState(false);
+    // The menu is a Modal and positions against the window, so the trigger is
+    // measured in the window on press — where it sits depends on the status
+    // bar and, in a dev build, the DEV strip, neither of which this screen
+    // knows about.
+    const more = useRef<View>(null);
+    const [menuTop, setMenuTop] = useState<number>(space[12]);
+
+    function openMenu() {
+        more.current?.measureInWindow((_x, y, _w, h) => {
+            setMenuTop(y + h + space[1]);
+            setMenuOpen(true);
+        });
+    }
+    const [deletingVisit, setDeletingVisit] = useState(false);
+    const [deletingPayment, setDeletingPayment] = useState<VisitPayment | null>(null);
+    const [toast, setToast] = useState<string | null>(null);
+
+    const deleteVisit = useLocalMutation(api.deleteVisit);
+    const deletePayment = useLocalMutation(api.deletePayment);
+
+    function confirmDeleteVisit() {
+        deleteVisit.mutate(visit.id, {
+            onSuccess: () => {
+                setDeletingVisit(false);
+                onDeleted();
+            },
+            onError: (error) => {
+                setDeletingVisit(false);
+                setToast(describeError(error).body ?? describeError(error).title);
+            },
+        });
+    }
+
+    function confirmDeletePayment() {
+        if (!deletingPayment) return;
+        deletePayment.mutate(deletingPayment.id, {
+            onSuccess: (updated) => {
+                setDeletingPayment(null);
+                onPaymentDeleted(updated);
+            },
+            onError: (error) => {
+                setDeletingPayment(null);
+                setToast(describeError(error).title);
+            },
+        });
+    }
 
     const groups = toothGroupsOf(visit.procedures);
     // "Total cost" below is `chargedTotal`, which the server struck the checkup
@@ -79,6 +153,14 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                 <Text variant="eyebrow" tone="muted" style={styles.grow}>
                     {t('VISIT')}
                 </Text>
+                <View ref={more} collapsable={false}>
+                    <IconButton
+                        accessibilityLabel={t('More')}
+                        icon={<MoreIcon size={16} stroke={color.ink} />}
+                        onPress={openMenu}
+                        testID="visit-view-more"
+                    />
+                </View>
             </View>
 
             <View style={styles.identity}>
@@ -281,6 +363,14 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
                                         <Text variant="body" script="mono" weight="bold">
                                             {formatAmount(payment.amount)}
                                         </Text>
+                                        <IconButton
+                                            accessibilityLabel={t('Remove this payment')}
+                                            icon={<TrashIcon size={14} stroke={color.muted} />}
+                                            variant="bare"
+                                            tone="muted"
+                                            onPress={() => setDeletingPayment(payment)}
+                                            testID={`visit-view-payment-remove-${index}`}
+                                        />
                                     </View>
                                 ))}
                             </View>
@@ -306,6 +396,78 @@ export function VisitViewScreen({ appointment, visit, onBack, onEdit }: VisitVie
             <View style={styles.bar}>
                 <Button label="Edit visit" block onPress={() => onEdit(visit)} testID="visit-view-edit" />
             </View>
+
+            <PopoverMenu
+                visible={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                anchor={{ top: menuTop, end: space[4] }}
+                items={[
+                    {
+                        key: 'edit',
+                        label: t('Edit visit'),
+                        onPress: () => {
+                            setMenuOpen(false);
+                            onEdit(visit);
+                        },
+                    },
+                    {
+                        key: 'delete',
+                        label: t('Delete visit'),
+                        danger: true,
+                        onPress: () => {
+                            setMenuOpen(false);
+                            // Refused by the server too; saying so here spares
+                            // the confirm for something that cannot happen.
+                            if (visit.payments.length > 0) {
+                                setToast(
+                                    t(
+                                        'This visit has payments on it. Remove them first if they were entered by mistake.',
+                                    ),
+                                );
+                                return;
+                            }
+                            setDeletingVisit(true);
+                        },
+                    },
+                ]}
+            />
+
+            <ConfirmSheet
+                visible={deletingVisit}
+                title="Delete this visit?"
+                body={
+                    appointment.channel === 'walk_in'
+                        ? 'The visit and the walk-in it was made for are removed. This cannot be undone.'
+                        : 'What was done is removed and the appointment goes back to booked. This cannot be undone.'
+                }
+                confirmLabel="Delete visit"
+                onConfirm={confirmDeleteVisit}
+                onCancel={() => setDeletingVisit(false)}
+                destructive
+                loading={deleteVisit.pending}
+                testID="visit-view-delete-confirm"
+            />
+
+            <ConfirmSheet
+                visible={deletingPayment !== null}
+                title="Remove this payment?"
+                body="Only for a payment that was never taken. One taken at the wrong figure is corrected from Edit visit, and both entries stay on the record."
+                detail={
+                    deletingPayment ? (
+                        <Text variant="headline" script="mono" weight="bold" style={styles.confirmAmount}>
+                            {formatMoney(deletingPayment.amount)}
+                        </Text>
+                    ) : null
+                }
+                confirmLabel="Remove payment"
+                onConfirm={confirmDeletePayment}
+                onCancel={() => setDeletingPayment(null)}
+                destructive
+                loading={deletePayment.pending}
+                testID="visit-view-payment-delete-confirm"
+            />
+
+            <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
 }
@@ -429,6 +591,7 @@ const styles = StyleSheet.create({
     },
 
     payments: { paddingHorizontal: size.gutter },
+    confirmAmount: { marginTop: space[3] },
     dateRow: {
         flexDirection: 'row',
         alignItems: 'center',

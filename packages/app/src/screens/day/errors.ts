@@ -75,6 +75,12 @@ function englishError(error: RequestError, context: ErrorContext): ErrorMessage 
         case ERROR_CODE.VISIT_ALREADY_COMPLETED:
             return { title: 'This visit is already checked out' };
 
+        case ERROR_CODE.HAS_PAYMENTS:
+            return {
+                title: 'This visit has payments on it',
+                body: 'Money that was taken stays on the record. Remove the payments first if they were entered by mistake.',
+            };
+
         case ERROR_CODE.VISIT_HAS_NO_PROCEDURES:
             return {
                 title: 'Add what was done first',

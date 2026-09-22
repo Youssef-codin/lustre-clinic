@@ -859,6 +859,47 @@ describe('patient', () => {
         expect(registered.ref).not.toBe(booked.ref);
     });
 
+    // A duplicate or a test entry, and everything hanging off it. The visit
+    // going too is what makes this different from cancelling their bookings.
+    test('deletes a patient with their bookings and visits', async () => {
+        const { branch, patient } = await fixtures();
+        const booked = await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 0,
+        });
+        const { visitId } = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+        });
+
+        await patientService.delete(patient.id);
+
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => patientService.byId(patient.id));
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => appointmentService.byId(booked.id));
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => visitService.byId(visitId));
+        expect(await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 0 })).toEqual([]);
+    });
+
+    test('refuses to delete a patient who has a payment on file', async () => {
+        const { branch, patient, extraction } = await fixtures();
+        const { visitId } = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+        });
+        await visitService.setProcedures({
+            visitId,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        await visitService.recordPayment({ visitId, amount: 10_000, method: 'cash' });
+
+        await expectAppError(ERROR_CODE.HAS_PAYMENTS, () => patientService.delete(patient.id));
+        expect((await patientService.byId(patient.id)).history).toHaveLength(1);
+    });
+
     test('keeps the old system’s number beside its own, and they are different facts', async () => {
         const migrated = await patientService.create({
             name: 'Carried Over',
@@ -1989,6 +2030,84 @@ describe('visit', () => {
         expect(reclosed.completedAt).not.toBeNull();
         expect(reclosed.paidTotal).toBe(charged);
         expect((await appointmentService.byId(appointment.id)).status).toBe('done');
+    });
+
+    // Undoing a check-in. The visit and its lines go, and the booking is
+    // still a booking — the patient was expected, and whether they came is
+    // now for the desk to say with cancel or no-show.
+    test('deletes a visit and puts the appointment back to booked', async () => {
+        const { visit, appointment } = await checkedIn({ withWork: true });
+        expect((await visitService.byId(visit.id)).procedures).toHaveLength(1);
+
+        await visitService.delete({ visitId: visit.id });
+
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => visitService.byId(visit.id));
+        expect(await visitService.byAppointment(appointment.id)).toBeNull();
+        expect((await appointmentService.byId(appointment.id)).status).toBe('booked');
+    });
+
+    // A walk-in has no booking to go back to: the appointment was made for the
+    // visit, and a `booked` walk-in on the day view would be a patient who is
+    // neither expected nor here.
+    test('deleting a walk-in visit takes the appointment with it', async () => {
+        const { branch, patient } = await fixtures();
+        const { appointment, visitId } = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+        });
+
+        await visitService.delete({ visitId });
+
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => appointmentService.byId(appointment.id));
+        expect((await patientService.byId(patient.id)).history).toEqual([]);
+    });
+
+    // Money is the line. A delete that took a payment with it would move a
+    // past day's takings without a trace, so the payment has to be removed
+    // first, on its own, and only then does the visit go.
+    test('refuses to delete a visit with a payment, until the payment is removed', async () => {
+        const { visit, extraction } = await checkedIn();
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
+        });
+        await visitService.checkOut({
+            visitId: visit.id,
+            chargedTotal: EXTRACTION_PRICE,
+            paidTotal: EXTRACTION_PRICE,
+            method: 'cash',
+        });
+
+        await expectAppError(ERROR_CODE.HAS_PAYMENTS, () => visitService.delete({ visitId: visit.id }));
+
+        const [payment] = (await visitService.byId(visit.id)).payments;
+        if (!payment) throw new Error('expected a payment');
+        const after = await visitService.deletePayment({ paymentId: payment.id });
+        expect(after.payments).toEqual([]);
+        expect(after.paidTotal).toBe(0);
+        expect(after.balance).toBe(EXTRACTION_PRICE);
+
+        await visitService.delete({ visitId: visit.id });
+        await expectAppError(ERROR_CODE.NOT_FOUND, () => visitService.byId(visit.id));
+    });
+
+    // Leaving the chair by deletion hands it on the same as leaving it by
+    // checkout: the next patient's visit starts when the chair empties.
+    test('deleting the visit in the chair seats the next patient', async () => {
+        const { visit: first, branch, patient } = await checkedIn();
+        expect(first.inChairAt).not.toBeNull();
+
+        const second = await appointmentService.walkIn({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            offsetMinutes: 0,
+        });
+        expect((await visitService.byId(second.visitId)).inChairAt).toBeNull();
+
+        await visitService.delete({ visitId: first.id });
+
+        expect((await visitService.byId(second.visitId)).inChairAt).not.toBeNull();
     });
 
     test('refuses to check out a visit with no procedures on it', async () => {

@@ -61,6 +61,13 @@ export const ERROR_CODE = {
     PAYMENT_EXCEEDS_BALANCE: 'PAYMENT_EXCEEDS_BALANCE',
     /** A payment was allocated against a patient with nothing outstanding. */
     NOTHING_OUTSTANDING: 'NOTHING_OUTSTANDING',
+    /**
+     * A delete would take recorded money with it. A visit or a patient with a
+     * payment on file is refused: the row is a fact about the drawer, and
+     * removing it would quietly change a past day's takings. Delete the payments
+     * first if they too were a mistake.
+     */
+    HAS_PAYMENTS: 'HAS_PAYMENTS',
 
     // --- patients -----------------------------------------------------------
     /** The phone number could not be normalized to E.164. */

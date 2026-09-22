@@ -94,6 +94,8 @@ export const recentPatientsInput = z.object({
 
 export const patientByIdInput = z.object({ id: z.uuid() });
 
+export const deletePatientInput = z.object({ id: z.uuid() });
+
 /** Loose on purpose — the service normalizes, and a term that will not normalize answers `[]`. */
 export const patientByPhoneInput = z.object({ phone: z.string().trim().max(32) });
 
