@@ -23,13 +23,14 @@ import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre
 import { useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { formatMoney } from '../../../components/domain';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
-import { amountDue, formatAmount, formatMoney, poundsEntry } from '../money';
-import { dateKey, formatLongDate } from '../time';
+import { amountDue, formatAmount, poundsEntry } from '../money';
+import { dateKey, formatLongDate, monthShort } from '../time';
 import { CashIcon, CheckIcon, InstapayIcon, OtherMethodIcon, PaymentIcon } from './icons';
 
 export type VisitPaymentScreenProps = {
@@ -144,9 +145,11 @@ export function VisitPaymentScreen({
         if (toPiastres(digits) > ceiling) {
             setPaid(toPounds(ceiling));
             setToast(
-                correcting
-                    ? 'They cannot have paid more than the visit charges'
-                    : 'They cannot pay more than the amount due',
+                t(
+                    correcting
+                        ? 'They cannot have paid more than the visit charges'
+                        : 'They cannot pay more than the amount due',
+                ),
             );
             return;
         }
@@ -156,7 +159,7 @@ export function VisitPaymentScreen({
     function changeDiscount(entry: string) {
         const digits = poundsEntry(entry);
         const over = toPiastres(digits) > maxDiscount;
-        if (over) setToast('The discount cannot be more than is left to pay');
+        if (over) setToast(t('The discount cannot be more than is left to pay'));
         setDiscount(over ? toPounds(maxDiscount) : digits);
 
         const nextCharged = visit.chargedTotal - Math.min(toPiastres(digits), maxDiscount);
@@ -167,8 +170,8 @@ export function VisitPaymentScreen({
     }
 
     function methodText(): string {
-        if (method !== 'other') return METHOD_LABEL[method].toLowerCase();
-        return methodNote.trim() ? methodNote.trim().toLowerCase() : 'other method';
+        if (method !== 'other') return t(METHOD_LABEL[method]).toLowerCase();
+        return methodNote.trim() ? methodNote.trim().toLowerCase() : t('other method').toLowerCase();
     }
 
     /**
@@ -213,41 +216,61 @@ export function VisitPaymentScreen({
                     if (correcting) {
                         setDone({
                             tone: closed.balance > 0 ? 'owing' : 'settled',
-                            title: 'Visit updated',
+                            title: t('Visit updated'),
                             message:
                                 closed.balance > 0
-                                    ? `${formatMoney(paidPiastres)} paid — ${formatMoney(closed.balance)} still owed on this visit.`
-                                    : `${formatMoney(paidPiastres)} paid. Nothing left on this visit.`,
+                                    ? t('{amount} paid — {balance} still owed on this visit.', {
+                                          amount: formatMoney(paidPiastres),
+                                          balance: formatMoney(closed.balance),
+                                      })
+                                    : t('{amount} paid. Nothing left on this visit.', {
+                                          amount: formatMoney(paidPiastres),
+                                      }),
                             toast:
                                 closed.balance > 0
-                                    ? `Visit updated · ${formatMoney(closed.balance)} outstanding`
-                                    : 'Visit updated · settled in full',
+                                    ? t('Visit updated · {balance} outstanding', {
+                                          balance: formatMoney(closed.balance),
+                                      })
+                                    : t('Visit updated · settled in full'),
                         });
                         return;
                     }
                     if (nothing) {
                         setDone({
                             tone: 'none',
-                            title: 'Visit closed',
-                            message: `No payment recorded — ${formatMoney(closed.balance)} outstanding on this visit.`,
-                            toast: `Checked out · ${formatMoney(closed.balance)} outstanding`,
+                            title: t('Visit closed'),
+                            message: t('No payment recorded — {balance} outstanding on this visit.', {
+                                balance: formatMoney(closed.balance),
+                            }),
+                            toast: t('Checked out · {balance} outstanding', {
+                                balance: formatMoney(closed.balance),
+                            }),
                         });
                         return;
                     }
                     if (closed.balance > 0) {
                         setDone({
                             tone: 'owing',
-                            title: 'Visit closed',
-                            message: `${formatMoney(paidPiastres)} ${methodText()} — ${formatMoney(closed.balance)} still owed on this visit.`,
-                            toast: `Checked out · ${formatMoney(closed.balance)} outstanding`,
+                            title: t('Visit closed'),
+                            message: t('{amount} {method} — {balance} still owed on this visit.', {
+                                amount: formatMoney(paidPiastres),
+                                method: methodText(),
+                                balance: formatMoney(closed.balance),
+                            }),
+                            toast: t('Checked out · {balance} outstanding', {
+                                balance: formatMoney(closed.balance),
+                            }),
                         });
                         return;
                     }
                     setDone({
                         tone: 'settled',
-                        title: 'Paid in full',
-                        message: `${formatMoney(due)} ${methodText()}. Nothing left on this visit.`,
-                        toast: 'Checked out · settled in full',
+                        title: t('Paid in full'),
+                        message: t('{amount} {method}. Nothing left on this visit.', {
+                            amount: formatMoney(due),
+                            method: methodText(),
+                        }),
+                        toast: t('Checked out · settled in full'),
                     });
                 },
             },
@@ -256,13 +279,13 @@ export function VisitPaymentScreen({
 
     const confirmLabel = correcting
         ? settled
-            ? 'Save & close visit'
-            : `Save — ${formatMoney(remaining)} still owed`
+            ? t('Save & close visit')
+            : t('Save — {balance} still owed', { balance: formatMoney(remaining) })
         : nothing
-          ? 'Close visit without payment'
+          ? t('Close visit without payment')
           : settled
-            ? 'Confirm & close visit'
-            : `Confirm — ${formatMoney(remaining)} still owed`;
+            ? t('Confirm & close visit')
+            : t('Confirm — {balance} still owed', { balance: formatMoney(remaining) });
 
     /**
      * The method belongs to the money moving now, not to the visit. A patient
@@ -272,12 +295,17 @@ export function VisitPaymentScreen({
      */
     const methodHint = !moves
         ? correcting
-            ? 'Unchanged — no money moves either way.'
-            : 'Nothing collected — the full amount stays on this visit.'
+            ? t('Unchanged — no money moves either way.')
+            : t('Nothing collected — the full amount stays on this visit.')
         : moving < 0
-          ? `${formatMoney(-moving)} given back. What stays paid keeps how it was paid.`
+          ? t('{amount} given back. What stays paid keeps how it was paid.', {
+                amount: formatMoney(-moving),
+            })
           : correcting && collected > 0
-            ? `${formatMoney(moving)} collected now. The ${formatMoney(collected)} already on this visit keeps how it was paid.`
+            ? t('{amount} collected now. The {collected} already on this visit keeps how it was paid.', {
+                  amount: formatMoney(moving),
+                  collected: formatMoney(collected),
+              })
             : '';
 
     const writeError = setPaidTotal.error ?? checkOut.error;
@@ -289,7 +317,7 @@ export function VisitPaymentScreen({
             <View style={styles.topbar}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Back to the visit"
+                    accessibilityLabel={t('Back to the visit')}
                     // A correction is two writes, the money and then the close;
                     // leaving between them strands a reopened visit.
                     disabled={checkOut.pending || setPaidTotal.pending}
@@ -316,7 +344,7 @@ export function VisitPaymentScreen({
                             {new Date(appointment.startsAt).getDate()}
                         </Text>
                         <Text variant="tag" tone="inverse" style={styles.tileMonth}>
-                            {monthOf(appointment.startsAt)}
+                            {monthShort(day).toUpperCase()}
                         </Text>
                     </View>
 
@@ -332,7 +360,7 @@ export function VisitPaymentScreen({
 
                 <View style={styles.dueCard}>
                     <Text variant="eyebrow" tone="muted">
-                        {correcting ? 'TOTAL CHARGED' : 'AMOUNT DUE'}
+                        {t(correcting ? 'TOTAL CHARGED' : 'AMOUNT DUE')}
                     </Text>
                     <View style={styles.figure}>
                         <Text variant="footnote" weight="bold" tone="muted">
@@ -356,9 +384,9 @@ export function VisitPaymentScreen({
                             tone={showProcedures ? 'ink2' : 'muted'}
                             style={styles.grow}
                         >
-                            {visit.procedures.length === 1
-                                ? '1 procedure'
-                                : `${visit.procedures.length} procedures`}
+                            {t(visit.procedures.length === 1 ? '{count} procedure' : '{count} procedures', {
+                                count: visit.procedures.length,
+                            })}
                         </Text>
                         <Chevron direction={showProcedures ? 'up' : 'down'} size={8} tone="muted" />
                     </Pressable>
@@ -406,7 +434,7 @@ export function VisitPaymentScreen({
                         placeholder="0"
                         placeholderTextColor={color.muted}
                         keyboardType="number-pad"
-                        accessibilityLabel="Discount"
+                        accessibilityLabel={t('Discount')}
                         selectTextOnFocus
                         style={[styles.discountInput, { textAlign: isRTL ? 'left' : 'right' }]}
                         testID="visit-payment-discount"
@@ -414,12 +442,15 @@ export function VisitPaymentScreen({
                 </View>
                 {discountPiastres > 0 ? (
                     <Text variant="footnote" tone="muted" style={styles.hint}>
-                        {`${formatMoney(discountPiastres)} off the ${formatMoney(visit.chargedTotal)} the procedures add up to.`}
+                        {t('{amount} off the {total} the procedures add up to.', {
+                            amount: formatMoney(discountPiastres),
+                            total: formatMoney(visit.chargedTotal),
+                        })}
                     </Text>
                 ) : null}
 
                 <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
-                    {correcting ? 'TOTAL PAID' : 'AMOUNT PAID'}
+                    {t(correcting ? 'TOTAL PAID' : 'AMOUNT PAID')}
                 </Text>
                 <View style={styles.paidField}>
                     <Text variant="footnote" weight="bold" tone="muted">
@@ -429,7 +460,7 @@ export function VisitPaymentScreen({
                         value={paid}
                         onChangeText={setPaidClamped}
                         keyboardType="decimal-pad"
-                        accessibilityLabel="Amount paid"
+                        accessibilityLabel={t('Amount paid')}
                         selectTextOnFocus
                         style={[styles.paidInput, { textAlign: isRTL ? 'left' : 'right' }]}
                         testID="visit-payment-amount"
@@ -462,7 +493,7 @@ export function VisitPaymentScreen({
 
                 <View style={moves ? undefined : styles.methodsOff} pointerEvents={moves ? 'auto' : 'none'}>
                     <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
-                        {moving < 0 ? 'GIVEN BACK BY' : 'PAID BY'}
+                        {t(moving < 0 ? 'GIVEN BACK BY' : 'PAID BY')}
                     </Text>
                     <View style={styles.methods}>
                         {PAYMENT_METHODS.map((option) => {
@@ -483,7 +514,7 @@ export function VisitPaymentScreen({
                                 >
                                     <Icon size={20} stroke={on ? color.ink : color.ink2} />
                                     <Text variant="callout" weight="medium">
-                                        {METHOD_LABEL[option]}
+                                        {t(METHOD_LABEL[option])}
                                     </Text>
                                 </Pressable>
                             );
@@ -495,9 +526,9 @@ export function VisitPaymentScreen({
                             <TextInput
                                 value={methodNote}
                                 onChangeText={setMethodNote}
-                                placeholder="How was it paid?"
+                                placeholder={t('How was it paid?')}
                                 placeholderTextColor={color.muted}
-                                accessibilityLabel="Other payment method"
+                                accessibilityLabel={t('Other payment method')}
                                 style={[styles.otherInput, noteMissing && styles.otherInputMissing]}
                             />
                         </View>
@@ -517,7 +548,7 @@ export function VisitPaymentScreen({
                         <View style={styles.stripDot} />
                     )}
                     <Text variant="subhead" tone="muted">
-                        {settled ? 'Settled — nothing owed' : 'Remaining balance'}
+                        {t(settled ? 'Settled — nothing owed' : 'Remaining balance')}
                     </Text>
                     <Text
                         variant="headline"
@@ -588,6 +619,8 @@ type DoneTone = 'settled' | 'owing' | 'none';
 type Done = { tone: DoneTone; title: string; message: string; toast: string };
 
 function QuickChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+    const t = useT();
+
     return (
         <Pressable
             accessibilityRole="button"
@@ -600,16 +633,10 @@ function QuickChip({ label, selected, onPress }: { label: string; selected: bool
             ]}
         >
             <Text variant="subhead" weight="semibold" tone={selected ? 'inverse' : 'ink2'}>
-                {label}
+                {t(label)}
             </Text>
         </Pressable>
     );
-}
-
-const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-function monthOf(iso: string): string {
-    return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
 }
 
 const styles = StyleSheet.create({
