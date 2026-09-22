@@ -8,7 +8,7 @@
  * when the patient reached the chair — those carry the price actually billed —
  * and from the booking when they did not.
  */
-import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
+import { canEditRef, ERROR_CODE, PATIENT_REF_PATTERN, REF_EDIT_ROLES, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
 import { broadcast } from '../events';
@@ -18,6 +18,7 @@ import {
     buildPatientRef,
     DemoError,
     normalizePhone,
+    phoneSearchTerm,
     uuidv7,
 } from '../rules';
 import type { Dated } from '../wire';
@@ -28,6 +29,7 @@ type Patient = Dated<RouterOutput['patient']['search'][number]>;
 type PatientDetail = Dated<RouterOutput['patient']['byId']>;
 type HistoryEntry = PatientDetail['history'][number];
 type HistoryProcedure = HistoryEntry['procedures'][number];
+type RefEdit = Dated<RouterOutput['patient']['refHistory'][number]>;
 
 export function toPatient(row: PatientRow): Patient {
     return { ...row, age: ageFromBirthDate(row.birthDate) };
@@ -71,14 +73,9 @@ export const patientHandlers = {
         const term = input.q.trim();
         if (!term) return [];
 
-        // `0101…` has to find a stored `+20101…`; a term still being typed will
-        // not normalize and is matched as it stands.
-        let phoneTerm = term;
-        try {
-            phoneTerm = normalizePhone(term);
-        } catch {
-            phoneTerm = term;
-        }
+        // `0101…` has to find a stored `+20101…`, and so does a `010123` still
+        // being typed — which is why this is not `normalizePhone`.
+        const phoneTerm = phoneSearchTerm(term);
 
         const needle = term.toLowerCase();
 
@@ -86,7 +83,7 @@ export const patientHandlers = {
             .filter(
                 (row) =>
                     row.name.toLowerCase().includes(needle) ||
-                    row.phone.includes(phoneTerm) ||
+                    (phoneTerm !== null && row.phone.includes(phoneTerm)) ||
                     row.ref.toLowerCase().includes(needle) ||
                     (row.legacyRef ?? '').toLowerCase().includes(needle),
             )
@@ -245,6 +242,78 @@ export const patientHandlers = {
 
         save();
         return toPatient(current);
+    },
+
+    /**
+     * `patientService.updateRef`. Same three gates in the same order: the role
+     * that may edit, the shape a patient ref takes — both of them, the plain
+     * number and the code a patient from before numbering carries — and a
+     * number the sequence has still to hand out. Re-typing the ref a record
+     * already has changes nothing and is not audited.
+     */
+    updateRef(input: RouterInput['patient']['updateRef']): Patient {
+        if (!canEditRef(input.editedBy)) {
+            throw new DemoError(
+                ERROR_CODE.REF_EDIT_FORBIDDEN,
+                `a ref may only be edited by: ${REF_EDIT_ROLES.join(', ')}`,
+                403,
+            );
+        }
+
+        const next = input.ref.trim().toUpperCase();
+        if (!PATIENT_REF_PATTERN.test(next)) {
+            throw new DemoError(
+                ERROR_CODE.PATIENT_REF_INVALID,
+                'a patient ref is a plain number, or the four-character code a patient from before numbering carries',
+                422,
+            );
+        }
+
+        const db = getDb();
+        const current = requirePatient(input.id);
+        if (current.ref === next) return toPatient(current);
+
+        if (db.patients.some((patient) => patient.ref === next)) {
+            throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
+        }
+
+        const counter = db.settings.patientRefNext;
+        if (/^\d+$/.test(next) && Number(next) >= counter) {
+            throw new DemoError(
+                ERROR_CODE.PATIENT_REF_RESERVED,
+                `${next} is at or above the next patient number (${counter}) and is not yet a patient's`,
+                422,
+            );
+        }
+
+        db.refEdits.push({
+            id: uuidv7(),
+            entity: 'patient',
+            entityId: current.id,
+            previousRef: current.ref,
+            newRef: next,
+            editedBy: input.editedBy,
+            editedAt: new Date(),
+        });
+        current.ref = next;
+
+        save();
+        return toPatient(current);
+    },
+
+    /** Every correction made to this patient's ref, newest first. */
+    refHistory(input: RouterInput['patient']['refHistory']): RefEdit[] {
+        requirePatient(input.id);
+
+        return [...getDb().refEdits]
+            .filter((row) => row.entity === 'patient' && row.entityId === input.id)
+            .sort((a, b) => b.editedAt.getTime() - a.editedAt.getTime())
+            .map(({ previousRef, newRef, editedBy, editedAt }) => ({
+                previousRef,
+                newRef,
+                editedBy,
+                editedAt,
+            }));
     },
 
     delete(input: RouterInput['patient']['delete']): void {
