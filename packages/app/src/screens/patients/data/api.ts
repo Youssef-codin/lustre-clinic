@@ -22,6 +22,8 @@ import { checkInTimes, api as dayApi } from '../../day/data';
 import { todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
+    AddedHistoricalProcedures,
+    AddHistoricalProceduresInput,
     CreatePatientInput,
     CustomQuestion,
     Patient,
@@ -121,6 +123,20 @@ export const patientsApi = {
 
     update(input: UpdatePatientInput): Promise<Patient> {
         return wrap(() => trpcClient.patient.update.mutate(input));
+    },
+
+    /**
+     * Work the patient had done before this system recorded it. It is a
+     * `procedure` call and not a `patient` one because what it writes is
+     * appointment rows: `patient.update` patches the record's own columns and
+     * takes no procedures.
+     *
+     * Never retried. The write is not idempotent — a second call adds the lines
+     * a second time — so the editor clears the drafted entries the moment this
+     * succeeds, and a failure keeps them on screen to be sent again once.
+     */
+    addHistorical(input: AddHistoricalProceduresInput): Promise<AddedHistoricalProcedures> {
+        return wrap(() => trpcClient.procedure.addHistorical.mutate(input));
     },
 
     /**

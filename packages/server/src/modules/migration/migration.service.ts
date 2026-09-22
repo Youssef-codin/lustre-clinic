@@ -135,7 +135,9 @@ export interface OldPatientWrite {
  * asking such a clinic to configure a cutoff first would be asking for a fact
  * nothing is about to use.
  */
-export async function planOldPatientHistory(old: OldPatientInput): Promise<OldPatientPlan | null> {
+export async function planOldPatientHistory(
+    old: Pick<OldPatientInput, 'openingBalance' | 'procedures'>,
+): Promise<OldPatientPlan | null> {
     if (old.openingBalance === undefined && old.procedures.length === 0) return null;
 
     if (old.openingBalance !== undefined) assertAmount(old.openingBalance, 'opening balance');

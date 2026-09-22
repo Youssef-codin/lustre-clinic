@@ -51,7 +51,7 @@ function noonUtc(date: string): Date {
  * Everything the write needs, checked before a row is touched — the same order
  * the server resolves it in, so a demo refuses what the clinic would refuse.
  */
-export function planOldPatientHistory(old: OldPatientInput): {
+export function planOldPatientHistory(old: Pick<OldPatientInput, 'openingBalance' | 'procedures'>): {
     branchId: string;
     cutoffDate: string;
     openingBalance?: number;

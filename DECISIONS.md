@@ -1232,6 +1232,70 @@ signed in again.
 
 ---
 
+## Historical procedures are the migration write, reached from the editor
+
+The patient editor can add work the patient had done before this system
+recorded it. It does **not** get a mechanism of its own: `procedure.addHistorical`
+calls `migration.service`'s existing plan and write, so an entry typed at
+registration and one typed a year later land as the same row — an appointment
+flagged `is_imported`, carrying planned procedures and **no visit at all**.
+
+No visit is what the acceptance criterion "does not affect current visit
+checkout" actually rests on. A visit is where money lives (§10), so a row
+without one cannot be charged, owed or paid, and the day view, revenue and
+statistics already exclude it by flag. Nothing about checkout had to be touched
+to keep it out of checkout.
+
+Two consequences, taken deliberately rather than worked around:
+
+- **The branch and the cutoff still come from Settings → Clinic.** `branch_id`
+  is NOT NULL and neither is a fact the desk can answer per patient. A clinic
+  that has not configured the migration gets `MIGRATION_NOT_CONFIGURED` on
+  save, naming the setting — which is exactly what the registration block has
+  always done. Same refusal, same message, one code path.
+- **A line dated after the cutoff is refused here too**
+  (`IMPORTED_DATE_AFTER_CUTOFF`). Work done at this clinic since the changeover
+  belongs to a visit that charges for it. Letting the editor file it as
+  imported would be a way to record treatment that no total ever sees, which is
+  the one thing that rule exists to prevent.
+
+The alternative was a second, cutoff-free path for the editor. That is the
+shape of mistake the `migration.service` header is already about: two ways to
+record one thing is how the two stop agreeing.
+
+Where it lands in the UI is `PatientEditScreen`, under its own eyebrow and
+**not** behind the Old patient switch. That switch asks which *patient* this is,
+and that question is settled once, at registration.
+
+## The historical date picker is not `CalendarSheet`
+
+`day/CalendarSheet` is the nearest-looking thing in the app and is the wrong
+component. Its own header says so: it exists to answer "is Thursday busy", so it
+fetches a month of appointments, paints a load bar per day, marks days the
+branch is closed and in `book` mode refuses everything before today. Every one
+of those is about a day that has not happened.
+
+A historical date asks the opposite about a day that has: nothing was booked, no
+branch was open, and the only fact is the day the paper file names.
+`HistoricalDateSheet` therefore fetches nothing, carries no state but the pick,
+and offers no day after today. It pages by year as well as by month, because
+these dates are years back and month-at-a-time paging is how you give up.
+
+It replaced a typed `DDMMYYYY` number-pad field, and with it a whole error
+class: half a date, a 31st of February and a day in the future were each a
+refusal the form had to count and explain under the row (`badOldDates`, gone). A
+grid of real days can produce none of the three.
+
+**No date is an answer, not an omission** — the file says what was done and not
+always when. It is its own footer button ("The file doesn't say"), the row reads
+back *Before migration* rather than showing an empty field, and the entry is
+sent with `performedOn` absent rather than null. There is no design mockup for
+any of this; the Open Design folder has no historical-procedure screen, so it is
+built from the tokens and from the shapes `patient-edit.html` settles, the same
+way `OldPatientCard` was.
+
+---
+
 # Corrections
 
 Kept because deleting them lets the same mistake happen again.

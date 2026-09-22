@@ -25,6 +25,12 @@
 // white — the design keeps one ground from the status bar down and lets the
 // rule do the separating.
 //
+// Correcting a record also takes **previous procedures**: work the patient had
+// done before this system recorded it, which does not only turn up at
+// registration. That list is not part of the patch — `patient.update` takes no
+// procedures — so a save that has entries on it makes two calls, the procedures
+// first. See `onSave`.
+//
 // The write crosses Tailscale, so Save spins, cancel is disabled under it, and
 // a failure keeps every field on screen with a `Callout` saying why.
 //
@@ -50,6 +56,7 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
+import { HistoricalProcedures } from './components/HistoricalProcedures';
 import { CloseIcon } from './components/icons';
 import { OldPatientRows, OldProcedures } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
@@ -59,13 +66,13 @@ import type { CustomQuestion, PatientDetail } from './data/types';
 import type { PatientForm } from './patientForm';
 import {
     answeredCount,
-    badOldDates,
     blankBasics,
     blankOld,
     clearedRequired,
     createInputOf,
     emptyForm,
     formOf,
+    historicalInputOf,
     isUnchanged,
     malformedBasics,
     malformedOld,
@@ -110,7 +117,14 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
     const create = useMutation(patientsApi.create);
     const update = useMutation(patientsApi.update);
+    const addHistorical = useMutation(patientsApi.addHistorical);
     const save = creating ? create : update;
+
+    // Either call can be the one that failed, and the callout says so for both.
+    // `addHistorical` runs first on an edit, so its error is the live one
+    // whenever it has one.
+    const saveError = addHistorical.error ?? save.error;
+    const saving = save.pending || addHistorical.pending;
 
     // Only the kinds with a control. A `date` answer already on the record is
     // drawn below, read-only, and is never in the form.
@@ -142,10 +156,6 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // can never be owed there.
     const oldBlank = form && creating ? blankOld(form) : [];
     const oldMalformed = form && creating ? malformedOld(form) : {};
-    // A date typed into an old procedure that cannot be read. Counted with the
-    // rest rather than left to the row's own message, because a save that goes
-    // through would record it as "before migration" instead.
-    const oldBadDates = form && creating ? badOldDates(form) : [];
     const missing = form ? missingRequired(form, editable) : [];
     const answered = form ? answeredCount(form, editable) : 0;
 
@@ -164,7 +174,6 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         Object.keys(malformed).length +
         oldBlank.length +
         Object.keys(oldMalformed).length +
-        oldBadDates.length +
         (creating ? missing.length : cleared.length);
 
     // A required question this screen has no control for (§7.9). Intake cannot
@@ -202,17 +211,49 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
         const patch = updateInputOf(patientId, form, initial, editable);
         if (patch === null) return;
-        // Nothing moved. Closing beats spending a round trip to write the record
-        // back over itself.
-        if (isUnchanged(patch)) {
+
+        const history = historicalInputOf(patientId, form);
+
+        // Nothing moved and nothing to add. Closing beats spending a round trip
+        // to write the record back over itself.
+        if (isUnchanged(patch) && history === null) {
             onSaved(patientId);
             return;
         }
 
         onSavingChange?.(true);
-        const saved = await update.mutate(patch);
+
+        // The procedures go first, and the entries are dropped the moment they
+        // land. Neither call is retried and this one is not idempotent — a
+        // second send writes the lines a second time — so if the patch then
+        // fails, pressing Save again has only the patch left to send. A failure
+        // here keeps the entries and never reaches the patch, which is the
+        // right way round: the desk sees one error over a form still holding
+        // everything they typed.
+        if (history === null) {
+            // A failed attempt leaves its error behind, and the callout reads
+            // that one first. With the entries since taken off, it would sit
+            // over the patch's own failure describing a call this save is not
+            // making.
+            addHistorical.reset();
+        } else {
+            const added = await addHistorical.mutate(history);
+            if (!added) {
+                onSavingChange?.(false);
+                return;
+            }
+            setForm((current) => (current ? { ...current, history: [] } : current));
+        }
+
+        if (!isUnchanged(patch)) {
+            const saved = await update.mutate(patch);
+            if (!saved) {
+                onSavingChange?.(false);
+                return;
+            }
+        }
+
         onSavingChange?.(false);
-        if (!saved) return;
         onSaved(patientId);
     };
 
@@ -220,7 +261,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         <View style={styles.screen}>
             <EditBar
                 title={creating ? 'New patient' : 'Edit patient'}
-                onCancel={save.pending ? undefined : onCancel}
+                onCancel={saving ? undefined : onCancel}
             />
 
             {loading && !form ? (
@@ -245,10 +286,10 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                         keyboardDismissMode="on-drag"
                         showsVerticalScrollIndicator={false}
                     >
-                        {save.error !== undefined && (
+                        {saveError !== undefined && (
                             <View style={styles.callout}>
                                 <Callout tone="warning" title="Not saved">
-                                    {errorText(save.error)}
+                                    {errorText(saveError)}
                                 </Callout>
                             </View>
                         )}
@@ -291,7 +332,20 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             }
                         />
 
-                        {creating ? <OldProcedures form={form} onChange={change} /> : null}
+                        {creating ? (
+                            <OldProcedures form={form} onChange={change} />
+                        ) : (
+                            /* The editor's own list. It is not behind a switch:
+                               the switch is about which *patient* this is, and
+                               that question is settled once, at registration.
+                               What is already on file is the record's to draw —
+                               this list only ever adds. */
+                            <HistoricalProcedures
+                                title="PREVIOUS PROCEDURES"
+                                entries={form.history}
+                                onChange={(history) => change({ history })}
+                            />
+                        )}
 
                         <Questions
                             questions={editable}
@@ -309,7 +363,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                     <SaveBar
                         label={owed > 0 ? `${owed} required left` : 'Save patient'}
                         disabled={owed > 0 || unaskable.length > 0}
-                        pending={save.pending}
+                        pending={saving}
                         onPress={onSave}
                     />
                 </>

@@ -129,6 +129,54 @@ from the age the record arrived with — a patient booked in through the day clu
 which asks for the real date, never has it flattened by an editor opened for their
 phone number. See [`BLOCKED.md`](../../../../../BLOCKED.md).
 
+## Previous procedures
+
+Work the patient had done before this system recorded it. It reaches the server
+from two places and they are deliberately one component
+([`HistoricalProcedures`](./components/HistoricalProcedures.tsx)): the **Old
+patient** block on a registration, and the editor on a record that already
+exists. The paper file does not only surface on the day somebody is registered.
+
+What it writes is not a visit. `procedure.addHistorical` goes through
+`migration.service`'s own write, so an entry lands as an appointment flagged
+`is_imported` with **no visit behind it** — and a visit is where money lives
+(§10), which is the whole of why none of this touches checkout, revenue, the day
+view or what the patient owes. The record already drew such rows; nothing about
+`HistoryRow` changed.
+
+On an edit the list is **not** part of the patch. `patient.update` takes no
+procedures, so a save with entries on it makes two calls, the procedures first,
+and the drafted entries are cleared the moment they land — neither call is
+retried, and this one is not idempotent, so a second send would write the lines
+twice. A failure there never reaches the patch: the desk gets one message over a
+form still holding everything they typed.
+
+The list only ever *adds*. A record's existing history is never read back into
+it — seeding it would resend what is already on file — and what is on file is
+the record screen's to draw.
+
+### The date
+
+[`HistoricalDateSheet`](./components/HistoricalDateSheet.tsx), and not the day
+cluster's `CalendarSheet`, which exists to answer "is Thursday busy" and is
+built around days that have not happened. This one fetches nothing, offers no
+day after today, and pages by year as well as by month because these dates are
+years back.
+
+**Blank is an answer.** The file says what was done and not always when, so *not
+dated* is on the footer as its own button, the row reads back `Before migration`
+rather than showing an empty field, and the entry goes to the server with the
+date absent rather than null. The typed `DDMMYYYY` field this replaced had to
+refuse half-typed dates, impossible days and future ones; a grid of real days
+produces none of them, so nothing about an entry's date can hold a save back.
+
+Both refusals that remain are the server's, and both are the registration
+block's own: a clinic with no migration branch and cutoff configured gets
+`MIGRATION_NOT_CONFIGURED`, and a date after the cutoff gets
+`IMPORTED_DATE_AFTER_CUTOFF` — work done here since the changeover belongs to a
+visit that charges for it. See `DECISIONS.md`, *Historical procedures are the
+migration write*.
+
 ## Arabic
 
 Arabic and Latin names sit in one list and Arabic and Latin question labels sit
