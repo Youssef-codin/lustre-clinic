@@ -65,6 +65,10 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
         prefix,
         suffix,
         placeholder,
+        // Amounts are usually replaced as a whole. Selecting on focus avoids
+        // Android placing the caret between identical digits (for example, in
+        // `3500`) when a receptionist taps back into the field.
+        selectTextOnFocus = true,
         ...input
     },
     ref,
@@ -98,6 +102,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                         accessibilityLabel={t(label ?? placeholder ?? '') || undefined}
                         {...input}
                         keyboardType={keyboardType}
+                        selectTextOnFocus={selectTextOnFocus}
                         onFocus={(event) => {
                             setFocused(true);
                             input.onFocus?.(event);
