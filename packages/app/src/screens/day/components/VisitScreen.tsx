@@ -567,6 +567,7 @@ export function VisitScreen({
                                                         )}
                                                         onChangeText={(entry) => reprice(line.id, entry)}
                                                         keyboardType="decimal-pad"
+                                                        selectTextOnFocus
                                                         accessibilityLabel={`Cost for ${line.name}`}
                                                         style={styles.cost}
                                                     />

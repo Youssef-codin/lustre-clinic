@@ -181,6 +181,7 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                                                 value={String(toPounds(item.price))}
                                                 onChangeText={(entry) => reprice(item.id, entry)}
                                                 keyboardType="number-pad"
+                                                selectTextOnFocus
                                                 accessibilityLabel={`Price for ${item.name}`}
                                                 style={styles.price}
                                             />

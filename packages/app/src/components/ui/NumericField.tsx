@@ -69,6 +69,8 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
         // Android placing the caret between identical digits (for example, in
         // `3500`) when a receptionist taps back into the field.
         selectTextOnFocus = true,
+        selection: suppliedSelection,
+        onSelectionChange,
         ...input
     },
     ref,
@@ -76,6 +78,7 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
     const isRTL = useIsRTL();
     const t = useT();
     const [focused, setFocused] = useState(false);
+    const [selection, setSelection] = useState<TextInputProps['selection']>();
     const display = variant === 'display';
     const figure = display ? 'figure' : size;
 
@@ -103,9 +106,23 @@ export const NumericField = forwardRef<TextInput, NumericFieldProps>(function Nu
                         {...input}
                         keyboardType={keyboardType}
                         selectTextOnFocus={selectTextOnFocus}
+                        selection={suppliedSelection ?? selection}
                         onFocus={(event) => {
                             setFocused(true);
                             input.onFocus?.(event);
+
+                            // `selectTextOnFocus` is ignored intermittently by Android
+                            // when it first places the caret. Apply the selection on the
+                            // next frame, after that native placement has completed.
+                            if (selectTextOnFocus && !suppliedSelection && input.value) {
+                                requestAnimationFrame(() => {
+                                    setSelection({ start: 0, end: input.value?.length ?? 0 });
+                                });
+                            }
+                        }}
+                        onSelectionChange={(event) => {
+                            setSelection(event.nativeEvent.selection);
+                            onSelectionChange?.(event);
                         }}
                         onBlur={(event) => {
                             setFocused(false);
