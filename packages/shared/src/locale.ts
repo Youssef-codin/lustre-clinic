@@ -27,6 +27,7 @@ export const COPY_AR = {
     'Arabic label': 'الاسم بالعربية',
     Back: 'رجوع',
     'Back to day view': 'العودة إلى اليوم',
+    'Back to {where}': 'العودة إلى {where}',
     Branch: 'الفرع',
     Branches: 'الفروع',
     'Book appointment': 'حجز موعد',
@@ -61,6 +62,7 @@ export const COPY_AR = {
     Edit: 'تعديل',
     'Edit booking': 'تعديل الحجز',
     'Edit visit': 'تعديل الزيارة',
+    'Editing a patient is not wired up from here yet.': 'تعديل بيانات المريض غير متاح من هنا بعد.',
     /* The language toggle names each language in its own script, so this one
        is deliberately the same in both. */
     EN: 'EN',
@@ -334,8 +336,12 @@ export const COPY_AR = {
     'Add procedure': 'إضافة إجراء',
     "Answers are filed under this. It can't change later.":
         'تُحفظ الإجابات تحت هذا المفتاح. لا يمكن تغييره بعد ذلك.',
+    'Answers follow the question set in Settings — deactivated questions keep their answers but stop showing.':
+        'تتبع الإجابات مجموعة الأسئلة في الإعدادات — الأسئلة الموقوفة تحتفظ بإجاباتها لكنها تتوقف عن الظهور.',
     'Anything the doctor should know.': 'أي شيء يجب أن يعرفه الطبيب.',
     'Appears on receipts and in reminder messages.': 'يظهر في الإيصالات وفي رسائل التذكير.',
+    'Appointments and visits appear here as soon as this patient is booked in.':
+        'تظهر المواعيد والزيارات هنا بمجرد حجز هذا المريض.',
     'As it is on the old system': 'كما هو في النظام القديم',
     'As written on the file': 'كما هو مكتوب في الملف',
     BASICS: 'البيانات الأساسية',
@@ -450,6 +456,8 @@ export const COPY_AR = {
         'لا تُحذف الإجراءات — الزيارات السابقة ما زالت مرتبطة بها.',
     'Question in Arabic': 'السؤال بالعربية',
     'Question in English': 'السؤال بالإنجليزية',
+    'Questions the clinic adds in settings appear here for every patient.':
+        'تظهر هنا الأسئلة التي تضيفها العيادة في الإعدادات، لكل مريض.',
     'Read-only for now': 'للقراءة فقط حاليًا',
     'Reading the booking…': 'جارٍ قراءة الحجز…',
     'Record section': 'قسم الملف',
@@ -463,6 +471,7 @@ export const COPY_AR = {
     'Search the patients on file, or register someone new.': 'ابحث في ملفات المرضى أو سجّل مريضًا جديدًا.',
     'Send to desk': 'إرسال إلى الاستقبال',
     'Send to the desk': 'إرسال إلى الاستقبال',
+    'Since {month}': 'منذ {month}',
     'Something on this tab went wrong. The other tabs still work — reload this one to try again.':
         'حدث خطأ في هذا القسم. باقي الأقسام تعمل — أعد تحميله للمحاولة من جديد.',
     'Still to ask': 'لم يُسأل بعد',
@@ -473,6 +482,7 @@ export const COPY_AR = {
     'Tap a circle to set the default': 'اضغط على دائرة لتحديد الافتراضي',
     'That visit ends after the clinic closes.': 'هذه الزيارة تنتهي بعد إغلاق العيادة.',
     'The day is done. Anyone new comes through the desk.': 'انتهى اليوم. أي مريض جديد يمر عبر الاستقبال.',
+    'The dialler could not be opened.': 'تعذر فتح تطبيق الاتصال.',
     'The next patient registered gets the number after this one.': 'المريض التالي يأخذ الرقم الذي يلي هذا.',
     'The next screen asks for the first procedure under it.': 'الشاشة التالية تطلب أول إجراء تحته.',
     "The old system's reference": 'الرقم المرجعي في النظام القديم',
@@ -498,6 +508,7 @@ export const COPY_AR = {
     'Waived when other work is done': 'يُعفى منه عند عمل إجراء آخر',
     Was: 'كان',
     'What was it?': 'ما طريقة الدفع؟',
+    'WhatsApp could not be opened.': 'تعذر فتح واتساب.',
     'Which branch': 'أي فرع',
     'Whole pounds. More than they owe is not accepted.': 'بالجنيهات الكاملة. لا يُقبل أكثر من المستحق عليه.',
     'Zirconia crown': 'تاج زيركون',
@@ -508,6 +519,7 @@ export const COPY_AR = {
     'entered this session': 'أُدخلت في هذه الجلسة',
     'fully booked': 'محجوز بالكامل',
     min: 'د',
+    of: 'من',
     paid: 'مدفوع',
     '{branch} (deactivated)': '{branch} (موقوف)',
     '{day} marked closed': 'تم ضبط {day} كيوم مغلق',
@@ -546,6 +558,7 @@ export const COPY_AR = {
     ACTIVE: 'نشط',
     'ALWAYS ON THE RECORD': 'دائمًا في الملف',
     'ANSWER TYPE': 'نوع الإجابة',
+    'ASK AGAIN': 'اسأل مرة أخرى',
     'BALANCES AS OF': 'الأرصدة حتى',
     'BOOKED ANYWAY': 'محجوز رغم الإغلاق',
     DEACTIVATED: 'موقوف',
@@ -588,6 +601,12 @@ export const COPY_AR = {
         'العيادة لا تفتح يوم {day}. غيّر ذلك من الإعدادات ← ساعات العمل.',
     '{count} patient': 'مريض واحد',
     '{count} patients': '{count} مرضى',
+    '{count} never asked': '{count} لم يُسأل عنها',
+    '{count} answered before the question changed': '{count} أُجيبت قبل تغيير السؤال',
+    '1 answer is kept from questions the clinic no longer asks. It is hidden, not deleted, and comes back if the question is reactivated.':
+        'تُحفظ إجابة واحدة عن أسئلة لم تعد العيادة تطرحها. هي مخفية وليست محذوفة، وتعود إذا أُعيد تفعيل السؤال.',
+    '{count} answers are kept from questions the clinic no longer asks. They are hidden, not deleted, and come back if the question is reactivated.':
+        'تُحفظ {count} إجابات عن أسئلة لم تعد العيادة تطرحها. هي مخفية وليست محذوفة، وتعود إذا أُعيد تفعيل السؤال.',
     today: 'اليوم',
     '1 day': 'يوم واحد',
     '{count} days': '{count} يوم',
