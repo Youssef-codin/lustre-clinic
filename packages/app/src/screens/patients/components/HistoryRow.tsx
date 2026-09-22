@@ -221,7 +221,12 @@ function Work({ procedures }: { procedures: HistoryProcedure[] }) {
     return (
         <Text variant="callout" weight="bold" numberOfLines={2}>
             {first.tooth ? `${first.name} — ${first.tooth}` : first.name}
-            {rest.length > 0 ? <Text variant="subhead" tone="muted">{`  +${rest.length} more`}</Text> : null}
+            {rest.length > 0 ? (
+                <Text variant="subhead" tone="muted">
+                    {'  '}
+                    {rest.length === 1 ? t('+1 more') : t('+{count} more', { count: rest.length })}
+                </Text>
+            ) : null}
         </Text>
     );
 }

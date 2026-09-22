@@ -326,6 +326,8 @@ export const COPY_AR = {
     'Say how they paid': 'اذكر طريقة الدفع',
     'Something in that was not accepted': 'بعض البيانات غير مقبولة',
     '01xx xxx xxxx': '01xx xxx xxxx',
+    '+1 more': '+إجراء آخر',
+    '+{count} more': '+{count} إجراءات أخرى',
     "A category groups procedures. It has no price of its own and can't be picked on a visit.":
         'التصنيف يجمع الإجراءات. ليس له سعر خاص ولا يمكن اختياره في زيارة.',
     'A procedure inside a category is one of its subtypes, priced on its own.':
