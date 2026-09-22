@@ -2,8 +2,9 @@
 // ceiling, and the sentence the desk reads back. Formatting is
 // `components/domain/money`, which §7.12 makes the one implementation; this
 // file held a second one until the shared one grew to cover it.
-import { PIASTRES_PER_POUND } from '@lustre/shared';
+import { localizeCopy, PIASTRES_PER_POUND } from '@lustre/shared';
 import { formatMoney, toPounds } from '../../../components/domain/money';
+import { getLocale } from '../../../i18n/runtime';
 
 export { formatMoney, toPounds };
 
@@ -59,11 +60,20 @@ export function methodLabel(method: string): string {
  *
  * Paying a balance off in full is worth saying outright rather than as `EGP 0
  * still owed` — the desk marks the page closed, which is a different pen stroke.
+ *
+ * It is posted from an event handler rather than rendered, so it localizes
+ * itself the way `day/errors` and `day/time` do. The amount carries the locale
+ * too: `EGP` inside an Arabic sentence is the same untranslated string as any
+ * other.
  */
 export function paymentReceipt(report: { amount: number; outstandingAfter: number }): string {
-    const taken = `${formatMoney(report.amount)} recorded`;
+    const locale = getLocale();
+    const amount = formatMoney(report.amount, { language: locale });
 
     return report.outstandingAfter <= 0
-        ? `${taken} — paid in full`
-        : `${taken} — ${formatMoney(report.outstandingAfter)} still owed`;
+        ? localizeCopy(locale, '{amount} recorded — paid in full', { amount })
+        : localizeCopy(locale, '{amount} recorded — {balance} still owed', {
+              amount,
+              balance: formatMoney(report.outstandingAfter, { language: locale }),
+          });
 }

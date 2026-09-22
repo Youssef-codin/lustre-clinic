@@ -21,12 +21,12 @@
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { MoneyValue } from '../../../components/domain';
+import { formatMoney, MoneyValue } from '../../../components/domain';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { space, Text } from '../../../theme';
 import type { SettleInput } from '../data/types';
-import { clampToOutstanding, formatMoney, isWholePounds, methodLabel, toPounds } from './money';
+import { clampToOutstanding, isWholePounds, methodLabel, toPounds } from './money';
 
 export type RecordPaymentSheetProps = {
     visible: boolean;
@@ -74,7 +74,7 @@ export function RecordPaymentSheet({
 
     function changeAmount(text: string) {
         if (!isWholePounds(text)) {
-            setNotice('Whole pounds only — piastres are not recorded.');
+            setNotice(t('Whole pounds only — piastres are not recorded.'));
             return;
         }
 
@@ -82,7 +82,9 @@ export function RecordPaymentSheet({
 
         if (entered > duePounds) {
             setAmount(String(duePounds));
-            setNotice(`That is more than they owe. They owe ${formatMoney(outstanding)}.`);
+            setNotice(
+                t('That is more than they owe. They owe {amount}.', { amount: formatMoney(outstanding) }),
+            );
             return;
         }
 
@@ -135,7 +137,7 @@ export function RecordPaymentSheet({
             <NumericField
                 label="Amount paid"
                 variant="display"
-                prefix="EGP"
+                prefix={t('EGP')}
                 placeholder="0"
                 // No decimal key: the column is integer piastres and piastres
                 // are never entered.
