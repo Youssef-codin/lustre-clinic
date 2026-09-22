@@ -661,10 +661,16 @@ export const patientService = {
         return toPatient(row);
     },
 
-    /** Every correction made to this patient's ref, newest first. */
+    /**
+     * Every correction made to this patient's ref, newest first.
+     *
+     * The patient is not required to still exist. `ref_edits` is kept when a
+     * record is deleted on purpose, and a ref moved onto the wrong patient who
+     * was then deleted is the sequence most worth being able to read back — so
+     * refusing the read for a record that is gone would withhold exactly the
+     * history the table is retained for. An id nobody holds answers `[]`.
+     */
     async refHistory(id: string): Promise<RefEdit[]> {
-        await requireRow(id);
-
         return db
             .select({
                 previousRef: refEdits.previousRef,

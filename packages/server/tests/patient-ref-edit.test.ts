@@ -254,6 +254,24 @@ describe('the audit trail', () => {
         `;
         expect(kept[0]?.count).toBe(1);
     });
+
+    // Kept rows nobody can read are not a trail. The record being gone is the
+    // case the table is retained for, so the read must not require it.
+    test('is still readable once the record is gone', async () => {
+        await counterAt(5000);
+        const row = await patient();
+        await patientService.updateRef({ id: row.id, ref: '910', editedBy: 'doctor' });
+
+        await patientService.delete(row.id);
+
+        const history = await patientService.refHistory(row.id);
+        expect(history.map((e) => [e.previousRef, e.newRef])).toEqual([[row.ref, '910']]);
+        expect(await api.client.patient.refHistory.query({ id: row.id })).toHaveLength(1);
+    });
+
+    test('is empty for an id no record ever had, rather than a refusal', async () => {
+        expect(await patientService.refHistory(Bun.randomUUIDv7())).toEqual([]);
+    });
 });
 
 describe('over the API', () => {

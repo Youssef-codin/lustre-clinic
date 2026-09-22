@@ -236,7 +236,7 @@ export const patientHandlers = {
             : undefined;
 
         assignDefined(current, patch, {
-            ...(patch.phone ? { phone: normalizePhone(patch.phone) } : {}),
+            ...(patch.phone === undefined ? {} : { phone: normalizePhone(patch.phone) }),
             ...(custom ? { custom } : {}),
         });
 
@@ -303,8 +303,6 @@ export const patientHandlers = {
 
     /** Every correction made to this patient's ref, newest first. */
     refHistory(input: RouterInput['patient']['refHistory']): RefEdit[] {
-        requirePatient(input.id);
-
         return [...getDb().refEdits]
             .filter((row) => row.entity === 'patient' && row.entityId === input.id)
             .sort((a, b) => b.editedAt.getTime() - a.editedAt.getTime())
