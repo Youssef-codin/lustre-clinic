@@ -15,6 +15,22 @@ Done by hand, once per machine:
 4. From the operator's machine, `ssh-copy-id` a key and confirm a key login
    works over the Tailscale IP.
 
+## Who may reach what
+
+The host firewall accepts anything arriving on `tailscale0`, so the tailnet's
+access policy is the only thing separating a phone from the server's SSH port.
+Tailscale's default policy separates nothing. `infra/tailscale/policy.hujson`
+is the policy this deployment expects: the server carries `tag:clinic-server`,
+the doctor's phones get `:3000`, the test phone gets `:3001`, and only the
+operator's machine gets `:22` and GlitchTip.
+
+Every machine is logged in as the same Google account, so the phones are named
+by Tailscale IP rather than by user. Fill those in from the Machines page,
+paste the file into Access controls, and save; the built-in tests fail the save
+if a rule is wrong. Tagging the server re-authenticates it, so run
+`sudo tailscale up --advertise-tags=tag:clinic-server` on it afterwards, from
+the keyboard or the LAN — not over the tailnet, which the re-auth drops.
+
 ## Running it
 
 Needs `ansible-core` 2.15+ on the operator's machine. No collections.

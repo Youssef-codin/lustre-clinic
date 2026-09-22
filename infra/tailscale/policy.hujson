@@ -1,0 +1,73 @@
+// Access policy for the clinic tailnet (lustre.clinics.<clinic>@gmail.com).
+//
+// The host firewall accepts anything arriving on tailscale0 (see
+// nftables.conf.j2), so this file is the only thing deciding which device may
+// reach which port. Every machine is logged in as the same Google account, so
+// identity cannot separate them: the server carries a tag and the phones are
+// named by their Tailscale IP, which does not change once assigned.
+//
+// Paste into the admin console: Access controls -> Edit -> Save.
+{
+	"tagOwners": {
+		// Only the clinic account may tag a machine as the server.
+		"tag:clinic-server": ["autogroup:owner"],
+	},
+
+	"hosts": {
+		"smilemakers":   "100.125.78.21",
+		// Fill each in from the admin console's Machines page.
+		"archbtw":       "100.x.x.x",
+		"mha-l29":       "100.x.x.x",
+		"oneplus-open":  "100.x.x.x",
+		"test-android":  "100.x.x.x",
+	},
+
+	"acls": [
+		// The doctor's and the assistant's phones: the production API only.
+		// Not GlitchTip, not SSH, not the dev stack.
+		{
+			"action": "accept",
+			"src":    ["mha-l29", "oneplus-open"],
+			"dst":    ["tag:clinic-server:3000"],
+		},
+
+		// The test phone: the dev stack only. It must never be able to open a
+		// session against production data.
+		{
+			"action": "accept",
+			"src":    ["test-android"],
+			"dst":    ["tag:clinic-server:3001"],
+		},
+
+		// The operator's machine: everything it needs to run the plays, read
+		// GlitchTip, and pull backups. SSH included.
+		{
+			"action": "accept",
+			"src":    ["archbtw"],
+			"dst":    ["tag:clinic-server:22,3000,3001,8000"],
+		},
+
+		// The server starts nothing towards the phones; it only answers them.
+	],
+
+	// SSH over the tailnet reaches the real sshd (the plays turn Tailscale SSH
+	// off), so no ssh{} rules belong here. Adding any would put Tailscale back
+	// in the login path.
+
+	"tests": [
+		{
+			"src":    "mha-l29",
+			"accept": ["tag:clinic-server:3000"],
+			"deny":   ["tag:clinic-server:22", "tag:clinic-server:3001", "tag:clinic-server:8000"],
+		},
+		{
+			"src":    "test-android",
+			"accept": ["tag:clinic-server:3001"],
+			"deny":   ["tag:clinic-server:3000", "tag:clinic-server:22"],
+		},
+		{
+			"src":    "archbtw",
+			"accept": ["tag:clinic-server:22", "tag:clinic-server:8000"],
+		},
+	],
+}
