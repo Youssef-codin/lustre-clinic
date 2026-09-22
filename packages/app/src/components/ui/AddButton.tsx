@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 
 export type AddButtonVariant = 'full' | 'row' | 'footer' | 'compact';
@@ -12,12 +13,14 @@ export type AddButtonProps = {
 };
 
 export function AddButton({ label, onPress, variant = 'full', disabled = false, testID }: AddButtonProps) {
+    const t = useT();
+    const shown = t(label);
     const compact = variant === 'compact';
 
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={label}
+            accessibilityLabel={shown}
             accessibilityState={{ disabled }}
             disabled={disabled}
             onPress={onPress}
@@ -33,7 +36,7 @@ export function AddButton({ label, onPress, variant = 'full', disabled = false, 
             ]}
         >
             <Text variant="callout" weight="medium" tone={compact ? 'inverse' : 'accent'}>
-                {`+  ${label}`}
+                {`+  ${shown}`}
             </Text>
         </Pressable>
     );

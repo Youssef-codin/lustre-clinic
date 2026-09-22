@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 
 export type RadioProps = {
@@ -18,10 +19,12 @@ export function Radio({
     accessibilityLabel,
     testID,
 }: RadioProps) {
+    const t = useT();
+
     return (
         <Pressable
             accessibilityRole="radio"
-            accessibilityLabel={accessibilityLabel ?? label}
+            accessibilityLabel={t(accessibilityLabel ?? label ?? '') || undefined}
             accessibilityState={{ selected, disabled }}
             disabled={disabled}
             onPress={onPress}
@@ -37,7 +40,7 @@ export function Radio({
             <View style={[styles.ring, selected && styles.ringOn]}>
                 {selected ? <View style={styles.fill} /> : null}
             </View>
-            {label ? <Text variant="body">{label}</Text> : null}
+            {label ? <Text variant="body">{t(label)}</Text> : null}
         </Pressable>
     );
 }

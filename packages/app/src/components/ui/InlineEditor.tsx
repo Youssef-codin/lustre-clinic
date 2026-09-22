@@ -7,6 +7,7 @@
 import { useRef, useState } from 'react';
 import type { KeyboardTypeOptions } from 'react-native';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextVariant } from '../../theme';
 import { color, containsArabic, font, size, space, Text, type } from '../../theme';
 import { Placeholder } from './Placeholder';
@@ -32,6 +33,7 @@ export function InlineEditor({
     accessibilityLabel,
     testID,
 }: InlineEditorProps) {
+    const t = useT();
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(value);
     const abandoned = useRef(false);
@@ -58,8 +60,8 @@ export function InlineEditor({
         return (
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={accessibilityLabel ?? value}
-                accessibilityHint="Double tap to edit"
+                accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : value}
+                accessibilityHint={t('Double tap to edit')}
                 accessibilityState={{ disabled }}
                 disabled={disabled}
                 onPress={begin}
@@ -71,7 +73,7 @@ export function InlineEditor({
                 ]}
             >
                 <Text variant={variant} tone={value ? 'ink' : 'muted'}>
-                    {value || placeholder || ''}
+                    {value || (placeholder ? t(placeholder) : '')}
                 </Text>
             </Pressable>
         );
@@ -90,7 +92,7 @@ export function InlineEditor({
                 }}
                 keyboardType={keyboardType}
                 returnKeyType="done"
-                accessibilityLabel={accessibilityLabel ?? placeholder}
+                accessibilityLabel={t(accessibilityLabel ?? placeholder ?? '') || undefined}
                 style={[
                     type[variant],
                     styles.input,

@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, size, space, Text } from '../../theme';
 import { Chevron } from './Chevron';
 
@@ -25,13 +26,15 @@ export function TopBar({
     trailing,
     divider = true,
 }: TopBarProps) {
+    const t = useT();
+
     return (
         <View style={[styles.bar, divider && styles.divider]}>
             <View style={styles.side}>
                 {onBack ? (
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={backLabel}
+                        accessibilityLabel={t(backLabel)}
                         onPress={onBack}
                         hitSlop={12}
                         style={({ pressed }) => [styles.back, pressed && styles.pressed]}
@@ -44,12 +47,12 @@ export function TopBar({
             <View style={styles.titles}>
                 {title ? (
                     <Text variant="headline" numberOfLines={1}>
-                        {title}
+                        {t(title)}
                     </Text>
                 ) : null}
                 {subtitle ? (
                     <Text variant="caption" tone="muted" numberOfLines={1}>
-                        {subtitle}
+                        {t(subtitle)}
                     </Text>
                 ) : null}
             </View>

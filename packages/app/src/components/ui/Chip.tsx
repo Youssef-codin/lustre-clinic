@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 
 export type ChipProps = {
@@ -23,6 +24,8 @@ export function Chip({
     grow = false,
     testID,
 }: ChipProps) {
+    const t = useT();
+
     return (
         <Pressable
             accessibilityRole="button"
@@ -45,7 +48,7 @@ export function Chip({
                 weight={selected ? 'semibold' : 'regular'}
                 tone={selected ? 'inverse' : variant === 'new' ? 'accent' : 'ink'}
             >
-                {label}
+                {t(label)}
             </Text>
         </Pressable>
     );

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { size, space, Text } from '../../theme';
 
 export type ScreenHeaderProps = {
@@ -10,20 +11,22 @@ export type ScreenHeaderProps = {
 };
 
 export function ScreenHeader({ title, eyebrow, subtitle, trailing }: ScreenHeaderProps) {
+    const t = useT();
+
     return (
         <View style={styles.header}>
             <View style={styles.titles}>
                 {eyebrow ? (
                     <Text variant="eyebrow" tone="muted">
-                        {eyebrow}
+                        {t(eyebrow)}
                     </Text>
                 ) : null}
                 <Text variant="title" accessibilityRole="header">
-                    {title}
+                    {t(title)}
                 </Text>
                 {subtitle ? (
                     <Text variant="subhead" tone="muted">
-                        {subtitle}
+                        {t(subtitle)}
                     </Text>
                 ) : null}
             </View>

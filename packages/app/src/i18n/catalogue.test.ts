@@ -43,15 +43,36 @@ const COPY_PROPS = [
     'confirmLabel',
     'cancelLabel',
     'accessibilityLabel',
+    'accessibilityHint',
+    'eyebrow',
+    'backLabel',
     // `Placeholder`'s, which draws it through `t`.
     'text',
 ];
+
+/**
+ * Copy that reaches a primitive as a field of an object rather than as a prop:
+ * a `SegmentedControl`'s `segments`, a `DropdownMenu`'s `options`, a
+ * `PopoverMenu`'s `items`. Each of those draws the field through `t`, so the
+ * literal is shown copy and belongs in the catalogue — and a prop scan never
+ * sees it, which is how `{ value: 'treatment', label: 'Treatment' }` sat on
+ * the visit's tab strip in English with this test passing.
+ */
+const ITEM_FIELDS = ['label'];
+
+/**
+ * `api/demo/` is seed rows, not screens: a custom question there carries its
+ * own `labelAr` column and is localized as data, the way a real clinic's
+ * questions are.
+ */
+const ITEM_SKIP = ['api/'];
 
 /** Primitives that put their own children through `t`. */
 const COPY_CHILDREN = ['SectionLabel', 'Tag', 'Callout'];
 
 const T_CALL = /\bt\(\s*(['"])((?:(?!\1)[^\\]|\\.)*)\1/g;
 const PROP = new RegExp(`\\b(?:${COPY_PROPS.join('|')})=(?:"([^"]+)"|\\{'([^']+)'\\})`, 'g');
+const ITEM = new RegExp(`\\b(?:${ITEM_FIELDS.join('|')}):\\s*'([^']+)'`, 'g');
 // The opening tag may carry a JSX prop — `icon={<InfoIcon size={16} />}` —
 // so its attributes are matched as anything outside braces or a brace pair
 // nested one deep, not as "anything but `<`". The first form missed the
@@ -96,7 +117,8 @@ describe('copy catalogue', () => {
         const missing = new Set<string>();
 
         for (const { file, text } of await sources()) {
-            for (const pattern of [T_CALL, PROP, CHILD]) {
+            for (const pattern of [T_CALL, PROP, ITEM, CHILD]) {
+                if (pattern === ITEM && ITEM_SKIP.some((skipped) => file.startsWith(skipped))) continue;
                 pattern.lastIndex = 0;
                 for (const match of text.matchAll(pattern)) {
                     const raw = pattern === CHILD ? match[2] : (match[2] ?? match[1] ?? match[3]);

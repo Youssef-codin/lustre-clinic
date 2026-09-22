@@ -6,6 +6,7 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import type { TextTone } from '../../theme';
 import { color, size, space, Text } from '../../theme';
 import { Dot } from './Dot';
@@ -34,11 +35,13 @@ const TEXT: Record<BannerTone, TextTone> = {
 };
 
 export function Banner({ tone = 'info', message, action, live = false }: BannerProps) {
+    const t = useT();
+
     return (
         <View accessibilityLiveRegion="polite" style={[styles.banner, { backgroundColor: GROUND[tone] }]}>
             <Dot tone={tone === 'offline' ? 'due' : tone === 'success' ? 'success' : 'due'} pulse={live} />
             <Text variant="subhead" tone={TEXT[tone]} style={styles.message}>
-                {message}
+                {t(message)}
             </Text>
             {action}
         </View>

@@ -227,7 +227,7 @@ export function PatientRecordScreen({
 
                         <View style={styles.tabs}>
                             <SegmentedControl
-                                segments={segments(visits)}
+                                segments={segments(visits, t)}
                                 value={tab}
                                 onChange={setTab}
                                 size="sm"
@@ -411,10 +411,13 @@ function Openers({
     );
 }
 
-/** The count rides on the tab, as the design draws it: `Visits · 32`. */
-function segments(visits: number) {
+/** The count rides on the tab, as the design draws it: `Visits · 32`. The
+ * label is composed here rather than by `SegmentedControl`, which can only
+ * look up a whole literal, so the word is localized before the count is
+ * appended. */
+function segments(visits: number, t: (copy: string) => string) {
     return [
-        { value: 'visits' as const, label: visits > 0 ? `Visits · ${visits}` : 'Visits' },
+        { value: 'visits' as const, label: visits > 0 ? `${t('Visits')} · ${visits}` : t('Visits') },
         { value: 'details' as const, label: 'Details' },
     ];
 }
