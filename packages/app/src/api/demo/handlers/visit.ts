@@ -422,6 +422,11 @@ export const visitHandlers = {
         db.visits = db.visits.filter((row) => row.id !== visit.id);
 
         const now = new Date();
+        // Read before the branch below rewrites it: `appointment` is the row
+        // itself here, not a copy, so setting it to `booked` would make the
+        // chair check under it false for every desk booking.
+        const heldTheChair = appointment.status === 'checked_in' && visit.inChairAt !== null;
+
         if (appointment.channel === 'walk_in' || appointment.isOpeningBalance) {
             db.reminders = db.reminders.filter((row) => row.appointmentId !== appointment.id);
             db.appointmentProcedures = db.appointmentProcedures.filter(
@@ -433,8 +438,12 @@ export const visitHandlers = {
             appointment.updatedAt = now;
         }
 
-        if (appointment.status === 'checked_in' && visit.inChairAt) {
-            seatNextInChair(appointment.branchId, clinicDayOf(now, input.offsetMinutes ?? 0), now);
+        if (heldTheChair) {
+            seatNextInChair(
+                appointment.branchId,
+                clinicDayOf(appointment.startsAt, input.offsetMinutes ?? 0),
+                now,
+            );
         }
 
         save();

@@ -627,7 +627,12 @@ export const visitService = {
             }
 
             if (appointment.status === 'checked_in' && visit.inChairAt) {
-                await seatNextInChair(tx, appointment.branchId, clinicDayOf(now, input.offsetMinutes), now);
+                await seatNextInChair(
+                    tx,
+                    appointment.branchId,
+                    clinicDayOf(appointment.startsAt, input.offsetMinutes),
+                    now,
+                );
             }
         });
 

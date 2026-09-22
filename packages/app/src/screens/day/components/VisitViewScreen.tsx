@@ -155,7 +155,7 @@ export function VisitViewScreen({
                 </Text>
                 <View ref={more} collapsable={false}>
                     <IconButton
-                        accessibilityLabel="More"
+                        accessibilityLabel={t('More')}
                         icon={<MoreIcon size={16} stroke={color.ink} />}
                         onPress={openMenu}
                         testID="visit-view-more"
@@ -364,7 +364,7 @@ export function VisitViewScreen({
                                             {formatAmount(payment.amount)}
                                         </Text>
                                         <IconButton
-                                            accessibilityLabel="Remove this payment"
+                                            accessibilityLabel={t('Remove this payment')}
                                             icon={<TrashIcon size={14} stroke={color.muted} />}
                                             variant="bare"
                                             tone="muted"

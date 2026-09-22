@@ -366,7 +366,7 @@ function RecordBar({
             <Pressable
                 ref={moreRef}
                 accessibilityRole="button"
-                accessibilityLabel="More"
+                accessibilityLabel={t('More')}
                 onPress={onMore}
                 hitSlop={10}
                 style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}

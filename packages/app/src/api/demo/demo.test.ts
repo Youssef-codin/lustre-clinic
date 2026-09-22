@@ -392,6 +392,35 @@ describe('the chair, when someone leaves the queue by another door', () => {
         expect(seated()).toBe(1);
     });
 
+    // Deleting the visit in the chair is the third way out of it, and the one
+    // where the appointment is rewritten on the way. The handler reads the row
+    // it is about to set back to `booked`, so the chair check has to be taken
+    // before that — or a desk booking empties the chair and seats nobody.
+    it('seats the next patient when the one in the chair is deleted', () => {
+        const db = getDb();
+
+        const inChair = db.visits.find((visit) => {
+            if (!visit.inChairAt) return false;
+            const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+            return appointment?.status === 'checked_in' && appointment.channel !== 'walk_in';
+        });
+        if (!inChair) throw new Error('the seed seated nobody on a desk booking');
+
+        const waiting = db.visits.find((visit) => {
+            const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
+            return appointment?.status === 'checked_in' && visit.inChairAt === null;
+        });
+        if (!waiting) throw new Error('the seed left nobody waiting');
+
+        visitHandlers.delete({ visitId: inChair.id });
+
+        expect(getDb().visits.find((row) => row.id === inChair.id)).toBeUndefined();
+        expect(getDb().visits.find((row) => row.id === waiting.id)?.inChairAt).not.toBeNull();
+        // The booking itself survives: they were expected, and whether they
+        // came is the desk's to say with cancel or no-show.
+        expect(getDb().appointments.find((row) => row.id === inChair.appointmentId)?.status).toBe('booked');
+    });
+
     it('still seats the next patient off the one who did hold it', () => {
         const db = getDb();
 
