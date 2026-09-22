@@ -11,6 +11,7 @@ import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster, useInvalidatePatients } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
+import { ApkUpdateBanner } from './ApkUpdateBanner';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { OfflineScreen } from './OfflineScreen';
 import { useRole } from './roleStore';
@@ -282,6 +283,10 @@ export function AppShell() {
                     mounted={visited.includes('day')}
                     back={stacks.day}
                 >
+                    {/* Over whichever day the role draws: the home screen is
+                        where a clinic phone spends its day, so it is where a
+                        new build gets noticed. */}
+                    <ApkUpdateBanner />
                     {role === 'doctor' ? (
                         <DoctorDayScreen
                             key="doctor"

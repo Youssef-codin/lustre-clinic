@@ -37,7 +37,12 @@ export interface ApkUpdate {
 export function useApkUpdate(): ApkUpdate | null {
     const trpc = useTRPC();
     const prod = BUILD_VARIANT === 'prod';
-    const latest = useQuery(trpc.release.latestApk.queryOptions(undefined, { enabled: prod }));
+    // Hourly while mounted: the home banner (`shell/ApkUpdateBanner`) lives as
+    // long as the app does, and a phone that is never closed would otherwise
+    // hear about a release only when Settings is opened.
+    const latest = useQuery(
+        trpc.release.latestApk.queryOptions(undefined, { enabled: prod, refetchInterval: 60 * 60_000 }),
+    );
 
     const newer = prod ? newerApk(Application.nativeBuildVersion, latest.data) : null;
     const server = serverAddresses().tailscale;
