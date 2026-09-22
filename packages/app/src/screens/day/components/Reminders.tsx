@@ -15,6 +15,7 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, EmptyState, type PullToRefresh, RefreshView } from '../../../components/ui';
+import { useLocale, useT } from '../../../i18n';
 import { useRearmReminderNudges } from '../../../notifications';
 import { border, color, size, space, Text } from '../../../theme';
 import { api, type PendingReminder, type QueryResult } from '../data';
@@ -38,6 +39,7 @@ export type RemindersProps = {
 export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
     const [failed, setFailed] = useState<string | null>(null);
+    const t = useT();
 
     // Every action here moves what the daily nudge should be armed against, and
     // they all go over the raw tRPC client, which leaves the query cache alone.
@@ -104,7 +106,10 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     return (
         <View style={styles.pane}>
             {failed ? (
-                <Banner tone="warning" message={`${failed}'s reminder could not be marked — try again.`} />
+                <Banner
+                    tone="warning"
+                    message={t("{name}'s reminder could not be marked — try again.", { name: failed })}
+                />
             ) : null}
 
             <ScrollView
@@ -115,8 +120,8 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
             >
                 <Text variant="body" tone="ink2" style={styles.lede}>
                     {pending.length === 1
-                        ? "1 patient hasn't been messaged yet."
-                        : `${pending.length} patients haven't been messaged yet.`}
+                        ? t("1 patient hasn't been messaged yet.")
+                        : t("{count} patients haven't been messaged yet.", { count: pending.length })}
                 </Text>
 
                 {pending.map((reminder) => (
@@ -164,7 +169,8 @@ function ReminderRow({
     onSkip: () => void;
     onOpenRecord?: (() => void) | undefined;
 }) {
-    const { time, meridiem } = time12(reminder.startsAt);
+    const t = useT();
+    const { time, meridiem } = time12(reminder.startsAt, useLocale());
     const day = relativeDayLabel(dateKey(new Date(reminder.startsAt)));
     const when = `${day} · ${time} ${meridiem}`;
 
@@ -185,10 +191,10 @@ function ReminderRow({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${reminder.patient.name}, ${when}`}
-                    accessibilityHint="Opens the patient's record"
+                    accessibilityHint={t("Opens the patient's record")}
                     accessibilityActions={[
-                        { name: 'send', label: 'Send the reminder on WhatsApp' },
-                        { name: 'skip', label: 'Skip this reminder' },
+                        { name: 'send', label: t('Send the reminder on WhatsApp') },
+                        { name: 'skip', label: t('Skip this reminder') },
                     ]}
                     onAccessibilityAction={(event) => {
                         if (event.nativeEvent.actionName === 'send') onSend();
@@ -207,7 +213,7 @@ function ReminderRow({
             <View style={styles.controls}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Skip ${reminder.patient.name}'s reminder`}
+                    accessibilityLabel={t("Skip {name}'s reminder", { name: reminder.patient.name })}
                     onPress={onSkip}
                     hitSlop={space[2]}
                     style={({ pressed }) => [styles.skip, pressed && styles.pressed]}

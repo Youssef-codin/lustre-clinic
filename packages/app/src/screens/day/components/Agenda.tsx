@@ -219,6 +219,7 @@ const SHORT: Partial<Record<AppointmentStatus, string>> = {
  * still line up down the column.
  */
 function CheckInControl({ appointment, loading, inChair, onCheckIn }: CheckInControlProps) {
+    const t = useT();
     if (appointment.status === 'booked') {
         return (
             <Button
@@ -233,7 +234,7 @@ function CheckInControl({ appointment, loading, inChair, onCheckIn }: CheckInCon
         );
     }
 
-    const label = inChair ? 'In chair' : (SHORT[appointment.status] ?? statusLabel(appointment.status));
+    const label = t(inChair ? 'In chair' : (SHORT[appointment.status] ?? statusLabel(appointment.status)));
     const seated = inChair || appointment.status === 'awaiting_payment';
     const tone = seated ? color.accent : color.due;
     const Icon = inChair ? ChairIcon : appointment.status === 'awaiting_payment' ? PaymentIcon : WaitingIcon;
@@ -272,6 +273,7 @@ export function UpNext({
     onCheckIn,
     onNoShow,
 }: UpNextProps) {
+    const t = useT();
     if (appointments.length === 0) return null;
 
     // Off today this is the whole day rather than what is left of it, so the
@@ -285,7 +287,7 @@ export function UpNext({
             <View style={styles.sectionLabel}>
                 <ArrowForwardIcon size={13} />
                 <Text variant="eyebrow" tone="muted">
-                    {`${relativeToNow ? 'AFTER THIS' : 'THE DAY'} · ${appointments.length}`}
+                    {`${t(relativeToNow ? 'AFTER THIS' : 'THE DAY')} · ${appointments.length}`}
                 </Text>
             </View>
 

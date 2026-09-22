@@ -25,7 +25,8 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { RouterOutput } from '../../api';
-import { border, color, size, space, Text } from '../../theme';
+import { useT } from '../../i18n';
+import { border, color, containsArabic, size, space, Text } from '../../theme';
 import { Chevron } from '../ui';
 import { MoneyValue } from './MoneyValue';
 
@@ -43,8 +44,14 @@ export type PatientRowProps = {
 
 export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRowProps) {
     const { id, name, phone, age, gender } = patient;
+    const t = useT();
 
-    const person = [age === null || age === undefined ? null : `${age}`, gender]
+    // `gender` is free text on the server; the two spellings the app itself
+    // writes are the two the catalogue knows, anything else shows as typed.
+    const person = [
+        age === null || age === undefined ? null : `${age}`,
+        gender && t(gender.charAt(0).toUpperCase() + gender.slice(1)),
+    ]
         .filter((part): part is string => Boolean(part))
         .join(' ');
 
@@ -63,7 +70,14 @@ export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRow
                 <Text variant="headline" weight="semibold" numberOfLines={1}>
                     {name}
                 </Text>
-                <Text variant="footnote" weight="medium" tone="muted" script="mono" numberOfLines={1}>
+                {/* DM Mono has no Arabic, so a localized sex takes the row off the mono face. */}
+                <Text
+                    variant="footnote"
+                    weight="medium"
+                    tone="muted"
+                    script={containsArabic(meta) ? undefined : 'mono'}
+                    numberOfLines={1}
+                >
                     {meta}
                 </Text>
             </View>

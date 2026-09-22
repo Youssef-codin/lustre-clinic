@@ -32,6 +32,8 @@
  * `hours.ts`.
  */
 
+import { localizeCopy } from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 import { isSettled } from './agenda';
 import { MIN_SLOT_STEP } from './booking';
 import { arrivalQueue } from './chair';
@@ -102,5 +104,7 @@ export function isProjected(appointment: Appointment, delay: DayDelay): boolean 
  * times slide to; the headline says how late it actually is.
  */
 export function delayLabel(delay: DayDelay): string | null {
-    return delay.fromChair > 0 ? `${formatDuration(delay.fromChair)} late` : null;
+    return delay.fromChair > 0
+        ? localizeCopy(getLocale(), '{duration} late', { duration: formatDuration(delay.fromChair) })
+        : null;
 }

@@ -99,6 +99,11 @@ const styles = StyleSheet.create({
     // drawn. The ramp already states the line height it wants; this stops the
     // platform adding to it. iOS has no equivalent and ignores the property.
     metrics: { includeFontPadding: false },
+    // Tracking is a Latin adjustment. Naskh is a connected script that has no
+    // gaps to tighten, and on Android a negative value makes the measure pass
+    // come in narrower than the draw, so a title wraps its last word onto a
+    // second line inside a card that had room for it.
+    arabic: { letterSpacing: 0 },
 });
 
 const ARABIC = /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/;
@@ -137,6 +142,7 @@ export function Text({
                 styles.metrics,
                 { fontFamily: font[resolvedScript][weight ?? DEFAULT_WEIGHT[variant]], color: TONE[tone] },
                 UPPERCASE_VARIANTS.has(variant) && styles.uppercase,
+                resolvedScript === 'arabic' && styles.arabic,
                 style,
             ]}
             {...rest}

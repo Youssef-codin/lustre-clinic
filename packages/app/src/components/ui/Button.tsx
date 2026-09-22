@@ -152,6 +152,7 @@ export function Button({
                     variant={sizeProp === 'lg' ? 'headline' : 'callout'}
                     weight="semibold"
                     tone={dimmed ? 'muted' : LABEL_TONE[variant]}
+                    numberOfLines={1}
                 >
                     {shownLabel}
                 </Text>

@@ -7,6 +7,7 @@
  */
 import { StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { size, space, Text } from '../../../theme';
 import { procedureLabel } from '../agenda';
 import type { Appointment } from '../data';
@@ -20,6 +21,7 @@ export type AfterThisProps = {
 };
 
 export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisProps) {
+    const t = useT();
     if (appointments.length === 0) return null;
 
     return (
@@ -27,7 +29,7 @@ export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisPr
             <View style={styles.label}>
                 <ArrowForwardIcon size={13} />
                 <Text variant="eyebrow" tone="muted">
-                    {`${relativeToNow ? 'AFTER THIS' : 'THE DAY'} · ${appointments.length}`}
+                    {`${t(relativeToNow ? 'AFTER THIS' : 'THE DAY')} · ${appointments.length}`}
                 </Text>
             </View>
 
@@ -45,13 +47,14 @@ export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisPr
 }
 
 function Where({ appointment }: { appointment: Appointment }) {
+    const t = useT();
     const here = appointment.status === 'checked_in';
 
     return (
         <View style={styles.where}>
             <Dot tone={here ? 'due' : 'muted'} size={8} />
             <Text variant="footnote" weight="semibold" tone={here ? 'due' : 'muted'}>
-                {here ? 'Waiting' : 'Booked'}
+                {t(here ? 'Waiting' : 'Booked')}
             </Text>
         </View>
     );

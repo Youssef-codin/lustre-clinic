@@ -10,10 +10,12 @@
  * the card on every re-probe — the spinner on the button is what says the app
  * is working. Only a settled answer changes the words.
  */
+import type { Locale } from '@lustre/shared';
 import { useRef } from 'react';
 import { serverAddresses, useConnection } from '../../../api';
 import { formatClock12 } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
+import { useLocale, useT } from '../../../i18n';
 
 export type ConnectionKind = 'wifi' | 'remote' | 'offline';
 
@@ -55,6 +57,8 @@ const PULSE: Record<ConnectionKind, boolean> = {
 
 export function useConnectionView(): ConnectionView {
     const { status, address, lastOnlineAt, retry } = useConnection();
+    const t = useT();
+    const locale = useLocale();
 
     const settled = useRef<ConnectionKind>('offline');
     if (status === 'online') settled.current = address === 'tailscale' ? 'remote' : 'wifi';
@@ -68,16 +72,19 @@ export function useConnectionView(): ConnectionView {
         label: LABEL[kind],
         tone: TONE[kind],
         pulse: PULSE[kind],
-        serverName: 'Clinic server',
+        serverName: t('Clinic server'),
         serverAddress: (kind === 'remote' ? tailscale : lan) ?? lan ?? tailscale ?? '—',
-        stamp: lastOnlineAt === null ? undefined : `Last checked ${wallClock(lastOnlineAt)}`,
+        stamp:
+            lastOnlineAt === null
+                ? undefined
+                : t('Last checked {time}', { time: wallClock(lastOnlineAt, locale) }),
         probing: status === 'probing',
         reprobe: () => void retry(),
     };
 }
 
 /** The probe stamp: a wall-clock timestamp on the same 12-hour clock the panes use. */
-function wallClock(at: number): string {
+function wallClock(at: number, locale: Locale): string {
     const date = new Date(at);
-    return formatClock12(date.getHours() * 60 + date.getMinutes());
+    return formatClock12(date.getHours() * 60 + date.getMinutes(), locale);
 }

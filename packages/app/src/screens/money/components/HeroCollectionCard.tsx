@@ -58,7 +58,7 @@ export function HeroCollectionCard({ summary, dueLabel, minHeight }: HeroCollect
 
                 <View style={styles.due}>
                     <Text variant="caption" script="sans" weight="bold" tone="inverse" style={styles.dim}>
-                        {settled ? 'Nothing due' : ahead > 0 ? 'Collected ahead' : dueLabel}
+                        {settled ? t('Nothing due') : ahead > 0 ? t('Collected ahead') : dueLabel}
                     </Text>
 
                     {/* Nothing owed means there is no figure to draw: the

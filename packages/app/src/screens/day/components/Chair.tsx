@@ -232,7 +232,9 @@ export function ChairCard({
             {kind === 'next' ? (
                 <View style={styles.footer}>
                     <Text variant="title2" weight="semibold" tone="inverse" style={styles.until}>
-                        {until > 0 ? `in ${formatDuration(until)}` : `${formatDuration(-until)} late`}
+                        {until > 0
+                            ? t('in {duration}', { duration: formatDuration(until) })
+                            : t('{duration} late', { duration: formatDuration(-until) })}
                     </Text>
                 </View>
             ) : null}

@@ -15,7 +15,7 @@
 import { Fragment } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useT } from '../../../i18n';
-import { border, color, radius, space, Text } from '../../../theme';
+import { border, color, containsArabic, radius, space, Text } from '../../../theme';
 import type { Patient } from '../data/types';
 import { sentenceCase } from './format';
 import { CallIcon, WhatsAppIcon } from './icons';
@@ -26,6 +26,7 @@ export type PatientHeaderProps = {
 };
 
 export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
+    const t = useT();
     const open = (url: string, failure: string) => {
         void Linking.openURL(url).catch(() => onFailed(failure));
     };
@@ -61,13 +62,17 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
                         />
                     ) : null}
 
-                    {metaParts(patient).map((part, index) => (
+                    {metaParts(patient, t).map((part, index) => (
                         <Fragment key={part}>
                             {/* A rule, not an interpunct: the design separates two
                                 figures with a hairline bar so neither reads as
                                 punctuation inside the number. */}
                             {index > 0 ? <View style={styles.divider} /> : null}
-                            <Text variant="subhead" script="mono" tone="muted">
+                            <Text
+                                variant="subhead"
+                                script={containsArabic(part) ? undefined : 'mono'}
+                                tone="muted"
+                            >
                                 {part}
                             </Text>
                         </Fragment>
@@ -121,10 +126,9 @@ function RefChip({ value }: { value: string }) {
 }
 
 /** `Female, 34` and `+201004001008` — with whatever of it the record actually holds. */
-function metaParts(patient: Patient): string[] {
-    const who = [sentenceCase(patient.gender), patient.age === null ? null : String(patient.age)]
-        .filter(Boolean)
-        .join(', ');
+function metaParts(patient: Patient, t: (copy: string) => string): string[] {
+    const sex = sentenceCase(patient.gender);
+    const who = [sex && t(sex), patient.age === null ? null : String(patient.age)].filter(Boolean).join(', ');
 
     // The old system's number is not one of these. It is either the ref already
     // in the chip or it is inside the badge beside it; a third mono figure on

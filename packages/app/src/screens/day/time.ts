@@ -153,9 +153,9 @@ export function formatMonth(key: string): string {
 }
 
 export function relativeDayLabel(key: string, today: string = todayKey()): string {
-    if (key === today) return 'Today';
-    if (key === addDays(today, 1)) return 'Tomorrow';
-    if (key === addDays(today, -1)) return 'Yesterday';
+    if (key === today) return say('Today');
+    if (key === addDays(today, 1)) return say('Tomorrow');
+    if (key === addDays(today, -1)) return say('Yesterday');
     return formatDate(key);
 }
 

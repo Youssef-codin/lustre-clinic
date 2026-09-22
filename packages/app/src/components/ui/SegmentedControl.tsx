@@ -20,6 +20,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { useIsRTL } from '../../i18n';
 import { border, color, radius, shadow, space, Text } from '../../theme';
 import { duration, easing } from './motion';
 import { useReducedMotion } from './useReducedMotion';
@@ -64,8 +65,11 @@ export function SegmentedControl<T extends string>({
     const slide = useRef(new Animated.Value(0)).current;
     const placed = useRef(false);
     const reducedMotion = useReducedMotion();
+    const isRTL = useIsRTL();
 
-    const step = slot ? slot.x + index * slot.width : 0;
+    // The first segment sits at the far end in RTL, so the thumb walks back
+    // from it; `layout.x` and `translateX` are both physical, neither flips.
+    const step = slot ? slot.x + (isRTL ? -index : index) * slot.width : 0;
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: the step is the change
     useEffect(() => {

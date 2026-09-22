@@ -9,7 +9,7 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Dot } from '../../../components/ui';
-import { useT } from '../../../i18n';
+import { useLocale, useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
@@ -95,6 +95,7 @@ export function NowCard({
     checkingInId,
 }: NowCardProps) {
     const t = useT();
+    const locale = useLocale();
     if (active) {
         const inChair = active.status === 'checked_in';
         const progress = slotProgress(active, nowMinutes, seatedAt);
@@ -107,7 +108,7 @@ export function NowCard({
                 <View style={styles.eyebrowRow}>
                     <Dot tone={inChair ? 'live' : 'due'} size={7} />
                     <Text variant="eyebrow" tone={inChair ? 'live' : 'due'}>
-                        {inChair ? 'IN THE CHAIR' : 'AT THE DESK'}
+                        {t(inChair ? 'IN THE CHAIR' : 'AT THE DESK')}
                     </Text>
                     <StartedAt appointment={active} />
                 </View>
@@ -138,7 +139,7 @@ export function NowCard({
 
     if (next) {
         const until = minutesOfDay(next.startsAt) - nowMinutes;
-        const { time, meridiem } = time12(next.startsAt);
+        const { time, meridiem } = time12(next.startsAt, locale);
 
         return (
             <Card onPress={() => onCheckIn(next)}>
@@ -156,8 +157,14 @@ export function NowCard({
                     <ClockIcon />
                     <Text variant="callout" tone="muted" style={styles.detailText}>
                         {until > 0
-                            ? `${time} ${meridiem} · in ${formatDuration(until)}`
-                            : `${time} ${meridiem} · ${formatDuration(Math.abs(until))} late`}
+                            ? t('{time} · in {duration}', {
+                                  time: `${time} ${meridiem}`,
+                                  duration: formatDuration(until),
+                              })
+                            : t('{time} · {duration} late', {
+                                  time: `${time} ${meridiem}`,
+                                  duration: formatDuration(Math.abs(until)),
+                              })}
                     </Text>
                 </View>
 

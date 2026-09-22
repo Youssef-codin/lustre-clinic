@@ -613,7 +613,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                             },
                             {
                                 value: 'reminders',
-                                label: `Reminders · ${reminderCount}`,
+                                label: `${t('Reminders')} · ${reminderCount}`,
                                 icon: (selected) => (
                                     <ChatIcon size={15} stroke={selected ? color.ink : color.ink2} />
                                 ),

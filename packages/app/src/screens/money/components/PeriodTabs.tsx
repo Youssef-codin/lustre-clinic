@@ -44,7 +44,15 @@ export function PeriodTabs({ value, onChange }: PeriodTabsProps) {
                         ]}
                         testID={`money-period-${period}`}
                     >
-                        <Text variant="subhead" weight="semibold" tone={selected ? 'inverse' : 'muted'}>
+                        {/* A pill is one line by definition. Android otherwise
+                            wraps an Arabic label it has room for and the row
+                            clips the second line, leaving "هذا" for "هذا الشهر". */}
+                        <Text
+                            variant="subhead"
+                            weight="semibold"
+                            tone={selected ? 'inverse' : 'muted'}
+                            numberOfLines={1}
+                        >
                             {t(PERIOD_LABEL[period])}
                         </Text>
                     </Pressable>
