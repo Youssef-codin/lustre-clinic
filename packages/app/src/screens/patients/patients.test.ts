@@ -675,6 +675,25 @@ describe('previous procedures on an edit', () => {
         expect(formOf(patient(), []).history).toEqual([]);
     });
 
+    // The same procedure on two different days is two real entries — the
+    // server groups imported lines by day and says so. So a draft is identified
+    // by its own id, and anything keyed on `procedureId` would treat the second
+    // day as a duplicate of the first.
+    it('keeps two days of the same procedure apart', () => {
+        const input = historicalInputOf(
+            ID,
+            sound({
+                history: [
+                    oldProcedure({ id: 'a', performedOn: '2024-03-14' }),
+                    oldProcedure({ id: 'b', performedOn: '2025-01-09' }),
+                ],
+            }),
+        );
+
+        expect(input?.procedures).toHaveLength(2);
+        expect(input?.procedures.map((line) => line.performedOn)).toEqual(['2024-03-14', '2025-01-09']);
+    });
+
     it('is independent of the patch', () => {
         const initial = formOf(patient(), []);
         const withProcedure = { ...initial, history: [oldProcedure()] };

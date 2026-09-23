@@ -213,6 +213,10 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         if (patch === null) return;
 
         const history = historicalInputOf(patientId, form);
+        // The drafts this save is sending, by their own ids. Not by
+        // `procedureId`: the same procedure on two different days is two real
+        // entries, which is exactly what the day grouping exists for.
+        const sent = new Set(form.history.map((row) => row.id));
 
         // Nothing moved and nothing to add. Closing beats spending a round trip
         // to write the record back over itself.
@@ -242,7 +246,17 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                 onSavingChange?.(false);
                 return;
             }
-            setForm((current) => (current ? { ...current, history: [] } : current));
+            // Only the entries that were actually sent. Emptying the list would
+            // also throw away anything added while the request was in flight —
+            // never sent, and gone without a word when the save closes the
+            // editor. The list is untouchable during a save (below), so this is
+            // belt and braces; it is also one line, and the thing it protects
+            // is somebody's typing.
+            setForm((current) =>
+                current
+                    ? { ...current, history: current.history.filter((row) => !sent.has(row.id)) }
+                    : current,
+            );
         }
 
         if (!isUnchanged(patch)) {
@@ -340,11 +354,18 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                                that question is settled once, at registration.
                                What is already on file is the record's to draw —
                                this list only ever adds. */
-                            <HistoricalProcedures
-                                title="PREVIOUS PROCEDURES"
-                                entries={form.history}
-                                onChange={(history) => change({ history })}
-                            />
+                            /* Untouchable while a save is open, the same line
+                               the bar's cancel holds: a write is the one thing
+                               on screen, and an entry added halfway through one
+                               is an entry the save has already decided not to
+                               send. */
+                            <View pointerEvents={saving ? 'none' : 'auto'}>
+                                <HistoricalProcedures
+                                    title="PREVIOUS PROCEDURES"
+                                    entries={form.history}
+                                    onChange={(history) => change({ history })}
+                                />
+                            </View>
                         )}
 
                         <Questions
