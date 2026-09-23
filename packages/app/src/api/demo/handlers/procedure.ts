@@ -9,6 +9,8 @@ import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type ProcedureTypeRow, save } from '../db';
 import { assignDefined, DemoError, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
+import { planOldPatientHistory, writeOldPatientHistory } from './migration';
+import { requirePatient } from './patient';
 
 type Procedure = Dated<RouterOutput['procedure']['list'][number]>;
 type ProcedureNode = Dated<RouterOutput['procedure']['tree'][number]>;
@@ -156,6 +158,29 @@ export const procedureHandlers = {
 
         save();
         return current;
+    },
+
+    /**
+     * `server/src/modules/procedure/procedure.history.ts` — work a patient had
+     * done before this system knew about it, added from their record rather
+     * than at registration. It goes through the migration write, so it is the
+     * same imported appointment with no visit behind it: history, and no money.
+     */
+    addHistorical(input: RouterInput['procedure']['addHistorical']): { appointmentIds: string[] } {
+        requirePatient(input.patientId);
+
+        const before = getDb().appointments.length;
+        const plan = planOldPatientHistory({ procedures: input.procedures });
+        if (!plan) return { appointmentIds: [] };
+
+        writeOldPatientHistory(input.patientId, plan);
+        save();
+
+        return {
+            appointmentIds: getDb()
+                .appointments.slice(before)
+                .map((row) => row.id),
+        };
     },
 
     reorder(input: RouterInput['procedure']['reorder']): void {

@@ -41,19 +41,30 @@
 //
 // An old patient is never an *edit*: `old` is a registration block, and
 // `updateInputOf` never sends it.
+//
+// ## Historical procedures, which an edit *does* send
+//
+// Work a patient had done before this system recorded it does not only turn up
+// at registration: the paper file surfaces months later, or the patient
+// mentions an extraction in the chair. So the editor carries its own list of it
+// (`history`), and that list leaves by its own door — `procedure.addHistorical`
+// rather than `patient.update`, which takes no such thing.
+//
+// The registration block keeps the list it already had, inside `old` and behind
+// the switch, because there it is part of one write that either all happens or
+// none of it does. The two lists hold the same draft, are drawn by the same
+// component and reach the same server write, so a procedure typed at
+// registration and one typed a year later land as the same imported row: an
+// appointment with no visit behind it, which is what keeps both of them out of
+// checkout and out of every total.
 
-import { PIASTRES_PER_POUND, type Tooth, todayKey } from '@lustre/shared';
-import {
-    birthDateOf,
-    blankNameAndPhone,
-    calendarIsoOf,
-    malformedDraft,
-    orNull,
-} from '../../components/domain/patientDraft';
+import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
+import { birthDateOf, blankNameAndPhone, malformedDraft, orNull } from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import { isWholePounds } from './components/money';
 import type {
+    AddHistoricalProceduresInput,
     Answers,
     CreatePatientInput,
     CustomQuestion,
@@ -62,34 +73,7 @@ import type {
     UpdatePatientInput,
 } from './data/types';
 
-export {
-    ageDigits,
-    birthDateOf,
-    dateDigitsDisplay as oldDateDisplay,
-    FEMALE,
-    MALE,
-} from '../../components/domain/patientDraft';
-
-/** `DDMMYYYY`, the same keypad rhythm the age-adjacent date fields already use. */
-export const OLD_DATE_DIGITS = 8;
-
-export function oldDateDigits(text: string): string {
-    return text.replace(/\D/g, '').slice(0, OLD_DATE_DIGITS);
-}
-
-/**
- * A date that is typed but cannot be read. Half a date is a date still being
- * typed and says nothing; a complete one that is not a day, or is in the
- * future, is wrong and says so. Blank is not an error — it is the honest
- * *before migration, date unknown*.
- */
-export function oldDateError(digits: string, today: string = todayKey()): string | null {
-    if (digits.length === 0 || digits.length < OLD_DATE_DIGITS) {
-        return digits.length === 0 ? null : 'Day, month and year — 01 / 08 / 2026.';
-    }
-    const iso = calendarIsoOf(digits);
-    return iso === null || iso > today ? 'That has to be a day that has happened.' : null;
-}
+export { ageDigits, birthDateOf, FEMALE, MALE } from '../../components/domain/patientDraft';
 
 export type PatientForm = {
     name: string;
@@ -102,18 +86,32 @@ export type PatientForm = {
     /** One entry per editable question, keyed by `custom_questions.key`. */
     answers: Draft;
     old: OldPatientForm;
+    /**
+     * Work the patient had done before this system recorded it, added from the
+     * editor rather than at registration. Sent by `procedure.addHistorical`
+     * after the patch lands, and never part of `patient.update`.
+     */
+    history: HistoricalProcedureDraft[];
 };
 
-/** One row in the old-procedures list, as the screen holds it before a save. */
-export type OldProcedureDraft = {
+/** One row in a historical-procedures list, as the screen holds it before a save. */
+export type HistoricalProcedureDraft = {
     /** Local to the draft — the row does not exist server-side yet. */
     id: string;
     procedureId: string;
     /** As it is read out: "Composite filling — Class II". Display only; the id is what is sent. */
     name: string;
     tooth: Tooth | null;
-    /** `DDMMYYYY` digits, or `''` — blank is *before migration, date unknown* and is sent as nothing. */
-    dateDigits: string;
+    /**
+     * `YYYY-MM-DD`, or null. Null is *the file does not say* — the honest
+     * answer far more often than it looks — and is sent as nothing at all, which
+     * the record draws as *before migration* rather than as a guessed day.
+     *
+     * It only ever comes from `HistoricalDateSheet`, which does not offer a day
+     * that has not happened or a date that is not one. That is why there is no
+     * validation over it here and nothing it can add to what a save owes.
+     */
+    performedOn: string | null;
 };
 
 export type OldPatientForm = {
@@ -123,7 +121,7 @@ export type OldPatientForm = {
     ref: string;
     /** Whole pounds as digits, or `''` for a patient who owed nothing. */
     owes: string;
-    procedures: OldProcedureDraft[];
+    procedures: HistoricalProcedureDraft[];
 };
 
 export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '', procedures: [] };
@@ -137,6 +135,7 @@ export function emptyForm(questions: CustomQuestion[]): PatientForm {
         gender: '',
         answers: blankAnswers(questions),
         old: EMPTY_OLD,
+        history: [],
     };
 }
 
@@ -155,6 +154,10 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         // An existing record is never registered again, so the switch has
         // nothing to do on an edit and the screen does not draw it.
         old: EMPTY_OLD,
+        // Nothing is ever *read back* into this list. It is a list of things to
+        // add, so it starts empty on a record that already has a history, and
+        // what is already on file is the record screen's to draw.
+        history: [],
     };
 }
 
@@ -316,30 +319,16 @@ export function malformedOld(form: PatientForm): Partial<Record<OldField, string
     return {};
 }
 
-/**
- * Old procedures whose date has been typed and cannot be read — half a date, a
- * 31st of February, a day that has not happened.
- *
- * A blank date is not one of these: it is the honest *before migration*, and
- * most entries have it. A *wrong* one has to hold the save back, because the
- * alternative is silent — `calendarIsoOf` answers null, the entry goes without
- * a date, and the record shows "Before migration" for a procedure the desk just
- * dated. Returned as ids so the screen can count them; the message is already
- * under each row.
- */
-export function badOldDates(form: PatientForm): string[] {
-    if (!form.old.on) return [];
-    return form.old.procedures
-        .filter((entry) => oldDateError(entry.dateDigits) !== null)
-        .map((entry) => entry.id);
-}
+// There is no check over an entry's date. There used to be one — the date was
+// `DDMMYYYY` on a number pad, and half a date, a 31st of February or a day that
+// had not happened all had to hold the save back, because the alternative was
+// silent: the entry went without a date and the record read "Before migration"
+// for a procedure the desk had just dated. `HistoricalDateSheet` offers days
+// instead of taking digits, so none of those three can be picked and the rule
+// has nothing left to refuse.
 
 function oldIsSound(form: PatientForm): boolean {
-    return (
-        blankOld(form).length === 0 &&
-        Object.keys(malformedOld(form)).length === 0 &&
-        badOldDates(form).length === 0
-    );
+    return blankOld(form).length === 0 && Object.keys(malformedOld(form)).length === 0;
 }
 
 /**
@@ -360,16 +349,36 @@ function oldInputOf(form: PatientForm): OldPatientInput {
     return {
         ref: form.old.ref.trim(),
         ...(owes === null ? {} : { openingBalance: owes }),
-        procedures: form.old.procedures.map((entry) => {
-            const performedOn = calendarIsoOf(entry.dateDigits);
-            return {
-                procedureId: entry.procedureId,
-                quantity: 1,
-                ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
-                ...(performedOn === null ? {} : { performedOn }),
-            };
-        }),
+        procedures: form.old.procedures.map(lineOf),
     };
+}
+
+/**
+ * One draft as the server takes it. `performedOn` is left out for an undated
+ * entry rather than sent as null: the record labels it *before migration*, and
+ * a blank date is an answer rather than a missing field.
+ */
+function lineOf(entry: HistoricalProcedureDraft) {
+    return {
+        procedureId: entry.procedureId,
+        quantity: 1,
+        ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
+        ...(entry.performedOn === null ? {} : { performedOn: entry.performedOn }),
+    };
+}
+
+/**
+ * The editor's historical procedures, or null when there are none to add — an
+ * editor closed without any should not spend a round trip, the same line
+ * `isUnchanged` holds for the patch.
+ *
+ * It is its own call rather than part of the patch because `patient.update`
+ * takes no procedures: these are appointment rows, and the server writes them
+ * through the same path the registration block uses.
+ */
+export function historicalInputOf(patientId: string, form: PatientForm): AddHistoricalProceduresInput | null {
+    if (form.history.length === 0) return null;
+    return { patientId, procedures: form.history.map(lineOf) };
 }
 
 /**
