@@ -9,6 +9,12 @@
 // column is fixed at 78px so the four values line up as a column of their own;
 // that number is the design's, and it is what `Full name` needs at 12px.
 //
+// The **Ref** row is not in `patient-edit.html` — the design draws no field for
+// the patient's number anywhere. It is built as one more ruled row of this card
+// rather than as a block of its own, because that is what it is: the first
+// fact on the record, read off the top of the paper page. Mono, like the phone
+// and the age, because it is a code and not a word. See DECISIONS.md.
+//
 // The name sets no face — `<Text>`-style script detection is what puts an
 // Arabic name in Noto Naskh, so the input picks its family from the value it
 // holds (§6). The phone and the age are pinned to DM Mono for the same reason
@@ -44,10 +50,33 @@ export type BasicsCardProps = {
      * as a section of its own.
      */
     trailing?: ReactNode;
+    /**
+     * What this handset may do with the record's number.
+     *
+     * `hidden` is a registration: the counter hands out the number and the desk
+     * has nothing to type. `locked` draws it and nothing else, which is what
+     * every role but the doctor sees — the number is worth reading off the
+     * screen even when it cannot be changed here. `editable` is the doctor's.
+     *
+     * The server enforces the same thing (`REF_EDIT_ROLES`), so a locked row is
+     * a correct screen and not the protection.
+     */
+    ref?: 'hidden' | 'locked' | 'editable';
+    /** A ref typed and wrong. Shown under the row once it has been left, like the rest. */
+    refError?: string;
 };
 
-export function BasicsCard({ form, onChange, blank, errors, trailing }: BasicsCardProps) {
+export function BasicsCard({
+    form,
+    onChange,
+    blank,
+    errors,
+    trailing,
+    ref: refMode = 'hidden',
+    refError,
+}: BasicsCardProps) {
     const owed = new Set(blank);
+    const [refLeft, setRefLeft] = useState(false);
 
     // A message waits until the field has been left once. `s@` is not a valid
     // address, but neither is it a mistake — it is the second keystroke of one,
@@ -79,6 +108,40 @@ export function BasicsCard({ form, onChange, blank, errors, trailing }: BasicsCa
     return (
         <View>
             <Card>
+                {refMode !== 'hidden' ? (
+                    <>
+                        <Row
+                            label="Ref"
+                            error={refLeft ? refError : undefined}
+                            owed={refError !== undefined}
+                            align="center"
+                        >
+                            {refMode === 'editable' ? (
+                                <TextInput
+                                    accessibilityLabel="Patient number"
+                                    value={form.ref}
+                                    onChangeText={(ref) => onChange({ ref })}
+                                    onBlur={() => setRefLeft(true)}
+                                    autoCapitalize="characters"
+                                    autoCorrect={false}
+                                    style={[styles.value, styles.mono]}
+                                    testID="patient-ref"
+                                />
+                            ) : (
+                                <Text
+                                    variant="callout"
+                                    style={styles.mono}
+                                    accessibilityLabel={`Patient number ${form.ref}`}
+                                    testID="patient-ref-locked"
+                                >
+                                    {form.ref}
+                                </Text>
+                            )}
+                        </Row>
+                        <CardDivider />
+                    </>
+                ) : null}
+
                 <Row label="Full name" error={shown('name')} owed={due('name')}>
                     <TextInput
                         accessibilityLabel="Full name"

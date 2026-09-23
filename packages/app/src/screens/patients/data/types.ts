@@ -8,7 +8,7 @@
 // deleted, so its answers survive (§7.8); `age` and `balance` are derived,
 // never stored; `UpdatePatientInput.custom` is a partial patch — only the keys
 // sent are validated, a blank clears, and keys left out keep what is stored.
-import type { AppointmentStatus, PaymentMethod, Tooth } from '@lustre/shared';
+import type { AppointmentStatus, ClientRole, PaymentMethod, Tooth } from '@lustre/shared';
 
 export type QuestionKind = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
@@ -222,4 +222,23 @@ export interface UpdatePatientInput {
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
+}
+
+/**
+ * Correcting the number a record is known by — its own call, not a field on the
+ * patch above. `editedBy` is the role this handset is on; the server decides
+ * whether that role may edit at all, and records it beside the change.
+ */
+export interface UpdatePatientRefInput {
+    id: string;
+    ref: string;
+    editedBy: ClientRole;
+}
+
+/** One correction to a record's ref, as the record reads it back. */
+export interface RefEdit {
+    previousRef: string;
+    newRef: string;
+    editedBy: string;
+    editedAt: string;
 }

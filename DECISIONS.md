@@ -959,6 +959,40 @@ survives every save made there.
 
 It is a `ui/Textarea` and ten minutes whenever the design says where it goes.
 
+## The ref is editable, and on no design
+
+`patient-edit.html` draws four basics — name, phone, email, age·sex — and no
+number. `patient-view.html` does not draw one either; the header's ref chip was
+already built from the record rather than from a mockup. So when ref editing
+landed there was nothing to follow.
+
+It was not invented as a block of its own. It is one more hairline-ruled row at
+the top of the same BASICS card, in the card's own idiom: the 78px label
+column, the mono face the phone and the age already use because they are
+figures, and the same under-the-row message the other four get. The top is
+where it goes because that is what the number is — the first fact on the
+record, read off the top of the paper page.
+
+Three states, and the middle one is the reason this is not simply gated away:
+
+- **Registering** draws nothing. The counter hands out the number and the desk
+  has no say in it, so there is no field to draw.
+- **Any role but the doctor** draws it and nothing else. The number is worth
+  reading off the screen by whoever is holding the phone; only changing it is
+  the doctor's.
+- **The doctor** gets the input.
+
+`canEditRef` is the server's own rule (`REF_EDIT_ROLES`), asked here so the
+screen is correct rather than so the screen is the protection — with no
+accounts (§1) the role is this handset's word for itself and the server checks
+it again. See the ref-editing entry under Data model.
+
+**The audit trail is not drawn at all.** `patient.refHistory` is wired in
+`data/api.ts` and covered, but nothing on the record reads it: a trail of past
+numbers is a support question asked months later, not something the desk needs
+mid-correction, and there is no design for where it would sit. A designed
+section and it is a small job.
+
 ## The A–Z grouping is described, not drawn
 
 `patients-list.html` ends with a line of prose: "A–Z groups continue below. In
