@@ -83,6 +83,7 @@ import {
     refBaselineOf,
     refEditError,
     refEditOf,
+    saveFailureTitle,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -330,11 +331,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             <View style={styles.callout}>
                                 <Callout
                                     tone="warning"
-                                    title={
-                                        savedRef !== null
-                                            ? 'The number was saved, the rest was not'
-                                            : 'Not saved'
-                                    }
+                                    title={saveFailureTitle(editRef.error !== undefined, savedRef !== null)}
                                 >
                                     {errorText(editRef.error ?? save.error)}
                                 </Callout>

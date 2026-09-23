@@ -527,6 +527,19 @@ export function refBaselineOf(
 }
 
 /**
+ * The title over a failed edit's callout.
+ *
+ * "Partly saved" is true only when a number landed on an earlier attempt *and*
+ * this failure is somewhere after the ref. A ref call that is itself the
+ * failure means the number now on screen did not land — whatever an earlier
+ * attempt wrote — so claiming it was saved would be telling the desk a number
+ * is on file that is not.
+ */
+export function saveFailureTitle(refFailed: boolean, earlierRefLanded: boolean): string {
+    return earlierRefLanded && !refFailed ? 'The number was saved, the rest was not' : 'Not saved';
+}
+
+/**
  * The ref to send, or null when there is nothing to send.
  *
  * Null covers three cases that all mean *do not call* — registering, a ref that
