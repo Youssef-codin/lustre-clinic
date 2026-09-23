@@ -37,6 +37,12 @@ export type HistoricalDateSheetProps = {
     selected: string | null;
     /** What the entry is for, so the sheet says which procedure is being dated. */
     procedureName?: string;
+    /**
+     * Whether *no date* is an available answer. True for a procedure off a
+     * paper file, which often says what was done and not when. False for an old
+     * visit: a visit without a day is not a visit.
+     */
+    allowUnknown?: boolean;
     /** A `YYYY-MM-DD`, or null for *the file does not say*. */
     onPick: (performedOn: string | null) => void;
     onClose: () => void;
@@ -48,6 +54,7 @@ export function HistoricalDateSheet({
     visible,
     selected,
     procedureName,
+    allowUnknown = true,
     onPick,
     onClose,
 }: HistoricalDateSheetProps) {
@@ -102,17 +109,19 @@ export function HistoricalDateSheet({
                         }}
                         testID="historical-date-use"
                     />
-                    <Button
-                        label={t("The file doesn't say")}
-                        variant="text"
-                        size="md"
-                        block
-                        onPress={() => {
-                            onPick(null);
-                            onClose();
-                        }}
-                        testID="historical-date-unknown"
-                    />
+                    {allowUnknown ? (
+                        <Button
+                            label={t("The file doesn't say")}
+                            variant="text"
+                            size="md"
+                            block
+                            onPress={() => {
+                                onPick(null);
+                                onClose();
+                            }}
+                            testID="historical-date-unknown"
+                        />
+                    ) : null}
                 </View>
             }
         >
@@ -224,9 +233,11 @@ export function HistoricalDateSheet({
                 </Text>
                 <Text variant="footnote" tone="muted">
                     {pending === null
-                        ? t(
-                              'Saved as prior history with no day on it — the record reads it as before migration.',
-                          )
+                        ? allowUnknown
+                            ? t(
+                                  'Saved as prior history with no day on it — the record reads it as before migration.',
+                              )
+                            : t('Pick the day it happened.')
                         : t('Saved against this day and shown on it in the history.')}
                 </Text>
             </View>

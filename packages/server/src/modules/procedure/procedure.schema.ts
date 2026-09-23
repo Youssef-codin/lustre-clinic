@@ -100,3 +100,39 @@ export const addHistoricalProceduresInput = z.object({
 });
 
 export type AddHistoricalProceduresInput = z.infer<typeof addHistoricalProceduresInput>;
+
+/**
+ * One line of an old visit. Unlike a historical procedure this one carries a
+ * **price**, because the visit it lands in is a real one: the work was done
+ * here, it was simply typed in late, and the patient owes for it.
+ *
+ * `unitPrice` is optional and falls back to the catalogue's price the same way
+ * `visit.setProcedures` does — the desk usually means "the usual price", and
+ * the snapshot is taken at the write either way, so a later catalogue change
+ * cannot rewrite what was charged (§7).
+ */
+const oldVisitLine = z.object({
+    procedureId: z.uuid(),
+    quantity: z.number().int().min(1).max(999).default(1),
+    tooth: z.enum(TEETH).nullish(),
+    unitPrice: price.optional(),
+});
+
+/**
+ * A visit that happened on a day that has passed and was never entered.
+ *
+ * The date is required — that is the whole difference from a walk-in, which is
+ * always *now*. There is no time of day: the clinic is recording which day it
+ * was, not which slot, so the row is stamped at noon UTC and reads back as that
+ * day from any offset (see `migration.service` for why noon).
+ */
+export const addOldVisitInput = z.object({
+    patientId: z.uuid(),
+    /** `YYYY-MM-DD`. Refused if it has not happened — see the service. */
+    performedOn: z.iso.date(),
+    /** Defaults to the clinic's first active branch when the caller does not say. */
+    branchId: z.uuid().nullish(),
+    procedures: z.array(oldVisitLine).min(1).max(MAX_HISTORICAL_PROCEDURES),
+});
+
+export type AddOldVisitInput = z.infer<typeof addOldVisitInput>;

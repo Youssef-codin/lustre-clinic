@@ -57,6 +57,7 @@ const handlers = {
     'procedure.update': procedureHandlers.update,
     'procedure.reorder': procedureHandlers.reorder,
     'procedure.addHistorical': procedureHandlers.addHistorical,
+    'procedure.addOldVisit': procedureHandlers.addOldVisit,
 
     'patient.search': patientHandlers.search,
     'patient.recent': patientHandlers.recent,
