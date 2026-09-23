@@ -17,6 +17,9 @@ export const duration = {
     promote: 420,
     fadeup: 280,
     toast: 220,
+    /** The longest a swiped toast takes to leave; a fast flick leaves sooner. */
+    swipe: 200,
+    collapse: 240,
     popover: 160,
 } as const;
 
