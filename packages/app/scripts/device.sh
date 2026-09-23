@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Build/run the app on a USB-connected Android phone as a *development build*.
 #
-# Expo Go can't host this project (its bundled runtime lags SDK 57), so the
-# phone gets a real APK built from the native project that `expo prebuild`
-# generates from app.json. That APK embeds expo-dev-client, which gives us the
-# same reload/dev-menu loop Expo Go would have.
+# Expo Go runs this project too (`bun start`, then scan the QR code; see the
+# root README). This script is the other route: a real APK built from the
+# native project that `expo prebuild` generates from app.json, embedding
+# expo-dev-client for the same reload/dev-menu loop. It is what a native change
+# needs, and what installs as its own "Lustre DEV" app beside a release.
 #
 #   ./device.sh            build (if needed), install, launch, start the bundler
 #   ./device.sh --build    force a native rebuild first
