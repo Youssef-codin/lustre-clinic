@@ -490,6 +490,24 @@ export function refError(ref: string): string | null {
 }
 
 /**
+ * The ref's message while *editing*, which is not the same question `refError`
+ * answers: a number only has to be one this app would issue if it is being
+ * changed to.
+ *
+ * An old patient's ref is whatever their old system used — `A/1991-07` is a
+ * real one — and it becomes their `ref` verbatim, because the desk was given
+ * one number for them and must not be handed a second. `refError` refuses that
+ * shape, correctly, for something being typed now. Judging the value already on
+ * the record by it would lock the editor for every patient who came across:
+ * Save would count one thing owed for a field nobody touched, and their phone
+ * number could never be corrected again.
+ */
+export function refEditError(form: PatientForm, initial: PatientForm): string | null {
+    if (form.ref.trim().toUpperCase() === initial.ref.trim().toUpperCase()) return null;
+    return refError(form.ref);
+}
+
+/**
  * The ref to send, or null when there is nothing to send.
  *
  * Null covers three cases that all mean *do not call* — registering, a ref that

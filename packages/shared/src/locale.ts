@@ -116,6 +116,7 @@ export const COPY_AR = {
     Phone: 'الهاتف',
     Ref: 'الرقم',
     'Patient number': 'رقم المريض',
+    'The number was saved, the rest was not': 'تم حفظ الرقم، وبقية التعديلات لم تُحفظ',
     Price: 'السعر',
     Procedures: 'الإجراءات',
     'Procedures & prices': 'الإجراءات والأسعار',

@@ -80,8 +80,8 @@ import {
     malformedBasics,
     malformedOld,
     missingRequired,
+    refEditError,
     refEditOf,
-    refError,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -154,6 +154,12 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     const [form, setForm] = useState<PatientForm | null>(null);
     if (form === null && initial !== null) setForm(initial);
 
+    // The number landed and the rest of the save did not. Two calls cannot be
+    // one transaction from here, so the screen says which half is already on
+    // file rather than letting "Not saved" imply neither is — and a retry sends
+    // only the half that is still owed.
+    const [refSaved, setRefSaved] = useState(false);
+
     const loading = questions.loading || record.loading;
     const failed = questions.error ?? record.error;
 
@@ -172,8 +178,11 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
     // Only the doctor's row can be wrong: every other role is reading a value it
     // cannot change, and marking it `due` would be telling them off for a
-    // record they cannot correct here.
-    const refMessage = form && refMode === 'editable' ? (refError(form.ref) ?? undefined) : undefined;
+    // record they cannot correct here. And only a ref being *changed* is
+    // judged — an old patient's number is their old system's and need not be
+    // one this app would issue. See `refEditError`.
+    const refMessage =
+        form && initial && refMode === 'editable' ? (refEditError(form, initial) ?? undefined) : undefined;
 
     // A required answer the desk has emptied. Not the same as one never given:
     // the blank is in the patch, and the server throws on it rather than
@@ -232,7 +241,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
         // The number, if it moved. Its own call: `patient.update` cannot write a
         // ref, and this one is refused for a role that may not.
-        const ref = refMode === 'editable' ? refEditOf(form, initial) : null;
+        const ref = refMode === 'editable' && !refSaved ? refEditOf(form, initial) : null;
 
         // Nothing moved at all. Closing beats spending a round trip to write the
         // record back over itself.
@@ -254,6 +263,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                 onSavingChange?.(false);
                 return;
             }
+            setRefSaved(true);
         }
 
         if (!isUnchanged(patch)) {
@@ -299,7 +309,10 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                     >
                         {(editRef.error ?? save.error) !== undefined && (
                             <View style={styles.callout}>
-                                <Callout tone="warning" title="Not saved">
+                                <Callout
+                                    tone="warning"
+                                    title={refSaved ? 'The number was saved, the rest was not' : 'Not saved'}
+                                >
                                     {errorText(editRef.error ?? save.error)}
                                 </Callout>
                             </View>

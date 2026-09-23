@@ -38,6 +38,7 @@ import {
     oldDateError,
     owesInput,
     owesPiastres,
+    refEditError,
     refEditOf,
     refError,
     unaskableRequired,
@@ -749,6 +750,42 @@ describe('the ref', () => {
         // A registration holds no ref: the counter hands the number out.
         it('sends nothing while registering', () => {
             expect(refEditOf(sound({ ref: '' }), sound({ ref: '' }))).toBeNull();
+        });
+    });
+
+    /**
+     * A ref only has to be one this app would issue if it is being changed to.
+     * An old patient's number is their old system's, kept verbatim, and Save
+     * must not be held hostage to a shape nobody typed today.
+     */
+    describe('refEditError', () => {
+        const on = (ref: string) => sound({ ref });
+
+        it('says nothing about a legacy ref nobody touched', () => {
+            for (const legacy of ['A/1991-07', '710/B', '007', 'W5F0']) {
+                expect(refEditError(on(legacy), on(legacy))).toBeNull();
+            }
+        });
+
+        it('ignores a difference that is only case or padding', () => {
+            expect(refEditError(on(' a/1991-07 '), on('A/1991-07'))).toBeNull();
+        });
+
+        // The lockout this exists to prevent: a record carrying `A/1991-07`
+        // must still be editable for everything else.
+        it('leaves a legacy record editable', () => {
+            const initial = on('A/1991-07');
+            const edited = { ...initial, phone: '0100 000 0000' };
+            expect(refEditError(edited, initial)).toBeNull();
+        });
+
+        it('judges a ref that is being changed', () => {
+            expect(refEditError(on('W5F0'), on('W5F5'))).not.toBeNull();
+            expect(refEditError(on(''), on('W5F5'))).not.toBeNull();
+        });
+
+        it('passes a sound change', () => {
+            expect(refEditError(on('910'), on('A/1991-07'))).toBeNull();
         });
     });
 
