@@ -3,8 +3,10 @@
  * top rather than the bottom, because every screen's action buttons are at the
  * bottom and a toast over them blocked the next press for as long as it lived.
  *
- * Swiping it up or to either side dismisses it early. The pan only claims a
- * move past a few points, so a tap still reaches the action.
+ * Swiping it up or to either side dismisses it early: it follows the finger,
+ * fading as it goes, and is thrown on the way it was going; let go short and it
+ * springs back. The pan only claims a move past a few points, so a tap still
+ * reaches the action.
  *
  * The timer is restarted on every change of message — so two toasts in a row
  * do not share one deadline: `message` is a real dependency even though it is
@@ -13,7 +15,7 @@
  */
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the slide `Animated.timing` with its unmount callback, and the `setTimeout` that dismisses the toast
 import { useEffect, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet } from 'react-native';
+import { Animated, PanResponder, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { easing, duration as motionDuration } from './motion';
@@ -32,10 +34,14 @@ export type ToastProps = {
 };
 
 /** How far a drag has to travel, up or sideways, to count as a dismissal. */
-const SWIPE_UP = 16;
-const SWIPE_SIDE = 64;
-/** A flick short of the distance still dismisses at this speed. */
-const FLICK = 0.5;
+const SWIPE_UP = 20;
+const SWIPE_SIDE = 56;
+/** A flick short of the distance still dismisses at this speed, in px/ms. */
+const FLICK = 0.4;
+/** A downward drag moves a sixth as far as the finger, up to this. */
+const PULL_DOWN = 8;
+/** Up is the short way out: fully faded by here, and flung to twice it. */
+const FADE_UP = 48;
 
 export function Toast({
     visible,
@@ -48,51 +54,101 @@ export function Toast({
     testID,
 }: ToastProps) {
     const t = useT();
+    const { width } = useWindowDimensions();
     const progress = useRef(new Animated.Value(0)).current;
     const drag = useRef(new Animated.ValueXY()).current;
     const [mounted, setMounted] = useState(visible);
     const reducedMotion = useReducedMotion();
     const life = duration ?? (actionLabel ? 5000 : 2400);
 
-    // Read through a ref so the responder, made once, dismisses with the
-    // caller's current callback rather than the first render's.
-    const dismiss = useRef(onDismiss);
-    dismiss.current = onDismiss;
-    // The same for the motion preference: a swipe let go short of dismissing
-    // springs back, and with reduced motion it jumps back instead.
-    const reduced = useRef(reducedMotion);
-    reduced.current = reducedMotion;
+    // The responder is made once, so everything it reads that can change
+    // between renders goes through a ref.
+    const latest = useRef({ onDismiss, reducedMotion, width });
+    latest.current = { onDismiss, reducedMotion, width };
+    // `leaving` makes a swipe dismiss once; `held` keeps the timer from pulling
+    // the toast out from under a finger, and `expired` is the timer having
+    // tried to — a swipe let go short of dismissing then dismisses anyway.
+    const gesture = useRef({ leaving: false, held: false, expired: false }).current;
 
     function restore() {
-        if (reduced.current) {
+        gesture.held = false;
+        if (gesture.expired) {
+            leave(0, 0);
+            return;
+        }
+        if (latest.current.reducedMotion) {
             drag.setValue({ x: 0, y: 0 });
             return;
         }
-        Animated.spring(drag, { toValue: { x: 0, y: 0 }, useNativeDriver: true }).start();
+        Animated.spring(drag, {
+            toValue: { x: 0, y: 0 },
+            damping: 22,
+            stiffness: 260,
+            useNativeDriver: true,
+        }).start();
+    }
+
+    /** Carries on the way it was thrown, then hands over to the fade-out. */
+    function leave(x: number, y: number) {
+        gesture.leaving = true;
+        gesture.held = false;
+        latest.current.onDismiss();
+        if (x === 0 && y === 0) return;
+        if (latest.current.reducedMotion) {
+            drag.setValue({ x, y });
+            return;
+        }
+        Animated.timing(drag, {
+            toValue: { x, y },
+            duration: motionDuration.swipe,
+            easing: easing.standard,
+            useNativeDriver: true,
+        }).start();
     }
 
     const pan = useRef(
         PanResponder.create({
-            onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6,
-            // Up follows the finger; down is held at the edge it came from.
-            onPanResponderMove: (_, g) => drag.setValue({ x: g.dx, y: Math.min(g.dy, 0) }),
+            onMoveShouldSetPanResponder: (_, g) =>
+                !gesture.leaving && (Math.abs(g.dx) > 6 || Math.abs(g.dy) > 6),
+            onPanResponderGrant: () => {
+                gesture.held = true;
+                // Caught mid-spring, it carries on from where it is rather
+                // than jumping to under the finger.
+                drag.stopAnimation();
+                drag.extractOffset();
+            },
+            onPanResponderMove: (_, g) =>
+                drag.setValue({ x: g.dx, y: g.dy < 0 ? g.dy : Math.min(g.dy / 6, PULL_DOWN) }),
             onPanResponderRelease: (_, g) => {
-                const up = g.dy < -SWIPE_UP || g.vy < -FLICK;
-                const side = Math.abs(g.dx) > SWIPE_SIDE || Math.abs(g.vx) > FLICK;
-                if (up || side) {
-                    dismiss.current();
+                drag.flattenOffset();
+                if (Math.abs(g.dx) > Math.abs(g.dy)) {
+                    const flick = Math.abs(g.vx) > FLICK && Math.sign(g.vx) === Math.sign(g.dx);
+                    if (Math.abs(g.dx) > SWIPE_SIDE || flick) {
+                        leave(Math.sign(g.dx) * latest.current.width, 0);
+                        return;
+                    }
+                } else if (g.dy < -SWIPE_UP || g.vy < -FLICK) {
+                    leave(g.dx, -FADE_UP * 2);
                     return;
                 }
                 restore();
             },
-            onPanResponderTerminate: () => restore(),
+            onPanResponderTerminate: () => {
+                drag.flattenOffset();
+                restore();
+            },
         }),
     ).current;
 
+    // biome-ignore lint/correctness/useExhaustiveDependencies: a new message replacing one mid-swipe starts back in place
     useEffect(() => {
         if (visible) {
             setMounted(true);
+            drag.stopAnimation();
+            drag.setOffset({ x: 0, y: 0 });
             drag.setValue({ x: 0, y: 0 });
+            gesture.leaving = false;
+            gesture.expired = false;
         }
         const animation = Animated.timing(progress, {
             toValue: visible ? 1 : 0,
@@ -104,14 +160,17 @@ export function Toast({
             if (finished && !visible) setMounted(false);
         });
         return () => animation.stop();
-    }, [visible, progress, drag, reducedMotion]);
+    }, [visible, message, progress, drag, gesture, reducedMotion]);
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: a new message restarts the clock
     useEffect(() => {
         if (!visible) return;
-        const timer = setTimeout(onDismiss, life);
+        const timer = setTimeout(() => {
+            if (gesture.held) gesture.expired = true;
+            else onDismiss();
+        }, life);
         return () => clearTimeout(timer);
-    }, [visible, message, life, onDismiss]);
+    }, [visible, message, life, onDismiss, gesture]);
 
     if (!mounted) return null;
 
@@ -128,7 +187,23 @@ export function Toast({
                 styles.toast,
                 { top: offset },
                 {
-                    opacity: progress,
+                    // Fades with the distance it has been dragged, so how far
+                    // is left to go shows under the finger.
+                    opacity: Animated.multiply(
+                        progress,
+                        Animated.multiply(
+                            drag.x.interpolate({
+                                inputRange: [-width * 0.6, 0, width * 0.6],
+                                outputRange: [0, 1, 0],
+                                extrapolate: 'clamp',
+                            }),
+                            drag.y.interpolate({
+                                inputRange: [-FADE_UP, 0],
+                                outputRange: [0, 1],
+                                extrapolate: 'clamp',
+                            }),
+                        ),
+                    ),
                     transform: [
                         {
                             translateY: Animated.add(
