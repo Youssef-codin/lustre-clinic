@@ -9,7 +9,7 @@
  * done. Its absence is what makes a registration a new one, so nothing about a
  * new patient changes by the block existing.
  */
-import { MAX_AMOUNT_PIASTRES, MAX_OLD_REF_LENGTH, TEETH } from '@lustre/shared';
+import { clientRoleSchema, MAX_AMOUNT_PIASTRES, MAX_OLD_REF_LENGTH, TEETH } from '@lustre/shared';
 import { z } from 'zod';
 
 const customAnswers = z.record(z.string(), z.unknown());
@@ -94,6 +94,24 @@ export const recentPatientsInput = z.object({
 
 export const patientByIdInput = z.object({ id: z.uuid() });
 
+/**
+ * Correcting the number a record is already known by — not the same act as
+ * registering one, which is why it is not a field on `updatePatientInput`.
+ *
+ * The shape is checked in the service rather than here, so a mistyped ref comes
+ * back as `PATIENT_REF_INVALID` and names the field, instead of as the generic
+ * `VALIDATION` a Zod `regex` would produce. `editedBy` is the role the client
+ * says it is on; the service decides whether that role may edit at all, and the
+ * value is what lands in the audit trail.
+ */
+export const updatePatientRefInput = z.object({
+    id: z.uuid(),
+    ref: z.string().trim().min(1).max(MAX_OLD_REF_LENGTH),
+    editedBy: clientRoleSchema,
+});
+
+export const patientRefHistoryInput = z.object({ id: z.uuid() });
+
 export const deletePatientInput = z.object({ id: z.uuid() });
 
 /** Loose on purpose — the service normalizes, and a term that will not normalize answers `[]`. */
@@ -102,6 +120,7 @@ export const patientByPhoneInput = z.object({ phone: z.string().trim().max(32) }
 export type CreatePatientInput = z.infer<typeof createPatientInput>;
 export type OldPatientInput = z.infer<typeof oldPatientInput>;
 export type UpdatePatientInput = z.infer<typeof updatePatientInput>;
+export type UpdatePatientRefInput = z.infer<typeof updatePatientRefInput>;
 export type SearchPatientInput = z.infer<typeof searchPatientInput>;
 export type RecentPatientsInput = z.infer<typeof recentPatientsInput>;
 export type PatientByPhoneInput = z.infer<typeof patientByPhoneInput>;

@@ -118,6 +118,26 @@ export const CLIENT_ROLES = ['secretary', 'doctor'] as const;
 export const clientRoleSchema = z.enum(CLIENT_ROLES);
 export type ClientRole = z.infer<typeof clientRoleSchema>;
 
+/**
+ * The roles allowed to edit a ref that is already on a record.
+ *
+ * A ref is written at the top of a paper file and read back off it for years,
+ * so changing one is a supervisory correction rather than desk work — the
+ * secretary who typed it wrong says so, the doctor makes the change, and the
+ * audit trail records which role did.
+ *
+ * `CLIENT_ROLES` above is a device preference and not a permission boundary
+ * (§1: there are no accounts), so the server checking this is a guard rail, not
+ * authentication. It is still worth checking: it keeps the rule in one place for
+ * when there are accounts, and it stamps the audit row with what the client
+ * claimed rather than nothing at all.
+ */
+export const REF_EDIT_ROLES = ['doctor'] as const satisfies readonly ClientRole[];
+
+export function canEditRef(role: ClientRole): boolean {
+    return (REF_EDIT_ROLES as readonly ClientRole[]).includes(role);
+}
+
 /** §14. English is primary; Arabic mirrors the layout. */
 export const LOCALES = ['en', 'ar'] as const;
 export const localeSchema = z.enum(LOCALES);

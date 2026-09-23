@@ -62,6 +62,8 @@ const handlers = {
     'patient.recent': patientHandlers.recent,
     'patient.byId': patientHandlers.byId,
     'patient.byPhone': patientHandlers.byPhone,
+    'patient.updateRef': patientHandlers.updateRef,
+    'patient.refHistory': patientHandlers.refHistory,
     'patient.create': patientHandlers.create,
     'patient.update': patientHandlers.update,
     'patient.delete': patientHandlers.delete,

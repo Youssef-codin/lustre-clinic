@@ -29,10 +29,14 @@
  * registering one must not consume the number the next new patient is owed, and
  * an old number that is a plain digit string the sequence has still to reach is
  * refused — taking it would hand the same number to two patients later.
+ *
+ * A ref that is already on a record can be corrected afterwards — see
+ * `updateRef`, which is the only path that writes one, and which leaves a row
+ * in `ref_edits` every time it does.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
-import { asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { canEditRef, ERROR_CODE, REF_EDIT_ROLES, WS_EVENT } from '@lustre/shared';
+import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
     appointmentProcedures,
@@ -40,13 +44,15 @@ import {
     patients,
     payments,
     procedureTypes,
+    refEdits,
     reminders,
     settings,
     visitProcedures,
     visits,
 } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
-import { normalizePhone } from '../../util/phone.ts';
+import { normalizePhone, phoneSearchTerm } from '../../util/phone.ts';
+import { isPatientRef, normalizeRef } from '../../util/ref.ts';
 import { ageFromBirthDate } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
@@ -60,6 +66,7 @@ import type {
     RecentPatientsInput,
     SearchPatientInput,
     UpdatePatientInput,
+    UpdatePatientRefInput,
 } from './patient.schema.ts';
 
 export type PatientRow = typeof patients.$inferSelect;
@@ -119,6 +126,20 @@ interface PatientDetail {
 interface RecentPatients {
     patients: Patient[];
     total: number;
+}
+
+/**
+ * Which kind of record a `ref_edits` row is about. Appointments carry refs too
+ * (§5) and edit into the same table, so the column is not a patient id alone.
+ */
+export const REF_EDIT_ENTITY = { PATIENT: 'patient', APPOINTMENT: 'appointment' } as const;
+
+/** One correction, as the record screen reads it back. */
+export interface RefEdit {
+    previousRef: string;
+    newRef: string;
+    editedBy: string;
+    editedAt: Date;
 }
 
 /** Exported for callers that already hold the row rather than the shape a read returns. */
@@ -337,15 +358,17 @@ export const patientService = {
      * `ref` is a number this app allocated and nobody has ever seen. Both are
      * matched as a substring, like the name: a half-typed number should narrow
      * the list rather than find nothing until the last digit.
+     *
+     * The same is true of the phone, and is why the term goes through
+     * `phoneSearchTerm` rather than `normalizePhone`: a number still being typed
+     * does not normalize, and matched as typed it would find nothing at all.
+     * Several patients can share a number, so every one of them comes back.
      */
     async search(input: SearchPatientInput): Promise<Patient[]> {
         const term = input.q.trim();
         if (!term) return [];
 
-        let phoneTerm = term;
-        try {
-            phoneTerm = normalizePhone(term);
-        } catch {}
+        const phoneTerm = phoneSearchTerm(term);
 
         const rows = await db
             .select()
@@ -353,7 +376,7 @@ export const patientService = {
             .where(
                 or(
                     ilike(patients.name, `%${term}%`),
-                    ilike(patients.phone, `%${phoneTerm}%`),
+                    ...(phoneTerm ? [ilike(patients.phone, `%${phoneTerm}%`)] : []),
                     ilike(patients.ref, `%${term}%`),
                     ilike(patients.legacyRef, `%${term}%`),
                 ),
@@ -533,7 +556,7 @@ export const patientService = {
             .update(patients)
             .set({
                 ...patch,
-                ...(patch.phone ? { phone: normalizePhone(patch.phone) } : {}),
+                ...(patch.phone === undefined ? {} : { phone: normalizePhone(patch.phone) }),
                 ...(custom ? { custom } : {}),
             })
             .where(eq(patients.id, id))
@@ -541,6 +564,123 @@ export const patientService = {
 
         if (!row) throw AppError.notFound('patient');
         return toPatient(row);
+    },
+
+    /**
+     * Correct the number a record is already known by.
+     *
+     * A ref goes at the top of a paper file and is read back off it for years,
+     * so a wrong one is not something to live with — but it is also not desk
+     * work. Three things stand between a typo and the column:
+     *
+     * **Who.** `REF_EDIT_ROLES` decides. The role is the client's own word for
+     * itself and not a session — there are no accounts (§1) — so this is a
+     * guard rail rather than authentication, and it is checked on the server
+     * anyway: the rule then lives in one place for when there are accounts, and
+     * the audit row is stamped with what was claimed instead of nothing.
+     *
+     * **What.** Both patient ref shapes stay valid, the plain number and the
+     * four-character code a patient from before numbering carries, because that
+     * code is still the number on their file. A number at or above
+     * `patient_ref_next` is refused for the reason `assertOldRefUnreserved`
+     * gives, which is the same reason and the same code as registering one.
+     * Uniqueness is Postgres's answer, not a read-then-write: two phones
+     * correcting onto the same number would both see it free.
+     *
+     * **A record of it.** Previous value, new value, role, and when — written in
+     * the same transaction as the change, so a ref never moves without one.
+     *
+     * Re-typing the ref a patient already has is not a change and is not
+     * audited. It is what a screen submitting an untouched field does, and
+     * filling the trail with rows where nothing moved would bury the edits that
+     * did.
+     */
+    async updateRef({ id, ref, editedBy }: UpdatePatientRefInput): Promise<Patient> {
+        if (!canEditRef(editedBy)) {
+            throw new AppError(
+                ERROR_CODE.REF_EDIT_FORBIDDEN,
+                `a ref may only be edited by: ${REF_EDIT_ROLES.join(', ')}`,
+                403,
+            );
+        }
+
+        const next = normalizeRef(ref);
+        if (!isPatientRef(next)) {
+            throw new AppError(
+                ERROR_CODE.PATIENT_REF_INVALID,
+                'a patient ref is a plain number, or the four-character code a patient from before numbering carries',
+                422,
+            );
+        }
+
+        const row = await db.transaction(async (tx) => {
+            const [current] = await tx
+                .select()
+                .from(patients)
+                .where(eq(patients.id, id))
+                .limit(1)
+                .for('update');
+            if (!current) throw AppError.notFound('patient');
+            if (current.ref === next) return current;
+
+            await assertOldRefUnreserved(tx, next);
+
+            let updated: PatientRow | undefined;
+            try {
+                [updated] = await tx
+                    .update(patients)
+                    .set({ ref: next })
+                    .where(eq(patients.id, id))
+                    .returning();
+            } catch (err) {
+                if (pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION && isRefCollision(err)) {
+                    throw new AppError(
+                        ERROR_CODE.PATIENT_REF_TAKEN,
+                        'another patient already has that number',
+                        409,
+                        { cause: err },
+                    );
+                }
+                throw err;
+            }
+
+            if (!updated) throw AppError.notFound('patient');
+
+            await tx.insert(refEdits).values({
+                id: Bun.randomUUIDv7(),
+                entity: REF_EDIT_ENTITY.PATIENT,
+                entityId: id,
+                previousRef: current.ref,
+                newRef: next,
+                editedBy,
+            });
+
+            return updated;
+        });
+
+        return toPatient(row);
+    },
+
+    /**
+     * Every correction made to this patient's ref, newest first.
+     *
+     * The patient is not required to still exist. `ref_edits` is kept when a
+     * record is deleted on purpose, and a ref moved onto the wrong patient who
+     * was then deleted is the sequence most worth being able to read back — so
+     * refusing the read for a record that is gone would withhold exactly the
+     * history the table is retained for. An id nobody holds answers `[]`.
+     */
+    async refHistory(id: string): Promise<RefEdit[]> {
+        return db
+            .select({
+                previousRef: refEdits.previousRef,
+                newRef: refEdits.newRef,
+                editedBy: refEdits.editedBy,
+                editedAt: refEdits.editedAt,
+            })
+            .from(refEdits)
+            .where(and(eq(refEdits.entity, REF_EDIT_ENTITY.PATIENT), eq(refEdits.entityId, id)))
+            .orderBy(desc(refEdits.editedAt));
     },
 
     /**

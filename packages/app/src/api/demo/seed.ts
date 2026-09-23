@@ -423,6 +423,7 @@ function emptyDb(): DemoDb {
         payments: [],
         customQuestions: [],
         reminders: [],
+        refEdits: [],
         settings: {
             clinicName: 'Lustre Dental',
             clinicPhone: '+20221234567',
