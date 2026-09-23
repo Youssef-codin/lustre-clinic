@@ -55,10 +55,23 @@ export function HistoricalDateSheet({
     const today = todayKey();
 
     // Seeded from the entry so reopening a dated row lands on its own month
-    // rather than on this one, and re-seeded per open: the sheet is remounted
-    // by `key` at the call site, which is what makes plain state enough.
+    // rather than on this one.
     const [pending, setPending] = useState(selected);
     const [month, setMonth] = useState(selected ?? today);
+
+    // Re-seeded on each open, during render rather than in an effect (which is
+    // banned here, and would paint the stale month first anyway). Without this
+    // the sheet remembers a pick that was made and then *cancelled*: tapping a
+    // day and dismissing leaves the entry undated, and the next open would
+    // still be sitting on that day as though it had been chosen.
+    const [wasVisible, setWasVisible] = useState(visible);
+    if (wasVisible !== visible) {
+        setWasVisible(visible);
+        if (visible) {
+            setPending(selected);
+            setMonth(selected ?? today);
+        }
+    }
 
     const days = monthDays(month);
     const leading = parseKey(days[0] ?? month).getDay();

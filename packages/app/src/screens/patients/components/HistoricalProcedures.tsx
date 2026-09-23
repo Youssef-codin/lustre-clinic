@@ -39,10 +39,9 @@ export type HistoricalProceduresProps = {
     entries: HistoricalProcedureDraft[];
     onChange: (entries: HistoricalProcedureDraft[]) => void;
     /**
-     * Whether the catalogue is worth fetching yet. The registration block is
-     * behind a switch that is off by default, and most registrations never turn
-     * it on — a tree fetched for every one of them is a request over Tailscale
-     * for a list nobody is going to open.
+     * Whether the catalogue may be fetched at all. The registration block is
+     * behind a switch that is off by default, and a closed switch must not
+     * spend a request on a list it is not showing.
      */
     enabled?: boolean;
 };
@@ -63,7 +62,14 @@ export function HistoricalProcedures({
     const t = useT();
     const [asking, setAsking] = useState<Asking>(null);
 
-    const catalogue = useLocalQuery('patients:procedureTree', () => dayApi.procedureTree(), { enabled });
+    // Not until the desk asks for it. The editor draws this list on every
+    // record it opens and most of those are opened to fix a phone number, so a
+    // tree fetched on mount is a request over Tailscale for a sheet nobody is
+    // going to open. Tapping Add starts it, and the sheet has a loading state
+    // for exactly that moment.
+    const catalogue = useLocalQuery('patients:procedureTree', () => dayApi.procedureTree(), {
+        enabled: enabled && asking !== null,
+    });
 
     /**
      * The sheet offers the whole catalogue, so a pick can arrive owing a tooth.
@@ -144,7 +150,7 @@ export function HistoricalProcedures({
                     testID="patient-old-add-procedure"
                 />
 
-                {catalogue.error ? (
+                {catalogue.error && asking === null ? (
                     <Callout tone="warning" title="Could not load the procedures">
                         The rest of the form still saves — the previous procedures are the only part that
                         needs the catalogue.
@@ -176,10 +182,7 @@ export function HistoricalProcedures({
                 tooth={null}
             />
 
-            {/* Keyed by the entry so each open starts on that row's own month
-                rather than on the last row's — the sheet seeds its state once. */}
             <HistoricalDateSheet
-                key={dating?.id ?? 'none'}
                 visible={dating !== undefined}
                 selected={dating?.performedOn ?? null}
                 procedureName={dating?.name}
