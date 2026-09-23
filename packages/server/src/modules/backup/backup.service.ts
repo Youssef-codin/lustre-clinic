@@ -13,7 +13,7 @@
  * reads every record — but the phone confirms before calling it, and the code
  * it sends is single-use and worthless without the verifier that made it.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import {
     createDriveFolder,
     DRIVE_SCOPE,
@@ -25,6 +25,7 @@ import { readLastSuccess, readOffsiteState, resolveDriveCredentials } from '../.
 import { config } from '../../config.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { logger } from '../../logger.ts';
+import { broadcast } from '../../ws/index.ts';
 
 interface BackupStatus {
     lastSuccessAt: string | null;
@@ -118,6 +119,7 @@ export const backupService = {
                 linkedAt: new Date().toISOString(),
             };
             await writeDriveGrant(grant);
+            broadcast(WS_EVENT.SETTINGS_UPDATED);
 
             // No token, no account, no folder id: this line is the audit trail and
             // §4 keeps identifiers out of it.

@@ -23,11 +23,12 @@
  * validation, patching, and auditing. Error messages name the question key,
  * never the answer, which is patient data.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { customQuestions } from '../../db/schema.ts';
 import { AppError, PG_ERROR, pgErrorCode } from '../../errors/AppError.ts';
+import { broadcast } from '../../ws/index.ts';
 import type {
     CreateCustomQuestionInput,
     ListCustomQuestionInput,
@@ -80,6 +81,7 @@ export const customQuestionService = {
                 .returning();
 
             if (!row) throw AppError.internal('custom question insert returned nothing');
+            broadcast(WS_EVENT.CATALOG_UPDATED, { id: row.id });
             return row;
         } catch (err) {
             if (pgErrorCode(err) === PG_ERROR.UNIQUE_VIOLATION) {
@@ -99,6 +101,7 @@ export const customQuestionService = {
             .returning();
 
         if (!row) throw AppError.notFound('custom question');
+        broadcast(WS_EVENT.CATALOG_UPDATED, { id });
         return row;
     },
 
@@ -125,6 +128,7 @@ export const customQuestionService = {
                 await tx.update(customQuestions).set({ sortOrder: index }).where(eq(customQuestions.id, id));
             }
         });
+        broadcast(WS_EVENT.CATALOG_UPDATED);
     },
 
     async byKey(): Promise<Map<string, CustomQuestion>> {

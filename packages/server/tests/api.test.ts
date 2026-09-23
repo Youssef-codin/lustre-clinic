@@ -657,7 +657,7 @@ describe('websocket broadcasts', () => {
         });
     });
 
-    test('awaiting payment pushes appointment:updated', async () => {
+    test('awaiting payment pushes appointment:updated and visit:completed', async () => {
         const { client } = api;
         const { branch, patient } = await clinicViaApi();
         const appointment = await client.appointment.create.mutate({
@@ -671,7 +671,10 @@ describe('websocket broadcasts', () => {
             client.appointment.awaitPayment.mutate({ id: appointment.id }),
         );
 
-        expect(events).toEqual([{ event: WS_EVENT.APPOINTMENT_UPDATED, id: appointment.id }]);
+        expect(events).toEqual([
+            { event: WS_EVENT.APPOINTMENT_UPDATED, id: appointment.id },
+            { event: WS_EVENT.VISIT_COMPLETED, id: appointment.id },
+        ]);
     });
 
     test('a settings change pushes settings:updated', async () => {
@@ -709,7 +712,7 @@ describe('websocket broadcasts', () => {
         const { client } = api;
         const { branch, patient, rootCanal } = await clinicViaApi();
 
-        const { events } = await captureWsEvents(api.wsUrl, async () => {
+        const { events, frames } = await captureWsEvents(api.wsUrl, async () => {
             const appointment = await client.appointment.create.mutate({
                 patient: { kind: 'existing', patientId: patient.id },
                 branchId: branch.id,
@@ -726,13 +729,17 @@ describe('websocket broadcasts', () => {
         });
 
         expect(events.length).toBeGreaterThan(0);
-        const serialized = JSON.stringify(events);
+        // The amount is checked without the envelope: `at` is a timestamp and
+        // can contain any run of digits.
+        expect(JSON.stringify(events)).not.toContain('100000');
+        const serialized = JSON.stringify(frames);
         expect(serialized).not.toContain('Nadia');
         expect(serialized).not.toContain('201012345678');
-        expect(serialized).not.toContain('100000');
-        for (const event of events) {
-            expect(Object.keys(event).sort()).toEqual(
-                event.event === WS_EVENT.SETTINGS_UPDATED ? ['event'] : ['event', 'id'],
+        for (const frame of frames) {
+            expect(Object.keys(frame).sort()).toEqual(
+                frame.type === 'event' && frame.event === WS_EVENT.SETTINGS_UPDATED
+                    ? ['at', 'epoch', 'event', 'seq', 'type', 'v']
+                    : ['at', 'epoch', 'event', 'id', 'seq', 'type', 'v'],
             );
         }
     });

@@ -87,3 +87,17 @@ export function connectionCrumb(status: string): Breadcrumb {
 export function noteConnection(status: string): void {
     sink?.(connectionCrumb(status));
 }
+
+/** A `/ws` frame and what the cursor made of it (`api/serverEvents.ts`): the event name, never its ID. */
+export function liveCrumb(event: string, outcome: string): Breadcrumb {
+    return {
+        category: 'live',
+        type: 'info',
+        level: outcome === 'resync' ? 'warning' : 'info',
+        data: { event, outcome },
+    };
+}
+
+export function noteLive(event: string, outcome: string): void {
+    sink?.(liveCrumb(event, outcome));
+}
