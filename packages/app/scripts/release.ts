@@ -101,7 +101,7 @@ async function isDemoBuild(): Promise<boolean> {
  * no phone sends, with nothing to see until you need a crash report — so a
  * production build without reporting has to be deliberate, not the default.
  */
-async function glitchtipDsn(): Promise<string | null> {
+async function glitchtipDsn(updates: string): Promise<string | null> {
     if (DEV || (await isDemoBuild())) return null;
 
     const dsn = process.env.LUSTRE_GLITCHTIP_DSN?.trim();
@@ -116,6 +116,14 @@ async function glitchtipDsn(): Promise<string | null> {
     if (host === 'localhost' || host.startsWith('127.') || host === '[::1]') {
         fail(
             `LUSTRE_GLITCHTIP_DSN points at ${dsn.slice(dsn.indexOf('@') + 1)}. Use the server's MagicDNS name: no phone can reach loopback.`,
+        );
+    }
+    // GlitchTip runs beside the API on the clinic server, so anything else — `0.0.0.0`,
+    // another machine — is a DSN copied from somewhere it does not belong.
+    const clinic = new URL(updates).hostname;
+    if (host !== clinic) {
+        fail(
+            `LUSTRE_GLITCHTIP_DSN points at ${host}, but LUSTRE_UPDATES_URL is ${clinic}. Both are the clinic server.`,
         );
     }
     return dsn;
@@ -235,7 +243,7 @@ async function assertApkKey(apk: string): Promise<void> {
 
 async function buildApk(major: boolean): Promise<void> {
     const url = updatesUrl();
-    const dsn = await glitchtipDsn();
+    const dsn = await glitchtipDsn(url);
     await assertCleanTree();
 
     const staged = await stagedApk();
@@ -325,6 +333,10 @@ async function buildApk(major: boolean): Promise<void> {
 
 async function publishUpdate(): Promise<void> {
     const url = updatesUrl();
+    // Not used here, but checked: the DSN is hashed into the runtime fingerprint, so
+    // an update published without the one the APK was built with resolves a runtime
+    // no phone is on.
+    await glitchtipDsn(url);
     const keyPath = await gradleProperty('LUSTRE_UPDATES_PRIVATE_KEY');
     if (!keyPath) {
         fail(

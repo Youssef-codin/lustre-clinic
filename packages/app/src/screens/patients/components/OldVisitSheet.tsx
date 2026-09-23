@@ -28,6 +28,7 @@ import { MoneyValue } from '../../../components/domain';
 import { AddButton, Button, Callout, Card, CardDivider, NumericField, Sheet } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
+import { chargeableTotal, checkupIsWaived } from '../../day/procedures';
 import { formatLongDate } from '../../day/time';
 import type { AddOldVisitInput } from '../data/types';
 import { HistoricalDateSheet } from './HistoricalDateSheet';
@@ -43,6 +44,7 @@ type Line = {
     tooth: string | null;
     /** Whole pounds, as digits. Seeded from the catalogue and editable — the desk may have charged something else. */
     pounds: string;
+    isCheckup: boolean;
 };
 
 export type OldVisitSheetProps = {
@@ -96,13 +98,20 @@ export function OldVisitSheet({
                 // the desk usually means. `unitPrice` still rides on the line,
                 // so a different figure is a correction, not a fight.
                 pounds: String(Math.round(pick.defaultPrice / 100)),
+                isCheckup: pick.isCheckup,
             },
         ]);
         setAsking(null);
     }
 
     const priced = lines.every((line) => isWholePounds(line.pounds.trim()) || line.pounds.trim() === '');
-    const total = lines.reduce((sum, line) => sum + poundsOf(line.pounds) * 100, 0);
+    // The checkup waiver the server charges by (§10), so the figure shown is the one owed.
+    const chargeable = lines.map((line) => ({
+        unitPrice: poundsOf(line.pounds) * 100,
+        quantity: 1,
+        isCheckup: line.isCheckup,
+    }));
+    const total = chargeableTotal(chargeable, checkupIsWaived(chargeable));
     const ready = performedOn !== null && lines.length > 0 && priced;
 
     return (

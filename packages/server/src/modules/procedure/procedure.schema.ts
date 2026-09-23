@@ -133,6 +133,8 @@ export const addOldVisitInput = z.object({
     /** Defaults to the clinic's first active branch when the caller does not say. */
     branchId: z.uuid().nullish(),
     procedures: z.array(oldVisitLine).min(1).max(MAX_HISTORICAL_PROCEDURES),
+    /** The client's UTC offset, so "a day that has happened" is the clinic's day, not the server's. */
+    offsetMinutes: z.number().int().min(-840).max(840).default(0),
 });
 
 export type AddOldVisitInput = z.infer<typeof addOldVisitInput>;

@@ -7,7 +7,7 @@
 import { ERROR_CODE, todayKey } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type ProcedureTypeRow, save, type VisitProcedureRow, type VisitRow } from '../db';
-import { assignDefined, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
+import { assignDefined, computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
 import { insertAppointment } from './appointmentRow';
 import { branchHandlers } from './branch';
@@ -232,7 +232,9 @@ export const procedureHandlers = {
             tooth: line.tooth,
             note: null,
         }));
-        const chargedTotal = priced.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+        const chargedTotal = computeTotal(
+            priced.map((line, index) => ({ ...line, isCheckup: lines[index]?.procedure.isCheckup ?? false })),
+        );
 
         // `done` holds no slot, which is the only reason a past date is
         // writable at all — the day is probably already full of real rows.

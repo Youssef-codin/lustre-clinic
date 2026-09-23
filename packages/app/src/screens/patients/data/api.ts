@@ -19,7 +19,7 @@ import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 // cluster, and the queue rule is all this needs.
 import { arrivalQueue } from '../../day/chair';
 import { checkInTimes, api as dayApi } from '../../day/data';
-import { todayKey } from '../../day/time';
+import { localOffsetMinutes, todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
     AddedHistoricalProcedures,
@@ -170,7 +170,9 @@ export const patientsApi = {
      * a second visit, and this one has money on it.
      */
     addOldVisit(input: AddOldVisitInput): Promise<AddedOldVisit> {
-        return wrap(() => trpcClient.procedure.addOldVisit.mutate(input));
+        return wrap(() =>
+            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: localOffsetMinutes() }),
+        );
     },
 
     /**

@@ -297,8 +297,11 @@ staged, or one signed with any certificate but the release keystore's.
 UI under the project's Settings -> Client Keys. Use the clinic's MagicDNS name,
 not localhost: the DSN is read on the phone, so loopback would name the phone.
 It is baked into the APK at build time and no OTA update can add it later, so
-`release:apk` refuses a production build without it. Dev and demo builds are
-exempt and ship with reporting off on purpose.
+`release:apk` refuses a production build without it. It must name the same host
+as `LUSTRE_UPDATES_URL`. `release:update` needs the same value too: the DSN is
+part of the runtime fingerprint, so an update published without it would target
+a runtime no phone has. Dev and demo builds are exempt and ship with reporting
+off on purpose.
 
 Check the server has it: `curl http://<clinic>:3000/trpc/release.latestApk`.
 
@@ -310,7 +313,9 @@ role and saved address survive because the APK is signed with the same key.
 ### Publishing a JavaScript update
 
 ```sh
-LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:update
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 \
+LUSTRE_GLITCHTIP_DSN=http://<key>@<clinic MagicDNS name>:8000/1 \
+bun release:update
 git push origin v<the version it printed>
 bun play releases
 ```

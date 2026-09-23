@@ -21,10 +21,11 @@
  * the changeover belongs to a visit that charges for it, not to a row nothing
  * counts.
  */
-import { ERROR_CODE, todayKey, WS_EVENT } from '@lustre/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { db } from '../../db/index.ts';
 import { visitProcedures, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
+import { computeTotal } from '../../util/money.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
 import { planOldPatientHistory, writeOldPatientHistory } from '../migration/migration.service.ts';
@@ -98,8 +99,9 @@ export const procedureHistoryService = {
         await patientService.requireExists(input.patientId);
 
         // A visit that has not happened is not a record of anything. Dates
-        // compare as strings in ISO.
-        if (input.performedOn > todayKey()) {
+        // compare as strings in ISO, and "today" is the clinic's, not the server's.
+        const today = new Date(Date.now() + input.offsetMinutes * 60_000).toISOString().slice(0, 10);
+        if (input.performedOn > today) {
             throw new AppError(
                 ERROR_CODE.VALIDATION,
                 'an old visit has to be dated on a day that has happened',
@@ -110,7 +112,11 @@ export const procedureHistoryService = {
         // §5's rules, the same ones a visit and a booking answer to.
         const lines = await resolveProcedureLines(input.procedures);
 
-        const branchId = input.branchId ?? (await defaultBranchId());
+        // A named branch is checked here: left to the insert, a missing one is a
+        // foreign-key violation and reaches the client as INTERNAL, not NOT_FOUND.
+        const branchId = input.branchId
+            ? (await branchService.byId(input.branchId)).id
+            : await defaultBranchId();
         const { defaultDuration } = await settingsService.get();
 
         const at = noonUtc(input.performedOn);
@@ -125,7 +131,10 @@ export const procedureHistoryService = {
             note: line.note,
         }));
 
-        const chargedTotal = priced.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
+        // The checkup waiver, as on any visit (§10): a checkup is free when other work was done.
+        const chargedTotal = computeTotal(
+            priced.map((line, i) => ({ ...line, isCheckup: lines[i]?.procedure.isCheckup ?? false })),
+        );
 
         // `insertWithRef` is imported here rather than at the top of the file
         // for the reason `migration.service` gives: a static import would close
