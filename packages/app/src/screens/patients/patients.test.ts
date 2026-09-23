@@ -36,6 +36,7 @@ import {
     missingRequired,
     owesInput,
     owesPiastres,
+    refBaselineOf,
     refEditError,
     refEditOf,
     refError,
@@ -788,6 +789,29 @@ describe('the ref', () => {
             expect(refEditOf(from('911'), landed)).toBe('911');
             // Put back to what the record opened with: also a real change.
             expect(refEditOf(from('W5F5'), landed)).toBe('W5F5');
+        });
+
+        // The record refetched after somebody else changed the number. The
+        // draft still holds the one it opened with, and an unrelated Save must
+        // not send that back as a correction.
+        it('does not undo a number someone else changed underneath', () => {
+            const refreshed = from('777'); // the record's latest read
+            const draft = from('W5F5'); // untouched since it was seeded
+
+            const baseline = refBaselineOf(refreshed, 'W5F5', null);
+            expect(refEditOf(draft, baseline as PatientForm)).toBeNull();
+            // Measured against the refreshed record instead, it would have gone out.
+            expect(refEditOf(draft, refreshed)).toBe('W5F5');
+        });
+
+        it('takes a number it saved itself over the one it was seeded with', () => {
+            expect(refBaselineOf(from('W5F5'), 'W5F5', '910')?.ref).toBe('910');
+            expect(refBaselineOf(from('W5F5'), 'W5F5', null)?.ref).toBe('W5F5');
+        });
+
+        it('has no baseline until the draft is seeded', () => {
+            expect(refBaselineOf(null, null, null)).toBeNull();
+            expect(refBaselineOf(from('W5F5'), null, null)).toBeNull();
         });
 
         // A registration holds no ref: the counter hands the number out.

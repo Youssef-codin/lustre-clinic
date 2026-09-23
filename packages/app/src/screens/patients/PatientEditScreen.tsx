@@ -88,6 +88,7 @@ import {
     malformedBasics,
     malformedOld,
     missingRequired,
+    refBaselineOf,
     refEditError,
     refEditOf,
     unaskableRequired,
@@ -167,7 +168,16 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // null is what says "not seeded yet" — nothing ever sets it back, so the
     // condition cannot fire twice.
     const [form, setForm] = useState<PatientForm | null>(null);
-    if (form === null && initial !== null) setForm(initial);
+    // The number this draft was seeded with, held the same way and for a
+    // sharper reason. `initial` follows the record, so a refetch after somebody
+    // else corrected the number would move it to theirs while the form still
+    // holds the old one — and a Save pressed for an unrelated field would send
+    // the old number back as a "correction", silently undoing theirs.
+    const [seededRef, setSeededRef] = useState<string | null>(null);
+    if (form === null && initial !== null) {
+        setForm(initial);
+        setSeededRef(initial.ref);
+    }
 
     // The number that landed on an earlier attempt whose rest did not. Two
     // calls cannot be one transaction from here, so the screen says which half
@@ -178,7 +188,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // a number changed *again* after a partial save would be dropped silently
     // while the patch went through and closed the screen.
     const [savedRef, setSavedRef] = useState<string | null>(null);
-    const refBaseline = initial && savedRef !== null ? { ...initial, ref: savedRef } : initial;
+    const refBaseline = refBaselineOf(initial, seededRef, savedRef);
 
     const loading = questions.loading || record.loading;
     const failed = questions.error ?? record.error;

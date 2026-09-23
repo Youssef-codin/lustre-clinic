@@ -525,6 +525,25 @@ export function refEditError(form: PatientForm, initial: PatientForm): string | 
 }
 
 /**
+ * What an edited ref is compared against: the last number this editor *knows*
+ * is on file — one it saved itself, else the one it was seeded with.
+ *
+ * Deliberately not `initial.ref`. `initial` follows the record, and a refetch
+ * after somebody else corrected the number moves it to theirs while the draft
+ * still holds the old one; compared against that, an untouched field reads as
+ * a change, and a Save pressed for the phone number would send the old ref back
+ * and silently undo theirs. Null until the draft is seeded.
+ */
+export function refBaselineOf(
+    initial: PatientForm | null,
+    seededRef: string | null,
+    savedRef: string | null,
+): PatientForm | null {
+    const onFile = savedRef ?? seededRef;
+    return initial && onFile !== null ? { ...initial, ref: onFile } : null;
+}
+
+/**
  * The ref to send, or null when there is nothing to send.
  *
  * Null covers three cases that all mean *do not call* — registering, a ref that
