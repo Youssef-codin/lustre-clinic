@@ -42,7 +42,7 @@
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { MoneyValue, statusLabel } from '../../../components/domain';
-import { useT } from '../../../i18n';
+import { useLocale, useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
 
@@ -62,7 +62,10 @@ export type HistoryRowProps = {
     onOpen?: (entry: PatientHistoryEntry) => void;
 };
 
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+// Title case, not the shouted form the stamp draws: the catalogue is keyed on
+// the name as it is written, and the row upper-cases it for English at render.
+// Arabic has no case, so it takes the translation as it comes.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 type Tone = 'ink' | 'success' | 'due' | 'muted';
 
@@ -91,6 +94,7 @@ const IMPORTED: { label: string; tone: Tone } = { label: 'Old record', tone: 'mu
 
 export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const t = useT();
+    const locale = useLocale();
     const { day, month } = stamp(entry.startsAt);
     const carried = entry.isOpeningBalance;
     // Debt carried over from the old system has a visit behind it, because that
@@ -143,7 +147,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                             {day}
                         </Text>
                         <Text variant="tag" tone="muted">
-                            {month}
+                            {locale === 'ar' ? t(month) : month.toUpperCase()}
                         </Text>
                     </>
                 )}
@@ -217,7 +221,12 @@ function Work({ procedures }: { procedures: HistoryProcedure[] }) {
     return (
         <Text variant="callout" weight="bold" numberOfLines={2}>
             {first.tooth ? `${first.name} — ${first.tooth}` : first.name}
-            {rest.length > 0 ? <Text variant="subhead" tone="muted">{`  +${rest.length} more`}</Text> : null}
+            {rest.length > 0 ? (
+                <Text variant="subhead" tone="muted">
+                    {'  '}
+                    {rest.length === 1 ? t('+1 more') : t('+{count} more', { count: rest.length })}
+                </Text>
+            ) : null}
         </Text>
     );
 }
@@ -262,7 +271,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
         return (
             <View style={styles.meaning}>
                 <Text variant="caption" tone="muted">
-                    of
+                    {t('of')}
                 </Text>
                 <MoneyValue
                     piastres={entry.chargedTotal}

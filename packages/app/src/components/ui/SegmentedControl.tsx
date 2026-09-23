@@ -68,9 +68,19 @@ export function SegmentedControl<T extends string>({
     const isRTL = useIsRTL();
     const t = useT();
 
-    // The first segment sits at the far end in RTL, so the thumb walks back
-    // from it; `layout.x` and `translateX` are both physical, neither flips.
-    const step = slot ? slot.x + (isRTL ? -index : index) * slot.width : 0;
+    // Anchored at the track's start edge and walked towards its end — one
+    // frame, which is what this had been missing. `layout.x` and `translateX`
+    // are physical, but `left` is not: `LocaleProvider` turns on
+    // `swapLeftAndRightInRTL`, so the thumb's `left: 0` meant the right edge in
+    // Arabic while the offset added to it still counted from the left. Measured
+    // in Arabic the thumb landed a half-track past the end of its own track and
+    // neither tab read as chosen.
+    //
+    // The inset is the track's padding — what `layout.x` reports for the first
+    // segment in LTR. In RTL that segment sits at the far end, so the padding is
+    // what is left after walking the others back off it.
+    const inset = slot ? (isRTL ? slot.x - (segments.length - 1) * slot.width : slot.x) : 0;
+    const step = slot ? (isRTL ? -1 : 1) * (inset + index * slot.width) : 0;
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: the step is the change
     useEffect(() => {
@@ -161,12 +171,15 @@ const styles = StyleSheet.create({
         borderRadius: radius.full,
     },
     segmentSm: { minHeight: 30 },
-    /** `left: 0` and not `start`: `layout.x` is measured from the left in both directions. */
+    /** `start: 0`, so the thumb begins at the end of the track the first segment
+     * is at — the only anchor that survives `swapLeftAndRightInRTL`. What moves
+     * it along is `translateX`, which stays physical, so the offset above
+     * carries the sign. */
     thumb: {
         position: 'absolute',
         top: 0,
         bottom: 0,
-        left: 0,
+        start: 0,
         borderRadius: radius.full,
         backgroundColor: color.surface,
         borderWidth: border.hair,

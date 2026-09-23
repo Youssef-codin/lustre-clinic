@@ -22,6 +22,22 @@
  * readout is right-anchored, so the count growing from `9:59` to `10:00` pushes
  * its own left edge and leaves the suffix where it is.
  *
+ * **The readout is `ltr` and the row around it is not.** The bar mirrors in
+ * Arabic and should: the track belongs on the end the page starts from, and the
+ * fill runs the way the page is read. The readout cannot, because it is not
+ * laid out as text — the count is one `View` per character (see `TickingCount`)
+ * and Yoga mirrors a `row` under RTL, so in Arabic each wheel was placed from
+ * the right and `5:19` was drawn `91:5`. That is the whole of the reported bug:
+ * the count was correct the entire time and read backwards. The `30` and `20`
+ * reported alongside it are the first seconds of a visit — `0:03` and `0:02`,
+ * drawn `30:0` and `20:0`, which is why the value looked like it was jumping
+ * about in tens rather than counting.
+ * Pinning the direction here fixes the wheels and the suffix beside them in one
+ * place, and it is the honest description of this piece — a stopwatch reads
+ * left to right in every language, which is also why `slotProgress` keeps its
+ * `/ 45 min` in English (§7.11 keeps the digits Latin, and half-translating the
+ * run would put an Arabic word inside a Latin figure).
+ *
  * The `ProgressBar` must sit in its own container: it sizes itself with
  * `alignSelf`, which inside a row means nothing at all.
  */
@@ -164,7 +180,10 @@ function Digit({ character }: { character: string }) {
 const styles = StyleSheet.create({
     progress: { flexDirection: 'row', alignItems: 'center', gap: space[2.5], marginTop: space[4] },
     track: { flex: 1 },
-    readout: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+    // `direction` is Yoga's, so it is inherited by the digit row below and by
+    // the suffix's text, and it is the only thing between this readout and the
+    // mirroring the rest of the card wants. See the note at the top.
+    readout: { flexDirection: 'row', alignItems: 'center', gap: space[1], direction: 'ltr' },
     digits: { flexDirection: 'row', alignItems: 'center' },
     // Clipped per column, which is what makes it read as a wheel: the character
     // arriving is cut off by the row rather than floating up into the bar.

@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { computeTotal } from '../../api/demo/rules';
+import { setRuntimeLocale } from '../../i18n/runtime';
 import { procedureLabel, rowSummary, splitDay } from './agenda';
 import {
     daysOffered,
@@ -470,6 +471,50 @@ describe("the doctor's day", () => {
         expect(late.count).toBe('15:00');
         expect(late.of).toBe('over');
         expect(late.label).toBe('15:00 over');
+    });
+
+    // The readout stays English in Arabic. The digits are Latin everywhere in
+    // the app (§7.11), and here the word beside them is Latin too: this is one
+    // mono column read as a stopwatch, and half-translating it puts a second
+    // script inside a figure — which is also what let the whole thing be laid
+    // out right to left and come out as `91:5`.
+    it('keeps the readout in English when the app is in Arabic', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const long = { ...appointment, durationMinutes: 90 };
+        const seated = stamp('11:00');
+        const from = secondsOfDay(seated);
+
+        setRuntimeLocale('ar');
+        try {
+            const running = slotProgress(appointment, (from + 319) / 60, seated);
+            expect(running.count).toBe('5:19');
+            expect(running.of).toBe('/ 30 min');
+            expect(running.label).toBe('5:19 / 30 min');
+
+            expect(slotProgress(long, (from + 319) / 60, seated).of).toBe('/ 1h 30m');
+            expect(slotProgress(appointment, (from + 2_700) / 60, seated).of).toBe('over');
+        } finally {
+            setRuntimeLocale('en');
+        }
+    });
+
+    // Latin digits and Latin letters, the whole way down a slot. An Arabic
+    // character anywhere in the readout is the bug.
+    it('draws no Arabic in the readout, at any point in the slot', () => {
+        const appointment = at('chair', '11:00', 'checked_in');
+        const seated = stamp('11:00');
+        const from = secondsOfDay(seated);
+
+        setRuntimeLocale('ar');
+        try {
+            for (let second = 0; second <= 2_700; second += 60) {
+                expect(slotProgress(appointment, (from + second) / 60, seated).label).not.toMatch(
+                    /[\u0600-\u06ff]/,
+                );
+            }
+        } finally {
+            setRuntimeLocale('en');
+        }
     });
 });
 

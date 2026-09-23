@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'bun:test';
 import { canEditRef } from '@lustre/shared';
+import { setRuntimeLocale } from '../../i18n/runtime';
 import {
     displayAnswer,
     fromDraft,
@@ -213,6 +214,24 @@ describe('what a recorded payment says it did', () => {
     it('names no visit refs at all', () => {
         const line = paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 });
         expect(line).not.toMatch(/\d{6}-/);
+    });
+
+    // The line is posted from an event handler, so it reads the locale itself
+    // rather than being localized by whatever draws it. The currency goes with
+    // it: `EGP` left in an Arabic sentence is an untranslated string like any
+    // other, and the catalogue test cannot see a sentence built this way.
+    it('reads the locale itself, currency included', () => {
+        setRuntimeLocale('ar');
+        try {
+            expect(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 })).toBe(
+                'سُجل 6,000 ج.م — وما زال 3,550 ج.م مستحقًا',
+            );
+            expect(paymentReceipt({ amount: 955_000, outstandingAfter: 0 })).toBe(
+                'سُجل 9,550 ج.م — سُددت بالكامل',
+            );
+        } finally {
+            setRuntimeLocale('en');
+        }
     });
 });
 

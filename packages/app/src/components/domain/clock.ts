@@ -100,9 +100,15 @@ export function formatStamp(at: number, locale: Locale = 'en'): string {
  * exactly this switch — the chair's progress bar, its overrun label, and the
  * day's delay headline — and each of them used to carry its own copy, which is
  * how the bar came to format hours on the overrun and not on the line above it.
+ *
+ * Two of those three want the app's language and get it from the default. The
+ * chair's bar is the exception and passes `'en'`: its readout is a mono column
+ * of Latin digits (§7.11) with this on the end of it, read the way a stopwatch
+ * is read, and `45 دقيقة` puts a second script inside one figure — an Arabic
+ * word that runs the other way, against digits that cannot. So the language is
+ * a parameter rather than a decision made here.
  */
-export function formatDuration(minutes: number): string {
-    const locale = getLocale();
+export function formatDuration(minutes: number, locale: Locale = getLocale()): string {
     if (minutes < 60) return localizeCopy(locale, '{minutes} min', { minutes });
     return localizeCopy(locale, '{hours}h {minutes}m', {
         hours: Math.floor(minutes / 60),

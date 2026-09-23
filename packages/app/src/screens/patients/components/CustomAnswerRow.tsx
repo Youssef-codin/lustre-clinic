@@ -53,7 +53,11 @@ export function CustomAnswerRow({ question, value, gap }: CustomAnswerRowProps) 
                     </Text>
                 ) : (
                     <Text variant="callout" weight="bold" style={styles.answer}>
-                        {answer}
+                        {/* Only a boolean's answer is the app's own word, so only
+                            that one is looked up. Everything else is what the desk
+                            typed or picked, and a stored answer that happened to
+                            read like a catalogue key would come back translated. */}
+                        {question.kind === 'boolean' ? t(answer) : answer}
                     </Text>
                 )}
 

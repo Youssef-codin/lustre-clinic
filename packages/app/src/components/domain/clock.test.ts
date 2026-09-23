@@ -4,6 +4,7 @@
  * needs a device, and this worktree has none.
  */
 import { describe, expect, it } from 'bun:test';
+import { setRuntimeLocale } from '../../i18n/runtime';
 import {
     clock12,
     formatClock12,
@@ -112,6 +113,22 @@ describe('a length of time', () => {
         expect(formatDuration(127)).toBe('2h 7m');
         expect(formatDuration(341)).toBe('5h 41m');
     });
+
+    // The language is a parameter because one of the three callers does not
+    // want it. The chair's readout is a Latin mono column — count, slash,
+    // whole — and `دقيقة` on the end of it is a second script inside a figure
+    // that is pinned to one. The delay headline and the overrun label still
+    // read the app's language, which is what the default gives them.
+    it('takes the language from the caller, and reads the app otherwise', () => {
+        setRuntimeLocale('ar');
+        try {
+            expect(formatDuration(30)).toBe('30 دقيقة');
+            expect(formatDuration(30, 'en')).toBe('30 min');
+            expect(formatDuration(90, 'en')).toBe('1h 30m');
+        } finally {
+            setRuntimeLocale('en');
+        }
+    });
 });
 
 describe('a count that is running', () => {
@@ -134,5 +151,23 @@ describe('a count that is running', () => {
     it('truncates rather than rounds, and never counts below zero', () => {
         expect(formatElapsed(59.9)).toBe('0:59');
         expect(formatElapsed(-30)).toBe('0:00');
+    });
+
+    // The three values the Arabic bar was reported showing — `30`, `20` and a
+    // malformed `91:5` — are `0:03`, `0:02` and `5:19` read right to left. The
+    // count is assembled correctly here and reversed on its way to the screen,
+    // so these are pinned to keep the formatter out of it next time.
+    it('assembles the count left to right, whatever the layout direction', () => {
+        expect(formatElapsed(3)).toBe('0:03');
+        expect(formatElapsed(2)).toBe('0:02');
+        expect(formatElapsed(319)).toBe('5:19');
+    });
+
+    // Every second of a slot long enough to grow an hours field. One shape
+    // throughout: no bare `30`, no `91:5`, no minute left unpadded.
+    it('never leaves the stopwatch shape, second by second', () => {
+        for (let second = 0; second <= 4_000; second += 1) {
+            expect(formatElapsed(second)).toMatch(/^(?:\d+:)?\d{1,2}:\d{2}$/);
+        }
     });
 });
