@@ -5,7 +5,7 @@ import { patientService } from '../src/modules/patient/patient.service.ts';
 import { procedureHistoryService } from '../src/modules/procedure/procedure.history.ts';
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
-import { type Clinic, expectAppError, clinic as fixtures } from './helpers/factories.ts';
+import { CHECKUP_PRICE, type Clinic, expectAppError, clinic as fixtures } from './helpers/factories.ts';
 
 /**
  * Adding work a patient had done before this system recorded it, from their own
@@ -184,6 +184,139 @@ describe('adding historical procedures to a patient on file', () => {
             }),
         );
 
+        expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+    });
+});
+
+/**
+ * An old visit: work this clinic did on a day that has passed and never typed
+ * in. It is the other half of the same problem and the opposite answer on the
+ * one question that matters — this one **bills**. A historical procedure is
+ * clinical history with no visit behind it; this is an ordinary visit that was
+ * simply entered late, so it is charged and the patient owes it.
+ */
+describe('recording a visit that already happened', () => {
+    beforeAll(setupDatabase);
+    beforeEach(truncateAll);
+
+    const DAY = '2026-09-10';
+
+    test('lands as a completed visit the patient owes', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660001');
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            branchId: clinic.branch.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+
+        expect(added.chargedTotal).toBe(CHECKUP_PRICE);
+
+        const { history } = await patientService.byId(patient.id);
+        expect(history).toHaveLength(1);
+
+        const [row] = history;
+        // Not imported, not an opening balance — an ordinary visit.
+        expect(row?.isImported).toBe(false);
+        expect(row?.isOpeningBalance).toBe(false);
+        expect(row?.visitId).toBe(added.visitId);
+        expect(row?.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(row?.balance).toBe(CHECKUP_PRICE);
+        // Noon UTC, so the day reads back as itself at any offset.
+        expect(row?.startsAt.toISOString()).toBe(`${DAY}T12:00:00.000Z`);
+
+        // And it reaches the money, which is the whole difference from a
+        // historical procedure.
+        const outstanding = await balanceService.outstanding();
+        expect(outstanding.patients.find((p) => p.patientId === patient.id)?.balance).toBe(CHECKUP_PRICE);
+    });
+
+    test('charges the price it is given rather than the catalogue’s', async () => {
+        const clinic = await migrating();
+        const patient = await register('01066660002');
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            // The x-ray is the catalogue's one `hasQuantity` row — §5 refuses a
+            // quantity on anything else, which is a rule this path inherits.
+            procedures: [{ procedureId: clinic.xray.id, quantity: 2, unitPrice: 5_000 }],
+        });
+
+        expect(added.chargedTotal).toBe(10_000);
+    });
+
+    // `appointments_no_overlap` covers `booked` and `checked_in` only, so a
+    // `done` row holds no slot. Without that, a second old visit on one day —
+    // or any old visit on a day the clinic was busy — would collide.
+    test('takes two on the same day without colliding', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660003');
+
+        await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            branchId: clinic.branch.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+        await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            branchId: clinic.branch.id,
+            procedures: [{ procedureId: clinic.rootCanal.id, quantity: 1 }],
+        });
+
+        const { history } = await patientService.byId(patient.id);
+        expect(history).toHaveLength(2);
+    });
+
+    test('needs no migration cutoff, unlike a historical procedure', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660004');
+
+        // The same clinic refuses a historical procedure outright.
+        await expectAppError(ERROR_CODE.MIGRATION_NOT_CONFIGURED, () =>
+            procedureHistoryService.add({
+                patientId: patient.id,
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+        expect(added.visitId).toBeTruthy();
+    });
+
+    test('refuses a day that has not happened', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660005');
+
+        await expectAppError(ERROR_CODE.VALIDATION, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: '2099-01-01',
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+        expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+    });
+
+    test('holds the catalogue rules, and writes nothing when one is broken', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660006');
+
+        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: DAY,
+                procedures: [{ procedureId: clinic.extraction.id, quantity: 1 }],
+            }),
+        );
         expect((await patientService.byId(patient.id)).history).toHaveLength(0);
     });
 });

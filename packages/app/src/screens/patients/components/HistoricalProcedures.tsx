@@ -9,29 +9,23 @@
 // which is `patientForm.ts`'s business and not this file's — here they differ
 // only by their eyebrow.
 //
-// The catalogue sheet and the tooth sheet are the day cluster's, reused rather
-// than redrawn: a procedure the doctor may record is exactly a procedure the
-// old system may have recorded, and a second catalogue would be a second thing
-// to keep in step with §5. They are driven by the day cluster's own query hook
-// for one reason — `ProcedureSheet` takes a `RequestError` and that hook is
-// what produces one.
+// Choosing the procedure is `ProcedurePicker`'s, shared with the old-visit
+// sheet so that the two ways of recording past work cannot drift on the one
+// question they both ask.
 //
 // A date is optional on every entry and blank is not an omission: the file says
 // what was done and not always when. Blank goes to the server as nothing and
 // the record draws it as *before migration*.
-import type { Tooth } from '@lustre/shared';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { AddButton, Callout, Card, CardDivider, duration } from '../../../components/ui';
+import { AddButton, Card, CardDivider } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
-import { type PickedProcedure, ProcedureSheet } from '../../day/components/ProcedureSheet';
-import { ToothSheet } from '../../day/components/ToothSheet';
-import { api as dayApi, useLocalQuery } from '../../day/data';
 import { formatLongDate } from '../../day/time';
 import type { HistoricalProcedureDraft } from '../patientForm';
 import { HistoricalDateSheet } from './HistoricalDateSheet';
 import { CloseIcon } from './icons';
+import { type ProcedurePick, ProcedurePicker } from './ProcedurePicker';
 
 export type HistoricalProceduresProps = {
     /** The eyebrow over the list — what these procedures are called in this place. */
@@ -46,12 +40,8 @@ export type HistoricalProceduresProps = {
     enabled?: boolean;
 };
 
-/** Which question is open: the catalogue, the tooth a pick turned out to owe, or an entry's date. */
-type Asking =
-    | null
-    | { step: 'procedure' }
-    | { step: 'toothFor'; picked: PickedProcedure }
-    | { step: 'dateFor'; entryId: string };
+/** Which question is open: the catalogue, or an entry's date. The tooth question is the picker's. */
+type Asking = null | { step: 'procedure' } | { step: 'dateFor'; entryId: string };
 
 export function HistoricalProcedures({
     title,
@@ -62,37 +52,12 @@ export function HistoricalProcedures({
     const t = useT();
     const [asking, setAsking] = useState<Asking>(null);
 
-    // Not until the desk asks for it. The editor draws this list on every
-    // record it opens and most of those are opened to fix a phone number, so a
-    // tree fetched on mount is a request over Tailscale for a sheet nobody is
-    // going to open. Tapping Add starts it, and the sheet has a loading state
-    // for exactly that moment.
-    const catalogue = useLocalQuery('patients:procedureTree', () => dayApi.procedureTree(), {
-        enabled: enabled && asking !== null,
-    });
-
-    /**
-     * The sheet offers the whole catalogue, so a pick can arrive owing a tooth.
-     * Ask for it before the entry exists — §5 refuses the line without one, and
-     * an entry that the save then throws away is worse than a second question.
-     * Both sheets are `Modal`s, so the second waits out the first's exit rather
-     * than racing it into the silent drop iOS does otherwise.
-     */
-    function pick(picked: PickedProcedure) {
-        if (picked.needsTooth) {
-            setAsking(null);
-            setTimeout(() => setAsking({ step: 'toothFor', picked }), duration.sheet);
-            return;
-        }
-        add(picked, null);
-    }
-
-    function add(picked: PickedProcedure, tooth: Tooth | null) {
+    function add(pick: ProcedurePick) {
         const entry: HistoricalProcedureDraft = {
             id: `old-${Date.now()}-${entries.length}`,
-            procedureId: picked.procedureId,
-            name: picked.variant ? `${picked.name} — ${picked.variant}` : picked.name,
-            tooth,
+            procedureId: pick.procedureId,
+            name: pick.name,
+            tooth: pick.tooth,
             // Undated until the desk says otherwise, which is the honest state
             // for a procedure whose date nobody has been asked for yet.
             performedOn: null,
@@ -149,37 +114,12 @@ export function HistoricalProcedures({
                     onPress={() => setAsking({ step: 'procedure' })}
                     testID="patient-old-add-procedure"
                 />
-
-                {catalogue.error && asking === null ? (
-                    <Callout tone="warning" title="Could not load the procedures">
-                        The rest of the form still saves — the previous procedures are the only part that
-                        needs the catalogue.
-                    </Callout>
-                ) : null}
             </View>
 
-            <ToothSheet
-                visible={asking?.step === 'toothFor'}
-                // The variant is what was tapped; the category alone reads as
-                // "Surgical is done to a tooth", which names nothing.
-                required={
-                    asking?.step === 'toothFor' ? (asking.picked.variant ?? asking.picked.name) : undefined
-                }
+            <ProcedurePicker
+                visible={enabled && asking?.step === 'procedure'}
+                onPicked={add}
                 onClose={() => setAsking(null)}
-                onPick={(tooth) => {
-                    if (asking?.step === 'toothFor') add(asking.picked, tooth);
-                }}
-            />
-
-            <ProcedureSheet
-                visible={asking?.step === 'procedure'}
-                onClose={() => setAsking(null)}
-                onPick={pick}
-                categories={catalogue.data ?? []}
-                loading={catalogue.status === 'loading'}
-                error={catalogue.error}
-                onRetry={catalogue.refetch}
-                tooth={null}
             />
 
             <HistoricalDateSheet
