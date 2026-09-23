@@ -8,7 +8,7 @@
  * It owns no step state. The caller keeps its index and every answer, and this
  * only restarts the entrance when `index` changes; a mid-flight change stops
  * the old animation and starts from the new step's edge, so rapid Next/Back
- * cannot leave a step half-faded. Reduced motion runs it at duration 0.
+ * cannot leave a step half-faded. Reduced motion lands the new step settled.
  */
 import type { ReactNode } from 'react';
 // biome-ignore lint/style/noRestrictedImports: restarts the entrance `Animated.timing` when the step changes and reads the previous step to pick a side
@@ -36,11 +36,13 @@ export function StepView({ index, children, style, testID }: StepViewProps) {
     const from = useRef(0);
 
     // Worked out during render so the new step's first frame is already at its
-    // starting edge rather than flashing in place before the effect runs.
+    // starting edge rather than flashing in place before the effect runs. Under
+    // reduced motion it starts settled: a 0ms timing still lands a frame late,
+    // and resetting to 0 here drew one blank frame of body on every step.
     if (shown.current !== index) {
         from.current = stepOffset(stepDirection(shown.current, index), isRTL);
         shown.current = index;
-        progress.setValue(0);
+        progress.setValue(reducedMotion ? 1 : 0);
     }
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: `index` is the signal, not a value read — a new step is what restarts the entrance
