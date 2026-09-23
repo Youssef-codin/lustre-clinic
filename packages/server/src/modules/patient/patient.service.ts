@@ -529,7 +529,11 @@ export const patientService = {
             legacyRef: input.legacyRef ?? null,
         };
 
-        if (input.old === undefined) return toPatient(await insertPatientWithRef(db, values));
+        if (input.old === undefined) {
+            const inserted = await insertPatientWithRef(db, values);
+            broadcast(WS_EVENT.PATIENT_UPDATED, { id: inserted.id });
+            return toPatient(inserted);
+        }
 
         const old: OldPatientInput = input.old;
         const plan = await planOldPatientHistory(old);
@@ -542,6 +546,7 @@ export const patientService = {
             return inserted;
         });
 
+        broadcast(WS_EVENT.PATIENT_UPDATED, { id: row.id });
         return toPatient(row);
     },
 
@@ -563,6 +568,7 @@ export const patientService = {
             .returning();
 
         if (!row) throw AppError.notFound('patient');
+        broadcast(WS_EVENT.PATIENT_UPDATED, { id });
         return toPatient(row);
     },
 
@@ -658,6 +664,7 @@ export const patientService = {
             return updated;
         });
 
+        broadcast(WS_EVENT.PATIENT_UPDATED, { id });
         return toPatient(row);
     },
 

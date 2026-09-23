@@ -34,7 +34,7 @@ import { PushView } from '../../components/ui';
 import { beneath, isOpen, isTop, rendered, useRouteStack } from '../../navigation';
 import type { PatientTarget } from '../../shell/routes';
 import { ReschedulePage, VisitPage } from '../day';
-import { useInvalidatePatients } from './data/hooks';
+import { useFollowServerChanges, useInvalidatePatients } from './data/hooks';
 import { OldVisitScreen } from './OldVisitScreen';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
@@ -93,6 +93,7 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
     /** What an old visit said as it closed, for the record it closed back onto. */
     const [notice, setNotice] = useState<{ seq: number; message: string } | undefined>(undefined);
     const invalidate = useInvalidatePatients();
+    useFollowServerChanges();
 
     // Back is `pop`, wired once by the hook. A save in flight swallows the press
     // rather than queueing it, the same way the editor drops Cancel instead of

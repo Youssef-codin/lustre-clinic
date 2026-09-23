@@ -14,7 +14,7 @@ import { logger } from './logger.ts';
 import { serveApk, serveUpdateAsset, serveUpdateManifest } from './modules/release/release.http.ts';
 import { createContext } from './trpc/init.ts';
 import { appRouter } from './trpc/router.ts';
-import { type WsData, wsHandlers } from './ws/index.ts';
+import { resumeFrom, type WsData, wsHandlers } from './ws/index.ts';
 
 export function createServer(port = config.PORT): Server<WsData> {
     return Bun.serve({
@@ -23,7 +23,8 @@ export function createServer(port = config.PORT): Server<WsData> {
             const url = new URL(req.url);
 
             if (url.pathname === WS_PATH) {
-                if (server.upgrade(req, { data: { connectedAt: Date.now() } })) return;
+                if (server.upgrade(req, { data: { connectedAt: Date.now(), resume: resumeFrom(url) } }))
+                    return;
                 return new Response('Expected a websocket upgrade', { status: 426 });
             }
 

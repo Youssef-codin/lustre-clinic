@@ -17,15 +17,20 @@
  * and cannot be wrong by one.
  *
  * **Never any patient data** (§17): no name, no phone, no ref. A notification
- * shows on a lock screen in a waiting room.
+ * shows on a lock screen in a waiting room. The one exception is the desk's
+ * "coming to the desk" notice below, which is useless without a name — it
+ * carries the name and nothing else, on a channel the lock screen hides.
  *
  * Arming is always cancel-then-schedule over this one channel, never a diff. The
  * plan is cheap to recompute and a diff is how a phone ends up with two series
  * layered over each other, each buzzing on its own half-hour.
  */
+import { localizeCopy } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { getLocale } from '../i18n/runtime';
 import type { NudgePlan } from './schedule';
+import { noticeIdentifier } from './visitNotice';
 
 const CHANNEL_ID = 'reminders';
 
@@ -76,13 +81,22 @@ async function ensureChannel(): Promise<void> {
  * someone to swat the prompt away, and Android stops showing it anyway. The way
  * back is Settings → Reminders, which says the OS is blocking it.
  */
-async function ensurePermission(): Promise<boolean> {
-    const current = await Notifications.getPermissionsAsync();
-    if (current.granted) return true;
-    if (!current.canAskAgain) return false;
+let asking: Promise<boolean> | null = null;
 
-    const asked = await Notifications.requestPermissionsAsync();
-    return asked.granted;
+// One prompt in flight at a time: the nudge and the desk notice both ask at
+// launch, and the second request would otherwise race the first dialog.
+export function ensurePermission(): Promise<boolean> {
+    asking ??= (async () => {
+        const current = await Notifications.getPermissionsAsync();
+        if (current.granted) return true;
+        if (!current.canAskAgain) return false;
+
+        const asked = await Notifications.requestPermissionsAsync();
+        return asked.granted;
+    })().finally(() => {
+        asking = null;
+    });
+    return asking;
 }
 
 /** Whether the OS will let a nudge through right now. Asks nothing — a read, for the pane. */
@@ -129,4 +143,51 @@ export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' |
     }
 
     return 'armed';
+}
+
+const VISIT_CHANNEL_ID = 'visits';
+
+let visitChannelReady = false;
+
+/**
+ * High importance, so it drops down over whatever she is doing: the patient is
+ * walking to the desk now. Private, so a locked phone says a notification
+ * arrived and not whose.
+ */
+async function ensureVisitChannel(): Promise<void> {
+    if (visitChannelReady || Platform.OS !== 'android') {
+        visitChannelReady = true;
+        return;
+    }
+
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    await Notifications.setNotificationChannelAsync(VISIT_CHANNEL_ID, {
+        name: t('Patients coming to the desk'),
+        description: t('When the doctor finishes with a patient.'),
+        importance: Notifications.AndroidImportance.HIGH,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+    });
+    visitChannelReady = true;
+}
+
+/**
+ * Posts "the doctor is finished with {name}" now. `name` is null when it could
+ * not be fetched — the clinic answered the socket and not the request — and the
+ * notice still goes, without it: telling her someone is coming is the point.
+ */
+export async function presentVisitNotice(appointmentId: string, name: string | null): Promise<void> {
+    if (!(await Notifications.getPermissionsAsync()).granted) return;
+    await ensureVisitChannel();
+
+    const locale = getLocale();
+    await Notifications.scheduleNotificationAsync({
+        identifier: noticeIdentifier(appointmentId),
+        content: {
+            title: name
+                ? localizeCopy(locale, '{name} is coming to the desk', { name })
+                : localizeCopy(locale, 'A patient is coming to the desk'),
+            body: localizeCopy(locale, 'The doctor is finished. Ready for checkout.'),
+        },
+        trigger: Platform.OS === 'android' ? { channelId: VISIT_CHANNEL_ID } : null,
+    });
 }

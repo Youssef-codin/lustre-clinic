@@ -102,9 +102,31 @@ export const WS_EVENT = {
     APPOINTMENT_UPDATED: 'appointment:updated',
     VISIT_UPDATED: 'visit:updated',
     SETTINGS_UPDATED: 'settings:updated',
+    PATIENT_UPDATED: 'patient:updated',
+    REMINDER_UPDATED: 'reminder:updated',
+    /** Branches, procedure types and the intake questionnaire: reference data, not a record. */
+    CATALOG_UPDATED: 'catalog:updated',
+    /** The doctor is finished and the patient is on the way to the desk (`checked_in → awaiting_payment`). */
+    VISIT_COMPLETED: 'visit:completed',
 } as const;
 
 export type WsEvent = (typeof WS_EVENT)[keyof typeof WS_EVENT];
+
+/** Bumped when a frame's shape changes. A client that reads a version it does not know refetches everything. */
+export const WS_PROTOCOL_VERSION = 1;
+
+/** Query parameters a reconnecting client resumes with: the server process it last heard from, and the last `seq` it applied. */
+export const WS_RESUME_PARAM = { EPOCH: 'epoch', SINCE: 'since' } as const;
+
+/**
+ * What `/ws` sends. `epoch` names one server process and `seq` counts up from 1
+ * within it, so a client can tell a duplicate, a gap and a restart apart. `hello`
+ * closes every connect, after any replay: `resync` says the missed events could
+ * not be replayed and everything must be refetched. IDs only, never patient data.
+ */
+export type WsFrame =
+    | { v: number; type: 'event'; epoch: string; seq: number; at: number; event: WsEvent; id?: string }
+    | { v: number; type: 'hello'; epoch: string; seq: number; resync: boolean };
 
 /** Path the tRPC fetch adapter is mounted at (§4). */
 export const TRPC_ENDPOINT = '/trpc';

@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { type ErrorCode, TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
+import { type ErrorCode, TRPC_ENDPOINT, WS_PATH, type WsFrame } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client';
 import type { Server } from 'bun';
 import { createServer } from '../../src/server.ts';
@@ -90,26 +90,36 @@ export async function expectValidationError(fn: () => Promise<unknown>): Promise
     await expectTrpcError('VALIDATION' as ErrorCode, 400, fn);
 }
 
+/**
+ * `events` is each event frame as `{ event, id }`, which is what a test is
+ * usually about; `frames` is everything that crossed the socket after `hello`,
+ * envelope and all.
+ */
 export async function captureWsEvents<T>(
     wsUrl: string,
     fn: () => Promise<T>,
-): Promise<{ result: T; events: Record<string, string>[] }> {
+): Promise<{ result: T; events: Record<string, string>[]; frames: WsFrame[] }> {
     const ws = new WebSocket(wsUrl);
-    const events: Record<string, string>[] = [];
+    const frames: WsFrame[] = [];
 
+    // `hello` is sent once the socket has joined the stream, so nothing the
+    // mutation broadcasts can land before the capture starts.
     await new Promise<void>((resolve, reject) => {
-        ws.onopen = () => resolve();
+        ws.onmessage = () => resolve();
         ws.onerror = () => reject(new Error('websocket failed to open'));
     });
 
     ws.onmessage = (event) => {
-        events.push(JSON.parse(String(event.data)) as Record<string, string>);
+        frames.push(JSON.parse(String(event.data)) as WsFrame);
     };
 
     try {
         const result = await fn();
         await Bun.sleep(50);
-        return { result, events };
+        const events = frames.flatMap((frame) =>
+            frame.type === 'event' ? [{ event: frame.event, ...(frame.id ? { id: frame.id } : {}) }] : [],
+        );
+        return { result, events, frames };
     } finally {
         ws.close();
     }

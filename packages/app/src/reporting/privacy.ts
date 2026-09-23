@@ -19,7 +19,7 @@
  * event's breadcrumbs in `allowEvent`. Its output passes its own check, which
  * is what lets it run on its own output.
  */
-import { isErrorCode } from '@lustre/shared';
+import { isErrorCode, WS_EVENT } from '@lustre/shared';
 import type { Breadcrumb, ErrorEvent, Exception, StackFrame } from '@sentry/react-native';
 
 /** The one message a report may carry: "Report a problem" in Settings. */
@@ -82,6 +82,8 @@ const COMPONENT_STACK = /^[\w\s()@./:?&=%~+#$<>,[\]-]*$/;
 const LEVELS: ReadonlySet<string> = new Set(['fatal', 'error', 'warning', 'info', 'debug']);
 const APP_STATES: ReadonlySet<string> = new Set(['active', 'background', 'inactive']);
 const CONNECTION: ReadonlySet<string> = new Set(['unknown', 'probing', 'online', 'offline']);
+const LIVE_EVENTS: ReadonlySet<string> = new Set([...Object.values(WS_EVENT), 'hello']);
+const LIVE_OUTCOMES: ReadonlySet<string> = new Set(['applied', 'duplicate', 'resync']);
 
 function text(value: unknown, pattern: RegExp, max = 200): string | undefined {
     return typeof value === 'string' && value.length <= max && pattern.test(value) ? value : undefined;
@@ -187,6 +189,13 @@ export function allowBreadcrumb(crumb: Breadcrumb): Breadcrumb | null {
         case 'connection': {
             const status = oneOf(data.status, CONNECTION);
             return status === undefined ? null : { ...base(crumb, 'connection', 'info'), data: { status } };
+        }
+        case 'live': {
+            const event = oneOf(data.event, LIVE_EVENTS);
+            const outcome = oneOf(data.outcome, LIVE_OUTCOMES);
+            return event === undefined || outcome === undefined
+                ? null
+                : { ...base(crumb, 'live', 'info'), data: { event, outcome } };
         }
         default:
             return null;

@@ -119,3 +119,85 @@ the last reminder sent, leaves none.
 
 `expo-notifications` is native, so a dev client built before it was added will
 not have it — `bun emu:build`, not `bun emu`.
+
+---
+
+# "Coming to the desk"
+
+The other notification here, and the opposite of the nudge in every way that
+matters: it is about one patient, it is raised by the other phone, and it has to
+arrive now.
+
+```tsx
+useVisitCompletedNotices(roleReady ? role : null);   // once, in the shell
+```
+
+## What raises it
+
+The doctor tapping **Finish** — `appointment.awaitPayment`, `checked_in →
+awaiting_payment`. Not `visit.checkOut`: that is the desk taking the money, and
+telling the desk about its own tap is noise. The server broadcasts
+`visit:completed` with the appointment's ID and nothing else (§13); the desk
+phone asks `appointment.byId` for the name.
+
+| | |
+|---|---|
+| [`visitNotice.ts`](./visitNotice.ts) | **Whether** an event is announced here. Pure, and tested. |
+| [`notifications.ts`](./notifications.ts) | Posting it, on its own high-importance channel. |
+| [`useVisitCompletedNotices.ts`](./useVisitCompletedNotices.ts) | The subscription, the name, and the foreground service. |
+
+## One completion, one notice
+
+The server announces the transition once — `awaitPayment`'s conditional UPDATE
+is the write that decides, so a repeated tap is a 422 and no event. The cursor in
+`api/serverEvents.ts` drops a replayed frame it has already applied. And the
+notice is posted under `lustre.visit.completed.<appointmentId>`, so even a second
+post could only redraw the first.
+
+A completion replayed more than ten minutes late (`NOTICE_MAX_AGE_MS`) refreshes
+the day view and does not buzz: that patient has paid and gone.
+
+## What it shows
+
+The patient's name, and that the doctor is finished. That is the least that lets
+the desk act on it, and the one place this folder breaks "no patient data". The
+channel is `PRIVATE`, so a locked phone shows that a notice arrived and not
+whose. When the name cannot be fetched the notice still goes, as "A patient is
+coming to the desk".
+
+## In the background: the foreground service
+
+Android 15+ cuts a backgrounded app's network within seconds — on the emulator,
+`/ws` closed eleven seconds after HOME and `dumpsys netpolicy` showed
+`blocked=APP_BACKGROUND`. No push service stands in for it here, by design
+(PRODUCT.md: no third party), so the desk phone runs a foreground service,
+`modules/lustre-listener`, while it is the secretary's:
+
+- It keeps the process in `procState=FGS`, which Android leaves on the network —
+  through forced deep Doze with the screen off, checked on the emulator.
+- It holds a headless JS task open, which keeps JS timers firing, so the
+  socket's reconnect backoff and the batched tRPC link work in the background.
+  RN's `HeadlessJsTaskService` would too, but it holds a wake lock for as long
+  as the task runs, and this one runs all day.
+- The price is the ongoing "Listening for the doctor" notification, on a silent
+  channel of its own.
+
+It runs only on the secretary's phone, only with notifications allowed, and not
+in demo mode. Android only lets it start from the foreground, so every return to
+the app asks again — which is also how allowing notifications in Android
+settings takes effect. Swiping the app away ends it with the app.
+
+It is native, so an OTA update cannot bring it: the runtime fingerprint changes
+and a new APK is needed. `requireOptionalNativeModule` keeps the JS safe on a
+build without it.
+
+## Checking it
+
+```
+adb shell dumpsys activity services com.lustre.clinic.dev | grep isForeground
+adb shell dumpsys notification --noredact | grep "coming to the desk"
+adb shell dumpsys netpolicy | grep "UID=<app uid>"     # procState=FGS, effective=NONE
+```
+
+Finish a visit from the other phone (or `appointment.awaitPayment` by curl) with
+the desk phone on the home screen.

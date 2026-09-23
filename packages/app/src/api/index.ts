@@ -9,6 +9,8 @@ export { getConnectionState, reprobe } from './connection';
 export { dataGeneration, subscribeToDataReset } from './dataReset';
 export { enableDemoMode, resetDemoData, useDemoMode } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
+export { onServerChange, onServerEvent } from './live';
+export type { Area } from './serverEvents';
 export type { RouterOutput } from './types';
 export { useConnection } from './useConnection';
 export type { BuildVariant } from './variant';

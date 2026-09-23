@@ -35,7 +35,7 @@ import {
 } from '@sentry/core';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { allowBreadcrumb, allowEvent, PROBLEM_REPORT } from './privacy';
-import { apiCrumb, connectionCrumb, lifecycleCrumb, screenCrumb, screenName } from './trail';
+import { apiCrumb, connectionCrumb, lifecycleCrumb, liveCrumb, screenCrumb, screenName } from './trail';
 
 const PATIENT = {
     id: '0199a3c2-7d4e-7b21-9f00-3c5a1e2b4d6f',
@@ -178,6 +178,8 @@ describe('a report taken on the patient list', () => {
         addBreadcrumb(lifecycleCrumb('background'));
         addBreadcrumb(lifecycleCrumb('active'));
         addBreadcrumb(connectionCrumb('online'));
+        addBreadcrumb(liveCrumb('visit:completed', 'applied'));
+        addBreadcrumb(liveCrumb(PATIENT.name, 'applied'));
         addBreadcrumb(xhr(searchUrl, 'GET'));
         addBreadcrumb(apiCrumb(new URL(searchUrl).pathname, 200, 143.6));
         addBreadcrumb(
@@ -220,6 +222,7 @@ describe('a report taken on the patient list', () => {
             ['app.lifecycle', { state: 'background' }],
             ['app.lifecycle', { state: 'active' }],
             ['connection', { status: 'online' }],
+            ['live', { event: 'visit:completed', outcome: 'applied' }],
             ['api', { procedures: ['patient.search', 'balance.outstanding'], status: 200, ms: 144 }],
             [
                 'ui.tap',

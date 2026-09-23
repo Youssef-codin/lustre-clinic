@@ -12,9 +12,9 @@
  * `pending` is what stops the second tap becoming a second appointment, and
  * errors are held rather than thrown so a failed write ends up on screen.
  */
-// biome-ignore lint/style/noRestrictedImports: this file is the query layer — one effect is the fetch the key subscribes to, the other tracks mount so a late answer does not set state on a gone screen
+// biome-ignore lint/style/noRestrictedImports: this file is the query layer — one effect is the fetch the key subscribes to, one follows the other phone's writes over `/ws`, the last tracks mount so a late answer does not set state on a gone screen
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { dataGeneration, subscribeToDataReset } from '../../../api';
+import { dataGeneration, onServerChange, subscribeToDataReset } from '../../../api';
 import { asRequestError, type RequestError } from './client';
 
 export type QueryStatus = 'loading' | 'success' | 'error';
@@ -84,6 +84,17 @@ export function useLocalQuery<T>(
     const refetch = useCallback(() => {
         void load(data !== undefined);
     }, [load, data]);
+
+    // The other phone's writes arrive as `/ws` events, and this layer has no
+    // cache to invalidate, so every mounted read re-reads on any of them. The
+    // day cluster reads nearly every router, and the reads that answer in one
+    // turn go out as one batched request, so being precise would buy little.
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+    useEffect(() => {
+        if (!enabled) return;
+        return onServerChange(() => refetchRef.current());
+    }, [enabled]);
 
     return { data, status, error, refreshing, refetch };
 }
