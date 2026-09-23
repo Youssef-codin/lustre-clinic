@@ -83,6 +83,8 @@ export type { SkeletonRowsProps } from './SkeletonRows';
 export { SkeletonRows } from './SkeletonRows';
 export type { StepperProps } from './Stepper';
 export { Stepper } from './Stepper';
+export type { StepViewProps } from './StepView';
+export { StepView } from './StepView';
 export type { SwitchProps } from './Switch';
 export { Switch } from './Switch';
 export type { TagProps, TagTone, TagVariant } from './Tag';

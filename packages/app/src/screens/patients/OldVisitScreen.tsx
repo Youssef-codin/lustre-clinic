@@ -40,7 +40,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../components/domain';
-import { Button, Callout, Chevron, useKeyboardHeight } from '../../components/ui';
+import { Button, Callout, Chevron, StepView, useKeyboardHeight } from '../../components/ui';
 import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { CalendarIcon, PatientIcon } from '../day/components/icons';
@@ -223,101 +223,105 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
             >
-                {step === 'what' ? (
-                    <ProcedurePlan
-                        value={plan}
-                        onChange={setPlan}
-                        categories={catalogue.data ?? []}
-                        loading={catalogue.status === 'loading'}
-                        error={catalogue.status === 'error' ? catalogue.error : null}
-                        onRetry={catalogue.refetch}
-                        copy={PLAN_COPY}
-                    />
-                ) : step === 'day' ? (
-                    <View style={styles.section}>
-                        <Text variant="eyebrow" tone="muted">
-                            {t('WHICH DAY')}
-                        </Text>
-                        <MonthGrid
-                            month={month}
-                            onMonth={setMonth}
-                            selected={performedOn}
-                            onPick={(day) => {
-                                setPerformedOn(day);
-                                save.reset();
-                            }}
+                {/* Keyed on the step, not the answers: every answer lives up here,
+                    so the slide only moves what is drawn. */}
+                <StepView index={index} style={styles.stepBody}>
+                    {step === 'what' ? (
+                        <ProcedurePlan
+                            value={plan}
+                            onChange={setPlan}
+                            categories={catalogue.data ?? []}
+                            loading={catalogue.status === 'loading'}
+                            error={catalogue.status === 'error' ? catalogue.error : null}
+                            onRetry={catalogue.refetch}
+                            copy={PLAN_COPY}
                         />
-                        <Text variant="caption" tone="muted">
-                            {t('Pick the day it happened.')}
-                        </Text>
-                    </View>
-                ) : (
-                    <>
-                        <View style={styles.card}>
-                            <SummaryRow
-                                label="Day"
-                                value={performedOn ? relativeDayLabel(performedOn) : '—'}
-                                icon={<CalendarIcon size={17} />}
-                                lead
-                            />
-                            <SummaryRow label="Patient" value={name} icon={<PatientIcon />} />
-                        </View>
-
+                    ) : step === 'day' ? (
                         <View style={styles.section}>
-                            <View style={styles.head}>
-                                <Text variant="eyebrow" tone="muted">
-                                    {t('WHAT WAS DONE')}
-                                </Text>
-                                <Text variant="caption" weight="medium" tone="muted">
-                                    {`${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
-                                </Text>
-                            </View>
-
-                            <View style={styles.groups}>
-                                {groupByTooth(plan).map((group) => (
-                                    <ToothGroupCard
-                                        key={group.tooth ?? 'none'}
-                                        tooth={group.tooth}
-                                        position={toothPosition(group.tooth)}
-                                        subtotal={
-                                            <MoneyValue
-                                                piastres={group.subtotal}
-                                                variant="headline"
-                                                weight="bold"
-                                            />
-                                        }
-                                        lines={group.items.map((item) => ({
-                                            id: item.id,
-                                            name: item.name,
-                                            detail: item.variant,
-                                            money: (
-                                                <MoneyValue
-                                                    piastres={item.price}
-                                                    variant="body"
-                                                    weight="bold"
-                                                />
-                                            ),
-                                        }))}
-                                    />
-                                ))}
-                            </View>
-
-                            <View style={styles.totalBand}>
-                                <Text variant="subhead" tone="muted">
-                                    {t('Paid on the day')}
-                                </Text>
-                                <Text variant="title3" weight="bold">
-                                    {formatMoney(total)}
-                                </Text>
-                            </View>
+                            <Text variant="eyebrow" tone="muted">
+                                {t('WHICH DAY')}
+                            </Text>
+                            <MonthGrid
+                                month={month}
+                                onMonth={setMonth}
+                                selected={performedOn}
+                                onPick={(day) => {
+                                    setPerformedOn(day);
+                                    save.reset();
+                                }}
+                            />
                             <Text variant="caption" tone="muted">
-                                {t(
-                                    'Recorded as paid in cash. If they still owe some of it, open the visit from the record and correct what was paid.',
-                                )}
+                                {t('Pick the day it happened.')}
                             </Text>
                         </View>
-                    </>
-                )}
+                    ) : (
+                        <>
+                            <View style={styles.card}>
+                                <SummaryRow
+                                    label="Day"
+                                    value={performedOn ? relativeDayLabel(performedOn) : '—'}
+                                    icon={<CalendarIcon size={17} />}
+                                    lead
+                                />
+                                <SummaryRow label="Patient" value={name} icon={<PatientIcon />} />
+                            </View>
+
+                            <View style={styles.section}>
+                                <View style={styles.head}>
+                                    <Text variant="eyebrow" tone="muted">
+                                        {t('WHAT WAS DONE')}
+                                    </Text>
+                                    <Text variant="caption" weight="medium" tone="muted">
+                                        {`${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+                                    </Text>
+                                </View>
+
+                                <View style={styles.groups}>
+                                    {groupByTooth(plan).map((group) => (
+                                        <ToothGroupCard
+                                            key={group.tooth ?? 'none'}
+                                            tooth={group.tooth}
+                                            position={toothPosition(group.tooth)}
+                                            subtotal={
+                                                <MoneyValue
+                                                    piastres={group.subtotal}
+                                                    variant="headline"
+                                                    weight="bold"
+                                                />
+                                            }
+                                            lines={group.items.map((item) => ({
+                                                id: item.id,
+                                                name: item.name,
+                                                detail: item.variant,
+                                                money: (
+                                                    <MoneyValue
+                                                        piastres={item.price}
+                                                        variant="body"
+                                                        weight="bold"
+                                                    />
+                                                ),
+                                            }))}
+                                        />
+                                    ))}
+                                </View>
+
+                                <View style={styles.totalBand}>
+                                    <Text variant="subhead" tone="muted">
+                                        {t('Paid on the day')}
+                                    </Text>
+                                    <Text variant="title3" weight="bold">
+                                        {formatMoney(total)}
+                                    </Text>
+                                </View>
+                                <Text variant="caption" tone="muted">
+                                    {t(
+                                        'Recorded as paid in cash. If they still owe some of it, open the visit from the record and correct what was paid.',
+                                    )}
+                                </Text>
+                            </View>
+                        </>
+                    )}
+                </StepView>
             </ScrollView>
 
             {/* Over the scroll, with the keyboard in its floor — `BookingScreen`
@@ -409,7 +413,8 @@ const styles = StyleSheet.create({
 
     scroll: { flex: 1 },
     // `paddingBottom` is measured off the dock and supplied inline.
-    body: { paddingHorizontal: size.gutter, gap: space[5] },
+    body: { paddingHorizontal: size.gutter },
+    stepBody: { gap: space[5] },
     section: { gap: space[2.5] },
     head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
 

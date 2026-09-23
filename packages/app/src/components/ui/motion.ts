@@ -18,6 +18,7 @@ export const duration = {
     fadeup: 280,
     toast: 220,
     popover: 160,
+    step: 240,
 } as const;
 
 export const easing = {
