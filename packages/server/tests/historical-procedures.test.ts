@@ -32,7 +32,7 @@ async function migrating(): Promise<Clinic> {
 }
 
 async function register(phone: string) {
-    return patientService.create({ name: 'On File Already', phone, custom: {} });
+    return patientService.create({ name: 'On File Already', phone, birthDate: '1990-01-01', custom: {} });
 }
 
 describe('adding historical procedures to a patient on file', () => {

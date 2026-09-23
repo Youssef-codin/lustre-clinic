@@ -20,10 +20,30 @@ const OTHER = '01198765432';
 let api: TestServer;
 
 async function family() {
-    const mother = await patientService.create({ name: 'Mona Adel', phone: SHARED, custom: {} });
-    const son = await patientService.create({ name: 'Adel Mahmoud', phone: SHARED, custom: {} });
-    const daughter = await patientService.create({ name: 'Salma Mahmoud', phone: SHARED, custom: {} });
-    const stranger = await patientService.create({ name: 'Hani Farouk', phone: OTHER, custom: {} });
+    const mother = await patientService.create({
+        name: 'Mona Adel',
+        phone: SHARED,
+        birthDate: '1990-01-01',
+        custom: {},
+    });
+    const son = await patientService.create({
+        name: 'Adel Mahmoud',
+        phone: SHARED,
+        birthDate: '1990-01-01',
+        custom: {},
+    });
+    const daughter = await patientService.create({
+        name: 'Salma Mahmoud',
+        phone: SHARED,
+        birthDate: '1990-01-01',
+        custom: {},
+    });
+    const stranger = await patientService.create({
+        name: 'Hani Farouk',
+        phone: OTHER,
+        birthDate: '1990-01-01',
+        custom: {},
+    });
 
     return { mother, son, daughter, stranger };
 }
@@ -52,10 +72,16 @@ describe('one number on several records', () => {
     });
 
     test('is refused nothing over the API either', async () => {
-        await api.client.patient.create.mutate({ name: 'Mona Adel', phone: SHARED, custom: {} });
+        await api.client.patient.create.mutate({
+            name: 'Mona Adel',
+            phone: SHARED,
+            birthDate: '1990-01-01',
+            custom: {},
+        });
         const second = await api.client.patient.create.mutate({
             name: 'Adel Mahmoud',
             phone: SHARED,
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -73,7 +99,12 @@ describe('one number on several records', () => {
 
     test('still refuses a number that is not a number', async () => {
         await expect(
-            patientService.create({ name: 'Nobody', phone: 'not a phone', custom: {} }),
+            patientService.create({
+                name: 'Nobody',
+                phone: 'not a phone',
+                birthDate: '1990-01-01',
+                custom: {},
+            }),
         ).rejects.toThrow(/valid E.164/);
     });
 });

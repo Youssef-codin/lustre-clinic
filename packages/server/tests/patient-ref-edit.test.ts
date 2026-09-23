@@ -21,7 +21,7 @@ import { expectTrpcError, startTestServer, type TestServer } from './helpers/trp
 let api: TestServer;
 
 async function patient(name = 'Nadia Hassan') {
-    return patientService.create({ name, phone: '01012345678', custom: {} });
+    return patientService.create({ name, phone: '01012345678', birthDate: '1990-01-01', custom: {} });
 }
 
 /** The counter, moved well clear so a corrected number is one the sequence has passed. */
@@ -280,6 +280,7 @@ describe('over the API', () => {
         const row = await api.client.patient.create.mutate({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -300,6 +301,7 @@ describe('over the API', () => {
         const row = await api.client.patient.create.mutate({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -318,6 +320,7 @@ describe('over the API', () => {
         const row = await api.client.patient.create.mutate({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
