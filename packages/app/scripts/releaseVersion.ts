@@ -7,8 +7,9 @@
  *   MINOR  a new APK. PATCH goes back to 0.
  *   PATCH  an OTA update on that APK: 1.4.1, 1.4.2, …
  *
- * The APK's own version, `X.Y.0`, is what Android reports and what an update
- * cannot change; the running version is the update's. Both come from the same
+ * The APK's own version, `X.Y.0` (or the patch an update restaged it with), is
+ * what Android reports and what an update cannot change; the running version is
+ * the update's. Both come from the same
  * two records: the `vX.Y.Z` git tags the release script leaves, and what is
  * already staged in `dist/releases`. The higher of the two wins, so a lost tag or
  * a wiped staging directory can never make a number go backwards.

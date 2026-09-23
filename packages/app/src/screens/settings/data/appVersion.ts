@@ -10,7 +10,7 @@ type LatestApk = NonNullable<RouterOutput['release']['latestApk']>;
 export interface InstalledVersion {
     /** The release this launch runs: the update's number, or the APK's when it runs its own bundle. */
     version: string | null;
-    /** `versionName` of the installed APK, `X.Y.0`. An OTA update does not change it. */
+    /** `versionName` of the installed APK: `X.Y.0`, or the patch it was restaged with. An OTA update does not change it. */
     apkVersion: string | null;
     /** The APK's versionCode. */
     build: string | null;
@@ -24,15 +24,23 @@ export interface InstalledVersion {
  * The server's APK when it is newer than this install, otherwise null. An
  * install that cannot say its own build number is not offered one, or the
  * banner would never go away.
+ *
+ * Every update restages the APK with its JavaScript built in, so a higher build
+ * on this phone's own runtime is one the phone already has by OTA. Only an APK
+ * with other native code is offered. A server that does not say its APK's
+ * runtime, or a phone that cannot say its own, falls back to the build number.
  */
 export function newerApk(
     installedBuild: string | null,
     latest: LatestApk | null | undefined,
+    installedRuntime: string | null = null,
 ): LatestApk | null {
     if (!latest || installedBuild === null) return null;
     const installed = Number(installedBuild);
     if (!Number.isSafeInteger(installed) || installed <= 0) return null;
-    return latest.versionCode > installed ? latest : null;
+    if (latest.versionCode <= installed) return null;
+    if (installedRuntime && latest.runtimeVersion === installedRuntime) return null;
+    return latest;
 }
 
 export function versionLine({ version, build }: Pick<InstalledVersion, 'version' | 'build'>): string {

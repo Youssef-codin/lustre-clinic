@@ -44,7 +44,7 @@ export function useApkUpdate(): ApkUpdate | null {
         trpc.release.latestApk.queryOptions(undefined, { enabled: prod, refetchInterval: 60 * 60_000 }),
     );
 
-    const newer = prod ? newerApk(Application.nativeBuildVersion, latest.data) : null;
+    const newer = prod ? newerApk(Application.nativeBuildVersion, latest.data, Updates.runtimeVersion) : null;
     const server = serverAddresses().tailscale;
     return newer && server ? { ...newer, url: `${server}${APK_PATH}` } : null;
 }

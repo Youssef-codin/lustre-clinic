@@ -32,6 +32,9 @@ const APK_FILE = 'lustre.apk';
 const apkMetadata = z.object({
     versionCode: z.number().int().positive(),
     version: z.string().min(1),
+    // What the APK's native code is. An APK on a runtime a phone already runs
+    // brings it nothing an OTA update has not, so the phone is not offered it.
+    runtimeVersion: z.string().min(1).optional(),
     size: z.number().int().positive().optional(),
 });
 
@@ -42,7 +45,7 @@ const manifestFiles = z.object({
     assets: z.array(z.object({ url: z.string() })),
 });
 
-type LatestApk = { versionCode: number; version: string };
+type LatestApk = { versionCode: number; version: string; runtimeVersion: string | null };
 
 interface PublishedUpdate {
     id: string;
@@ -97,7 +100,11 @@ export const releaseService = {
 
         const apk = await existing(join(android, APK_FILE));
         if (!apk || (metadata.data.size !== undefined && apk.size !== metadata.data.size)) return null;
-        return { versionCode: metadata.data.versionCode, version: metadata.data.version };
+        return {
+            versionCode: metadata.data.versionCode,
+            version: metadata.data.version,
+            runtimeVersion: metadata.data.runtimeVersion ?? null,
+        };
     },
 
     async apk(): Promise<{ file: BunFile; metadata: LatestApk } | null> {

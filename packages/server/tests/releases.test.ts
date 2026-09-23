@@ -101,6 +101,7 @@ describe('release.latestApk', () => {
         expect(await server.client.release.latestApk.query()).toEqual({
             versionCode: 525_600,
             version: '1.0.0',
+            runtimeVersion: RUNTIME,
         });
     });
 

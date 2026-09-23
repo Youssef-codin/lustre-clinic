@@ -219,7 +219,7 @@ nothing is bumped by hand.
 | Part | Means | Set by |
 |---|---|---|
 | MINOR | a new APK; PATCH goes back to 0 | `bun release:apk` |
-| PATCH | an OTA update on that APK: 1.4.1, 1.4.2, … | `bun release:update` |
+| PATCH | an OTA update on that APK's runtime: 1.4.1, 1.4.2, … | `bun release:update` |
 | MAJOR | a change the server and the app must ship together | `bun release:apk --major` |
 
 The next number is one above the higher of the `vX.Y.Z` git tags and what is
@@ -228,11 +228,19 @@ cannot make a number repeat (`packages/app/scripts/releaseVersion.ts`). An
 update is numbered on the staged APK with its runtime version, and is refused
 when there is none, because no phone would take it.
 
+`bun release:update` also rebuilds the APK from the same commit, numbered as the
+update (1.4.1), and stages it over the last one, so a phone installing fresh
+starts on the latest patch. That makes every `bun ship` a Gradle build. The
+rebuilt APK has the same runtime, so phones already running it are not offered
+it: the update brought them the same code. Only an APK with new native code
+shows the install banner.
+
 Both scripts refuse uncommitted changes and tag the commit they built from.
 They create the tag locally; push it yourself with the command they print.
 
 Settings → App shows the release the phone runs (the update's number, `1.4.2`)
-with the APK under it (`1.4.0 · build …`). GlitchTip files crashes under the same
+with the APK under it (`1.4.0 · build …`, or a later patch if it was installed
+after one shipped). GlitchTip files crashes under the same
 number, `lustre@1.4.2`.
 
 The runtime version is a fingerprint of native code only.

@@ -7,7 +7,7 @@ import { apkLabel, type InstalledVersion, newerApk, updateLabel, versionLine } f
  * clinic runs old native code until someone visits with a cable.
  */
 
-const latest = { versionCode: 525_600, version: '1.1.0' };
+const latest = { versionCode: 525_600, version: '1.1.0', runtimeVersion: 'a1b2c3' };
 
 describe('newerApk', () => {
     test('offers a higher build', () => {
@@ -21,8 +21,26 @@ describe('newerApk', () => {
     });
 
     test('compares numbers, not strings', () => {
-        expect(newerApk('99999', { versionCode: 100_000, version: '1.1.0' })).not.toBeNull();
-        expect(newerApk('100000', { versionCode: 99_999, version: '1.0.0' })).toBeNull();
+        expect(
+            newerApk('99999', { versionCode: 100_000, version: '1.1.0', runtimeVersion: null }),
+        ).not.toBeNull();
+        expect(
+            newerApk('100000', { versionCode: 99_999, version: '1.0.0', runtimeVersion: null }),
+        ).toBeNull();
+    });
+
+    test('offers nothing on the runtime the phone runs: its updates already brought that code', () => {
+        expect(newerApk('1', latest, 'a1b2c3')).toBeNull();
+    });
+
+    test('offers a higher build with other native code', () => {
+        expect(newerApk('1', latest, 'f00d')).toEqual(latest);
+    });
+
+    test('goes by the build alone when either side cannot say its runtime', () => {
+        expect(newerApk('1', latest, null)).toEqual(latest);
+        const unsaid = { ...latest, runtimeVersion: null };
+        expect(newerApk('1', unsaid, 'a1b2c3')).toEqual(unsaid);
     });
 
     test('offers nothing when the server has no APK or the server did not answer', () => {
