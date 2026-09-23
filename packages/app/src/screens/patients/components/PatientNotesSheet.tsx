@@ -22,6 +22,8 @@ export type PatientNotesSheetProps = {
     isPending: boolean;
     /** Localized from `ERROR_CODE`, never parsed from the server's message (§4). */
     error: string | null;
+    /** The draft moved after a failure — the reason under it no longer describes it. */
+    onDismissError: () => void;
     onSubmit: (draft: string) => void;
 };
 
@@ -31,6 +33,7 @@ export function PatientNotesSheet({
     notes,
     isPending,
     error,
+    onDismissError,
     onSubmit,
 }: PatientNotesSheetProps) {
     const t = useT();
@@ -69,7 +72,10 @@ export function PatientNotesSheet({
                 accessibilityLabel={t('Patient notes')}
                 placeholder="Anything the clinic should know about this patient"
                 value={draft}
-                onChangeText={setDraft}
+                onChangeText={(text) => {
+                    setDraft(text);
+                    if (error) onDismissError();
+                }}
                 maxLength={MAX_NOTES_LENGTH}
                 minHeight={140}
                 editable={!isPending}

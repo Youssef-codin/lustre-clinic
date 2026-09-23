@@ -328,6 +328,7 @@ export function PatientRecordScreen({
                     notes={patient.notes}
                     isPending={saveNotes.pending}
                     error={saveNotes.error ? errorText(saveNotes.error) : null}
+                    onDismissError={saveNotes.reset}
                     onSubmit={(draft) => void writeNotes(draft)}
                 />
             ) : null}
