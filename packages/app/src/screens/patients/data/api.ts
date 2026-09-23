@@ -28,9 +28,11 @@ import type {
     PatientBalance,
     PatientDetail,
     RecentPatients,
+    RefEdit,
     SettleInput,
     SettleReport,
     UpdatePatientInput,
+    UpdatePatientRefInput,
 } from './types';
 
 function shaped<T>(value: unknown): T {
@@ -121,6 +123,23 @@ export const patientsApi = {
 
     update(input: UpdatePatientInput): Promise<Patient> {
         return wrap(() => trpcClient.patient.update.mutate(input));
+    },
+
+    /**
+     * Correcting the record's number, which `patient.update` deliberately
+     * cannot do: the server gates it by role and writes an audit row, so it is
+     * its own procedure and its own call here.
+     */
+    updateRef(input: UpdatePatientRefInput): Promise<Patient> {
+        return wrap(() => trpcClient.patient.updateRef.mutate(input));
+    },
+
+    /**
+     * Every correction made to this record's number, newest first. Answers `[]`
+     * rather than refusing for a record that is gone — the trail outlives it.
+     */
+    refHistory(id: string): Promise<RefEdit[]> {
+        return wrap(() => trpcClient.patient.refHistory.query({ id }));
     },
 
     /**

@@ -25,6 +25,15 @@
 // white — the design keeps one ground from the status bar down and lets the
 // rule do the separating.
 //
+// The ref is the one field that does not ride on `patient.update`. Correcting
+// the number a record is known by is gated by role and leaves an audit row, so
+// the server gives it a procedure of its own and Save makes a second call —
+// only when the number actually moved. The row is drawn read-only for a role
+// that may not edit, because the number is worth reading whoever is holding the
+// phone, and it is absent entirely on a registration, where the counter hands
+// it out. `canEditRef` is the same rule the server enforces; the screen asking
+// it first is a correct screen, not the protection.
+//
 // The write crosses Tailscale, so Save spins, cancel is disabled under it, and
 // a failure keeps every field on screen with a `Callout` saying why.
 //
@@ -34,7 +43,7 @@
 // Expo SDK 54+ default: the app is laid out behind the IME, the window never
 // gets shorter, and the footer sat under the keys with the last fields of the
 // form. See `ui/useKeyboardHeight` for the whole of it.
-import { resolveLabel } from '@lustre/shared';
+import { canEditRef, resolveLabel } from '@lustre/shared';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -46,6 +55,7 @@ import {
     useKeyboardHeight,
 } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
+import { useRole } from '../../shell/roleStore';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
@@ -70,6 +80,8 @@ import {
     malformedBasics,
     malformedOld,
     missingRequired,
+    refEditOf,
+    refError,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -110,7 +122,16 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
     const create = useMutation(patientsApi.create);
     const update = useMutation(patientsApi.update);
+    const editRef = useMutation(patientsApi.updateRef);
     const save = creating ? create : update;
+
+    // `hydrated` matters: the store falls back to secretary until storage
+    // answers, and drawing an editable row for a beat and then taking it away
+    // is worse than drawing the locked one a beat late.
+    const { role, hydrated } = useRole();
+    // Never on a registration — the counter hands out the number, so there is
+    // nothing on screen to correct.
+    const refMode = creating ? 'hidden' : hydrated && canEditRef(role) ? 'editable' : 'locked';
 
     // Only the kinds with a control. A `date` answer already on the record is
     // drawn below, read-only, and is never in the form.
@@ -149,6 +170,11 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     const missing = form ? missingRequired(form, editable) : [];
     const answered = form ? answeredCount(form, editable) : 0;
 
+    // Only the doctor's row can be wrong: every other role is reading a value it
+    // cannot change, and marking it `due` would be telling them off for a
+    // record they cannot correct here.
+    const refMessage = form && refMode === 'editable' ? (refError(form.ref) ?? undefined) : undefined;
+
     // A required answer the desk has emptied. Not the same as one never given:
     // the blank is in the patch, and the server throws on it rather than
     // deleting it, so the button has to refuse it here.
@@ -165,6 +191,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         oldBlank.length +
         Object.keys(oldMalformed).length +
         oldBadDates.length +
+        (refMessage === undefined ? 0 : 1) +
         (creating ? missing.length : cleared.length);
 
     // A required question this screen has no control for (§7.9). Intake cannot
@@ -202,17 +229,42 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
         const patch = updateInputOf(patientId, form, initial, editable);
         if (patch === null) return;
-        // Nothing moved. Closing beats spending a round trip to write the record
-        // back over itself.
-        if (isUnchanged(patch)) {
+
+        // The number, if it moved. Its own call: `patient.update` cannot write a
+        // ref, and this one is refused for a role that may not.
+        const ref = refMode === 'editable' ? refEditOf(form, initial) : null;
+
+        // Nothing moved at all. Closing beats spending a round trip to write the
+        // record back over itself.
+        if (isUnchanged(patch) && ref === null) {
             onSaved(patientId);
             return;
         }
 
         onSavingChange?.(true);
-        const saved = await update.mutate(patch);
+
+        // The ref goes first, and a refusal stops the save. The alternative is
+        // the record's other fields written while the number the desk came here
+        // to correct was refused — a half-done save reported as done, with the
+        // callout naming the one part that did not land. This way a refusal
+        // leaves the record exactly as it was.
+        if (ref !== null) {
+            const moved = await editRef.mutate({ id: patientId, ref, editedBy: role });
+            if (!moved) {
+                onSavingChange?.(false);
+                return;
+            }
+        }
+
+        if (!isUnchanged(patch)) {
+            const saved = await update.mutate(patch);
+            if (!saved) {
+                onSavingChange?.(false);
+                return;
+            }
+        }
+
         onSavingChange?.(false);
-        if (!saved) return;
         onSaved(patientId);
     };
 
@@ -220,7 +272,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         <View style={styles.screen}>
             <EditBar
                 title={creating ? 'New patient' : 'Edit patient'}
-                onCancel={save.pending ? undefined : onCancel}
+                onCancel={save.pending || editRef.pending ? undefined : onCancel}
             />
 
             {loading && !form ? (
@@ -245,10 +297,10 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                         keyboardDismissMode="on-drag"
                         showsVerticalScrollIndicator={false}
                     >
-                        {save.error !== undefined && (
+                        {(editRef.error ?? save.error) !== undefined && (
                             <View style={styles.callout}>
                                 <Callout tone="warning" title="Not saved">
-                                    {errorText(save.error)}
+                                    {errorText(editRef.error ?? save.error)}
                                 </Callout>
                             </View>
                         )}
@@ -279,6 +331,8 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             onChange={change}
                             blank={blank}
                             errors={malformed}
+                            ref={refMode}
+                            refError={refMessage}
                             trailing={
                                 creating ? (
                                     <OldPatientRows
@@ -309,7 +363,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                     <SaveBar
                         label={owed > 0 ? `${owed} required left` : 'Save patient'}
                         disabled={owed > 0 || unaskable.length > 0}
-                        pending={save.pending}
+                        pending={save.pending || editRef.pending}
                         onPress={onSave}
                     />
                 </>

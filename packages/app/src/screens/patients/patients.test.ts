@@ -2,7 +2,9 @@
 // draft↔wire conversion, and patch semantics — and there is no renderer in
 // `bun test`, so the components are verified on a device and this covers what
 // would fail silently.
+
 import { describe, expect, it } from 'bun:test';
+import { canEditRef } from '@lustre/shared';
 import {
     displayAnswer,
     fromDraft,
@@ -36,6 +38,8 @@ import {
     oldDateError,
     owesInput,
     owesPiastres,
+    refEditOf,
+    refError,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -74,6 +78,7 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     name: 'Nour El-Sayed',
     phone: '0100 224 8891',
     email: '',
+    ref: 'W5F5',
     age: '34',
     gender: 'female',
     answers: {},
@@ -673,5 +678,109 @@ describe('a mistyped old procedure date', () => {
 
         expect(badOldDates(off)).toEqual([]);
         expect(createInputOf(off, questions, TODAY)).not.toBeNull();
+    });
+});
+
+/**
+ * Correcting the number a record is known by. The screen decides three things
+ * — whether the row is drawn, whether what is in it is sound, and whether a
+ * save has anything to send — and all three live here.
+ */
+describe('the ref', () => {
+    describe('refError', () => {
+        it('takes a plain number', () => {
+            for (const ref of ['1', '910', '100000']) expect(refError(ref)).toBeNull();
+        });
+
+        // A patient from before numbering carries a four-character code, and it
+        // is still the number written on their paper file.
+        it('takes the code an older file carries, in either case', () => {
+            for (const ref of ['W5F5', 'w5f5', 'ABCD', '2345']) expect(refError(ref)).toBeNull();
+        });
+
+        it('trims before it judges', () => {
+            expect(refError('  910  ')).toBeNull();
+        });
+
+        it('says a record cannot be left without a number', () => {
+            expect(refError('')).toBe('A patient keeps their number. Type the one on the file.');
+            expect(refError('   ')).toBe('A patient keeps their number. Type the one on the file.');
+        });
+
+        it('refuses the ambiguous letters the alphabet leaves out', () => {
+            for (const ref of ['W5F0', 'O123', 'WIF5', 'L23A']) expect(refError(ref)).not.toBeNull();
+        });
+
+        it('refuses an appointment ref, a leading zero, and the wrong length', () => {
+            for (const ref of ['011224-W5F5', '007', 'W5F', 'W5F55', '12 34']) {
+                expect(refError(ref)).not.toBeNull();
+            }
+        });
+    });
+
+    describe('refEditOf', () => {
+        const from = (ref: string) => sound({ ref });
+
+        it('sends the number when it moved', () => {
+            expect(refEditOf(from('910'), from('W5F5'))).toBe('910');
+        });
+
+        it('sends nothing when it did not', () => {
+            expect(refEditOf(from('W5F5'), from('W5F5'))).toBeNull();
+        });
+
+        // The server stores refs uppercase, so retyping the same code in
+        // lowercase is not a correction and must not spend a call — or write an
+        // audit row saying the number changed when it did not.
+        it('sends nothing when only the case differs', () => {
+            expect(refEditOf(from('w5f5'), from('W5F5'))).toBeNull();
+        });
+
+        it('sends nothing for a ref that is not sound', () => {
+            for (const bad of ['', '007', 'W5F0']) {
+                expect(refEditOf(from(bad), from('W5F5'))).toBeNull();
+            }
+        });
+
+        it('trims what it sends', () => {
+            expect(refEditOf(from('  910 '), from('W5F5'))).toBe('910');
+        });
+
+        // A registration holds no ref: the counter hands the number out.
+        it('sends nothing while registering', () => {
+            expect(refEditOf(sound({ ref: '' }), sound({ ref: '' }))).toBeNull();
+        });
+    });
+
+    describe('who may edit', () => {
+        it('lets the doctor', () => {
+            expect(canEditRef('doctor')).toBe(true);
+        });
+
+        it('does not let the secretary', () => {
+            expect(canEditRef('secretary')).toBe(false);
+        });
+    });
+
+    describe('what a refusal says', () => {
+        const refusal = (code: string) => errorText(new PatientsRequestError(code as never, 'server text'));
+
+        it('names the role that can make the change', () => {
+            expect(refusal('REF_EDIT_FORBIDDEN')).toContain('doctor');
+        });
+
+        it('names both shapes when the format is refused', () => {
+            expect(refusal('PATIENT_REF_INVALID')).toContain('four-character');
+        });
+
+        it('still says a taken number is taken', () => {
+            expect(refusal('PATIENT_REF_TAKEN')).toContain('already has that number');
+        });
+    });
+
+    // `formOf` seeds the editor from the record, so the row opens on the number
+    // that is on file rather than empty.
+    it('opens on the number the record carries', () => {
+        expect(formOf(patient({ ref: '910' }), []).ref).toBe('910');
     });
 });

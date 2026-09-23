@@ -41,8 +41,21 @@
 //
 // An old patient is never an *edit*: `old` is a registration block, and
 // `updateInputOf` never sends it.
+//
+// ## The ref
+//
+// `ref` is the one field here that does not go through `patient.update`. It has
+// a procedure of its own on the server because correcting the number a record is
+// known by is a different act from correcting a phone number — it is gated by
+// role and it leaves an audit row — so the form holds it, `refEditOf` says
+// whether it moved, and the screen sends it separately.
+//
+// Unlike the *old* ref above, this one is validated for shape before it is
+// sent: this format is ours. Both shapes stay valid, the plain counter number
+// and the four-character code a patient registered before numbering carries —
+// that code is still the number written on their file.
 
-import { PIASTRES_PER_POUND, type Tooth, todayKey } from '@lustre/shared';
+import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND, type Tooth, todayKey } from '@lustre/shared';
 import {
     birthDateOf,
     blankNameAndPhone,
@@ -95,6 +108,12 @@ export type PatientForm = {
     name: string;
     phone: string;
     email: string;
+    /**
+     * This clinic's number for the patient. Empty while registering — the
+     * number is the counter's to hand out, never the desk's to choose — and on
+     * an edit it is the number already on the record.
+     */
+    ref: string;
     /** Whole years as digits, or `''` when the record carries no date of birth. */
     age: string;
     /** `''`, `'female'` or `'male'` — lowercase, the way every record already on file spells it. */
@@ -133,6 +152,9 @@ export function emptyForm(questions: CustomQuestion[]): PatientForm {
         name: '',
         phone: '',
         email: '',
+        // A registration is numbered by the counter, so there is nothing to
+        // hold and nothing this screen could put here.
+        ref: '',
         age: '',
         gender: '',
         answers: blankAnswers(questions),
@@ -148,6 +170,7 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         name: patient.name,
         phone: patient.phone,
         email: patient.email ?? '',
+        ref: patient.ref,
         // The server's own derivation, not a second one here.
         age: patient.age === null ? '' : String(patient.age),
         gender: patient.gender ?? '',
@@ -446,4 +469,37 @@ export function updateInputOf(
 /** Whether a save would send anything at all — an editor closed unchanged should not spend a round trip. */
 export function isUnchanged(patch: UpdatePatientInput): boolean {
     return Object.keys(patch).length === 1;
+}
+
+/**
+ * A ref typed and wrong. Blank is its own case and says so, because a record
+ * cannot be without a number and clearing the field is not a correction.
+ *
+ * The message names both shapes, since a desk looking at a patient from before
+ * numbering is holding a paper file with `W5F5` on it and needs to be told that
+ * is still allowed. Matching is case-insensitive and the server stores it
+ * uppercase, so `w5f5` is accepted here rather than refused for its case.
+ */
+export function refError(ref: string): string | null {
+    const trimmed = ref.trim();
+    if (trimmed === '') return 'A patient keeps their number. Type the one on the file.';
+    if (!PATIENT_REF_PATTERN.test(trimmed)) {
+        return 'A number like 910, or the four-character code on an older file.';
+    }
+    return null;
+}
+
+/**
+ * The ref to send, or null when there is nothing to send.
+ *
+ * Null covers three cases that all mean *do not call* — registering, a ref that
+ * did not move, and one that is not sound — so the screen has one thing to ask
+ * rather than three. Compared case-insensitively: the server stores `W5F5`, and
+ * a desk retyping it as `w5f5` has not changed the record's number.
+ */
+export function refEditOf(form: PatientForm, initial: PatientForm): string | null {
+    const next = form.ref.trim();
+    if (next === '' || refError(next) !== null) return null;
+    if (next.toUpperCase() === initial.ref.trim().toUpperCase()) return null;
+    return next;
 }
