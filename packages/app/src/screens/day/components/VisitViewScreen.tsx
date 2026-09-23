@@ -562,6 +562,7 @@ const styles = StyleSheet.create({
     waivedNote: { marginTop: space[1] },
     note: {
         gap: space[1.5],
+        marginHorizontal: size.gutter,
         padding: space[3.5],
         borderRadius: radius.lg,
         borderWidth: border.hair,

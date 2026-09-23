@@ -680,13 +680,15 @@ export function VisitScreen({
                             {t('NOTE')}
                         </Text>
                     </View>
-                    <Textarea
-                        value={note}
-                        onChangeText={setNote}
-                        placeholder="Anything the doctor should know."
-                        accessibilityLabel="Visit note"
-                        testID="visit-note"
-                    />
+                    <View style={styles.noteField}>
+                        <Textarea
+                            value={note}
+                            onChangeText={setNote}
+                            placeholder="Anything the doctor should know."
+                            accessibilityLabel="Visit note"
+                            testID="visit-note"
+                        />
+                    </View>
                 </View>
 
                 <View style={[styles.total, empty && styles.totalIdle]}>
@@ -990,6 +992,7 @@ const styles = StyleSheet.create({
     },
 
     noteSection: { gap: space[2] },
+    noteField: { paddingHorizontal: size.gutter },
     total: {
         flexDirection: 'row',
         alignItems: 'center',
