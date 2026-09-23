@@ -192,6 +192,23 @@ export interface OldPatientInput {
 }
 
 /**
+ * Work a patient had done before this system recorded it, added from the
+ * editor. The same line the registration block sends, against a patient who
+ * already exists: `procedure.addHistorical` writes it as an imported
+ * appointment with no visit behind it, so it shows in the history and adds to
+ * no total and no checkout.
+ */
+export interface AddHistoricalProceduresInput {
+    patientId: string;
+    procedures: OldProcedureInput[];
+}
+
+/** The days the lines were grouped into — one per date on the file, not one per line. */
+export interface AddedHistoricalProcedures {
+    appointmentIds: string[];
+}
+
+/**
  * A partial patch, throughout: a key left out keeps what is stored, and only
  * the keys sent are validated. `null` is an answer — it clears the column — so
  * a field the editor did not touch is `undefined` and never `null`.
