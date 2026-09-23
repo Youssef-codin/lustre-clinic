@@ -4,7 +4,7 @@ import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
 import { BottomTabBar, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
-import { useReminderNudges, useVisitCompletedNotices } from '../notifications';
+import { useReminderNudges, useVisitCompletedNotices, useVisitFinishAction } from '../notifications';
 import { noteScreen, renderErrorReporter, useCrashReportRole } from '../reporting';
 import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
@@ -113,6 +113,8 @@ export function AppShell() {
     useReminderNudges();
     // The doctor finishing (`visit:completed`), on the desk's phone only.
     useVisitCompletedNotices(roleReady ? role : null);
+    // And its other half: Finish from the doctor's notification shade.
+    useVisitFinishAction(roleReady ? role : null);
     useCrashReportRole(role);
 
     // Entered on the connection's word rather than on a query failing, so the

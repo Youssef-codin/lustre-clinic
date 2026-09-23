@@ -708,6 +708,17 @@ export const COPY_AR = {
     'You will be told when a patient is coming to the desk.':
         'سيتم إعلامك عندما يكون مريض في الطريق إلى الاستقبال.',
     'Staying connected to the clinic': 'البقاء متصلاً بالعيادة',
+    '{name} is in the chair': '{name} على الكرسي',
+    'Finish the visit to send them to the desk.': 'أنهِ الزيارة لإرساله إلى الاستقبال.',
+    'A visit is in progress': 'زيارة جارية',
+    'Finishing the visit…': 'جارٍ إنهاء الزيارة…',
+    'Visits not finished': 'زيارات لم تُنهَ',
+    'When finishing a visit from the notification does not go through.':
+        'عندما يتعذر إنهاء زيارة من الإشعار.',
+    'The visit was not finished': 'لم تُنهَ الزيارة',
+    "Can't reach the clinic server. Try again.": 'تعذر الوصول إلى خادم العيادة. حاول مرة أخرى.',
+    'Something went wrong. Try again, or finish it in the app.':
+        'حدث خطأ. حاول مرة أخرى، أو أنهِها من التطبيق.',
     Cancelled: 'ملغي',
     Waiting: 'في الانتظار',
     Sun: 'الأحد',
