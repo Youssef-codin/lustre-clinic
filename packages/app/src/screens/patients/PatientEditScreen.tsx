@@ -169,11 +169,16 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     const [form, setForm] = useState<PatientForm | null>(null);
     if (form === null && initial !== null) setForm(initial);
 
-    // The number landed and the rest of the save did not. Two calls cannot be
-    // one transaction from here, so the screen says which half is already on
-    // file rather than letting "Not saved" imply neither is — and a retry sends
-    // only the half that is still owed.
-    const [refSaved, setRefSaved] = useState(false);
+    // The number that landed on an earlier attempt whose rest did not. Two
+    // calls cannot be one transaction from here, so the screen says which half
+    // is already on file rather than letting "Not saved" imply neither is.
+    //
+    // The value and not a flag: it becomes the baseline the ref is compared
+    // against. A flag would skip the ref for the rest of the editor's life, so
+    // a number changed *again* after a partial save would be dropped silently
+    // while the patch went through and closed the screen.
+    const [savedRef, setSavedRef] = useState<string | null>(null);
+    const refBaseline = initial && savedRef !== null ? { ...initial, ref: savedRef } : initial;
 
     const loading = questions.loading || record.loading;
     const failed = questions.error ?? record.error;
@@ -193,7 +198,9 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // judged — an old patient's number is their old system's and need not be
     // one this app would issue. See `refEditError`.
     const refMessage =
-        form && initial && refMode === 'editable' ? (refEditError(form, initial) ?? undefined) : undefined;
+        form && refBaseline && refMode === 'editable'
+            ? (refEditError(form, refBaseline) ?? undefined)
+            : undefined;
 
     // A required answer the desk has emptied. Not the same as one never given:
     // the blank is in the patch, and the server throws on it rather than
@@ -255,10 +262,11 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         // entries, which is exactly what the day grouping exists for.
         const sent = new Set(form.history.map((row) => row.id));
 
-        // The number, if it moved and has not already landed on an earlier
-        // attempt. Its own call: `patient.update` cannot write a ref, and this
-        // one is refused for a role that may not.
-        const ref = refMode === 'editable' && !refSaved ? refEditOf(form, initial) : null;
+        // The number, if it moved from the last one on file — the record's, or
+        // the one an earlier partial save already wrote. Its own call:
+        // `patient.update` cannot write a ref, and this one is refused for a
+        // role that may not.
+        const ref = refMode === 'editable' && refBaseline ? refEditOf(form, refBaseline) : null;
 
         // Nothing moved and nothing to add. Closing beats spending a round trip
         // to write the record back over itself.
@@ -291,7 +299,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                 onSavingChange?.(false);
                 return;
             }
-            setRefSaved(true);
+            setSavedRef(moved.ref);
         }
 
         // The procedures, and the entries are dropped the moment they land.
@@ -365,7 +373,11 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             <View style={styles.callout}>
                                 <Callout
                                     tone="warning"
-                                    title={refSaved ? 'The number was saved, the rest was not' : 'Not saved'}
+                                    title={
+                                        savedRef !== null
+                                            ? 'The number was saved, the rest was not'
+                                            : 'Not saved'
+                                    }
                                 >
                                     {errorText(saveError)}
                                 </Callout>

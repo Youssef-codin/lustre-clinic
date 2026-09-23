@@ -775,6 +775,21 @@ describe('the ref', () => {
             expect(refEditOf(from('  910 '), from('W5F5'))).toBe('910');
         });
 
+        // After a partial save the screen compares against the number that
+        // landed, not the one the record opened with. Against the opening one,
+        // a number the desk changed *again* would still look sent.
+        it('compares against the number that already landed', () => {
+            const opened = from('W5F5');
+            const landed = { ...opened, ref: '910' };
+
+            // Retrying with the landed number: nothing left to send.
+            expect(refEditOf(from('910'), landed)).toBeNull();
+            // Changed again after it landed: that change is owed.
+            expect(refEditOf(from('911'), landed)).toBe('911');
+            // Put back to what the record opened with: also a real change.
+            expect(refEditOf(from('W5F5'), landed)).toBe('W5F5');
+        });
+
         // A registration holds no ref: the counter hands the number out.
         it('sends nothing while registering', () => {
             expect(refEditOf(sound({ ref: '' }), sound({ ref: '' }))).toBeNull();
