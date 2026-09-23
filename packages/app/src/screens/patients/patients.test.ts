@@ -35,6 +35,7 @@ import {
     malformedBasics,
     malformedOld,
     missingRequired,
+    notesInputOf,
     owesInput,
     owesPiastres,
     refBaselineOf,
@@ -923,5 +924,28 @@ describe('the ref', () => {
     // that is on file rather than empty.
     it('opens on the number the record carries', () => {
         expect(formOf(patient({ ref: '910' }), []).ref).toBe('910');
+    });
+});
+
+describe('patient notes', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+
+    it('sends the one column, trimmed', () => {
+        expect(notesInputOf(id, '  Prefers mornings \n', null)).toEqual({ id, notes: 'Prefers mornings' });
+    });
+
+    it('sends null for notes emptied, not an empty string', () => {
+        expect(notesInputOf(id, '   ', 'Prefers mornings')).toEqual({ id, notes: null });
+    });
+
+    it('is not a write when nothing moved', () => {
+        expect(notesInputOf(id, 'Prefers mornings ', 'Prefers mornings')).toBeNull();
+        expect(notesInputOf(id, '', null)).toBeNull();
+    });
+
+    it('is never part of an editor save', () => {
+        const initial = formOf(patient({ notes: 'Prefers mornings' }), []);
+        const patch = updateInputOf(id, { ...initial, name: 'Nour Hassan' }, initial, []);
+        expect(patch).not.toHaveProperty('notes');
     });
 });

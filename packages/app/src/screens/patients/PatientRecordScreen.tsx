@@ -9,7 +9,9 @@
 // not a filled panel: it is a fact about the patient, not an alert. The Details
 // tab is the clinic's questions and nothing else; sex and age live in the meta
 // line under the name, so a second card repeating them was this screen's
-// invention, not the design's.
+// invention, not the design's. The patient's own notes head that tab, above the
+// questions: they are the record's, written here and nowhere else, and kept
+// apart from what a visit or a booking notes about itself.
 //
 // `patient.byId` is one payload — patient, history and `questionnaireGaps` — so
 // the record is a single round trip and what it is missing is answered by the
@@ -54,6 +56,7 @@ import { HistoryRow } from './components/HistoryRow';
 import { MoreIcon } from './components/icons';
 import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
+import { PatientNotesSheet } from './components/PatientNotesSheet';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
 import { chairToday, patientsApi } from './data/api';
 import { errorText } from './data/errors';
@@ -66,6 +69,7 @@ import type {
     QuestionnaireGap,
     SettleInput,
 } from './data/types';
+import { notesInputOf } from './patientForm';
 
 export type PatientRecordScreenProps = {
     patientId: string;
@@ -108,6 +112,7 @@ export function PatientRecordScreen({
     const [tab, setTab] = useState<Tab>('visits');
     const [toast, setToast] = useState<string | null>(null);
     const [payingOpen, setPayingOpen] = useState(false);
+    const [notesOpen, setNotesOpen] = useState(false);
     // Derived during render, as the cluster derives its own `open` request.
     // Seeded with the notice already in hand, so a remount after an edit does
     // not say an old visit's charge a second time.
@@ -138,6 +143,7 @@ export function PatientRecordScreen({
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
     const settle = useMutation(patientsApi.settle);
     const remove = useMutation(patientsApi.delete);
+    const saveNotes = useMutation(patientsApi.update);
 
     const patient = record.data?.patient;
     const history = record.data?.history ?? [];
@@ -185,6 +191,22 @@ export function PatientRecordScreen({
         setPayingOpen(false);
         record.refetch();
         setToast(paymentReceipt(report));
+    }
+
+    /**
+     * One column through `patient.update`, so the notes cannot drag anything
+     * else on the record with them. The mutation invalidates the cluster, which
+     * is the re-read; a failure keeps the sheet up with the draft still in it.
+     */
+    async function writeNotes(draft: string) {
+        if (!patient) return;
+        const input = notesInputOf(patient.id, draft, patient.notes);
+        if (input) {
+            const saved = await saveNotes.mutate(input);
+            if (!saved) return;
+        }
+        setNotesOpen(false);
+        if (input) setToast(t('Notes saved'));
     }
 
     /**
@@ -270,6 +292,11 @@ export function PatientRecordScreen({
                         />
                     ) : (
                         <Details
+                            notes={patient.notes}
+                            onEditNotes={() => {
+                                saveNotes.reset();
+                                setNotesOpen(true);
+                            }}
                             answers={patient.custom}
                             gaps={record.data.questionnaireGaps}
                             questions={questions}
@@ -291,6 +318,17 @@ export function PatientRecordScreen({
                     isPending={settle.pending}
                     error={settle.error ? errorText(settle.error) : null}
                     onSubmit={(input) => void recordPayment(input)}
+                />
+            ) : null}
+
+            {patient ? (
+                <PatientNotesSheet
+                    visible={notesOpen}
+                    onClose={() => setNotesOpen(false)}
+                    notes={patient.notes}
+                    isPending={saveNotes.pending}
+                    error={saveNotes.error ? errorText(saveNotes.error) : null}
+                    onSubmit={(draft) => void writeNotes(draft)}
                 />
             ) : null}
 
@@ -603,6 +641,8 @@ function groupByYear(history: PatientHistoryEntry[]): Array<[string, PatientHist
 }
 
 type DetailsProps = {
+    notes: string | null;
+    onEditNotes: () => void;
     answers: Answers;
     gaps: QuestionnaireGap[];
     questions: { data: CustomQuestion[] | undefined; loading: boolean; error: Error | undefined };
@@ -610,11 +650,11 @@ type DetailsProps = {
 };
 
 /**
- * The clinic's questions and their answers, and nothing else — the design puts
- * age, sex and the phone number in the meta line under the name, so this tab is
- * only the part that differs from clinic to clinic.
+ * The patient's notes, then the clinic's questions and their answers — the
+ * design puts age, sex and the phone number in the meta line under the name, so
+ * this tab is only what the desk has written about this one person.
  */
-function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
+function Details({ notes, onEditNotes, answers, gaps, questions, onEdit }: DetailsProps) {
     const t = useT();
     const gapByKey = useMemo(() => new Map(gaps.map((gap) => [gap.key, gap])), [gaps]);
 
@@ -629,6 +669,24 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
 
     return (
         <View style={styles.details}>
+            <View style={styles.sectionHead}>
+                <Text variant="eyebrow" tone="muted">
+                    {t('NOTES')}
+                </Text>
+                <Pill label={notes ? 'Edit' : 'Add'} onPress={onEditNotes} testID="patient-notes-edit" />
+            </View>
+            <View style={styles.notes}>
+                {notes ? (
+                    <Text variant="body" selectable testID="patient-notes">
+                        {notes}
+                    </Text>
+                ) : (
+                    <Text variant="subhead" tone="muted">
+                        {t('No notes on this patient yet.')}
+                    </Text>
+                )}
+            </View>
+
             <View style={styles.sectionHead}>
                 <Text variant="eyebrow" tone="muted">
                     {questions.data
@@ -796,6 +854,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
         paddingBottom: space[2],
+    },
+    notes: {
+        paddingHorizontal: size.gutter,
+        paddingBottom: space[3],
+        borderBottomWidth: border.hair,
+        borderBottomColor: color.line,
     },
     gap: { paddingHorizontal: size.gutter, paddingVertical: space[1] },
     answer: {

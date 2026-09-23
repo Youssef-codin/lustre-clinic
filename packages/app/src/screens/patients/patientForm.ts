@@ -570,3 +570,21 @@ export function refEditOf(form: PatientForm, initial: PatientForm): string | nul
     if (next.toUpperCase() === initial.ref.trim().toUpperCase()) return null;
     return next;
 }
+
+/** `patients.notes`' own cap, as `patient.schema` enforces it. */
+export const MAX_NOTES_LENGTH = 4000;
+
+/**
+ * What the record's notes sheet sends: the one column, and nothing else.
+ *
+ * Notes are the patient's and not a visit's or an appointment's — they are
+ * written from the record, and `updateInputOf` above never carries them, so
+ * an editor opened for a phone number cannot touch them either. Emptied is
+ * `null`, which is what a record with no notes already holds, and the same
+ * text resent is not a write: `null` comes back for that.
+ */
+export function notesInputOf(id: string, draft: string, current: string | null): UpdatePatientInput | null {
+    const next = draft.trim();
+    if (next === (current ?? '').trim()) return null;
+    return { id, notes: next === '' ? null : next };
+}
