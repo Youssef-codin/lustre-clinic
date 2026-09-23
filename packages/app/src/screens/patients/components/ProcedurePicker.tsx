@@ -27,6 +27,7 @@ export type ProcedurePick = {
     tooth: Tooth | null;
     /** The catalogue's price in piastres, which a priced caller uses as its default. */
     defaultPrice: number;
+    isCheckup: boolean;
 };
 
 export type ProcedurePickerProps = {
@@ -70,6 +71,7 @@ export function ProcedurePicker({ visible, onPicked, onClose }: ProcedurePickerP
             name: picked.variant ? `${picked.name} — ${picked.variant}` : picked.name,
             tooth,
             defaultPrice: picked.price,
+            isCheckup: picked.isCheckup,
         });
         setAsking(null);
     }

@@ -107,6 +107,49 @@ describe('routeStack', () => {
         expect(drawn(reopened)).toEqual(['edit']);
     });
 
+    it('refuses the second of two taps on the same opener', () => {
+        // AddButton and the cards carry no press lock, so both taps run and
+        // each is its own updater — the editor used to open twice, and closing
+        // it once left the second copy standing.
+        const twice = push(stackOf('record', 'edit'), 'edit');
+
+        expect(drawn(twice)).toEqual(['record', 'edit']);
+    });
+
+    it('compares a route by value, not by identity', () => {
+        type Editor = { kind: string; id?: string };
+        const first = push(emptyStack<Editor>(), { kind: 'new' });
+        const second = push(first, { kind: 'new' });
+
+        expect(rendered(second)).toHaveLength(1);
+        // A different row is a different pane and still opens.
+        expect(rendered(push(first, { kind: 'edit', id: 'p1' }))).toHaveLength(2);
+
+        // Same kind, another row: still its own pane, and both stay open.
+        const one = push(emptyStack<Editor>(), { kind: 'edit', id: 'p1' });
+        const two = push(one, { kind: 'edit', id: 'p2' });
+        expect(rendered(two)).toHaveLength(2);
+        expect(two.open.map((entry) => entry.route)).toEqual([
+            { kind: 'edit', id: 'p1' },
+            { kind: 'edit', id: 'p2' },
+        ]);
+    });
+
+    it('reopens a route once its pane has been popped', () => {
+        const again = push(pop(stackOf('record', 'edit')), 'edit');
+
+        expect(top(again)).toBe('edit');
+        expect(again.open).toHaveLength(2);
+    });
+
+    it('stacks the same route reached from itself', () => {
+        // A patient opened from a patient is a real place to be; only the tap
+        // that repeats the top is refused.
+        const deeper = push(push(stackOf('record'), 'edit'), 'record');
+
+        expect(drawn(deeper)).toEqual(['record', 'edit', 'record']);
+    });
+
     it('swaps the top without a pop', () => {
         const saved = replaceTop(stackOf('record', 'edit'), 'record');
 

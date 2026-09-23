@@ -114,6 +114,9 @@ export const COPY_AR = {
     Patient: 'المريض',
     Patients: 'المرضى',
     Phone: 'الهاتف',
+    Ref: 'الرقم',
+    'Patient number': 'رقم المريض',
+    'The number was saved, the rest was not': 'تم حفظ الرقم، وبقية التعديلات لم تُحفظ',
     Price: 'السعر',
     Procedures: 'الإجراءات',
     'Procedures & prices': 'الإجراءات والأسعار',
@@ -320,6 +323,14 @@ export const COPY_AR = {
     'This visit is already checked out': 'تم إنهاء هذه الزيارة بالفعل',
     'That has already moved on': 'تم تحديث هذه الحالة بالفعل',
     'That phone number does not look right': 'رقم الهاتف غير صحيح',
+    'A patient keeps their number. Type the one on the file.':
+        'لكل مريض رقم ثابت. اكتب الرقم المدوَّن على الملف.',
+    'A number like 910, or the four-character code on an older file.':
+        'رقم مثل 910، أو الرمز المكوَّن من أربعة أحرف على الملفات الأقدم.',
+    'That is not a patient number. Use 910, or the four-character code on an older file.':
+        'هذا ليس رقم مريض. استخدم رقمًا مثل 910، أو الرمز المكوَّن من أربعة أحرف على الملفات الأقدم.',
+    'Only the doctor can change a patient number. Switch roles in Settings to make this change.':
+        'تغيير رقم المريض للطبيب وحده. بدِّل الدور من الإعدادات لإجراء هذا التغيير.',
     'That amount is not allowed': 'هذا المبلغ غير مسموح',
     'Say how they paid': 'اذكر طريقة الدفع',
     'Something in that was not accepted': 'بعض البيانات غير مقبولة',
@@ -486,6 +497,7 @@ export const COPY_AR = {
     'Treatment or payment': 'علاج أو دفع',
     'Type two letters of a name, or part of a phone number.': 'اكتب حرفين من الاسم أو جزءًا من رقم الهاتف.',
     VISIT: 'الزيارة',
+    'Visit note': 'ملاحظة الزيارة',
     Visits: 'الزيارات',
     'Visits already recorded keep the price they were charged at.':
         'الزيارات المسجلة بالفعل تحتفظ بالسعر الذي حُسب وقتها.',

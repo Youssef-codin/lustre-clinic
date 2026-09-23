@@ -62,7 +62,7 @@ export type PatientRef =
           name: string;
           phone: string;
           email?: string | null;
-          birthDate?: string | null;
+          birthDate: string;
           gender?: string | null;
           notes?: string | null;
       };
@@ -276,12 +276,32 @@ export async function arrive(input: {
     appointmentId: string;
     procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
     edited: boolean;
+    note?: string | null;
 }): Promise<Visit> {
+    // The note first: it is safe to send twice, and a check-in is not. A note
+    // that fails leaves the patient still booked, so Confirm can simply be retried.
+    await writeNote(input.appointmentId, input.note);
+
     const row = await api.checkIn(input.appointmentId);
     rememberVisit(input.appointmentId, row.id);
 
     if (!input.edited) return api.visitById(row.id);
     return api.setProcedures({ visitId: row.id, procedures: input.procedures });
+}
+
+/**
+ * The visit note lives on the appointment (`appointments.note`) — there is no
+ * column on `visits` — so editing one in the chair is an `appointment.update`
+ * alongside the write that put the procedures there. `undefined` is a note
+ * nobody touched and sends nothing; `null` is one that was cleared.
+ *
+ * Only the note is sent. A patch carrying the time or the branch would be
+ * refused on a visit that is already checked in (§13 — a span past check-in is
+ * the chair's record), and the note is deliberately not part of that rule.
+ */
+async function writeNote(appointmentId: string, note: string | null | undefined): Promise<void> {
+    if (note === undefined) return;
+    await api.reschedule({ id: appointmentId, note });
 }
 
 /**
@@ -294,8 +314,10 @@ export async function arrive(input: {
  */
 export async function amend(input: {
     visitId: string;
+    appointmentId: string;
     closed: boolean;
     procedures: Array<{ procedureId: string; quantity: number; unitPrice: number; tooth: Tooth | null }>;
+    note?: string | null;
 }): Promise<Visit> {
     // `closed` is what the screen was opened on, which a failed attempt has
     // already made stale: the reopen lands, `setProcedures` is refused for a
@@ -305,6 +327,10 @@ export async function amend(input: {
     // and that refusal would replace the real complaint about the tooth with
     // one about the checkout, on every retry. So the state is re-read rather
     // than assumed, and only on the path that might need it.
+    // The note first, for the reason `arrive` gives: resending it is harmless,
+    // so a failure after it leaves nothing a retry cannot finish.
+    await writeNote(input.appointmentId, input.note);
+
     if (input.closed) {
         const current = await api.visitById(input.visitId);
         if (current.completedAt) await api.reopenVisit(input.visitId);

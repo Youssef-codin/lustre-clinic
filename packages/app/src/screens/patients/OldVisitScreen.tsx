@@ -47,7 +47,13 @@ import { CalendarIcon, PatientIcon } from '../day/components/icons';
 import { type PlanCopy, ProcedurePlan } from '../day/components/ProcedurePlan';
 import { Steps, SummaryRow } from '../day/components/Steps';
 import { api as dayApi, useLocalQuery } from '../day/data';
-import { groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../day/procedures';
+import {
+    chargeableTotal,
+    checkupIsWaived,
+    groupByTooth,
+    type PlannedProcedure,
+    toothPosition,
+} from '../day/procedures';
 import { monthShort, parseKey, relativeDayLabel, todayKey } from '../day/time';
 import { MonthGrid } from './components/MonthGrid';
 import { formatMoney } from './components/money';
@@ -108,7 +114,19 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
     const name = patient?.name ?? '';
     const step = STEPS[index]?.key ?? 'confirm';
 
-    const total = totalOf(plan);
+    // The checkup waiver the server charges by (§10), so the figure shown is the one owed.
+    const checkups = new Set(
+        (catalogue.data ?? [])
+            .flatMap((root) => [root, ...root.children])
+            .filter((row) => row.isCheckup)
+            .map((row) => row.id),
+    );
+    const chargeable = plan.map((line) => ({
+        unitPrice: line.price,
+        quantity: 1,
+        isCheckup: checkups.has(line.procedureId),
+    }));
+    const total = chargeableTotal(chargeable, checkupIsWaived(chargeable));
     const whatAnswered = plan.length > 0;
     const ready = performedOn !== null && whatAnswered;
 

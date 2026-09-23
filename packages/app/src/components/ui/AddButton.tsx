@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet } from 'react-native';
 import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
+import { usePressLock } from './usePressLock';
 
 export type AddButtonVariant = 'full' | 'row' | 'footer' | 'compact';
 
@@ -9,13 +10,28 @@ export type AddButtonProps = {
     onPress?: () => void;
     variant?: AddButtonVariant;
     disabled?: boolean;
+    /** `ui/Button`'s, at the same default and for its reason — see `usePressLock`. */
+    pressLockMs?: number;
     testID?: string;
 };
 
-export function AddButton({ label, onPress, variant = 'full', disabled = false, testID }: AddButtonProps) {
+export function AddButton({
+    label,
+    onPress,
+    variant = 'full',
+    disabled = false,
+    pressLockMs = 500,
+    testID,
+}: AddButtonProps) {
     const t = useT();
     const shown = t(label);
     const compact = variant === 'compact';
+    const lock = usePressLock(pressLockMs);
+
+    function handlePress() {
+        if (disabled || !onPress) return;
+        lock(onPress);
+    }
 
     return (
         <Pressable
@@ -23,7 +39,7 @@ export function AddButton({ label, onPress, variant = 'full', disabled = false, 
             accessibilityLabel={shown}
             accessibilityState={{ disabled }}
             disabled={disabled}
-            onPress={onPress}
+            onPress={handlePress}
             testID={testID}
             style={({ pressed }) => [
                 styles.base,

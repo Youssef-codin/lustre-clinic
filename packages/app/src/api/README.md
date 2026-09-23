@@ -54,6 +54,10 @@ Two rules on writes, both from §14:
 - **A failed write is shown as failed.** Nothing is queued for later. Pass
   `loading` to the button and surface the error — the secretary must not tell a
   patient they are booked when they are not.
+- **A second tap is refused, not queued.** `isPending` is state and arrives a
+  frame late, so the press that writes goes through `usePendingAction`
+  (`components/ui`), which holds the in-flight write in a ref and clears it on
+  failure so the write stays retryable.
 
 ## Errors
 

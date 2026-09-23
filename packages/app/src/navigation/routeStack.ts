@@ -48,10 +48,46 @@ function nextId<T>(stack: RouteStack<T>): number {
     return highest + 1;
 }
 
+/**
+ * A push of the route already on top is the second tap, and it is refused.
+ *
+ * Every pane opens from a press, and a press surface that is not `ui/Button` or
+ * `ui/IconButton` — `AddButton`, a card, a row — carries no press lock, so two
+ * taps on Add a procedure both ran. Each is its own `setStack` updater, so
+ * neither saw the other's route land: the editor opened twice, and closing it
+ * once left the second copy standing. The guard belongs here rather than on
+ * each of those surfaces because this is where the duplicate is expressed, and
+ * one stack covers every way a route is reached.
+ *
+ * Equal by value, not by identity: `{ kind: 'new' }` is a fresh object per tap.
+ * And only against the *top* — the same route deeper in the stack is a patient
+ * reached from a patient, which is a real place to be, and a route pushed again
+ * after its pane was popped finds a different top and goes through.
+ */
 export function push<T>(stack: RouteStack<T>, route: T): RouteStack<T> {
+    if (stack.open.length > 0 && sameRoute(top(stack), route)) return stack;
     // Anything on its way out goes now rather than sliding away under the
     // arriving pane, which would draw two transitions over each other.
     return { open: [...stack.open, { id: nextId(stack), route }], leaving: [] };
+}
+
+/**
+ * Structural equality over what a route is made of: a string, a number, or a
+ * record of them — `{ kind: 'edit', procedure }` included, where the two taps
+ * carry the same procedure read from the same list.
+ */
+function sameRoute(a: unknown, b: unknown): boolean {
+    if (Object.is(a, b)) return true;
+    if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+    if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) return false;
+    return keys.every(
+        (key) =>
+            Object.hasOwn(b, key) &&
+            sameRoute((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    );
 }
 
 export function pop<T>(stack: RouteStack<T>): RouteStack<T> {

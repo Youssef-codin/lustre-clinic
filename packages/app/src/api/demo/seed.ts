@@ -186,7 +186,7 @@ function buildCatalogue(): Catalogue {
     };
 }
 
-const NAMES: readonly [name: string, phone: string, birthDate: string | null][] = [
+const NAMES: readonly [name: string, phone: string, birthDate: string][] = [
     ['Nour Hassan', '01001234567', '1991-04-12'],
     ['Mariam Adel', '01009876543', '1988-11-03'],
     ['Omar Khaled', '01112223344', '1979-06-21'],
@@ -202,7 +202,7 @@ const NAMES: readonly [name: string, phone: string, birthDate: string | null][] 
     ['Rana Gamal', '01288990011', '1986-01-29'],
     ['Sherif Amin', '01022334455', '1971-11-16'],
     ['Yara Fouad', '01199001122', '2004-04-04'],
-    ['Amr Hesham', '01255443322', null],
+    ['Amr Hesham', '01255443322', '1980-01-01'],
 ];
 
 function buildPatients(createdFrom: number): PatientRow[] {
@@ -423,6 +423,7 @@ function emptyDb(): DemoDb {
         payments: [],
         customQuestions: [],
         reminders: [],
+        refEdits: [],
         settings: {
             clinicName: 'Lustre Dental',
             clinicPhone: '+20221234567',

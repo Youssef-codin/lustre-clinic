@@ -9,7 +9,13 @@ import { procedureHistoryService } from '../src/modules/procedure/procedure.hist
 import { settingsService } from '../src/modules/settings/settings.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, truncateAll } from './helpers/db.ts';
-import { CHECKUP_PRICE, type Clinic, expectAppError, clinic as fixtures } from './helpers/factories.ts';
+import {
+    CHECKUP_PRICE,
+    type Clinic,
+    expectAppError,
+    clinic as fixtures,
+    ROOT_CANAL_PRICE,
+} from './helpers/factories.ts';
 
 /**
  * Adding work a patient had done before this system recorded it, from their own
@@ -36,7 +42,7 @@ async function migrating(): Promise<Clinic> {
 }
 
 async function register(phone: string) {
-    return patientService.create({ name: 'On File Already', phone, custom: {} });
+    return patientService.create({ name: 'On File Already', phone, birthDate: '1990-01-01', custom: {} });
 }
 
 describe('adding historical procedures to a patient on file', () => {
@@ -212,6 +218,7 @@ describe('recording a visit that already happened', () => {
         const added = await procedureHistoryService.addOldVisit({
             patientId: patient.id,
             performedOn: DAY,
+            offsetMinutes: 0,
             branchId: clinic.branch.id,
             procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
         });
@@ -283,6 +290,7 @@ describe('recording a visit that already happened', () => {
         const added = await procedureHistoryService.addOldVisit({
             patientId: patient.id,
             performedOn: DAY,
+            offsetMinutes: 0,
             // The x-ray is the catalogue's one `hasQuantity` row — §5 refuses a
             // quantity on anything else, which is a rule this path inherits.
             procedures: [{ procedureId: clinic.xray.id, quantity: 2, unitPrice: 5_000 }],
@@ -301,12 +309,14 @@ describe('recording a visit that already happened', () => {
         await procedureHistoryService.addOldVisit({
             patientId: patient.id,
             performedOn: DAY,
+            offsetMinutes: 0,
             branchId: clinic.branch.id,
             procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
         });
         await procedureHistoryService.addOldVisit({
             patientId: patient.id,
             performedOn: DAY,
+            offsetMinutes: 0,
             branchId: clinic.branch.id,
             procedures: [{ procedureId: clinic.rootCanal.id, quantity: 1 }],
         });
@@ -330,6 +340,7 @@ describe('recording a visit that already happened', () => {
         const added = await procedureHistoryService.addOldVisit({
             patientId: patient.id,
             performedOn: DAY,
+            offsetMinutes: 0,
             procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
         });
         expect(added.visitId).toBeTruthy();
@@ -343,10 +354,69 @@ describe('recording a visit that already happened', () => {
             procedureHistoryService.addOldVisit({
                 patientId: patient.id,
                 performedOn: '2099-01-01',
+                offsetMinutes: 0,
                 procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
             }),
         );
         expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+    });
+
+    // A day that has happened is the clinic's day, not the server's: the same
+    // date is today fourteen hours east of UTC and still tomorrow fourteen west.
+    test('judges the day by the clinic’s offset', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660010');
+        const eastToday = new Date(Date.now() + 840 * 60_000).toISOString().slice(0, 10);
+        const line = [{ procedureId: clinic.checkup.id, quantity: 1 }];
+
+        await expectAppError(ERROR_CODE.VALIDATION, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: eastToday,
+                offsetMinutes: -840,
+                procedures: line,
+            }),
+        );
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: eastToday,
+            offsetMinutes: 840,
+            procedures: line,
+        });
+        expect(added.visitId).toBeTruthy();
+    });
+
+    // §10: a checkup is free on a visit that did other work, old or not.
+    test('waives the checkup when other work was done', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660011');
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            procedures: [
+                { procedureId: clinic.checkup.id, quantity: 1 },
+                { procedureId: clinic.rootCanal.id, quantity: 1 },
+            ],
+        });
+
+        expect(added.chargedTotal).toBe(ROOT_CANAL_PRICE);
+    });
+
+    test('answers NOT_FOUND for a branch that does not exist', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660012');
+
+        await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: DAY,
+                offsetMinutes: 0,
+                branchId: Bun.randomUUIDv7(),
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
     });
 
     test('holds the catalogue rules, and writes nothing when one is broken', async () => {
@@ -357,6 +427,7 @@ describe('recording a visit that already happened', () => {
             procedureHistoryService.addOldVisit({
                 patientId: patient.id,
                 performedOn: DAY,
+                offsetMinutes: 0,
                 procedures: [{ procedureId: clinic.extraction.id, quantity: 1 }],
             }),
         );

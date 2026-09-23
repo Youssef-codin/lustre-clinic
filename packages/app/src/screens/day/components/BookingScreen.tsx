@@ -57,6 +57,7 @@ import {
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
+import { noteChanged, noteDraft, noteValue } from '../notes';
 import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '../patientDraft';
 import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
 import {
@@ -208,7 +209,7 @@ export function BookingScreen({
         rescheduling ? minutesOfDay(rescheduling.startsAt) : null,
     );
     const [duration, setDuration] = useState(defaultDuration);
-    const [note, setNote] = useState(rescheduling?.note ?? '');
+    const [note, setNote] = useState(() => noteDraft(rescheduling?.note));
     const [branch, setBranch] = useState<string | null>(branchId);
     // The dock floats over the scroll, so the body reserves its height — and that
     // height is not a constant. A warning above the bar wraps to as many lines as
@@ -346,7 +347,7 @@ export function BookingScreen({
     const lengthChanged = rescheduling !== undefined && duration !== rescheduling.durationMinutes;
     const branchChanged = rescheduling !== undefined && branch !== rescheduling.branchId;
     const planChanged = rescheduling !== undefined && planSeeded && !samePlan(plan, rescheduling.procedures);
-    const noteChanged = rescheduling !== undefined && (note.trim() || null) !== (rescheduling.note ?? null);
+    const noteEdited = rescheduling !== undefined && noteChanged(rescheduling.note, note);
     const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
     // Every question answered is enough. A move whose edits the booking cannot
     // hold — a repriced line, which a plan does not store — or that changed
@@ -367,7 +368,7 @@ export function BookingScreen({
             const at = slotMinutes;
             if (at === null) return;
             // Nothing the server holds has changed, so there is nothing to write.
-            if (!timeChanged && !lengthChanged && !branchChanged && !planChanged && !noteChanged) {
+            if (!timeChanged && !lengthChanged && !branchChanged && !planChanged && !noteEdited) {
                 onBooked(`${name}'s booking is unchanged`);
                 return;
             }
@@ -380,7 +381,7 @@ export function BookingScreen({
                     ...(lengthChanged ? { durationMinutes: duration } : {}),
                     ...(branchChanged ? { branchId: branch } : {}),
                     ...(planChanged ? { procedures: bookedProcedures(plan) } : {}),
-                    ...(noteChanged ? { note: note.trim() || null } : {}),
+                    ...(noteEdited ? { note: noteValue(note) } : {}),
                 },
                 {
                     onSuccess: () =>
@@ -395,7 +396,7 @@ export function BookingScreen({
         }
 
         const procedures = bookedProcedures(plan);
-        const body = note.trim() || null;
+        const body = noteValue(note);
 
         if (!scheduled) {
             walkIn.mutate(

@@ -7,9 +7,11 @@ import {
     deletePatientInput,
     patientByIdInput,
     patientByPhoneInput,
+    patientRefHistoryInput,
     recentPatientsInput,
     searchPatientInput,
     updatePatientInput,
+    updatePatientRefInput,
 } from './patient.schema.ts';
 import { patientService } from './patient.service.ts';
 
@@ -25,6 +27,14 @@ export const patientRouter = router({
     create: publicProcedure.input(createPatientInput).mutation(({ input }) => patientService.create(input)),
 
     update: publicProcedure.input(updatePatientInput).mutation(({ input }) => patientService.update(input)),
+
+    updateRef: publicProcedure
+        .input(updatePatientRefInput)
+        .mutation(({ input }) => patientService.updateRef(input)),
+
+    refHistory: publicProcedure
+        .input(patientRefHistoryInput)
+        .query(({ input }) => patientService.refHistory(input.id)),
 
     delete: publicProcedure
         .input(deletePatientInput)

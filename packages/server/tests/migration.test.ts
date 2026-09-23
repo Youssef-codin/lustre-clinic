@@ -66,6 +66,7 @@ describe('registering an old patient', () => {
         const entered = await patientService.create({
             name: 'Mariam Fouad',
             phone: '01098765432',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '710', procedures: [] },
         });
@@ -84,6 +85,7 @@ describe('registering an old patient', () => {
         const entered = await patientService.create({
             name: 'Existing Patient',
             phone: '01000000710',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '710', procedures: [] },
         });
@@ -102,17 +104,24 @@ describe('registering an old patient', () => {
         await patientService.create({
             name: 'Old One',
             phone: '01000000701',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '701', procedures: [] },
         });
         await patientService.create({
             name: 'Old Two',
             phone: '01000000702',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '702', procedures: [] },
         });
 
-        const fresh = await patientService.create({ name: 'Brand New', phone: '01099999999', custom: {} });
+        const fresh = await patientService.create({
+            name: 'Brand New',
+            phone: '01099999999',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
         expect(fresh.ref).toBe('910');
     });
 
@@ -122,6 +131,7 @@ describe('registering an old patient', () => {
         await patientService.create({
             name: 'Rania Fahmy',
             phone: '01077777777',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '710', procedures: [] },
         });
@@ -139,6 +149,7 @@ describe('registering an old patient', () => {
         const entered = await patientService.create({
             name: 'Kamal Zaki',
             phone: '01088888888',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: 'A/1991-07', procedures: [] },
         });
@@ -155,6 +166,7 @@ describe('registering an old patient', () => {
         await patientService.create({
             name: 'First Here',
             phone: '01000000601',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '601', procedures: [] },
         });
@@ -163,6 +175,7 @@ describe('registering an old patient', () => {
             patientService.create({
                 name: 'Second Here',
                 phone: '01000000602',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: { ref: '601', procedures: [] },
             }),
@@ -182,6 +195,7 @@ describe('registering an old patient', () => {
             patientService.create({
                 name: 'Mis Keyed',
                 phone: '01000009100',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: { ref: '9100', procedures: [] },
             }),
@@ -199,12 +213,18 @@ describe('registering an old patient', () => {
             patientService.create({
                 name: 'Refused',
                 phone: '01000000500',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: { ref: '500', procedures: [] },
             }),
         );
 
-        const fresh = await patientService.create({ name: 'After', phone: '01000000501', custom: {} });
+        const fresh = await patientService.create({
+            name: 'After',
+            phone: '01000000501',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
         expect(fresh.ref).toBe('500');
     });
 });
@@ -220,6 +240,7 @@ describe('what an old patient brings with them', () => {
         const entered = await patientService.create({
             name: 'Nothing Owed',
             phone: '01011110000',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: 'F-12', procedures: [] },
         });
@@ -236,6 +257,7 @@ describe('what an old patient brings with them', () => {
             patientService.create({
                 name: 'No Cutoff',
                 phone: '01011110001',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: { ref: '410', openingBalance: OWED, procedures: [] },
             }),
@@ -250,6 +272,7 @@ describe('what an old patient brings with them', () => {
         const entered = await patientService.create({
             name: 'Hoda Nabil',
             phone: '01234567890',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '311', openingBalance: OWED, procedures: [] },
         });
@@ -276,6 +299,7 @@ describe('what an old patient brings with them', () => {
         const entered = await patientService.create({
             name: 'Owes Nothing',
             phone: '01234500000',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '312', procedures: [] },
         });
@@ -291,6 +315,7 @@ describe('what an old patient brings with them', () => {
         const entered = await patientService.create({
             name: 'Tarek Louis',
             phone: '01333333333',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '313', openingBalance: OWED, procedures: [] },
         });
@@ -309,6 +334,7 @@ describe('what an old patient brings with them', () => {
         await patientService.create({
             name: 'Yasmin Adel',
             phone: '01222222222',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '314',
@@ -329,6 +355,7 @@ describe('what an old patient brings with them', () => {
             await patientService.create({
                 name: `Patient ${i}`,
                 phone: `0100000${String(i).padStart(4, '0')}`,
+                birthDate: '1990-01-01',
                 custom: {},
                 old: { ref: `M${i}`, openingBalance: 1_000 + i, procedures: [] },
             });
@@ -352,6 +379,7 @@ describe('imported procedures', () => {
         const entered = await patientService.create({
             name: 'Had Work Done',
             phone: '01044440001',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '201',
@@ -386,6 +414,7 @@ describe('imported procedures', () => {
         const entered = await patientService.create({
             name: 'Two Visits',
             phone: '01044440002',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '202',
@@ -410,6 +439,7 @@ describe('imported procedures', () => {
         const entered = await patientService.create({
             name: 'Date Unknown',
             phone: '01044440003',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '203',
@@ -429,6 +459,7 @@ describe('imported procedures', () => {
         const entered = await patientService.create({
             name: 'No Work',
             phone: '01044440004',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '204', procedures: [] },
         });
@@ -442,6 +473,7 @@ describe('imported procedures', () => {
         const entered = await patientService.create({
             name: 'Expensive History',
             phone: '01044440005',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '205',
@@ -489,6 +521,7 @@ describe('imported procedures', () => {
         await patientService.create({
             name: 'Not On The Schedule',
             phone: '01044440006',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '206',
@@ -509,6 +542,7 @@ describe('imported procedures', () => {
         await patientService.create({
             name: 'No Reminder',
             phone: '01044440007',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '207',
@@ -528,6 +562,7 @@ describe('imported procedures', () => {
             patientService.create({
                 name: 'Bad Line',
                 phone: '01044440008',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: {
                     ref: '208',
@@ -551,6 +586,7 @@ describe('imported procedures', () => {
             patientService.create({
                 name: 'Too Recent',
                 phone: '01044440011',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: {
                     ref: '211',
@@ -564,6 +600,7 @@ describe('imported procedures', () => {
         const onTheDay = await patientService.create({
             name: 'On The Day',
             phone: '01044440012',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '212',
@@ -581,6 +618,7 @@ describe('imported procedures', () => {
         const entered = await patientService.create({
             name: 'Twice',
             phone: '01044440009',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '209',
@@ -606,6 +644,7 @@ describe('imported procedures', () => {
             patientService.create({
                 name: 'Typed Twice',
                 phone: '01044440010',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: {
                     ref: '210',
@@ -680,6 +719,7 @@ describe('an old-patient registration is all or nothing', () => {
                 patientService.create({
                     name: 'Ghost Entry',
                     phone: '01555555555',
+                    birthDate: '1990-01-01',
                     custom: {},
                     old: { ref: '801', openingBalance: OWED, procedures: [] },
                 }),
@@ -705,6 +745,7 @@ describe('an old-patient registration is all or nothing', () => {
                 patientService.create({
                     name: 'Half Written',
                     phone: '01555555556',
+                    birthDate: '1990-01-01',
                     custom: {},
                     old: {
                         ref: '805',
@@ -733,14 +774,24 @@ describe('an old-patient registration is all or nothing', () => {
         await failNextInsertInto('patients');
         try {
             await expect(
-                patientService.create({ name: 'Ghost Entry', phone: '01555555557', custom: {} }),
+                patientService.create({
+                    name: 'Ghost Entry',
+                    phone: '01555555557',
+                    birthDate: '1990-01-01',
+                    custom: {},
+                }),
             ).rejects.toThrow();
         } finally {
             await stopRefusing('patients');
         }
 
         expect((await settingsService.get()).patientRefNext).toBe(NEXT_REF);
-        const fresh = await patientService.create({ name: 'Next In', phone: '01555555558', custom: {} });
+        const fresh = await patientService.create({
+            name: 'Next In',
+            phone: '01555555558',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
         expect(fresh.ref).toBe(String(NEXT_REF));
     });
 
@@ -750,6 +801,7 @@ describe('an old-patient registration is all or nothing', () => {
         await patientService.create({
             name: 'Holds The Number',
             phone: '01555550001',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '802', procedures: [] },
         });
@@ -760,6 +812,7 @@ describe('an old-patient registration is all or nothing', () => {
             patientService.create({
                 name: 'Wants It Too',
                 phone: '01555550002',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: {
                     ref: '802',
@@ -783,6 +836,7 @@ describe('an old-patient registration is all or nothing', () => {
             patientService.create({
                 name: 'Unanswered',
                 phone: '01555550003',
+                birthDate: '1990-01-01',
                 custom: {},
                 old: { ref: '803', openingBalance: OWED, procedures: [] },
             }),
@@ -797,6 +851,7 @@ describe('an old-patient registration is all or nothing', () => {
         const entered = await patientService.create({
             name: 'Both Halves',
             phone: '01555550004',
+            birthDate: '1990-01-01',
             custom: {},
             old: {
                 ref: '804',
@@ -817,7 +872,12 @@ describe('patient.byPhone', () => {
     beforeEach(truncateAll);
 
     test('finds a stored E.164 number from what the desk types', async () => {
-        await patientService.create({ name: 'Dalia Hany', phone: '01012345678', custom: {} });
+        await patientService.create({
+            name: 'Dalia Hany',
+            phone: '01012345678',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
 
         expect(await patientService.byPhone({ phone: '01012345678' })).toHaveLength(1);
         expect(await patientService.byPhone({ phone: '+201012345678' })).toHaveLength(1);
@@ -833,11 +893,13 @@ describe('patient.byPhone', () => {
         const first = await patientService.create({
             name: 'Amir Sobhy',
             phone: '01066666666',
+            birthDate: '1990-01-01',
             custom: {},
         });
         const second = await patientService.create({
             name: 'Nour Sobhy',
             phone: '01066666666',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -858,8 +920,8 @@ describe('repairing the records the old flow wrote', () => {
     /** Exactly what `migration.enter` used to write: the old number stored, a fresh one on the record. */
     async function asTheOldFlowWrote(ref: string, oldRef: string, phone: string): Promise<string> {
         const id = Bun.randomUUIDv7();
-        await sql`INSERT INTO patients (id, ref, name, phone, legacy_ref)
-                  VALUES (${id}, ${ref}, 'Migrated', ${phone}, ${oldRef})`;
+        await sql`INSERT INTO patients (id, ref, name, phone, birth_date, legacy_ref)
+                  VALUES (${id}, ${ref}, 'Migrated', ${phone}, '1990-01-01', ${oldRef})`;
         return id;
     }
 
@@ -883,8 +945,8 @@ describe('repairing the records the old flow wrote', () => {
     // which patient, so neither is touched and both are reported.
     test('leaves a record alone when its old number is another patient’s ref', async () => {
         await settingsService.update({ patientRefNext: 910 });
-        await sql`INSERT INTO patients (id, ref, name, phone)
-                  VALUES (${Bun.randomUUIDv7()}, '710', 'Already 710', '+201000000600')`;
+        await sql`INSERT INTO patients (id, ref, name, phone, birth_date)
+                  VALUES (${Bun.randomUUIDv7()}, '710', 'Already 710', '+201000000600', '1990-01-01')`;
         const clashing = await asTheOldFlowWrote('909', '710', '+201000000710');
 
         const report = await repairPatientRefs({ apply: true });
@@ -922,6 +984,7 @@ describe('repairing the records the old flow wrote', () => {
         await patientService.create({
             name: 'Entered Properly',
             phone: '01000000711',
+            birthDate: '1990-01-01',
             custom: {},
             old: { ref: '711', procedures: [] },
         });

@@ -44,7 +44,7 @@ export interface PatientRow {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string | null;
+    birthDate: string;
     gender: string | null;
     custom: Record<string, unknown>;
     notes: string | null;
@@ -142,6 +142,17 @@ export interface ReminderRow {
     sentAt: Date | null;
 }
 
+/** `server/src/db/schema.ts` — `ref_edits`. Kept when the record it describes is deleted. */
+export interface RefEditRow {
+    id: string;
+    entity: string;
+    entityId: string;
+    previousRef: string;
+    newRef: string;
+    editedBy: string;
+    editedAt: Date;
+}
+
 export interface SettingsRow {
     clinicName: string;
     clinicPhone: string | null;
@@ -170,6 +181,7 @@ export interface DemoDb {
     payments: PaymentRow[];
     customQuestions: CustomQuestionRow[];
     reminders: ReminderRow[];
+    refEdits: RefEditRow[];
     settings: SettingsRow;
 }
 
@@ -190,8 +202,10 @@ const STORE_KEY = 'lustre.demo.db';
  *    the last one handed out — and appointments carry `isImported`.
  * 5: `patientRefNext` seeds at 1001 rather than 1, so an old patient's number
  *    is not refused as one the sequence still owes.
+ * 6: `refEdits` — a stored database from 5 has no such array, and every read of
+ *    it would be of `undefined`.
  */
-const STORE_VERSION = 5;
+const STORE_VERSION = 6;
 
 let db: DemoDb | null = null;
 
@@ -238,6 +252,7 @@ const DATE_FIELDS = {
     visits: ['checkedInAt', 'inChairAt', 'pricedAt', 'completedAt', 'createdAt'],
     payments: ['paidAt'],
     reminders: ['dueAt', 'sentAt'],
+    refEdits: ['editedAt'],
 } as const satisfies Partial<Record<keyof DemoDb, readonly string[]>>;
 
 function reviveRows(rows: unknown, fields: readonly string[]): void {

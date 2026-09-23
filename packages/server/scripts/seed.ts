@@ -321,7 +321,7 @@ const patient = (
     phone: string,
     extra: Partial<{
         email: string | null;
-        birthDate: string | null;
+        birthDate: string;
         gender: string | null;
         custom: Record<string, unknown>;
         notes: string | null;
@@ -333,7 +333,7 @@ const patient = (
     name,
     phone,
     email: extra.email ?? null,
-    birthDate: extra.birthDate ?? null,
+    birthDate: extra.birthDate ?? '1990-06-15',
     gender: extra.gender ?? null,
     custom: extra.custom ?? {},
     notes: extra.notes ?? null,

@@ -38,6 +38,7 @@ import {
     SectionLabel,
     Stepper,
     Textarea,
+    usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
@@ -112,9 +113,23 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
     const sent = saveTemplate.variables?.reminderTemplate;
     const confirming = saveTemplate.isSuccess && sent !== undefined && sent === template?.trim();
-    const savingTemplate = saveTemplate.isPending || confirming;
+    /**
+     * The steppers are disabled while a timing write is in flight, but `isPending`
+     * is state: a second tap in the same frame still gets through, and the second
+     * write is computed from the value the first one has not replaced yet. The
+     * template Save is behind the same kind of ref, one per control so a stepper
+     * mid-write never refuses the template — they report to different buttons.
+     */
+    const timing = usePendingAction((input: Parameters<typeof saveTiming.mutateAsync>[0]) =>
+        saveTiming.mutateAsync(input),
+    );
+    const templateWrite = usePendingAction((input: Parameters<typeof saveTemplate.mutateAsync>[0]) =>
+        saveTemplate.mutateAsync(input),
+    );
 
-    const write = saveTiming.mutate;
+    const write = timing.run;
+
+    const savingTemplate = templateWrite.pending || confirming;
 
     return (
         <Pane title="Reminders" onBack={onBack} pull={pull} testID="settings-reminders">
@@ -161,7 +176,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 max={96}
                                 format={(hours) => `${hours} h`}
                                 onChange={(reminderLeadHours) => write({ reminderLeadHours })}
-                                saving={saveTiming.isPending}
+                                saving={timing.pending}
                                 testID="reminder-lead"
                             />
                             <CardDivider />
@@ -174,7 +189,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={60}
                                 format={formatClock12}
                                 onChange={(minutes) => write({ reminderNotifyAt: timeFromMinutes(minutes) })}
-                                saving={saveTiming.isPending}
+                                saving={timing.pending}
                                 testID="reminder-notify"
                             />
                             <CardDivider />
@@ -187,7 +202,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 step={15}
                                 format={(minutes) => `${minutes} min`}
                                 onChange={(reminderRepeatMinutes) => write({ reminderRepeatMinutes })}
-                                saving={saveTiming.isPending}
+                                saving={timing.pending}
                                 testID="reminder-repeat"
                             />
                         </Card>
@@ -252,7 +267,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                         {draft.dirty || savingTemplate ? (
                             <Button
                                 label="Save message"
-                                onPress={() => saveTemplate.mutate({ reminderTemplate: text.trim() })}
+                                onPress={() => templateWrite.run({ reminderTemplate: text.trim() })}
                                 loading={savingTemplate}
                                 disabled={!draft.canSave || savingTemplate}
                                 block

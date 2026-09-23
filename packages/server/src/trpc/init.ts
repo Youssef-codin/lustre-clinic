@@ -28,6 +28,8 @@ type Context = ReturnType<typeof createContext>;
 
 function trpcCodeFor(httpStatus: number): TRPCError['code'] {
     switch (httpStatus) {
+        case 403:
+            return 'FORBIDDEN';
         case 404:
             return 'NOT_FOUND';
         case 409:

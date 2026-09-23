@@ -19,7 +19,7 @@ import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 // cluster, and the queue rule is all this needs.
 import { arrivalQueue } from '../../day/chair';
 import { checkInTimes, api as dayApi } from '../../day/data';
-import { todayKey } from '../../day/time';
+import { localOffsetMinutes, todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
     AddedHistoricalProcedures,
@@ -32,9 +32,11 @@ import type {
     PatientBalance,
     PatientDetail,
     RecentPatients,
+    RefEdit,
     SettleInput,
     SettleReport,
     UpdatePatientInput,
+    UpdatePatientRefInput,
 } from './types';
 
 function shaped<T>(value: unknown): T {
@@ -142,6 +144,23 @@ export const patientsApi = {
     },
 
     /**
+     * Correcting the record's number, which `patient.update` deliberately
+     * cannot do: the server gates it by role and writes an audit row, so it is
+     * its own procedure and its own call here.
+     */
+    updateRef(input: UpdatePatientRefInput): Promise<Patient> {
+        return wrap(() => trpcClient.patient.updateRef.mutate(input));
+    },
+
+    /**
+     * Every correction made to this record's number, newest first. Answers `[]`
+     * rather than refusing for a record that is gone — the trail outlives it.
+     */
+    refHistory(id: string): Promise<RefEdit[]> {
+        return wrap(() => trpcClient.patient.refHistory.query({ id }));
+    },
+
+    /**
      * A visit that happened on a day that has passed and was never typed in.
      * This one bills: what comes back is charged and the patient owes it, so
      * the record's outstanding strip moves and `balance.settle` is how it gets
@@ -151,7 +170,9 @@ export const patientsApi = {
      * a second visit, and this one has money on it.
      */
     addOldVisit(input: AddOldVisitInput): Promise<AddedOldVisit> {
-        return wrap(() => trpcClient.procedure.addOldVisit.mutate(input));
+        return wrap(() =>
+            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: localOffsetMinutes() }),
+        );
     },
 
     /**

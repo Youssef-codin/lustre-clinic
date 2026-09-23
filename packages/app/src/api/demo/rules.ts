@@ -181,6 +181,27 @@ export function normalizePhone(raw: string): string {
     return `+${digits}`;
 }
 
+/**
+ * `server/src/util/phone.ts` — what a *search* term is matched against, or null
+ * when it holds no number. A half-typed number does not normalize, and matched
+ * as typed it would find nothing: the local `0` became `20` on write.
+ */
+export function phoneSearchTerm(raw: string): string | null {
+    try {
+        return normalizePhone(raw);
+    } catch {}
+
+    const cleaned = raw.trim().replace(/[\s\-().]/g, '');
+
+    let digits: string;
+    if (cleaned.startsWith('+')) digits = cleaned.slice(1);
+    else if (cleaned.startsWith('00')) digits = cleaned.slice(2);
+    else if (cleaned.startsWith('0')) digits = DEFAULT_COUNTRY_CODE + cleaned.slice(1);
+    else digits = cleaned;
+
+    return /^\d+$/.test(digits) ? digits : null;
+}
+
 export function toWhatsAppNumber(e164: string): string {
     return e164.replace(/^\+/, '');
 }

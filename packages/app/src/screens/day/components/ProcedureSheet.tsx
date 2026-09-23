@@ -20,6 +20,7 @@ export type PickedProcedure = {
     name: string;
     variant: string | null;
     price: number;
+    isCheckup: boolean;
     /**
      * Whether the line still owes a tooth. The general sheet offers the whole
      * catalogue, so the caller cannot tell from the pick alone, and §5 refuses
@@ -120,6 +121,7 @@ export function ProcedureSheet({
                                             name: category.name,
                                             variant: null,
                                             price: category.defaultPrice,
+                                            isCheckup: category.isCheckup,
                                             needsTooth: tooth === null && category.isToothSpecific,
                                         })
                                     }
@@ -170,6 +172,7 @@ export function ProcedureSheet({
                                                         name: category.name,
                                                         variant: child.name,
                                                         price: child.defaultPrice,
+                                                        isCheckup: child.isCheckup,
                                                         needsTooth: tooth === null && child.isToothSpecific,
                                                     })
                                                 }
