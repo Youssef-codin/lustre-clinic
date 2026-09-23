@@ -60,7 +60,7 @@ describe('appointment.create', () => {
 
         await expectAppError(ERROR_CODE.SLOT_OVERLAP, () =>
             appointmentService.create({
-                patient: { kind: 'new', name: 'Walk-up Wael', phone: '01099999999' },
+                patient: { kind: 'new', name: 'Walk-up Wael', phone: '01099999999', birthDate: '1990-01-01' },
                 branchId: fixtures.branch.id,
                 startsAt,
                 offsetMinutes: 0,
@@ -77,7 +77,12 @@ describe('appointment.create', () => {
 
         await expect(
             appointmentService.create({
-                patient: { kind: 'new', name: 'Ghost Patient', phone: '01088888888' },
+                patient: {
+                    kind: 'new',
+                    name: 'Ghost Patient',
+                    phone: '01088888888',
+                    birthDate: '1990-01-01',
+                },
                 branchId: Bun.randomUUIDv7(),
                 startsAt: todaySlot(),
                 offsetMinutes: 0,
@@ -108,7 +113,7 @@ describe('appointment.create', () => {
         const before = await snapshot();
 
         await appointmentService.create({
-            patient: { kind: 'new', name: 'New Patient', phone: '01077777777' },
+            patient: { kind: 'new', name: 'New Patient', phone: '01077777777', birthDate: '1990-01-01' },
             branchId: fixtures.branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
@@ -143,7 +148,7 @@ describe('appointment.walkIn', () => {
         const before = await snapshot();
 
         const second = await appointmentService.walkIn({
-            patient: { kind: 'new', name: 'Second Walk-up', phone: '01066666666' },
+            patient: { kind: 'new', name: 'Second Walk-up', phone: '01066666666', birthDate: '1990-01-01' },
             branchId: fixtures.branch.id,
             offsetMinutes: 0,
         });
@@ -182,7 +187,12 @@ describe('appointment.walkIn', () => {
         const settled = await Promise.allSettled(
             [1, 2, 3, 4].map((n) =>
                 appointmentService.walkIn({
-                    patient: { kind: 'new', name: `Rush ${n}`, phone: `0107777777${n}` },
+                    patient: {
+                        kind: 'new',
+                        name: `Rush ${n}`,
+                        phone: `0107777777${n}`,
+                        birthDate: '1990-01-01',
+                    },
                     branchId: fixtures.branch.id,
                     offsetMinutes: 0,
                 }),
@@ -235,7 +245,12 @@ describe('appointment.walkIn', () => {
 
         await expect(
             appointmentService.walkIn({
-                patient: { kind: 'new', name: 'Doomed Walk-up', phone: '01055555555' },
+                patient: {
+                    kind: 'new',
+                    name: 'Doomed Walk-up',
+                    phone: '01055555555',
+                    birthDate: '1990-01-01',
+                },
                 branchId: Bun.randomUUIDv7(),
                 offsetMinutes: 0,
             }),

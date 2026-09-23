@@ -173,7 +173,9 @@ export type BasicsField = 'name' | 'phone' | 'email' | 'age';
  * desk has not reached yet is telling them off for not having typed yet.
  */
 export function blankBasics(form: PatientForm): BasicsField[] {
-    return blankNameAndPhone(form);
+    const blank: BasicsField[] = blankNameAndPhone(form);
+    if (form.age.trim().length === 0) blank.push('age');
+    return blank;
 }
 
 /**
@@ -388,12 +390,14 @@ export function createInputOf(
     if (!basicsAreSound(form)) return null;
     if (missingRequired(form, questions).length > 0) return null;
     if (!oldIsSound(form)) return null;
+    const birthDate = birthDateOf(form.age, today);
+    if (birthDate === null) return null;
 
     return {
         name: form.name.trim(),
         phone: form.phone.trim(),
         email: orNull(form.email),
-        birthDate: birthDateOf(form.age, today),
+        birthDate,
         gender: orNull(form.gender),
         custom: answersOf(form, questions, (key) => isAnswered(form.answers[key] ?? '')),
         ...(form.old.on ? { old: oldInputOf(form) } : {}),
@@ -431,7 +435,11 @@ export function updateInputOf(
     if (form.phone.trim() !== initial.phone.trim()) patch.phone = form.phone.trim();
     if (form.email.trim() !== initial.email.trim()) patch.email = orNull(form.email);
     if (form.gender !== initial.gender) patch.gender = orNull(form.gender);
-    if (form.age.trim() !== initial.age.trim()) patch.birthDate = birthDateOf(form.age, today);
+    if (form.age.trim() !== initial.age.trim()) {
+        const birthDate = birthDateOf(form.age, today);
+        if (birthDate === null) return null;
+        patch.birthDate = birthDate;
+    }
 
     const custom = answersOf(
         form,

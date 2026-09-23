@@ -259,7 +259,12 @@ describe('a booking taken while the lead time is changing', () => {
         const booked = await Promise.all(
             [0, 30, 60].map((offset) =>
                 appointmentService.create({
-                    patient: { kind: 'new', name: `Walk In ${offset}`, phone: '01099988877' },
+                    patient: {
+                        kind: 'new',
+                        name: `Walk In ${offset}`,
+                        phone: '01099988877',
+                        birthDate: '1990-01-01',
+                    },
                     branchId: fixtures.branch.id,
                     startsAt: slot(offset),
                     offsetMinutes: 0,

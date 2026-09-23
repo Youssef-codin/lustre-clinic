@@ -44,7 +44,7 @@ export interface PatientRow {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string | null;
+    birthDate: string;
     gender: string | null;
     custom: Record<string, unknown>;
     notes: string | null;
