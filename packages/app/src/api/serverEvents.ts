@@ -118,11 +118,10 @@ export const REFRESHES: Record<WsEvent, readonly Area[]> = {
 };
 
 /**
- * Folds a burst of events into one refetch per router. A checkout announces two
- * events and a reconnect can replay dozens; each would otherwise cancel and
- * restart the refetch the one before it started. A microtask rather than a
- * timer, because Android stops JS timers while the app is in the background and
- * this has to run there.
+ * Folds the events handled in one turn into one refetch per router: a resync
+ * and the event that revealed the gap, or `hello` and what it closes. A
+ * microtask rather than a timer, because Android stops JS timers while the app
+ * is in the background and this has to run there.
  */
 export function createRefreshBatch(
     run: (areas: ReadonlySet<Area> | 'all') => void,

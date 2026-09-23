@@ -6,7 +6,7 @@ import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
 import { subscribeToDemoEvents, useDemoMode } from './demo';
 import { queryClient } from './queryClient';
-import { createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
+import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
 
 // `/ws` tells this phone what the other phone changed (SPEC §13). Payloads carry
 // IDs only — no patient data crosses the channel — so every event does the same
@@ -19,12 +19,28 @@ import { createEventCursor, createRefreshBatch, type ServerEvent } from './serve
 // stopped and the server replays what was missed (`serverEvents.ts`).
 const cursor = createEventCursor();
 
+const changeListeners = new Set<(areas: ReadonlySet<Area> | 'all') => void>();
+
+/**
+ * What the refetch below cannot reach: reads that are not tRPC-keyed React
+ * Query — the day cluster's `useLocalQuery`, the patients cluster's own keys.
+ * Each is told which routers changed and re-reads what it holds. Demo events
+ * arrive here too.
+ */
+export function onServerChange(listener: (areas: ReadonlySet<Area> | 'all') => void): () => void {
+    changeListeners.add(listener);
+    return () => {
+        changeListeners.delete(listener);
+    };
+}
+
 const refresh = createRefreshBatch((areas) => {
     if (areas === 'all') {
         void queryClient.invalidateQueries();
-        return;
+    } else {
+        for (const area of areas) void queryClient.invalidateQueries(api[area].pathFilter());
     }
-    for (const area of areas) void queryClient.invalidateQueries(api[area].pathFilter());
+    for (const listener of changeListeners) listener(areas);
 });
 
 const listeners = new Set<(event: ServerEvent) => void>();

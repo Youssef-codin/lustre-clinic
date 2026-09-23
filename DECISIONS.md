@@ -788,13 +788,19 @@ The guarantees, as `api/serverEvents.ts` and `ws/index.ts` implement them:
 - **At most once per event, per phone process.** The cursor drops a `seq` it has
   applied, so a replay never runs an event twice. Nothing survives the app
   process being killed; the next connect is a first connect and resyncs.
-- **No loops.** An event only ever triggers reads, and a burst is folded into
-  one refetch per router before it runs.
+- **No loops.** An event only ever triggers reads, never a write, so nothing a
+  phone does on receipt can produce another event.
 - **Authenticated the way everything is.** The socket is on the tailnet and
   nowhere else (§1). There are no accounts to authenticate it as.
 - **Mutations announce themselves.** Patients, reminders, branches, procedure
   types and the questionnaire changed without telling the other phone before
   this; each now has an event.
+- **Every read hears it.** The stale screens were mostly not the socket's
+  fault. The day cluster reads through `useLocalQuery`, which has no cache, and
+  the patients cluster keys its queries `['patients', …]` — so invalidating by
+  tRPC router, which is all `live.ts` did, reached neither. `onServerChange`
+  tells both: a mounted local read re-reads on any event, the patients cluster
+  drops its root when a router it draws from changed.
 
 Observability is a pino line per connect (`replayed`, `resync`) and per event
 at debug, and a `live` breadcrumb per frame on the phone — event name and

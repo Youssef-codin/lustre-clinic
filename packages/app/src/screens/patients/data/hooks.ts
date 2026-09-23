@@ -30,7 +30,9 @@ import {
     useMutation as useTanstackMutation,
     useQuery as useTanstackQuery,
 } from '@tanstack/react-query';
-import { useCallback, useRef } from 'react';
+// biome-ignore lint/style/noRestrictedImports: follows the other phone's writes over `/ws`, a subscription outside React
+import { useCallback, useEffect, useRef } from 'react';
+import { type Area, onServerChange } from '../../../api';
 
 /** Everything this cluster caches sits under one root, so a sign-out can drop it in one call. */
 const PATIENTS_KEY = 'patients';
@@ -121,4 +123,32 @@ export function useMutation<TInput, TOutput>(
 export function useInvalidatePatients(): () => void {
     const client = useQueryClient();
     return useCallback(() => void client.invalidateQueries({ queryKey: [PATIENTS_KEY] }), [client]);
+}
+
+/** Every router a record, the list or the outstanding column is drawn from. */
+const READS: readonly Area[] = [
+    'patient',
+    'visit',
+    'appointment',
+    'balance',
+    'procedure',
+    'customQuestion',
+    'branch',
+];
+
+/**
+ * The other phone's writes, which `useMutation` never sees. This cluster's keys
+ * are its own rather than tRPC's, so the refetch `live.ts` does by router
+ * misses them, and they are dropped here instead — the same root invalidation
+ * a write on this phone makes. Mounted once, by `PatientsCluster`.
+ */
+export function useFollowServerChanges(): void {
+    const invalidate = useInvalidatePatients();
+    useEffect(
+        () =>
+            onServerChange((areas) => {
+                if (areas === 'all' || READS.some((area) => areas.has(area))) invalidate();
+            }),
+        [invalidate],
+    );
 }
