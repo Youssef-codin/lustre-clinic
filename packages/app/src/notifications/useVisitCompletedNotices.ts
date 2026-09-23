@@ -35,11 +35,11 @@ async function announce(appointmentId: string): Promise<void> {
 
 function listen(): void {
     const t = (copy: string) => localizeCopy(getLocale(), copy);
-    startListening(
-        t('Listening for the doctor'),
-        t('You will be told when a patient is coming to the desk.'),
-        t('Staying connected to the clinic'),
-    );
+    startListening({
+        title: t('Listening for the doctor'),
+        body: t('You will be told when a patient is coming to the desk.'),
+        channelName: t('Staying connected to the clinic'),
+    });
 }
 
 /** `role` is null until the stored role has been read, so a doctor's phone never subscribes for a frame. */

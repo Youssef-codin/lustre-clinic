@@ -10,7 +10,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps the clinic desk phone connected to the clinic's own server, which has no push service, so it is told the moment the doctor finishes with a patient." />
+                android:value="Keeps the clinic phones connected to the clinic's own server, which has no push service: the desk phone is told the moment the doctor finishes with a patient, and the doctor can finish the visit in the chair from its notification." />
         </service>
     </application>
 </manifest>

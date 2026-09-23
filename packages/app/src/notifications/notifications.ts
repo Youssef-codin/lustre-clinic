@@ -30,6 +30,7 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getLocale } from '../i18n/runtime';
 import type { NudgePlan } from './schedule';
+import { failureIdentifier } from './visitAction';
 import { noticeIdentifier } from './visitNotice';
 
 const CHANNEL_ID = 'reminders';
@@ -190,4 +191,48 @@ export async function presentVisitNotice(appointmentId: string, name: string | n
         },
         trigger: Platform.OS === 'android' ? { channelId: VISIT_CHANNEL_ID } : null,
     });
+}
+
+const FINISH_CHANNEL_ID = 'visit-finish';
+
+let finishChannelReady = false;
+
+async function ensureFinishChannel(): Promise<void> {
+    if (finishChannelReady || Platform.OS !== 'android') {
+        finishChannelReady = true;
+        return;
+    }
+
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    await Notifications.setNotificationChannelAsync(FINISH_CHANNEL_ID, {
+        name: t('Visits not finished'),
+        description: t('When finishing a visit from the notification does not go through.'),
+        importance: Notifications.AndroidImportance.HIGH,
+    });
+    finishChannelReady = true;
+}
+
+/**
+ * The doctor's Finish did not reach the clinic. It names nobody — the ongoing
+ * notice above it still shows who is in the chair, with the button back on it.
+ */
+export async function presentFinishFailure(appointmentId: string, offline: boolean): Promise<void> {
+    if (!(await Notifications.getPermissionsAsync()).granted) return;
+    await ensureFinishChannel();
+
+    const locale = getLocale();
+    await Notifications.scheduleNotificationAsync({
+        identifier: failureIdentifier(appointmentId),
+        content: {
+            title: localizeCopy(locale, 'The visit was not finished'),
+            body: offline
+                ? localizeCopy(locale, "Can't reach the clinic server. Try again.")
+                : localizeCopy(locale, 'Something went wrong. Try again, or finish it in the app.'),
+        },
+        trigger: Platform.OS === 'android' ? { channelId: FINISH_CHANNEL_ID } : null,
+    });
+}
+
+export async function dismissFinishFailure(appointmentId: string): Promise<void> {
+    await Notifications.dismissNotificationAsync(failureIdentifier(appointmentId));
 }
