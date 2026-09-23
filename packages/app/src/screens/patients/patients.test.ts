@@ -84,6 +84,7 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     age: '34',
     gender: 'female',
     answers: {},
+    notes: '',
     old: EMPTY_OLD,
     history: [],
     ...over,
@@ -923,5 +924,39 @@ describe('the ref', () => {
     // that is on file rather than empty.
     it('opens on the number the record carries', () => {
         expect(formOf(patient({ ref: '910' }), []).ref).toBe('910');
+    });
+});
+
+describe('patient notes', () => {
+    const id = '11111111-1111-1111-1111-111111111111';
+
+    it('an edit sends the notes, trimmed, only when they moved', () => {
+        const initial = formOf(patient({ notes: null }), []);
+        expect(updateInputOf(id, { ...initial, notes: '  Prefers mornings \n' }, initial, [])).toEqual({
+            id,
+            notes: 'Prefers mornings',
+        });
+    });
+
+    it('notes emptied go as null, not an empty string', () => {
+        const initial = formOf(patient({ notes: 'Prefers mornings' }), []);
+        expect(updateInputOf(id, { ...initial, notes: '   ' }, initial, [])).toEqual({ id, notes: null });
+    });
+
+    it('an edit that does not touch the notes does not send them', () => {
+        const initial = formOf(patient({ notes: 'Prefers mornings' }), []);
+        const patch = updateInputOf(
+            id,
+            { ...initial, name: 'Nour Hassan', notes: 'Prefers mornings ' },
+            initial,
+            [],
+        );
+        expect(patch).toEqual({ id, name: 'Nour Hassan' });
+    });
+
+    it('a registration carries the notes typed, or null', () => {
+        const form = { ...emptyForm([]), name: 'Nour', phone: '01002248891', age: '34' };
+        expect(createInputOf({ ...form, notes: ' Brother of 4121 ' }, [])?.notes).toBe('Brother of 4121');
+        expect(createInputOf(form, [])?.notes).toBeNull();
     });
 });

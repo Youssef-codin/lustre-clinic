@@ -1124,6 +1124,23 @@ describe('patient', () => {
         expect(updated.ref).toBe(created.ref);
     });
 
+    test('notes are written on their own and survive an update that does not name them', async () => {
+        const created = await patientService.create({
+            name: 'Nadia Hassan',
+            phone: '01012345678',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
+        expect(created.notes).toBeNull();
+
+        await patientService.update({ id: created.id, notes: 'Prefers mornings' });
+        await patientService.update({ id: created.id, phone: '01098765432' });
+        expect((await patientService.byId(created.id)).patient.notes).toBe('Prefers mornings');
+
+        const cleared = await patientService.update({ id: created.id, notes: null });
+        expect(cleared.notes).toBeNull();
+    });
+
     test('normalizes the phone on write and derives age on read', async () => {
         const created = await patientService.create({
             name: 'Nadia Hassan',

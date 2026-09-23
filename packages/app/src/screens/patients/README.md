@@ -121,6 +121,12 @@ The second row is the one worth keeping: blocking Save on a question nobody has
 answered would stop the secretary correcting an unrelated phone number, which is
 the same reason the record can outlive its questionnaire.
 
+**Notes are the patient's own.** `patients.notes` is written here, in the
+NOTES box at the end of the form, and only read on the record's Details tab,
+which draws no section at all for a patient without any. They are not a visit's
+or a booking's notes, which stay on those. Like every other field, an edit
+sends them only when they moved, and emptied goes as `null`.
+
 **Age is written as a date of birth.** The design's basics row is `Age · sex` and
 holds a whole number; the server has no age column — `birth_date` is the fact and
 `age` is derived from it. So an age of 34 is written as 1 January of the year that

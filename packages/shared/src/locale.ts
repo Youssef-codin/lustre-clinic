@@ -905,6 +905,10 @@ export const COPY_AR = {
         'المال المستلم يبقى في السجل. أزل الدفعات أولًا إن كانت قد سُجلت بالخطأ.',
     'This patient has payments on file, so the record stays. Remove the payments from their visits first if they were entered by mistake.':
         'لهذا المريض دفعات مسجلة، لذا يبقى السجل. أزل الدفعات من زياراته أولًا إن كانت قد سُجلت بالخطأ.',
+    // The patient's own notes: written in the editor, read on the record.
+    NOTES: 'ملاحظات',
+    'Patient notes': 'ملاحظات المريض',
+    'Anything the clinic should know': 'أي شيء يجب أن تعرفه العيادة',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;
