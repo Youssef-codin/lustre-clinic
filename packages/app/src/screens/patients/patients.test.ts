@@ -35,7 +35,6 @@ import {
     malformedBasics,
     malformedOld,
     missingRequired,
-    notesInputOf,
     owesInput,
     owesPiastres,
     refBaselineOf,
@@ -85,6 +84,7 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     age: '34',
     gender: 'female',
     answers: {},
+    notes: '',
     old: EMPTY_OLD,
     history: [],
     ...over,
@@ -930,22 +930,33 @@ describe('the ref', () => {
 describe('patient notes', () => {
     const id = '11111111-1111-1111-1111-111111111111';
 
-    it('sends the one column, trimmed', () => {
-        expect(notesInputOf(id, '  Prefers mornings \n', null)).toEqual({ id, notes: 'Prefers mornings' });
+    it('an edit sends the notes, trimmed, only when they moved', () => {
+        const initial = formOf(patient({ notes: null }), []);
+        expect(updateInputOf(id, { ...initial, notes: '  Prefers mornings \n' }, initial, [])).toEqual({
+            id,
+            notes: 'Prefers mornings',
+        });
     });
 
-    it('sends null for notes emptied, not an empty string', () => {
-        expect(notesInputOf(id, '   ', 'Prefers mornings')).toEqual({ id, notes: null });
-    });
-
-    it('is not a write when nothing moved', () => {
-        expect(notesInputOf(id, 'Prefers mornings ', 'Prefers mornings')).toBeNull();
-        expect(notesInputOf(id, '', null)).toBeNull();
-    });
-
-    it('is never part of an editor save', () => {
+    it('notes emptied go as null, not an empty string', () => {
         const initial = formOf(patient({ notes: 'Prefers mornings' }), []);
-        const patch = updateInputOf(id, { ...initial, name: 'Nour Hassan' }, initial, []);
-        expect(patch).not.toHaveProperty('notes');
+        expect(updateInputOf(id, { ...initial, notes: '   ' }, initial, [])).toEqual({ id, notes: null });
+    });
+
+    it('an edit that does not touch the notes does not send them', () => {
+        const initial = formOf(patient({ notes: 'Prefers mornings' }), []);
+        const patch = updateInputOf(
+            id,
+            { ...initial, name: 'Nour Hassan', notes: 'Prefers mornings ' },
+            initial,
+            [],
+        );
+        expect(patch).toEqual({ id, name: 'Nour Hassan' });
+    });
+
+    it('a registration carries the notes typed, or null', () => {
+        const form = { ...emptyForm([]), name: 'Nour', phone: '01002248891', age: '34' };
+        expect(createInputOf({ ...form, notes: ' Brother of 4121 ' }, [])?.notes).toBe('Brother of 4121');
+        expect(createInputOf(form, [])?.notes).toBeNull();
     });
 });

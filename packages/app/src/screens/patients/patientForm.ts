@@ -104,6 +104,11 @@ export type PatientForm = {
     gender: string;
     /** One entry per editable question, keyed by `custom_questions.key`. */
     answers: Draft;
+    /**
+     * The patient's own notes — `patients.notes`, not a visit's or a booking's.
+     * `''` is no notes, and goes to the server as `null`.
+     */
+    notes: string;
     old: OldPatientForm;
     /**
      * Work the patient had done before this system recorded it, added from the
@@ -156,6 +161,7 @@ export function emptyForm(questions: CustomQuestion[]): PatientForm {
         age: '',
         gender: '',
         answers: blankAnswers(questions),
+        notes: '',
         old: EMPTY_OLD,
         history: [],
     };
@@ -174,6 +180,7 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         age: patient.age === null ? '' : String(patient.age),
         gender: patient.gender ?? '',
         answers,
+        notes: patient.notes ?? '',
         // An existing record is never registered again, so the switch has
         // nothing to do on an edit and the screen does not draw it.
         old: EMPTY_OLD,
@@ -432,6 +439,7 @@ export function createInputOf(
         birthDate,
         gender: orNull(form.gender),
         custom: answersOf(form, questions, (key) => isAnswered(form.answers[key] ?? '')),
+        notes: orNull(form.notes),
         ...(form.old.on ? { old: oldInputOf(form) } : {}),
     };
 }
@@ -467,6 +475,7 @@ export function updateInputOf(
     if (form.phone.trim() !== initial.phone.trim()) patch.phone = form.phone.trim();
     if (form.email.trim() !== initial.email.trim()) patch.email = orNull(form.email);
     if (form.gender !== initial.gender) patch.gender = orNull(form.gender);
+    if (form.notes.trim() !== initial.notes.trim()) patch.notes = orNull(form.notes);
     if (form.age.trim() !== initial.age.trim()) {
         const birthDate = birthDateOf(form.age, today);
         if (birthDate === null) return null;
@@ -573,18 +582,3 @@ export function refEditOf(form: PatientForm, initial: PatientForm): string | nul
 
 /** `patients.notes`' own cap, as `patient.schema` enforces it. */
 export const MAX_NOTES_LENGTH = 4000;
-
-/**
- * What the record's notes sheet sends: the one column, and nothing else.
- *
- * Notes are the patient's and not a visit's or an appointment's — they are
- * written from the record, and `updateInputOf` above never carries them, so
- * an editor opened for a phone number cannot touch them either. Emptied is
- * `null`, which is what a record with no notes already holds, and the same
- * text resent is not a write: `null` comes back for that.
- */
-export function notesInputOf(id: string, draft: string, current: string | null): UpdatePatientInput | null {
-    const next = draft.trim();
-    if (next === (current ?? '').trim()) return null;
-    return { id, notes: next === '' ? null : next };
-}
