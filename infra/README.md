@@ -278,7 +278,9 @@ back to the debug key. Debug builds do not need them.
 ### Shipping a new APK
 
 ```sh
-LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 bun release:apk
+LUSTRE_UPDATES_URL=http://<clinic MagicDNS name>:3000 \
+LUSTRE_GLITCHTIP_DSN=http://<key>@<clinic MagicDNS name>:8000/1 \
+bun release:apk
 git push origin v<the version it printed>
 bun play releases
 ```
@@ -290,6 +292,13 @@ adds the emulator's ABI. Every release build gets a higher `versionCode` (tens
 of seconds since 2026-01-01 UTC, see `plugins/withReleaseVersionCode.js`), and
 `release:apk` refuses to stage a build that is not higher than the one already
 staged, or one signed with any certificate but the release keystore's.
+
+`LUSTRE_GLITCHTIP_DSN` is the crash reporting DSN (SPEC §17), from the GlitchTip
+UI under the project's Settings -> Client Keys. Use the clinic's MagicDNS name,
+not localhost: the DSN is read on the phone, so loopback would name the phone.
+It is baked into the APK at build time and no OTA update can add it later, so
+`release:apk` refuses a production build without it. Dev and demo builds are
+exempt and ship with reporting off on purpose.
 
 Check the server has it: `curl http://<clinic>:3000/trpc/release.latestApk`.
 
