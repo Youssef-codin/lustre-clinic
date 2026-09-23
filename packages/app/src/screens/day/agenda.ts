@@ -25,6 +25,17 @@ export function procedureLabel(appointment: Appointment): string | undefined {
     return appointment.procedures.map((row) => row.name).join(' · ');
 }
 
+/**
+ * What the row says under the name. The note comes first where there is one:
+ * the chair and the now card have always read it that way, and a list that
+ * showed the plan instead left the desk's "bring the X-rays" visible on one
+ * screen and not on the next. The planned work is what a row says when nothing
+ * was written about it.
+ */
+export function rowSummary(appointment: Appointment): string | undefined {
+    return appointment.note?.trim() || procedureLabel(appointment);
+}
+
 export interface DaySplit {
     past: Appointment[];
     upcoming: Appointment[];

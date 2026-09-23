@@ -928,6 +928,19 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                             // the read-only page if this was opened over one,
                             // the schedule if it was not.
                             onBack={routes.pop}
+                            // The note rides on the appointment, so the held
+                            // snapshot — what the read-only page and the row
+                            // behind it draw — has to move with it.
+                            onNoteSaved={(note) =>
+                                setVisit((current) =>
+                                    current
+                                        ? {
+                                              ...current,
+                                              appointment: { ...current.appointment, note },
+                                          }
+                                        : current,
+                                )
+                            }
                             onConfirm={(priced) => {
                                 // An arrival is done here: they are in the chair
                                 // or in the queue, and nothing is owed until the
