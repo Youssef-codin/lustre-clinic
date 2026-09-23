@@ -37,6 +37,30 @@ export type ProcedurePlanProps = {
     loading: boolean;
     error: RequestError | null;
     onRetry: () => void;
+    /**
+     * The words, for a caller that is not planning a booking. The record's Old
+     * visit is this same list about a day that has gone — nothing is "planned",
+     * nothing can be "decided in the chair", and the total is what is charged.
+     */
+    copy?: PlanCopy;
+};
+
+export type PlanCopy = {
+    heading: string;
+    /** Beside the heading while the list is empty. */
+    emptyHint: string;
+    emptyTitle: string;
+    emptyBody: string;
+    total: string;
+};
+
+const BOOKING_COPY: PlanCopy = {
+    heading: 'WHAT IS PLANNED',
+    emptyHint: 'Optional',
+    emptyTitle: 'Nothing planned yet',
+    emptyBody:
+        'Add what the visit is for — a tooth, then the procedure. It can be left empty and decided in the chair.',
+    total: 'Estimated total',
 };
 
 /**
@@ -50,7 +74,15 @@ type Asking =
     | { step: 'procedure'; tooth: Tooth | null }
     | { step: 'toothFor'; picked: PickedProcedure };
 
-export function ProcedurePlan({ value, onChange, categories, loading, error, onRetry }: ProcedurePlanProps) {
+export function ProcedurePlan({
+    value,
+    onChange,
+    categories,
+    loading,
+    error,
+    onRetry,
+    copy = BOOKING_COPY,
+}: ProcedurePlanProps) {
     const t = useT();
     const [asking, setAsking] = useState<Asking>(null);
     const [collapsed, setCollapsed] = useState<readonly string[]>([]);
@@ -120,11 +152,11 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
         <View style={styles.plan}>
             <View style={styles.head}>
                 <Text variant="eyebrow" tone="muted">
-                    {t('WHAT IS PLANNED')}
+                    {t(copy.heading)}
                 </Text>
                 <Text variant="caption" tone="muted">
                     {value.length === 0
-                        ? 'Optional'
+                        ? t(copy.emptyHint)
                         : `${value.length} procedure${value.length === 1 ? '' : 's'}`}
                 </Text>
             </View>
@@ -139,10 +171,9 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
                     <View style={styles.ring}>
                         <PlusIcon size={20} stroke={color.ink} />
                     </View>
-                    <Text variant="headline">{t('Nothing planned yet')}</Text>
+                    <Text variant="headline">{t(copy.emptyTitle)}</Text>
                     <Text variant="subhead" tone="muted" style={styles.emptyBody}>
-                        Add what the visit is for — a tooth, then the procedure. It can be left empty and
-                        decided in the chair.
+                        {t(copy.emptyBody)}
                     </Text>
                 </Pressable>
             ) : (
@@ -239,7 +270,7 @@ export function ProcedurePlan({ value, onChange, categories, loading, error, onR
 
                     <View style={styles.total}>
                         <Text variant="subhead" tone="muted">
-                            {t('Estimated total')}
+                            {t(copy.total)}
                         </Text>
                         <MoneyValue piastres={total} variant="title3" weight="semibold" />
                     </View>

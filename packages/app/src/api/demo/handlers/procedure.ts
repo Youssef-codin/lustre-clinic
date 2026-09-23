@@ -189,7 +189,7 @@ export const procedureHandlers = {
      * `server/src/modules/procedure/procedure.history.ts` — a visit that
      * happened on a day that has passed and was never typed in. Unlike a
      * historical procedure this one carries money: it is an ordinary completed
-     * visit, charged, and the patient owes it until it is settled.
+     * visit, charged, and paid in cash on the day unless corrected afterwards.
      */
     addOldVisit(input: RouterInput['procedure']['addOldVisit']): {
         appointmentId: string;
@@ -271,6 +271,18 @@ export const procedureHandlers = {
             ...line,
         }));
         db.visitProcedures.push(...rows);
+
+        // Paid in full, in cash, on the day — corrected on the visit if not.
+        if (chargedTotal > 0) {
+            db.payments.push({
+                id: uuidv7(),
+                visitId: visit.id,
+                amount: chargedTotal,
+                method: 'cash',
+                methodNote: null,
+                paidAt: at,
+            });
+        }
 
         save();
         return { appointmentId: appointment.id, visitId: visit.id, chargedTotal };

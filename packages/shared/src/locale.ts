@@ -699,19 +699,22 @@ export const COPY_AR = {
     'No date': 'بدون تاريخ',
     'Saved as prior history with no day on it — the record reads it as before migration.':
         'يُحفظ كسجل سابق بلا يوم — ويقرأه السجل على أنه قبل الانتقال.',
-    // The old-visit sheet: a visit entered after the day it happened. Unlike a
+    // The old-visit page: a visit entered after the day it happened. Unlike a
     // previous procedure this one is charged, so the copy says so out loud.
     'Old visit': 'زيارة سابقة',
-    'Day of the visit: not set': 'يوم الزيارة: غير محدد',
-    'Day of the visit: {date}': 'يوم الزيارة: {date}',
-    'Pick a day': 'اختر يومًا',
-    'Pick a day and what was done': 'اختر اليوم وما تم عمله',
+    'OLD VISIT': 'زيارة سابقة',
+    'No day yet': 'لم يُحدد اليوم بعد',
+    'Paid on the day': 'دُفع في نفس اليوم',
+    'Recorded as paid in cash. If they still owe some of it, open the visit from the record and correct what was paid.':
+        'تُسجل مدفوعة نقدًا. إن كان عليهم جزء منها، افتح الزيارة من السجل وصحّح المدفوع.',
+    'At least one': 'واحد على الأقل',
+    'Nothing added yet': 'لم يُضف شيء بعد',
+    'Add what was done that day — a tooth, then the procedure. It is charged like any other visit.':
+        'أضف ما تم عمله ذلك اليوم — السن ثم الإجراء. يُحسب كأي زيارة أخرى.',
     'Pick the day it happened.': 'اختر اليوم الذي حدث فيه.',
     'Record this visit': 'سجل هذه الزيارة',
     Total: 'الإجمالي',
-    'Visit recorded — {amount} charged': 'تم تسجيل الزيارة — حُسب {amount}',
-    'What was done that day. It is charged like any other visit, so the patient will owe it.':
-        'ما تم عمله ذلك اليوم. يُحسب كأي زيارة أخرى، وسيصبح على المريض دفعه.',
+    'Visit recorded — {amount} paid': 'تم تسجيل الزيارة — دُفع {amount}',
     'Saved against this day and shown on it in the history.': 'يُحفظ على هذا اليوم ويظهر عليه في السجل.',
     'Remove {name}': 'إزالة {name}',
     Date: 'التاريخ',

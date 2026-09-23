@@ -221,7 +221,7 @@ export interface OldVisitLineInput {
  * A visit that happened on a day that has passed and was never entered.
  *
  * Unlike `AddHistoricalProceduresInput` this one **carries money**: it lands as
- * an ordinary completed visit, so it is charged and the patient owes it. The
+ * an ordinary completed visit, charged and paid on the day unless corrected. The
  * date is required and there is no time of day — the desk is recording which
  * day it was, not which slot.
  */
@@ -237,7 +237,7 @@ export interface AddOldVisitInput {
 export interface AddedOldVisit {
     appointmentId: string;
     visitId: string;
-    /** Piastres charged. The patient owes it until it is settled. */
+    /** Piastres charged — and paid, in cash on the day; corrected on the visit if not. */
     chargedTotal: number;
 }
 

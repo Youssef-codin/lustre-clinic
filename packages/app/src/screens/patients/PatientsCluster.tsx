@@ -35,6 +35,7 @@ import { beneath, isOpen, isTop, rendered, useRouteStack } from '../../navigatio
 import type { PatientTarget } from '../../shell/routes';
 import { ReschedulePage, VisitPage } from '../day';
 import { useInvalidatePatients } from './data/hooks';
+import { OldVisitScreen } from './OldVisitScreen';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
 import { PatientRecordScreen } from './PatientRecordScreen';
@@ -43,7 +44,8 @@ type Route =
     | { name: 'record'; patientId: string; backLabel?: string }
     | { name: 'edit'; patientId?: string }
     | { name: 'visit'; appointmentId: string; visitId: string }
-    | { name: 'reschedule'; appointmentId: string };
+    | { name: 'reschedule'; appointmentId: string }
+    | { name: 'oldVisit'; patientId: string };
 
 export type OpenRecordRequest = {
     patientId: string;
@@ -88,6 +90,8 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
      * own.
      */
     const [read, setRead] = useState(0);
+    /** What an old visit said as it closed, for the record it closed back onto. */
+    const [notice, setNotice] = useState<{ seq: number; message: string } | undefined>(undefined);
     const invalidate = useInvalidatePatients();
 
     // Back is `pop`, wired once by the hook. A save in flight swallows the press
@@ -180,6 +184,8 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
                             onBack={routes.pop}
                             onEdit={() => routes.push({ name: 'edit', patientId: route.patientId })}
                             onBook={onBook}
+                            onOldVisit={() => routes.push({ name: 'oldVisit', patientId: route.patientId })}
+                            notice={notice}
                             onOpenVisit={(entry) => {
                                 if (entry.status === 'booked') {
                                     routes.push({ name: 'reschedule', appointmentId: entry.appointmentId });
@@ -222,6 +228,23 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
                             // tRPC client, so nothing has touched this cluster's
                             // cache — `reread` is what makes the remount real.
                             onChanged={reread}
+                        />
+                    ) : null}
+
+                    {/* Its write goes through this cluster's own mutation hook,
+                        which drops the cache on success — so the record
+                        underneath re-reads the charge on its own, without the
+                        remount a day-cluster write needs. */}
+                    {route.name === 'oldVisit' ? (
+                        <OldVisitScreen
+                            key={`oldVisit:${route.patientId}`}
+                            patientId={route.patientId}
+                            onBack={routes.pop}
+                            onSavingChange={setSaving}
+                            onRecorded={(message) => {
+                                setNotice((last) => ({ seq: (last?.seq ?? 0) + 1, message }));
+                                if (isTop(live.current, id)) routes.pop();
+                            }}
                         />
                     ) : null}
 

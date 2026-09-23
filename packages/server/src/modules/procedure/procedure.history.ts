@@ -23,7 +23,7 @@
  */
 import { ERROR_CODE, todayKey, WS_EVENT } from '@lustre/shared';
 import { db } from '../../db/index.ts';
-import { visitProcedures, visits } from '../../db/schema.ts';
+import { payments, visitProcedures, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
@@ -48,7 +48,7 @@ function noonUtc(date: string): Date {
 export interface AddedOldVisit {
     appointmentId: string;
     visitId: string;
-    /** What the visit was charged, in piastres. The patient owes it until it is settled. */
+    /** What the visit was charged, in piastres — and paid, in cash, on the day. */
     chargedTotal: number;
 }
 
@@ -85,14 +85,18 @@ export const procedureHistoryService = {
      * thing it does not have is a time of day, because the desk is recording
      * which day it was rather than which slot.
      *
+     * It lands **paid**, in full and in cash, dated the day itself. An old
+     * visit is almost always one the patient paid for at the desk and nobody
+     * typed in; the rarer one they still owe on is corrected on the visit
+     * afterwards (`visit.setPaid`, or `visit.deletePayment` for "nothing was
+     * taken"), the same way any checkout that recorded the wrong amount is.
+     * Dating the payment on the day keeps today's takings to what today took.
+     *
      * `done` is what makes a past date writable at all: `appointments_no_overlap`
      * applies only to `booked` and `checked_in`, so a day that is already full
      * of real appointments still takes one of these, and two of them on the same
      * day do not collide with each other.
      *
-     * Nothing is paid here. It goes on the record owing, and the desk settles it
-     * through `balance.settle` like any other debt — this app has one place
-     * money is taken and this is not a second one.
      */
     async addOldVisit(input: AddOldVisitInput): Promise<AddedOldVisit> {
         await patientService.requireExists(input.patientId);
@@ -169,6 +173,21 @@ export const procedureHistoryService = {
             await tx
                 .insert(visitProcedures)
                 .values(priced.map((line) => ({ id: Bun.randomUUIDv7(), visitId: visit.id, ...line })));
+
+            // Written directly rather than through `visit.service`'s
+            // `insertPayment`, which stamps `now` and is on the far side of the
+            // import cycle `insertWithRef` is loaded around. A free visit takes
+            // no row: `payments_amount_nonzero`.
+            if (chargedTotal > 0) {
+                await tx.insert(payments).values({
+                    id: Bun.randomUUIDv7(),
+                    visitId: visit.id,
+                    amount: chargedTotal,
+                    method: 'cash',
+                    methodNote: null,
+                    paidAt: at,
+                });
+            }
 
             return { appointmentId: appointment.id, visitId: visit.id };
         });

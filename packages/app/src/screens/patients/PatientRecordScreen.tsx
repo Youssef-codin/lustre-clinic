@@ -51,15 +51,13 @@ import { dateKey, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
 import { MoreIcon } from './components/icons';
-import { formatMoney, paymentReceipt } from './components/money';
-import { OldVisitSheet } from './components/OldVisitSheet';
+import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
 import { chairToday, patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
 import type {
-    AddOldVisitInput,
     Answers,
     CustomQuestion,
     Patient,
@@ -83,6 +81,14 @@ export type PatientRecordScreenProps = {
     onBook: (patient: Patient) => void;
     /** A history row tapped — a visit, or a booking still to come. The cluster above opens it. */
     onOpenVisit?: (entry: PatientHistoryEntry) => void;
+    /** Old visit — `OldVisitScreen`, which the cluster above pushes over this. */
+    onOldVisit?: () => void;
+    /**
+     * Something a page pushed over this record has to say once it is back on
+     * screen — an old visit's charge. `seq` is bumped per message so the same
+     * words can be said twice.
+     */
+    notice?: { seq: number; message: string };
 };
 
 type Tab = 'visits' | 'details';
@@ -94,12 +100,21 @@ export function PatientRecordScreen({
     onEdit,
     onBook,
     onOpenVisit,
+    onOldVisit,
+    notice,
 }: PatientRecordScreenProps) {
     const t = useT();
     const [tab, setTab] = useState<Tab>('visits');
     const [toast, setToast] = useState<string | null>(null);
     const [payingOpen, setPayingOpen] = useState(false);
-    const [oldVisitOpen, setOldVisitOpen] = useState(false);
+    // Derived during render, as the cluster derives its own `open` request.
+    // Seeded with the notice already in hand, so a remount after an edit does
+    // not say an old visit's charge a second time.
+    const [seenNotice, setSeenNotice] = useState(notice?.seq);
+    if (notice && notice.seq !== seenNotice) {
+        setSeenNotice(notice.seq);
+        setToast(notice.message);
+    }
     const [menuOpen, setMenuOpen] = useState(false);
     // Measured in the window on press: the menu is a Modal, and where the bar
     // sits under the status bar (and the DEV strip) is not this screen's to know.
@@ -121,7 +136,6 @@ export function PatientRecordScreen({
     const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
     const settle = useMutation(patientsApi.settle);
-    const oldVisit = useMutation(patientsApi.addOldVisit);
     const remove = useMutation(patientsApi.delete);
 
     const patient = record.data?.patient;
@@ -173,20 +187,6 @@ export function PatientRecordScreen({
     }
 
     /**
-     * Recording a visit that already happened. It is charged like any other, so
-     * the record refetches and reads back what the patient now owes — the same
-     * shape as a payment, because the same strip moves.
-     */
-    async function recordOldVisit(input: AddOldVisitInput) {
-        const added = await oldVisit.mutate(input);
-        if (!added) return;
-
-        setOldVisitOpen(false);
-        record.refetch();
-        setToast(t('Visit recorded — {amount} charged', { amount: formatMoney(added.chargedTotal) }));
-    }
-
-    /**
      * A failure leaves the sheet open with its reason under the body —
      * `HAS_PAYMENTS` is the one the desk will actually meet, and its line says
      * what to do about it. `mutate` resolves rather than throws on failure, and
@@ -231,7 +231,13 @@ export function PatientRecordScreen({
                     <View style={styles.top}>
                         <PatientHeader patient={patient} onFailed={setToast} />
 
-                        <Openers patient={patient} onBook={onBook} onOldVisit={() => setOldVisitOpen(true)} />
+                        <Openers
+                            patient={patient}
+                            onBook={onBook}
+                            onOldVisit={
+                                onOldVisit ?? (() => setToast('Old visit is not wired up from here yet.'))
+                            }
+                        />
 
                         <Outstanding
                             amount={outstanding}
@@ -284,18 +290,6 @@ export function PatientRecordScreen({
                     isPending={settle.pending}
                     error={settle.error ? errorText(settle.error) : null}
                     onSubmit={(input) => void recordPayment(input)}
-                />
-            ) : null}
-
-            {patient ? (
-                <OldVisitSheet
-                    visible={oldVisitOpen}
-                    onClose={() => setOldVisitOpen(false)}
-                    patientId={patient.id}
-                    patientName={patient.name}
-                    isPending={oldVisit.pending}
-                    error={oldVisit.error ? errorText(oldVisit.error) : null}
-                    onSubmit={(input) => void recordOldVisit(input)}
                 />
             ) : null}
 
