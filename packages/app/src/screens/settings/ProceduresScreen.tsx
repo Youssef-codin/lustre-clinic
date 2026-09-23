@@ -66,6 +66,7 @@ import {
     Tag,
     TextField,
     Toast,
+    usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
@@ -127,6 +128,16 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
         }),
     );
 
+    /**
+     * An arrow is an `IconButton`, so its own press lock covers a repeat on the
+     * same one — not the arrow on the row below, and not the frame before
+     * `isPending` re-renders. Both orders would be computed from the list as it
+     * was before the first write landed, and the second would undo the first.
+     */
+    const moveRow = usePendingAction((input: Parameters<typeof reorder.mutateAsync>[0]) =>
+        reorder.mutateAsync(input),
+    );
+
     // One write for the whole group, so a dropped connection leaves the order
     // it had rather than half of the new one.
     function move(siblings: readonly { id: string }[], index: number, delta: number) {
@@ -136,7 +147,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
         if (!moved || !target) return;
         next[index] = target;
         next[index + delta] = moved;
-        reorder.mutate({ ids: next.map((row) => row.id) });
+        moveRow.run({ ids: next.map((row) => row.id) });
     }
 
     // The tree is fetched whole so parenthood — and therefore which rows are
@@ -215,7 +226,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                             <ProcedureRow
                                 procedure={node}
                                 reordering={reordering}
-                                reorderDisabled={reorder.isPending}
+                                reorderDisabled={moveRow.pending}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
                                 onPress={() => editor.push({ kind: 'edit', procedure: node })}
@@ -258,7 +269,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                         <ProcedureRow
                                             procedure={child}
                                             reordering={reordering}
-                                            reorderDisabled={reorder.isPending}
+                                            reorderDisabled={moveRow.pending}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
                                             onPress={() => editor.push({ kind: 'edit', procedure: child })}
@@ -529,9 +540,18 @@ function ProcedureEditor({
     );
     const update = useMutation(trpc.procedure.update.mutationOptions({ onSuccess: onProcedureWritten }));
 
+    /**
+     * One lock for the pane's writes. Save and the hide confirm are the same
+     * `update`, and `isPending` is state: the second of two taps landing in one
+     * frame reads the old `false` and sends a second write — a second procedure,
+     * or a second category with a second copy of its first subtype under it. The
+     * guard's ref refuses it, and clears on failure so it can be tried again.
+     */
+    const write = usePendingAction((job: () => Promise<unknown>) => job());
+
     const nameError = submitted && name.trim() === '' ? 'A procedure needs a name.' : undefined;
-    const saving = create.isPending || createCategory.isPending || (update.isPending && !confirming);
-    const busy = create.isPending || createCategory.isPending || update.isPending;
+    const saving = write.pending && !confirming;
+    const busy = write.pending;
     const failure = create.error ?? createCategory.error ?? update.error;
 
     function onSave() {
@@ -548,17 +568,19 @@ function ProcedureEditor({
             isCheckup,
         };
 
-        if (procedure) {
-            update.mutate({ id: procedure.id, ...details }, { onSuccess: () => onSaved('Procedure saved') });
-            return;
-        }
+        write.run(async () => {
+            if (procedure) {
+                await update.mutateAsync({ id: procedure.id, ...details });
+                onSaved('Procedure saved');
+                return;
+            }
 
-        // The category and this subtype are one write, because a category with
-        // nothing under it is a priceable root — see the note at the top of the
-        // file. Two calls would leave one behind whenever the second failed.
-        if (newCategory !== null) {
-            createCategory.mutate(
-                {
+            // The category and this subtype are one write, because a category
+            // with nothing under it is a priceable root — see the note at the
+            // top of the file. Two calls would leave one behind whenever the
+            // second failed.
+            if (newCategory !== null) {
+                await createCategory.mutateAsync({
                     name: newCategory,
                     sortOrder: nextSortOrder(null),
                     first: {
@@ -568,16 +590,14 @@ function ProcedureEditor({
                         isToothSpecific: details.isToothSpecific,
                         isCheckup: details.isCheckup,
                     },
-                },
-                { onSuccess: () => onSaved(`${newCategory} added`) },
-            );
-            return;
-        }
+                });
+                onSaved(`${newCategory} added`);
+                return;
+            }
 
-        create.mutate(
-            { ...details, sortOrder: nextSortOrder(chosenParent) },
-            { onSuccess: () => onSaved('Procedure added') },
-        );
+            await create.mutateAsync({ ...details, sortOrder: nextSortOrder(chosenParent) });
+            onSaved('Procedure added');
+        });
     }
 
     // One-way: `active` is still the column, because the server and every
@@ -585,15 +605,11 @@ function ProcedureEditor({
     // have changed.
     function onHide() {
         if (!procedure) return;
-        update.mutate(
-            { id: procedure.id, active: false },
-            {
-                onSuccess: () => {
-                    setConfirming(false);
-                    onSaved('Procedure hidden');
-                },
-            },
-        );
+        write.run(async () => {
+            await update.mutateAsync({ id: procedure.id, active: false });
+            setConfirming(false);
+            onSaved('Procedure hidden');
+        });
     }
 
     // A write in flight swallows Back, the same as the header's.
@@ -723,7 +739,7 @@ function ProcedureEditor({
                         variant="danger"
                         icon={<HideIcon size={15} stroke={color.danger} width={2.2} />}
                         onPress={() => setConfirming(true)}
-                        loading={update.isPending && confirming}
+                        loading={write.pending && confirming}
                         block
                     />
                     <Text variant="caption" tone="muted" style={styles.dangerHint}>
@@ -740,7 +756,7 @@ function ProcedureEditor({
                 body="It stops appearing when adding work to a visit, and comes off this screen for good — you won't be able to bring it back from here. Nothing is deleted: past visits keep it and keep what they charged."
                 confirmLabel="Hide"
                 destructive
-                loading={update.isPending && confirming}
+                loading={write.pending && confirming}
                 onConfirm={onHide}
                 onCancel={() => setConfirming(false)}
             />

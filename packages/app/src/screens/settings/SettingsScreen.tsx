@@ -27,6 +27,7 @@ import {
     SectionLabel,
     Toast,
     useAfterSheet,
+    usePendingAction,
 } from '../../components/ui';
 // The store module directly, not the `shell` barrel: that barrel exports
 // `AppShell`, which imports this screen.
@@ -127,9 +128,22 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     const driveSignIn = useDriveSignIn();
     const [linkingDrive, setLinkingDrive] = useState(false);
 
+    /**
+     * The confirm closes the sheet before Google's screen opens, so `linking`
+     * — which only covers the last leg, the code exchange — is not what stops a
+     * second tap launching a second `AuthSession`. The guard's ref is: it holds
+     * from the tap to the account being linked, and clears on failure so the
+     * sign-in can be tried again.
+     */
+    const link = usePendingAction(linkDrive);
+
     async function linkDrive() {
         setLinkingDrive(false);
-        const result = await driveSignIn.signIn();
+        // `usePendingAction` swallows a rejection, so one that escapes the
+        // sign-in is caught here and said, rather than clearing the spinner silently.
+        const result = await driveSignIn
+            .signIn()
+            .catch(() => ({ kind: 'failed' as const, code: 'INTERNAL' }));
         if (result.kind === 'cancelled') return;
         setToast(
             result.kind === 'linked'
@@ -434,8 +448,8 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
             <DriveSignInSheet
                 visible={linkingDrive}
                 account={backups?.account ?? null}
-                busy={driveSignIn.linking}
-                onConfirm={() => void linkDrive()}
+                busy={link.pending || driveSignIn.linking}
+                onConfirm={link.run}
                 onCancel={() => setLinkingDrive(false)}
             />
 

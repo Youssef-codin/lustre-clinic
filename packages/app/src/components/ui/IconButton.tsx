@@ -13,11 +13,11 @@
  * like month nav on a calendar; those pass `pressLockMs={0}`.
  */
 import type { ReactNode } from 'react';
-import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, StyleSheet } from 'react-native';
 import { useT } from '../../i18n';
 import { color, radius, space } from '../../theme';
+import { usePressLock } from './usePressLock';
 
 export type IconButtonVariant = 'circle' | 'filled' | 'square' | 'bare';
 export type IconButtonTone = 'ink' | 'muted' | 'accent' | 'danger' | 'wa';
@@ -64,14 +64,11 @@ export function IconButton({
 }: IconButtonProps) {
     const t = useT();
     const box = size ?? BOX[variant];
-    const lockedUntil = useRef(0);
+    const lock = usePressLock(pressLockMs);
 
     function handlePress() {
         if (disabled || !onPress) return;
-        const now = Date.now();
-        if (now < lockedUntil.current) return;
-        lockedUntil.current = now + pressLockMs;
-        onPress();
+        lock(onPress);
     }
 
     return (

@@ -1,0 +1,393 @@
+import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { ERROR_CODE } from '@lustre/shared';
+import { balanceService } from '../src/modules/balance/balance.service.ts';
+import { patientService } from '../src/modules/patient/patient.service.ts';
+import { procedureHistoryService } from '../src/modules/procedure/procedure.history.ts';
+import { settingsService } from '../src/modules/settings/settings.service.ts';
+import { setupDatabase, truncateAll } from './helpers/db.ts';
+import {
+    CHECKUP_PRICE,
+    type Clinic,
+    expectAppError,
+    clinic as fixtures,
+    ROOT_CANAL_PRICE,
+} from './helpers/factories.ts';
+
+/**
+ * Adding work a patient had done before this system recorded it, from their own
+ * record rather than at registration (`procedure.addHistorical`).
+ *
+ * It writes through `migration.service`, so what it produces is not new and
+ * `migration.test.ts` already holds it to account. What is asserted here is the
+ * part that *is* new: that it reaches an existing patient, that the money does
+ * not move when it does, and that the two refusals the registration block makes
+ * are made here too — a second path that quietly accepts what the first one
+ * refuses is how the two stop meaning the same thing.
+ */
+
+const CUTOFF = '2026-08-01';
+
+async function migrating(): Promise<Clinic> {
+    const clinic = await fixtures();
+    await settingsService.update({
+        migrationBranchId: clinic.branch.id,
+        migrationCutoffDate: CUTOFF,
+        patientRefNext: 900,
+    });
+    return clinic;
+}
+
+async function register(phone: string) {
+    return patientService.create({ name: 'On File Already', phone, birthDate: '1990-01-01', custom: {} });
+}
+
+describe('adding historical procedures to a patient on file', () => {
+    beforeAll(setupDatabase);
+    beforeEach(truncateAll);
+
+    test('lands in the record as dated history, and owes nothing', async () => {
+        const clinic = await migrating();
+        const patient = await register('01055550001');
+
+        await procedureHistoryService.add({
+            patientId: patient.id,
+            procedures: [
+                { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' },
+                {
+                    procedureId: clinic.extraction.id,
+                    quantity: 1,
+                    tooth: 'UL6',
+                    performedOn: '2024-03-14',
+                },
+            ],
+        });
+
+        const { history } = await patientService.byId(patient.id);
+
+        // One day on the file is one row, however many lines it names.
+        expect(history).toHaveLength(1);
+        const [row] = history;
+        expect(row?.isImported).toBe(true);
+        expect(row?.dateUnknown).toBe(false);
+        expect(row?.startsAt.toISOString()).toBe('2024-03-14T12:00:00.000Z');
+        expect(row?.procedures).toHaveLength(2);
+
+        // The whole promise: no visit behind it, so there is nothing to charge,
+        // nothing to owe and nothing to pay.
+        expect(row?.visitId).toBeNull();
+        expect(row?.chargedTotal).toBe(0);
+        expect(row?.balance).toBe(0);
+
+        const outstanding = await balanceService.outstanding();
+        expect(outstanding.patients.find((p) => p.patientId === patient.id)).toBeUndefined();
+    });
+
+    // The file says what was done and not always when. Such a row carries the
+    // cutoff only because `starts_at` is NOT NULL, and the flag is what stops
+    // the record reading that day out as though it were the answer.
+    test('marks an undated entry rather than picking a day for it', async () => {
+        const clinic = await migrating();
+        const patient = await register('01055550002');
+
+        await procedureHistoryService.add({
+            patientId: patient.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+
+        const [row] = (await patientService.byId(patient.id)).history;
+        expect(row?.isImported).toBe(true);
+        expect(row?.dateUnknown).toBe(true);
+    });
+
+    test('groups by the day, so two days are two rows', async () => {
+        const clinic = await migrating();
+        const patient = await register('01055550003');
+
+        await procedureHistoryService.add({
+            patientId: patient.id,
+            procedures: [
+                { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' },
+                { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2025-01-09' },
+            ],
+        });
+
+        const { history } = await patientService.byId(patient.id);
+        expect(history).toHaveLength(2);
+        expect(history.every((row) => row.isImported)).toBe(true);
+    });
+
+    test('adds to what is already there rather than replacing it', async () => {
+        const clinic = await migrating();
+        const patient = await register('01055550004');
+
+        const first = { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' };
+        await procedureHistoryService.add({ patientId: patient.id, procedures: [first] });
+        await procedureHistoryService.add({
+            patientId: patient.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2025-01-09' }],
+        });
+
+        expect((await patientService.byId(patient.id)).history).toHaveLength(2);
+    });
+
+    test('refuses a patient who is not on file', async () => {
+        const clinic = await migrating();
+
+        await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+            procedureHistoryService.add({
+                patientId: '11111111-1111-1111-1111-111111111111',
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+    });
+
+    // Both of these are the registration block's own refusals, made here for
+    // the same reasons. Work dated since the changeover was done at this clinic
+    // and belongs to a visit that charges for it; an imported row is one every
+    // operational view leaves out.
+    test('refuses a date after the cutoff, and allows the cutoff day itself', async () => {
+        const clinic = await migrating();
+        const patient = await register('01055550005');
+
+        await expectAppError(ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF, () =>
+            procedureHistoryService.add({
+                patientId: patient.id,
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2026-08-02' }],
+            }),
+        );
+        expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+
+        await procedureHistoryService.add({
+            patientId: patient.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: CUTOFF }],
+        });
+        expect((await patientService.byId(patient.id)).history).toHaveLength(1);
+    });
+
+    test('refuses it at all while the clinic has no cutoff configured', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01055550006');
+
+        await expectAppError(ERROR_CODE.MIGRATION_NOT_CONFIGURED, () =>
+            procedureHistoryService.add({
+                patientId: patient.id,
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+    });
+
+    // §5 is applied per day, the same as it is on a registration: a tooth-less
+    // line for a procedure that names a tooth is refused, and nothing is left
+    // behind when it is.
+    test('holds the catalogue rules, and writes nothing when one is broken', async () => {
+        const clinic = await migrating();
+        const patient = await register('01055550007');
+
+        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
+            procedureHistoryService.add({
+                patientId: patient.id,
+                procedures: [{ procedureId: clinic.extraction.id, quantity: 1 }],
+            }),
+        );
+
+        expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+    });
+});
+
+/**
+ * An old visit: work this clinic did on a day that has passed and never typed
+ * in. It is the other half of the same problem and the opposite answer on the
+ * one question that matters — this one **bills**. A historical procedure is
+ * clinical history with no visit behind it; this is an ordinary visit that was
+ * simply entered late, so it is charged and the patient owes it.
+ */
+describe('recording a visit that already happened', () => {
+    beforeAll(setupDatabase);
+    beforeEach(truncateAll);
+
+    const DAY = '2026-09-10';
+
+    test('lands as a completed visit the patient owes', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660001');
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            branchId: clinic.branch.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+
+        expect(added.chargedTotal).toBe(CHECKUP_PRICE);
+
+        const { history } = await patientService.byId(patient.id);
+        expect(history).toHaveLength(1);
+
+        const [row] = history;
+        // Not imported, not an opening balance — an ordinary visit.
+        expect(row?.isImported).toBe(false);
+        expect(row?.isOpeningBalance).toBe(false);
+        expect(row?.visitId).toBe(added.visitId);
+        expect(row?.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(row?.balance).toBe(CHECKUP_PRICE);
+        // Noon UTC, so the day reads back as itself at any offset.
+        expect(row?.startsAt.toISOString()).toBe(`${DAY}T12:00:00.000Z`);
+
+        // And it reaches the money, which is the whole difference from a
+        // historical procedure.
+        const outstanding = await balanceService.outstanding();
+        expect(outstanding.patients.find((p) => p.patientId === patient.id)?.balance).toBe(CHECKUP_PRICE);
+    });
+
+    test('charges the price it is given rather than the catalogue’s', async () => {
+        const clinic = await migrating();
+        const patient = await register('01066660002');
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            // The x-ray is the catalogue's one `hasQuantity` row — §5 refuses a
+            // quantity on anything else, which is a rule this path inherits.
+            procedures: [{ procedureId: clinic.xray.id, quantity: 2, unitPrice: 5_000 }],
+        });
+
+        expect(added.chargedTotal).toBe(10_000);
+    });
+
+    // `appointments_no_overlap` covers `booked` and `checked_in` only, so a
+    // `done` row holds no slot. Without that, a second old visit on one day —
+    // or any old visit on a day the clinic was busy — would collide.
+    test('takes two on the same day without colliding', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660003');
+
+        await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            branchId: clinic.branch.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+        await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            branchId: clinic.branch.id,
+            procedures: [{ procedureId: clinic.rootCanal.id, quantity: 1 }],
+        });
+
+        const { history } = await patientService.byId(patient.id);
+        expect(history).toHaveLength(2);
+    });
+
+    test('needs no migration cutoff, unlike a historical procedure', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660004');
+
+        // The same clinic refuses a historical procedure outright.
+        await expectAppError(ERROR_CODE.MIGRATION_NOT_CONFIGURED, () =>
+            procedureHistoryService.add({
+                patientId: patient.id,
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+        expect(added.visitId).toBeTruthy();
+    });
+
+    test('refuses a day that has not happened', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660005');
+
+        await expectAppError(ERROR_CODE.VALIDATION, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: '2099-01-01',
+                offsetMinutes: 0,
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+        expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+    });
+
+    // A day that has happened is the clinic's day, not the server's: the same
+    // date is today fourteen hours east of UTC and still tomorrow fourteen west.
+    test('judges the day by the clinic’s offset', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660010');
+        const eastToday = new Date(Date.now() + 840 * 60_000).toISOString().slice(0, 10);
+        const line = [{ procedureId: clinic.checkup.id, quantity: 1 }];
+
+        await expectAppError(ERROR_CODE.VALIDATION, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: eastToday,
+                offsetMinutes: -840,
+                procedures: line,
+            }),
+        );
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: eastToday,
+            offsetMinutes: 840,
+            procedures: line,
+        });
+        expect(added.visitId).toBeTruthy();
+    });
+
+    // §10: a checkup is free on a visit that did other work, old or not.
+    test('waives the checkup when other work was done', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660011');
+
+        const added = await procedureHistoryService.addOldVisit({
+            patientId: patient.id,
+            performedOn: DAY,
+            offsetMinutes: 0,
+            procedures: [
+                { procedureId: clinic.checkup.id, quantity: 1 },
+                { procedureId: clinic.rootCanal.id, quantity: 1 },
+            ],
+        });
+
+        expect(added.chargedTotal).toBe(ROOT_CANAL_PRICE);
+    });
+
+    test('answers NOT_FOUND for a branch that does not exist', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660012');
+
+        await expectAppError(ERROR_CODE.NOT_FOUND, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: DAY,
+                offsetMinutes: 0,
+                branchId: Bun.randomUUIDv7(),
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+            }),
+        );
+    });
+
+    test('holds the catalogue rules, and writes nothing when one is broken', async () => {
+        const clinic = await fixtures();
+        const patient = await register('01066660006');
+
+        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
+            procedureHistoryService.addOldVisit({
+                patientId: patient.id,
+                performedOn: DAY,
+                offsetMinutes: 0,
+                procedures: [{ procedureId: clinic.extraction.id, quantity: 1 }],
+            }),
+        );
+        expect((await patientService.byId(patient.id)).history).toHaveLength(0);
+    });
+});

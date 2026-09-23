@@ -2,7 +2,9 @@
 // draft↔wire conversion, and patch semantics — and there is no renderer in
 // `bun test`, so the components are verified on a device and this covers what
 // would fail silently.
+
 import { describe, expect, it } from 'bun:test';
+import { canEditRef } from '@lustre/shared';
 import {
     displayAnswer,
     fromDraft,
@@ -16,10 +18,9 @@ import { clampToOutstanding, formatMoney, isWholePounds, paymentReceipt, toPound
 import { errorText } from './data/errors';
 import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion, Patient } from './data/types';
-import type { OldProcedureDraft, PatientForm } from './patientForm';
+import type { HistoricalProcedureDraft, PatientForm } from './patientForm';
 import {
     answeredCount,
-    badOldDates,
     birthDateOf,
     blankBasics,
     blankOld,
@@ -28,14 +29,18 @@ import {
     EMPTY_OLD,
     emptyForm,
     formOf,
+    historicalInputOf,
     isUnchanged,
     malformedBasics,
     malformedOld,
     missingRequired,
-    oldDateDigits,
-    oldDateError,
     owesInput,
     owesPiastres,
+    refBaselineOf,
+    refEditError,
+    refEditOf,
+    refError,
+    saveFailureTitle,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -74,10 +79,12 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     name: 'Nour El-Sayed',
     phone: '0100 224 8891',
     email: '',
+    ref: 'W5F5',
     age: '34',
     gender: 'female',
     answers: {},
     old: EMPTY_OLD,
+    history: [],
     ...over,
 });
 
@@ -90,12 +97,12 @@ const oldOn = (over: Partial<PatientForm['old']> = {}): PatientForm['old'] => ({
     ...over,
 });
 
-const oldProcedure = (over: Partial<OldProcedureDraft> = {}): OldProcedureDraft => ({
+const oldProcedure = (over: Partial<HistoricalProcedureDraft> = {}): HistoricalProcedureDraft => ({
     id: 'old-1',
     procedureId: '22222222-2222-2222-2222-222222222222',
     name: 'Checkup',
     tooth: null,
-    dateDigits: '',
+    performedOn: null,
     ...over,
 });
 
@@ -308,13 +315,13 @@ describe('the patient form — age is a date of birth (BLOCKED.md)', () => {
         expect(patch && 'birthDate' in patch).toBe(false);
     });
 
-    it('does send one when the age was corrected, and clears it when it was emptied', () => {
+    it('does send one when the age was corrected, and refuses to save it emptied', () => {
         const initial = formOf(patient({ age: 34 }), []);
 
         expect(updateInputOf('id', { ...initial, age: '35' }, initial, [], TODAY)?.birthDate).toBe(
             '1991-01-01',
         );
-        expect(updateInputOf('id', { ...initial, age: '' }, initial, [], TODAY)?.birthDate).toBeNull();
+        expect(updateInputOf('id', { ...initial, age: '' }, initial, [], TODAY)).toBeNull();
     });
 });
 
@@ -324,9 +331,9 @@ describe('the patient form — what a save sends', () => {
     const allergies = question({ key: 'allergies', kind: 'text' });
     const questions = [blood, diabetic, allergies];
 
-    it('counts a blank name and number as owed, and says nothing about them', () => {
+    it('counts a blank name, number and age as owed, and says nothing about them', () => {
         const form = emptyForm(questions);
-        expect(blankBasics(form)).toEqual(['name', 'phone']);
+        expect(blankBasics(form)).toEqual(['name', 'phone', 'age']);
         expect(malformedBasics(form)).toEqual({});
     });
 
@@ -596,7 +603,7 @@ describe('old procedures', () => {
     // record draws it as *before migration* rather than picking a day.
     it('leaves the date out when the file did not say when', () => {
         const input = createInputOf(
-            sound({ old: oldOn({ procedures: [oldProcedure({ dateDigits: '' })] }) }),
+            sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: null })] }) }),
             questions,
             TODAY,
         );
@@ -604,9 +611,9 @@ describe('old procedures', () => {
         expect(input?.old?.procedures[0]?.performedOn).toBeUndefined();
     });
 
-    it('sends a typed date as an ISO day', () => {
+    it('sends a picked date as the ISO day it is', () => {
         const input = createInputOf(
-            sound({ old: oldOn({ procedures: [oldProcedure({ dateDigits: '14032024' })] }) }),
+            sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: '2024-03-14' })] }) }),
             questions,
             TODAY,
         );
@@ -614,64 +621,288 @@ describe('old procedures', () => {
         expect(input?.old?.procedures[0]?.performedOn).toBe('2024-03-14');
     });
 
-    it('takes eight digits and strips the rest', () => {
-        expect(oldDateDigits('14/03/2024')).toBe('14032024');
-        expect(oldDateDigits('140320249')).toBe('14032024');
-    });
+    // The date used to be `DDMMYYYY` on a number pad, so a half-typed date, a
+    // 31st of February and a day in the future all had to hold the save back.
+    // `HistoricalDateSheet` offers days rather than taking digits, so none of
+    // the three can be produced and an entry's date can never refuse a save.
+    it('never holds a save back over a date', () => {
+        const dated = sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: '2024-03-14' })] }) });
+        const undated = sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: null })] }) });
 
-    it('says nothing about a date still being typed, and does about one that is wrong', () => {
-        expect(oldDateError('', '2026-09-20')).toBeNull();
-        expect(oldDateError('1403', '2026-09-20')).toContain('Day, month and year');
-        expect(oldDateError('32032024', '2026-09-20')).toContain('day that has happened');
-        expect(oldDateError('14032099', '2026-09-20')).toContain('day that has happened');
-        expect(oldDateError('14032024', '2026-09-20')).toBeNull();
+        expect(createInputOf(dated, questions, TODAY)).not.toBeNull();
+        expect(createInputOf(undated, questions, TODAY)).not.toBeNull();
     });
 });
 
 /**
- * A date typed into an old procedure and not readable. Blank is fine and
- * common — the paper file often does not say when — but a *wrong* date must
- * hold the save back, or the entry goes without one and the record shows
- * "Before migration" for a procedure the desk just dated.
+ * Historical procedures added from the editor. They are not part of the patch —
+ * `patient.update` takes no procedures — so they leave by their own call, and
+ * the two are independent: a record whose only change is a procedure still
+ * saves, and one whose only change is a phone number still sends no procedures.
  */
-describe('a mistyped old procedure date', () => {
-    const questions: CustomQuestion[] = [];
+describe('previous procedures on an edit', () => {
+    const ID = '11111111-1111-1111-1111-111111111111';
 
-    it('does not hold the save back when it is simply blank', () => {
-        const form = sound({ old: oldOn({ procedures: [oldProcedure({ dateDigits: '' })] }) });
-
-        expect(badOldDates(form)).toEqual([]);
-        expect(createInputOf(form, questions, TODAY)).not.toBeNull();
+    it('sends nothing when the list is empty', () => {
+        expect(historicalInputOf(ID, sound())).toBeNull();
     });
 
-    it('holds the save back on a half-typed date', () => {
-        const form = sound({
-            old: oldOn({ procedures: [oldProcedure({ id: 'half', dateDigits: '1403' })] }),
-        });
+    it('names the patient and carries the picked day', () => {
+        const input = historicalInputOf(
+            ID,
+            sound({ history: [oldProcedure({ performedOn: '2024-03-14' })] }),
+        );
 
-        expect(badOldDates(form)).toEqual(['half']);
-        expect(createInputOf(form, questions, TODAY)).toBeNull();
+        expect(input?.patientId).toBe(ID);
+        expect(input?.procedures).toEqual([
+            {
+                procedureId: '22222222-2222-2222-2222-222222222222',
+                quantity: 1,
+                performedOn: '2024-03-14',
+            },
+        ]);
     });
 
-    it('holds the save back on a day that is not one, or has not happened', () => {
-        const impossible = sound({
-            old: oldOn({ procedures: [oldProcedure({ id: 'feb31', dateDigits: '31022024' })] }),
-        });
-        expect(badOldDates(impossible)).toEqual(['feb31']);
+    // Undated is the honest answer and the common one, so it is sent as nothing
+    // at all rather than as a null — the record reads it as *before migration*.
+    it('leaves the date out entirely when none was picked', () => {
+        const input = historicalInputOf(ID, sound({ history: [oldProcedure()] }));
 
-        const future = sound({
-            old: oldOn({ procedures: [oldProcedure({ id: 'later', dateDigits: '14032099' })] }),
-        });
-        expect(badOldDates(future)).toEqual(['later']);
-        expect(createInputOf(future, questions, TODAY)).toBeNull();
+        expect(input?.procedures[0]).not.toHaveProperty('performedOn');
     });
 
-    it('says nothing about a bad date while the switch is off', () => {
-        const off = sound({
-            old: { ...oldOn({ procedures: [oldProcedure({ dateDigits: '1403' })] }), on: false },
+    it('carries the tooth when the procedure named one', () => {
+        const input = historicalInputOf(ID, sound({ history: [oldProcedure({ tooth: 'UL6' })] }));
+
+        expect(input?.procedures[0]?.tooth).toBe('UL6');
+    });
+
+    // The editor never reads a record's existing history back into the form:
+    // the list only ever adds, and seeding it would resend what is on file.
+    it('starts empty on a record that already exists', () => {
+        expect(formOf(patient(), []).history).toEqual([]);
+    });
+
+    // The same procedure on two different days is two real entries — the
+    // server groups imported lines by day and says so. So a draft is identified
+    // by its own id, and anything keyed on `procedureId` would treat the second
+    // day as a duplicate of the first.
+    it('keeps two days of the same procedure apart', () => {
+        const input = historicalInputOf(
+            ID,
+            sound({
+                history: [
+                    oldProcedure({ id: 'a', performedOn: '2024-03-14' }),
+                    oldProcedure({ id: 'b', performedOn: '2025-01-09' }),
+                ],
+            }),
+        );
+
+        expect(input?.procedures).toHaveLength(2);
+        expect(input?.procedures.map((line) => line.performedOn)).toEqual(['2024-03-14', '2025-01-09']);
+    });
+
+    it('is independent of the patch', () => {
+        const initial = formOf(patient(), []);
+        const withProcedure = { ...initial, history: [oldProcedure()] };
+
+        // Nothing about the record itself moved, so the patch stays empty.
+        expect(isUnchanged(updateInputOf(ID, withProcedure, initial, [], TODAY) ?? { id: ID })).toBe(true);
+        expect(historicalInputOf(ID, withProcedure)).not.toBeNull();
+    });
+});
+
+/**
+ * Correcting the number a record is known by. The screen decides three things
+ * — whether the row is drawn, whether what is in it is sound, and whether a
+ * save has anything to send — and all three live here.
+ */
+describe('the ref', () => {
+    describe('refError', () => {
+        it('takes a plain number', () => {
+            for (const ref of ['1', '910', '100000']) expect(refError(ref)).toBeNull();
         });
 
-        expect(badOldDates(off)).toEqual([]);
-        expect(createInputOf(off, questions, TODAY)).not.toBeNull();
+        // A patient from before numbering carries a four-character code, and it
+        // is still the number written on their paper file.
+        it('takes the code an older file carries, in either case', () => {
+            for (const ref of ['W5F5', 'w5f5', 'ABCD', '2345']) expect(refError(ref)).toBeNull();
+        });
+
+        it('trims before it judges', () => {
+            expect(refError('  910  ')).toBeNull();
+        });
+
+        it('says a record cannot be left without a number', () => {
+            expect(refError('')).toBe('A patient keeps their number. Type the one on the file.');
+            expect(refError('   ')).toBe('A patient keeps their number. Type the one on the file.');
+        });
+
+        it('refuses the ambiguous letters the alphabet leaves out', () => {
+            for (const ref of ['W5F0', 'O123', 'WIF5', 'L23A']) expect(refError(ref)).not.toBeNull();
+        });
+
+        it('refuses an appointment ref, a leading zero, and the wrong length', () => {
+            for (const ref of ['011224-W5F5', '007', 'W5F', 'W5F55', '12 34']) {
+                expect(refError(ref)).not.toBeNull();
+            }
+        });
+    });
+
+    describe('refEditOf', () => {
+        const from = (ref: string) => sound({ ref });
+
+        it('sends the number when it moved', () => {
+            expect(refEditOf(from('910'), from('W5F5'))).toBe('910');
+        });
+
+        it('sends nothing when it did not', () => {
+            expect(refEditOf(from('W5F5'), from('W5F5'))).toBeNull();
+        });
+
+        // The server stores refs uppercase, so retyping the same code in
+        // lowercase is not a correction and must not spend a call — or write an
+        // audit row saying the number changed when it did not.
+        it('sends nothing when only the case differs', () => {
+            expect(refEditOf(from('w5f5'), from('W5F5'))).toBeNull();
+        });
+
+        it('sends nothing for a ref that is not sound', () => {
+            for (const bad of ['', '007', 'W5F0']) {
+                expect(refEditOf(from(bad), from('W5F5'))).toBeNull();
+            }
+        });
+
+        it('trims what it sends', () => {
+            expect(refEditOf(from('  910 '), from('W5F5'))).toBe('910');
+        });
+
+        // After a partial save the screen compares against the number that
+        // landed, not the one the record opened with. Against the opening one,
+        // a number the desk changed *again* would still look sent.
+        it('compares against the number that already landed', () => {
+            const opened = from('W5F5');
+            const landed = { ...opened, ref: '910' };
+
+            // Retrying with the landed number: nothing left to send.
+            expect(refEditOf(from('910'), landed)).toBeNull();
+            // Changed again after it landed: that change is owed.
+            expect(refEditOf(from('911'), landed)).toBe('911');
+            // Put back to what the record opened with: also a real change.
+            expect(refEditOf(from('W5F5'), landed)).toBe('W5F5');
+        });
+
+        // The record refetched after somebody else changed the number. The
+        // draft still holds the one it opened with, and an unrelated Save must
+        // not send that back as a correction.
+        it('does not undo a number someone else changed underneath', () => {
+            const refreshed = from('777'); // the record's latest read
+            const draft = from('W5F5'); // untouched since it was seeded
+
+            const baseline = refBaselineOf(refreshed, 'W5F5', null);
+            expect(refEditOf(draft, baseline as PatientForm)).toBeNull();
+            // Measured against the refreshed record instead, it would have gone out.
+            expect(refEditOf(draft, refreshed)).toBe('W5F5');
+        });
+
+        it('takes a number it saved itself over the one it was seeded with', () => {
+            expect(refBaselineOf(from('W5F5'), 'W5F5', '910')?.ref).toBe('910');
+            expect(refBaselineOf(from('W5F5'), 'W5F5', null)?.ref).toBe('W5F5');
+        });
+
+        it('has no baseline until the draft is seeded', () => {
+            expect(refBaselineOf(null, null, null)).toBeNull();
+            expect(refBaselineOf(from('W5F5'), null, null)).toBeNull();
+        });
+
+        // A registration holds no ref: the counter hands the number out.
+        it('sends nothing while registering', () => {
+            expect(refEditOf(sound({ ref: '' }), sound({ ref: '' }))).toBeNull();
+        });
+    });
+
+    /**
+     * A ref only has to be one this app would issue if it is being changed to.
+     * An old patient's number is their old system's, kept verbatim, and Save
+     * must not be held hostage to a shape nobody typed today.
+     */
+    describe('refEditError', () => {
+        const on = (ref: string) => sound({ ref });
+
+        it('says nothing about a legacy ref nobody touched', () => {
+            for (const legacy of ['A/1991-07', '710/B', '007', 'W5F0']) {
+                expect(refEditError(on(legacy), on(legacy))).toBeNull();
+            }
+        });
+
+        it('ignores a difference that is only case or padding', () => {
+            expect(refEditError(on(' a/1991-07 '), on('A/1991-07'))).toBeNull();
+        });
+
+        // The lockout this exists to prevent: a record carrying `A/1991-07`
+        // must still be editable for everything else.
+        it('leaves a legacy record editable', () => {
+            const initial = on('A/1991-07');
+            const edited = { ...initial, phone: '0100 000 0000' };
+            expect(refEditError(edited, initial)).toBeNull();
+        });
+
+        it('judges a ref that is being changed', () => {
+            expect(refEditError(on('W5F0'), on('W5F5'))).not.toBeNull();
+            expect(refEditError(on(''), on('W5F5'))).not.toBeNull();
+        });
+
+        it('passes a sound change', () => {
+            expect(refEditError(on('910'), on('A/1991-07'))).toBeNull();
+        });
+    });
+
+    describe('saveFailureTitle', () => {
+        it('says partly saved when the number landed and a later call failed', () => {
+            expect(saveFailureTitle(false, true)).toBe('The number was saved, the rest was not');
+        });
+
+        // An earlier attempt wrote one number; this one tried another and was
+        // refused. The number on screen is not on file.
+        it('does not claim the number saved when the ref call is the failure', () => {
+            expect(saveFailureTitle(true, true)).toBe('Not saved');
+        });
+
+        it('says not saved when nothing has landed', () => {
+            expect(saveFailureTitle(false, false)).toBe('Not saved');
+            expect(saveFailureTitle(true, false)).toBe('Not saved');
+        });
+    });
+
+    describe('who may edit', () => {
+        it('lets the doctor', () => {
+            expect(canEditRef('doctor')).toBe(true);
+        });
+
+        it('does not let the secretary', () => {
+            expect(canEditRef('secretary')).toBe(false);
+        });
+    });
+
+    describe('what a refusal says', () => {
+        const refusal = (code: string) => errorText(new PatientsRequestError(code as never, 'server text'));
+
+        it('names the role that can make the change', () => {
+            expect(refusal('REF_EDIT_FORBIDDEN')).toContain('doctor');
+        });
+
+        it('names both shapes when the format is refused', () => {
+            expect(refusal('PATIENT_REF_INVALID')).toContain('four-character');
+        });
+
+        it('still says a taken number is taken', () => {
+            expect(refusal('PATIENT_REF_TAKEN')).toContain('already has that number');
+        });
+    });
+
+    // `formOf` seeds the editor from the record, so the row opens on the number
+    // that is on file rather than empty.
+    it('opens on the number the record carries', () => {
+        expect(formOf(patient({ ref: '910' }), []).ref).toBe('910');
     });
 });

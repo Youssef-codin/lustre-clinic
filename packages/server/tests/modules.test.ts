@@ -846,12 +846,14 @@ describe('patient', () => {
         const registered = await patientService.create({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: {},
         });
         // What booking uses when the patient is not on file yet.
         const booked = await patientService.createMinimal({
             name: 'Walk In',
             phone: '01098765432',
+            birthDate: '1990-01-01',
         });
 
         expect(registered.ref).toMatch(PATIENT_REF_PATTERN);
@@ -904,12 +906,14 @@ describe('patient', () => {
         const migrated = await patientService.create({
             name: 'Carried Over',
             phone: '01011112222',
+            birthDate: '1990-01-01',
             legacyRef: '4417',
             custom: {},
         });
         const fresh = await patientService.create({
             name: 'Registered Here',
             phone: '01033334444',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -926,12 +930,17 @@ describe('patient', () => {
     // through `.rejects`: a postgres.js query is lazy and only runs when it is
     // actually awaited, so `expect(query).rejects` hangs instead of failing.
     test('refuses two patients with the same ref', async () => {
-        const first = await patientService.create({ name: 'First', phone: '01011110000', custom: {} });
+        const first = await patientService.create({
+            name: 'First',
+            phone: '01011110000',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
 
         let refused = false;
         try {
-            await sql`INSERT INTO patients (id, ref, name, phone, custom)
-                      VALUES (${uuid()}, ${first.ref}, 'Second', '+201022220000', '{}'::jsonb)`;
+            await sql`INSERT INTO patients (id, ref, name, phone, birth_date, custom)
+                      VALUES (${uuid()}, ${first.ref}, 'Second', '+201022220000', '1990-01-01', '{}'::jsonb)`;
         } catch {
             refused = true;
         }
@@ -942,9 +951,26 @@ describe('patient', () => {
     test('numbers patients 1, 2, 3 on a clinic that has none', async () => {
         const refs: string[] = [];
         for (const phone of ['01011110001', '01011110002']) {
-            refs.push((await patientService.create({ name: 'Numbered', phone, custom: {} })).ref);
+            refs.push(
+                (
+                    await patientService.create({
+                        name: 'Numbered',
+                        phone,
+                        birthDate: '1990-01-01',
+                        custom: {},
+                    })
+                ).ref,
+            );
         }
-        refs.push((await patientService.createMinimal({ name: 'Booked In', phone: '01011110003' })).ref);
+        refs.push(
+            (
+                await patientService.createMinimal({
+                    name: 'Booked In',
+                    phone: '01011110003',
+                    birthDate: '1990-01-01',
+                })
+            ).ref,
+        );
 
         expect(refs).toEqual(['1', '2', '3']);
         expect((await settingsService.get()).patientRefNext).toBe(4);
@@ -957,8 +983,18 @@ describe('patient', () => {
     test('hands out the number the clinic sets, then the one after it', async () => {
         await settingsService.update({ patientRefNext: 910 });
 
-        const first = await patientService.create({ name: 'Carried On', phone: '01011112222', custom: {} });
-        const second = await patientService.create({ name: 'And Then', phone: '01011112223', custom: {} });
+        const first = await patientService.create({
+            name: 'Carried On',
+            phone: '01011112222',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
+        const second = await patientService.create({
+            name: 'And Then',
+            phone: '01011112223',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
 
         expect([first.ref, second.ref]).toEqual(['910', '911']);
         expect((await settingsService.get()).patientRefNext).toBe(912);
@@ -967,7 +1003,7 @@ describe('patient', () => {
     test('two registrations at once get two numbers', async () => {
         const created = await Promise.all(
             ['01020000001', '01020000002', '01020000003', '01020000004', '01020000005'].map((phone) =>
-                patientService.create({ name: 'Concurrent', phone, custom: {} }),
+                patientService.create({ name: 'Concurrent', phone, birthDate: '1990-01-01', custom: {} }),
             ),
         );
 
@@ -976,15 +1012,29 @@ describe('patient', () => {
 
     test('a refused registration does not use a number up', async () => {
         await expectAppError(ERROR_CODE.INVALID_PHONE, () =>
-            patientService.create({ name: 'Bad Phone', phone: 'not a phone', custom: {} }),
+            patientService.create({
+                name: 'Bad Phone',
+                phone: 'not a phone',
+                birthDate: '1990-01-01',
+                custom: {},
+            }),
         );
         await sql`INSERT INTO custom_questions (id, key, label, kind, required)
                   VALUES (${uuid()}, 'allergies', 'Allergies', 'text', true)`;
         await expectAppError(ERROR_CODE.CUSTOM_QUESTION_REQUIRED, () =>
-            patientService.create({ name: 'No Answers', phone: '01011113333', custom: {} }),
+            patientService.create({
+                name: 'No Answers',
+                phone: '01011113333',
+                birthDate: '1990-01-01',
+                custom: {},
+            }),
         );
 
-        const next = await patientService.createMinimal({ name: 'Next', phone: '01011114444' });
+        const next = await patientService.createMinimal({
+            name: 'Next',
+            phone: '01011114444',
+            birthDate: '1990-01-01',
+        });
         expect(next.ref).toBe('1');
     });
 
@@ -993,7 +1043,7 @@ describe('patient', () => {
 
         const together = await Promise.all(
             ['01030000001', '01030000002'].map((phone) =>
-                patientService.create({ name: 'At Once', phone, custom: {} }),
+                patientService.create({ name: 'At Once', phone, birthDate: '1990-01-01', custom: {} }),
             ),
         );
 
@@ -1004,8 +1054,18 @@ describe('patient', () => {
     // At, not below: the value is handed out as it stands, so a next number
     // equal to a ref on file would hand that number out twice.
     test('refuses a next number a patient already has, and leaves the counter alone', async () => {
-        await patientService.create({ name: 'One', phone: '01011110001', custom: {} });
-        await patientService.create({ name: 'Two', phone: '01011110002', custom: {} });
+        await patientService.create({
+            name: 'One',
+            phone: '01011110001',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
+        await patientService.create({
+            name: 'Two',
+            phone: '01011110002',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
 
         await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
             settingsService.update({ patientRefNext: 2 }),
@@ -1021,16 +1081,20 @@ describe('patient', () => {
     test('leaves existing codes alone, and counts an all-digit one as taken', async () => {
         const oldCode = uuid();
         const oldNumber = uuid();
-        await sql`INSERT INTO patients (id, ref, name, phone)
-                  VALUES (${oldCode}, 'W5F5', 'Old Code', '+201000000001'),
-                         (${oldNumber}, '2345', 'Old Digits', '+201000000002')`;
+        await sql`INSERT INTO patients (id, ref, name, phone, birth_date)
+                  VALUES (${oldCode}, 'W5F5', 'Old Code', '+201000000001', '1990-01-01'),
+                         (${oldNumber}, '2345', 'Old Digits', '+201000000002', '1990-01-01')`;
 
         await expectAppError(ERROR_CODE.PATIENT_REF_BELOW_EXISTING, () =>
             settingsService.update({ patientRefNext: 2345 }),
         );
         await settingsService.update({ patientRefNext: 2346 });
 
-        const next = await patientService.createMinimal({ name: 'New', phone: '01011115555' });
+        const next = await patientService.createMinimal({
+            name: 'New',
+            phone: '01011115555',
+            birthDate: '1990-01-01',
+        });
         expect(next.ref).toBe('2346');
         expect((await patientService.byId(oldCode)).patient.ref).toBe('W5F5');
     });
@@ -1043,7 +1107,12 @@ describe('patient', () => {
     });
 
     test('a ref survives an update that touches everything else', async () => {
-        const created = await patientService.create({ name: 'Before', phone: '01055556666', custom: {} });
+        const created = await patientService.create({
+            name: 'Before',
+            phone: '01055556666',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
 
         const updated = await patientService.update({
             id: created.id,
@@ -1068,7 +1137,12 @@ describe('patient', () => {
     });
 
     test('finds a patient by name fragment or by local phone', async () => {
-        await patientService.create({ name: 'Nadia Hassan', phone: '01012345678', custom: {} });
+        await patientService.create({
+            name: 'Nadia Hassan',
+            phone: '01012345678',
+            birthDate: '1990-01-01',
+            custom: {},
+        });
 
         expect((await patientService.search({ q: 'adia', limit: 25 })).length).toBe(1);
         expect((await patientService.search({ q: '01012345678', limit: 25 })).length).toBe(1);
@@ -1082,11 +1156,13 @@ describe('patient', () => {
         const first = await patientService.create({
             name: 'Registered First',
             phone: '01011111111',
+            birthDate: '1990-01-01',
             custom: {},
         });
         const second = await patientService.create({
             name: 'Registered Second',
             phone: '01022222222',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -1116,6 +1192,7 @@ describe('patient', () => {
         const created = await patientService.create({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: { allergies: 'penicillin', notes_for_doctor: 'anxious' },
         });
 
@@ -1144,6 +1221,7 @@ describe('patient', () => {
         const created = await patientService.create({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: { referral: 'facebook' },
         });
 
@@ -1160,6 +1238,7 @@ describe('patient', () => {
         const created = await patientService.create({
             name: 'Nadia Hassan',
             phone: '01012345678',
+            birthDate: '1990-01-01',
             custom: {},
         });
 
@@ -1193,7 +1272,12 @@ describe('patient', () => {
 
     test('rejects a phone that cannot be normalized', async () => {
         await expectAppError(ERROR_CODE.INVALID_PHONE, () =>
-            patientService.create({ name: 'Nobody', phone: 'not a phone', custom: {} }),
+            patientService.create({
+                name: 'Nobody',
+                phone: 'not a phone',
+                birthDate: '1990-01-01',
+                custom: {},
+            }),
         );
     });
 
@@ -1256,7 +1340,7 @@ describe('appointment', () => {
         const { branch } = await fixtures();
 
         const appointment = await appointmentService.create({
-            patient: { kind: 'new', name: 'Walk-up Wael', phone: '01099999999' },
+            patient: { kind: 'new', name: 'Walk-up Wael', phone: '01099999999', birthDate: '1990-01-01' },
             branchId: branch.id,
             startsAt: todaySlot(),
             offsetMinutes: 0,
@@ -1266,7 +1350,7 @@ describe('appointment', () => {
         expect(found[0]?.id).toBe(appointment.patientId);
         expect(found[0]?.phone).toBe('+201099999999');
         expect(found[0]?.email).toBeNull();
-        expect(found[0]?.birthDate).toBeNull();
+        expect(found[0]?.birthDate).toBe('1990-01-01');
     });
 
     // The desk is not always on the phone — when the card is in her hand, the

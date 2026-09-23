@@ -27,6 +27,7 @@ type DateKey =
     | 'inChairAt'
     | 'pricedAt'
     | 'completedAt'
+    | 'editedAt'
     | 'oldestUnpaidAt'
     | 'from'
     | 'to';

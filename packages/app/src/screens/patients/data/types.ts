@@ -8,7 +8,7 @@
 // deleted, so its answers survive (§7.8); `age` and `balance` are derived,
 // never stored; `UpdatePatientInput.custom` is a partial patch — only the keys
 // sent are validated, a blank clears, and keys left out keep what is stored.
-import type { AppointmentStatus, PaymentMethod, Tooth } from '@lustre/shared';
+import type { AppointmentStatus, ClientRole, PaymentMethod, Tooth } from '@lustre/shared';
 
 export type QuestionKind = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
@@ -43,7 +43,7 @@ export interface Patient {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string | null;
+    birthDate: string;
     gender: string | null;
     custom: Answers;
     notes: string | null;
@@ -162,7 +162,7 @@ export interface CreatePatientInput {
     name: string;
     phone: string;
     email?: string | null;
-    birthDate?: string | null;
+    birthDate: string;
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
@@ -192,6 +192,56 @@ export interface OldPatientInput {
 }
 
 /**
+ * Work a patient had done before this system recorded it, added from the
+ * editor. The same line the registration block sends, against a patient who
+ * already exists: `procedure.addHistorical` writes it as an imported
+ * appointment with no visit behind it, so it shows in the history and adds to
+ * no total and no checkout.
+ */
+export interface AddHistoricalProceduresInput {
+    patientId: string;
+    procedures: OldProcedureInput[];
+}
+
+/** The days the lines were grouped into — one per date on the file, not one per line. */
+export interface AddedHistoricalProcedures {
+    appointmentIds: string[];
+}
+
+/** One line of an old visit: what was done, and what it is charged at. */
+export interface OldVisitLineInput {
+    procedureId: string;
+    quantity: number;
+    tooth?: Tooth | null;
+    /** Piastres. Absent means the catalogue's current price, resolved server-side. */
+    unitPrice?: number;
+}
+
+/**
+ * A visit that happened on a day that has passed and was never entered.
+ *
+ * Unlike `AddHistoricalProceduresInput` this one **carries money**: it lands as
+ * an ordinary completed visit, so it is charged and the patient owes it. The
+ * date is required and there is no time of day — the desk is recording which
+ * day it was, not which slot.
+ */
+export interface AddOldVisitInput {
+    patientId: string;
+    /** `YYYY-MM-DD`, and it has to be a day that has happened. */
+    performedOn: string;
+    /** Absent lets the server use the clinic's first active branch. */
+    branchId?: string | null;
+    procedures: OldVisitLineInput[];
+}
+
+export interface AddedOldVisit {
+    appointmentId: string;
+    visitId: string;
+    /** Piastres charged. The patient owes it until it is settled. */
+    chargedTotal: number;
+}
+
+/**
  * A partial patch, throughout: a key left out keeps what is stored, and only
  * the keys sent are validated. `null` is an answer — it clears the column — so
  * a field the editor did not touch is `undefined` and never `null`.
@@ -201,8 +251,27 @@ export interface UpdatePatientInput {
     name?: string;
     phone?: string;
     email?: string | null;
-    birthDate?: string | null;
+    birthDate?: string;
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
+}
+
+/**
+ * Correcting the number a record is known by — its own call, not a field on the
+ * patch above. `editedBy` is the role this handset is on; the server decides
+ * whether that role may edit at all, and records it beside the change.
+ */
+export interface UpdatePatientRefInput {
+    id: string;
+    ref: string;
+    editedBy: ClientRole;
+}
+
+/** One correction to a record's ref, as the record reads it back. */
+export interface RefEdit {
+    previousRef: string;
+    newRef: string;
+    editedBy: string;
+    editedAt: string;
 }

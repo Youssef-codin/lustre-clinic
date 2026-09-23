@@ -44,7 +44,7 @@ const patientRefInput = z.discriminatedUnion('kind', [
         name: z.string().trim().min(1).max(160),
         phone: z.string().trim().min(5).max(32),
         email: z.email().max(200).nullish(),
-        birthDate: z.iso.date().nullish(),
+        birthDate: z.iso.date(),
         gender: z.string().trim().max(40).nullish(),
         notes: z.string().trim().max(4000).nullish(),
     }),

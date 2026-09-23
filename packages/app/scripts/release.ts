@@ -13,6 +13,9 @@
  * same value from the same app.json, or the runtime versions differ and no phone
  * takes the update.
  *
+ * A production APK also needs LUSTRE_GLITCHTIP_DSN: it is baked in the same way,
+ * and an APK built without it reports no crashes for as long as it is installed.
+ *
  * Both number the release (`releaseVersion.ts`): an APK is the next minor, an
  * update the next patch on the APK its runtime belongs to. Both refuse a working
  * tree with uncommitted changes, and both tag the commit they were built from
@@ -79,6 +82,51 @@ function updatesUrl(): string {
         );
     }
     return url;
+}
+
+/** True when `app.json` marks this a demo build, whose crashes come from invented patients. */
+async function isDemoBuild(): Promise<boolean> {
+    const appJson = JSON.parse(await readFile(join(APP_DIR, 'app.json'), 'utf8')) as {
+        expo?: { extra?: { demo?: unknown } };
+    };
+    return appJson.expo?.extra?.demo === true;
+}
+
+/**
+ * The GlitchTip DSN baked into a production APK (§17), from `LUSTRE_GLITCHTIP_DSN`.
+ *
+ * `app.config.ts` nulls it for a dev or demo build on purpose, so only the
+ * production track is checked. Unset there means an APK whose SDK never
+ * initialises (`src/reporting/options.ts`) and a server that waits for events
+ * no phone sends, with nothing to see until you need a crash report — so a
+ * production build without reporting has to be deliberate, not the default.
+ */
+async function glitchtipDsn(updates: string): Promise<string | null> {
+    if (DEV || (await isDemoBuild())) return null;
+
+    const dsn = process.env.LUSTRE_GLITCHTIP_DSN?.trim();
+    if (!dsn || !/^https?:\/\/[^:@/\s]+@[^/\s]+\/\d+$/.test(dsn)) {
+        fail(
+            "set LUSTRE_GLITCHTIP_DSN to the clinic GlitchTip project's DSN, e.g. http://<key>@smilemakers.tailad17f9.ts.net:8000/1 (GlitchTip UI, Settings -> Client Keys). It is baked in at build time, so an APK built without it reports no crashes and no OTA update can add one.",
+        );
+    }
+    // The DSN is read on the phone, so loopback names the phone, not the clinic server.
+    // `URL` lowercases the host and canonicalises IP forms (`127.1`, `[0:0::1]`), so one check covers them.
+    const host = new URL(dsn).hostname;
+    if (host === 'localhost' || host.startsWith('127.') || host === '[::1]') {
+        fail(
+            `LUSTRE_GLITCHTIP_DSN points at ${dsn.slice(dsn.indexOf('@') + 1)}. Use the server's MagicDNS name: no phone can reach loopback.`,
+        );
+    }
+    // GlitchTip runs beside the API on the clinic server, so anything else — `0.0.0.0`,
+    // another machine — is a DSN copied from somewhere it does not belong.
+    const clinic = new URL(updates).hostname;
+    if (host !== clinic) {
+        fail(
+            `LUSTRE_GLITCHTIP_DSN points at ${host}, but LUSTRE_UPDATES_URL is ${clinic}. Both are the clinic server.`,
+        );
+    }
+    return dsn;
 }
 
 /** The environment first, then `~/.gradle/gradle.properties`, the same places Gradle reads the keystore from. */
@@ -195,6 +243,7 @@ async function assertApkKey(apk: string): Promise<void> {
 
 async function buildApk(major: boolean): Promise<void> {
     const url = updatesUrl();
+    const dsn = await glitchtipDsn(url);
     await assertCleanTree();
 
     const staged = await stagedApk();
@@ -274,11 +323,20 @@ async function buildApk(major: boolean): Promise<void> {
 
     say(`Staged Lustre ${element.versionName} (build ${element.versionCode}, ${abis}) in ${OUT_DIR}/android`);
     say(`Runtime version ${runtimeVersion}. Updates from ${url}`);
+    say(
+        dsn
+            ? `Crash reports to ${dsn.slice(dsn.indexOf('@') + 1)}`
+            : 'Crash reporting off (dev or demo build)',
+    );
     await tagRelease(next, `Lustre ${version}, APK build ${element.versionCode}`);
 }
 
 async function publishUpdate(): Promise<void> {
     const url = updatesUrl();
+    // Not used here, but checked: the DSN is hashed into the runtime fingerprint, so
+    // an update published without the one the APK was built with resolves a runtime
+    // no phone is on.
+    await glitchtipDsn(url);
     const keyPath = await gradleProperty('LUSTRE_UPDATES_PRIVATE_KEY');
     if (!keyPath) {
         fail(

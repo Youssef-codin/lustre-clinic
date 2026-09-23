@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'bun:test';
 import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { computeTotal } from '../../api/demo/rules';
-import { procedureLabel, splitDay } from './agenda';
+import { procedureLabel, rowSummary, splitDay } from './agenda';
 import {
     daysOffered,
     firstFreeSlot,
@@ -29,6 +29,7 @@ import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
 import { amountDue, formatAmount, formatMoney, poundsEntry } from './money';
 import { busiestBranch, loadsFrom } from './month';
+import { noteChanged, noteDraft, noteValue } from './notes';
 import {
     birthDateDigits,
     birthDateDisplay,
@@ -160,6 +161,61 @@ describe('the agenda', () => {
         // Nothing planned is not "unknown procedure" — the row falls back to
         // the duration alone, as it did when `type_id` was null.
         expect(procedureLabel(planned())).toBeUndefined();
+    });
+});
+
+describe('the visit note', () => {
+    const with_ = (note: string | null): Appointment =>
+        ({
+            id: 'n',
+            startsAt: '2026-08-10T09:00:00+03:00',
+            status: 'booked',
+            durationMinutes: 30,
+            note,
+            procedures: [
+                { id: 'l-0', procedureId: 'p-0', name: 'Consultation', quantity: 1, tooth: null, note: null },
+            ],
+            patient: { id: 'p-n', name: 'Nadia', phone: '' },
+        }) as Appointment;
+
+    it('opens the field on the note the booking left', () => {
+        expect(noteDraft('Bring the X-rays.')).toBe('Bring the X-rays.');
+        expect(noteDraft(null)).toBe('');
+        expect(noteDraft(undefined)).toBe('');
+    });
+
+    // Blank is not a note. A field cleared to spaces is the desk removing what
+    // it wrote, and the column has to end up null rather than holding '   '.
+    it('sends a cleared field as no note at all', () => {
+        expect(noteValue('')).toBeNull();
+        expect(noteValue('   \n ')).toBeNull();
+        expect(noteValue('  Bring the X-rays.  ')).toBe('Bring the X-rays.');
+    });
+
+    it('writes only what the edit changed', () => {
+        expect(noteChanged('Bring the X-rays.', 'Bring the X-rays.')).toBe(false);
+        // Whitespace either side of the same words is not an edit.
+        expect(noteChanged('Bring the X-rays.', '  Bring the X-rays. ')).toBe(false);
+        expect(noteChanged(null, '')).toBe(false);
+        expect(noteChanged(null, '   ')).toBe(false);
+        // A note stored with stray spaces, opened and left alone, is not an edit.
+        expect(noteChanged(' Bring the X-rays. ', ' Bring the X-rays. ')).toBe(false);
+
+        expect(noteChanged(null, 'Anxious about the drill.')).toBe(true);
+        expect(noteChanged('Bring the X-rays.', 'Bring the panoramic.')).toBe(true);
+        // Clearing one is an edit, and the one that has to reach the server as
+        // null rather than as nothing to do.
+        expect(noteChanged('Bring the X-rays.', '')).toBe(true);
+        expect(noteValue('')).toBeNull();
+    });
+
+    // The chair and the now card have always read the note over the plan. A
+    // schedule row that showed the plan instead is how the same visit says two
+    // different things on two screens.
+    it('says the note on the row where there is one, and the plan where there is not', () => {
+        expect(rowSummary(with_('Bring the X-rays.'))).toBe('Bring the X-rays.');
+        expect(rowSummary(with_(null))).toBe('Consultation');
+        expect(rowSummary(with_('   '))).toBe('Consultation');
     });
 });
 
@@ -640,19 +696,17 @@ describe('a patient who is new here', () => {
         expect(emailError('nadia.example.com')).not.toBeNull();
     });
 
-    it('books on a name and a number alone', () => {
-        const ref = patientRefOf({
-            ...EMPTY_PATIENT_DRAFT,
-            mode: 'new',
-            name: 'Nadia',
-            phone: '01012345678',
-        });
+    it('books on a name, a number and a date of birth', () => {
+        const draft = { ...EMPTY_PATIENT_DRAFT, mode: 'new' as const, name: 'Nadia', phone: '01012345678' };
+        expect(patientRefOf(draft)).toBeNull();
+
+        const ref = patientRefOf({ ...draft, birthDate: '05111990' });
         expect(ref).toEqual({
             kind: 'new',
             name: 'Nadia',
             phone: '01012345678',
             email: null,
-            birthDate: null,
+            birthDate: '1990-11-05',
             gender: null,
             notes: null,
         });
@@ -682,7 +736,13 @@ describe('a patient who is new here', () => {
 
     // Sending it as blank would throw away what she was in the middle of writing.
     it('holds the booking while a detail is half-written', () => {
-        const half = { ...EMPTY_PATIENT_DRAFT, mode: 'new' as const, name: 'Nadia', phone: '01012345678' };
+        const half = {
+            ...EMPTY_PATIENT_DRAFT,
+            mode: 'new' as const,
+            name: 'Nadia',
+            phone: '01012345678',
+            birthDate: '05111990',
+        };
         expect(patientRefOf({ ...half, birthDate: '0511' })).toBeNull();
         expect(patientRefOf({ ...half, email: 'nadia@' })).toBeNull();
     });

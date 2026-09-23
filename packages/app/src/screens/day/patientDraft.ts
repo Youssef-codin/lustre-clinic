@@ -16,13 +16,7 @@
  * — are `domain/patientDraft`, because the patient record and the bulk migration
  * hold the same draft and had grown their own copies of every one of them.
  */
-import {
-    birthDateError,
-    birthDateIso,
-    emailError,
-    orNull,
-    phoneError,
-} from '../../components/domain/patientDraft';
+import { birthDateIso, emailError, orNull, phoneError } from '../../components/domain/patientDraft';
 import type { Patient, PatientRef } from './data';
 
 export {
@@ -59,9 +53,9 @@ export const EMPTY_PATIENT_DRAFT: PatientDraft = {
 };
 
 /**
- * What the mutation takes, or null while the draft cannot be booked. Only the
- * name and the number can hold a booking back; a detail that is half-typed does
- * too, because sending it as blank would silently throw away what the secretary
+ * What the mutation takes, or null while the draft cannot be booked. The name,
+ * the number and the date of birth are required; a detail that is half-typed
+ * holds it back too, because sending it as blank would silently throw away what the secretary
  * was in the middle of writing.
  */
 export function patientRefOf(draft: PatientDraft): PatientRef | null {
@@ -72,14 +66,16 @@ export function patientRefOf(draft: PatientDraft): PatientRef | null {
     const name = draft.name.trim();
     const phone = draft.phone.trim();
     if (name.length === 0 || phone.length === 0 || phoneError(phone) !== null) return null;
-    if (emailError(draft.email) !== null || birthDateError(draft.birthDate) !== null) return null;
+    if (emailError(draft.email) !== null) return null;
+    const birthDate = birthDateIso(draft.birthDate);
+    if (birthDate === null) return null;
 
     return {
         kind: 'new',
         name,
         phone,
         email: orNull(draft.email),
-        birthDate: birthDateIso(draft.birthDate),
+        birthDate,
         gender: orNull(draft.gender),
         notes: orNull(draft.notes),
     };

@@ -114,6 +114,9 @@ export const COPY_AR = {
     Patient: 'المريض',
     Patients: 'المرضى',
     Phone: 'الهاتف',
+    Ref: 'الرقم',
+    'Patient number': 'رقم المريض',
+    'The number was saved, the rest was not': 'تم حفظ الرقم، وبقية التعديلات لم تُحفظ',
     Price: 'السعر',
     Procedures: 'الإجراءات',
     'Procedures & prices': 'الإجراءات والأسعار',
@@ -320,6 +323,14 @@ export const COPY_AR = {
     'This visit is already checked out': 'تم إنهاء هذه الزيارة بالفعل',
     'That has already moved on': 'تم تحديث هذه الحالة بالفعل',
     'That phone number does not look right': 'رقم الهاتف غير صحيح',
+    'A patient keeps their number. Type the one on the file.':
+        'لكل مريض رقم ثابت. اكتب الرقم المدوَّن على الملف.',
+    'A number like 910, or the four-character code on an older file.':
+        'رقم مثل 910، أو الرمز المكوَّن من أربعة أحرف على الملفات الأقدم.',
+    'That is not a patient number. Use 910, or the four-character code on an older file.':
+        'هذا ليس رقم مريض. استخدم رقمًا مثل 910، أو الرمز المكوَّن من أربعة أحرف على الملفات الأقدم.',
+    'Only the doctor can change a patient number. Switch roles in Settings to make this change.':
+        'تغيير رقم المريض للطبيب وحده. بدِّل الدور من الإعدادات لإجراء هذا التغيير.',
     'That amount is not allowed': 'هذا المبلغ غير مسموح',
     'Say how they paid': 'اذكر طريقة الدفع',
     'Something in that was not accepted': 'بعض البيانات غير مقبولة',
@@ -486,6 +497,7 @@ export const COPY_AR = {
     'Treatment or payment': 'علاج أو دفع',
     'Type two letters of a name, or part of a phone number.': 'اكتب حرفين من الاسم أو جزءًا من رقم الهاتف.',
     VISIT: 'الزيارة',
+    'Visit note': 'ملاحظة الزيارة',
     Visits: 'الزيارات',
     'Visits already recorded keep the price they were charged at.':
         'الزيارات المسجلة بالفعل تحتفظ بالسعر الذي حُسب وقتها.',
@@ -683,6 +695,36 @@ export const COPY_AR = {
     'Could not load the procedures': 'تعذر تحميل الإجراءات',
     'The rest of the registration still saves — the old procedures are the only part that needs the catalogue.':
         'بقية التسجيل تُحفظ كالمعتاد — الإجراءات السابقة وحدها هي التي تحتاج إلى القائمة.',
+    // The editor's own historical procedures, and the sheet that dates one.
+    'PREVIOUS PROCEDURES': 'إجراءات سابقة',
+    "Work done before this system recorded it. It shows in this patient's history, marked as imported, and never adds to what they owe.":
+        'عمل تم قبل أن يسجله هذا النظام. يظهر في سجل هذا المريض بعلامة مستورد، ولا يُضاف أبدًا إلى ما عليه.',
+    'The rest of the form still saves — the previous procedures are the only part that needs the catalogue.':
+        'بقية النموذج تُحفظ كالمعتاد — الإجراءات السابقة وحدها هي التي تحتاج إلى القائمة.',
+    'Date of {name}: not set': 'تاريخ {name}: غير محدد',
+    'Date of {name}: {date}': 'تاريخ {name}: {date}',
+    'When was it done?': 'متى تم؟',
+    'Previous year': 'السنة السابقة',
+    'Next year': 'السنة التالية',
+    'Use this day': 'استخدم هذا اليوم',
+    "The file doesn't say": 'الملف لا يذكر',
+    'No date': 'بدون تاريخ',
+    'Saved as prior history with no day on it — the record reads it as before migration.':
+        'يُحفظ كسجل سابق بلا يوم — ويقرأه السجل على أنه قبل الانتقال.',
+    // The old-visit sheet: a visit entered after the day it happened. Unlike a
+    // previous procedure this one is charged, so the copy says so out loud.
+    'Old visit': 'زيارة سابقة',
+    'Day of the visit: not set': 'يوم الزيارة: غير محدد',
+    'Day of the visit: {date}': 'يوم الزيارة: {date}',
+    'Pick a day': 'اختر يومًا',
+    'Pick a day and what was done': 'اختر اليوم وما تم عمله',
+    'Pick the day it happened.': 'اختر اليوم الذي حدث فيه.',
+    'Record this visit': 'سجل هذه الزيارة',
+    Total: 'الإجمالي',
+    'Visit recorded — {amount} charged': 'تم تسجيل الزيارة — حُسب {amount}',
+    'What was done that day. It is charged like any other visit, so the patient will owe it.':
+        'ما تم عمله ذلك اليوم. يُحسب كأي زيارة أخرى، وسيصبح على المريض دفعه.',
+    'Saved against this day and shown on it in the history.': 'يُحفظ على هذا اليوم ويظهر عليه في السجل.',
     'Remove {name}': 'إزالة {name}',
     Date: 'التاريخ',
     'Before migration': 'قبل الانتقال',

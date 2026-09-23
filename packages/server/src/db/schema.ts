@@ -112,7 +112,7 @@ export const patients = pgTable(
         name: text('name').notNull(),
         phone: text('phone').notNull(),
         email: text('email'),
-        birthDate: date('birth_date'),
+        birthDate: date('birth_date').notNull(),
         gender: text('gender'),
         custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),
@@ -320,6 +320,35 @@ export const settings = pgTable(
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],
 );
 
+/**
+ * Every ref that was changed after the fact: what it was, what it became, the
+ * role that declared the change, and when.
+ *
+ * `entity_id` carries no foreign key, deliberately. An audit trail whose rows
+ * vanish with the record they describe is not one — a ref edited onto the wrong
+ * patient and the patient then deleted is exactly the sequence somebody comes
+ * back asking about. It is a plain uuid for the same reason it is paired with
+ * `entity`: appointments carry refs too (§5), and they edit into this table
+ * without a second one.
+ *
+ * `edited_by` is a `CLIENT_ROLES` value and not a user: there are no accounts
+ * (§1). It records what the client said it was, which is the most this model
+ * has to record, and is why the column is text rather than a reference.
+ */
+export const refEdits = pgTable(
+    'ref_edits',
+    {
+        id: uuid('id').primaryKey(),
+        entity: text('entity').notNull(),
+        entityId: uuid('entity_id').notNull(),
+        previousRef: text('previous_ref').notNull(),
+        newRef: text('new_ref').notNull(),
+        editedBy: text('edited_by').notNull(),
+        editedAt: timestamptz('edited_at').notNull().defaultNow(),
+    },
+    (t) => [index('ref_edits_entity_idx').on(t.entity, t.entityId, t.editedAt)],
+);
+
 export const schema = {
     branches,
     clinicDays,
@@ -332,5 +361,6 @@ export const schema = {
     visitProcedures,
     customQuestions,
     reminders,
+    refEdits,
     settings,
 };

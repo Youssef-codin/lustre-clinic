@@ -71,10 +71,9 @@ type PatientsClusterProps = {
      * a patient-level payment and there is no longer a visit to go and pick.
      */
     onBook: (patient: PatientTarget) => void;
-    onWalkIn: (patient: PatientTarget) => void;
 };
 
-function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClusterProps) {
+function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps) {
     const [seen, setSeen] = useState(0);
     const [seenHome, setSeenHome] = useState(goHome);
     /** The editor, mid-write. A tab tap must not take the screen out from under it. */
@@ -181,7 +180,6 @@ function PatientsClusterView({ open, goHome = 0, onBook, onWalkIn }: PatientsClu
                             onBack={routes.pop}
                             onEdit={() => routes.push({ name: 'edit', patientId: route.patientId })}
                             onBook={onBook}
-                            onWalkIn={onWalkIn}
                             onOpenVisit={(entry) => {
                                 if (entry.status === 'booked') {
                                     routes.push({ name: 'reschedule', appointmentId: entry.appointmentId });

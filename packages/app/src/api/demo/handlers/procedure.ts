@@ -4,11 +4,15 @@
  * selectable, and parenthood is computed over every row — active or not — so a
  * deactivated subtype cannot make its category look selectable to a picker.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, todayKey } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
-import { getDb, type ProcedureTypeRow, save } from '../db';
-import { assignDefined, DemoError, uuidv7 } from '../rules';
+import { getDb, type ProcedureTypeRow, save, type VisitProcedureRow, type VisitRow } from '../db';
+import { assignDefined, computeTotal, DemoError, resolveProcedureLines, uuidv7 } from '../rules';
 import type { Dated } from '../wire';
+import { insertAppointment } from './appointmentRow';
+import { branchHandlers } from './branch';
+import { planOldPatientHistory, writeOldPatientHistory } from './migration';
+import { requirePatient } from './patient';
 
 type Procedure = Dated<RouterOutput['procedure']['list'][number]>;
 type ProcedureNode = Dated<RouterOutput['procedure']['tree'][number]>;
@@ -156,6 +160,122 @@ export const procedureHandlers = {
 
         save();
         return current;
+    },
+
+    /**
+     * `server/src/modules/procedure/procedure.history.ts` — work a patient had
+     * done before this system knew about it, added from their record rather
+     * than at registration. It goes through the migration write, so it is the
+     * same imported appointment with no visit behind it: history, and no money.
+     */
+    addHistorical(input: RouterInput['procedure']['addHistorical']): { appointmentIds: string[] } {
+        requirePatient(input.patientId);
+
+        const before = getDb().appointments.length;
+        const plan = planOldPatientHistory({ procedures: input.procedures });
+        if (!plan) return { appointmentIds: [] };
+
+        writeOldPatientHistory(input.patientId, plan);
+        save();
+
+        return {
+            appointmentIds: getDb()
+                .appointments.slice(before)
+                .map((row) => row.id),
+        };
+    },
+
+    /**
+     * `server/src/modules/procedure/procedure.history.ts` — a visit that
+     * happened on a day that has passed and was never typed in. Unlike a
+     * historical procedure this one carries money: it is an ordinary completed
+     * visit, charged, and the patient owes it until it is settled.
+     */
+    addOldVisit(input: RouterInput['procedure']['addOldVisit']): {
+        appointmentId: string;
+        visitId: string;
+        chargedTotal: number;
+    } {
+        requirePatient(input.patientId);
+
+        if (input.performedOn > todayKey()) {
+            throw new DemoError(
+                ERROR_CODE.VALIDATION,
+                'an old visit has to be dated on a day that has happened',
+                422,
+            );
+        }
+
+        const db = getDb();
+        const lines = resolveProcedureLines(
+            input.procedures.map((line) => ({
+                procedureId: line.procedureId,
+                quantity: line.quantity ?? 1,
+                tooth: line.tooth,
+                note: null,
+            })),
+            db.procedureTypes,
+        );
+
+        const branchId = input.branchId ?? branchHandlers.list({ includeInactive: false })[0]?.id;
+        if (!branchId) throw DemoError.notFound('branch');
+
+        // Noon UTC, the same stamp the imported rows use: the row records which
+        // day it was, not which slot, so it must read back as that day at any
+        // offset.
+        const at = new Date(`${input.performedOn}T12:00:00.000Z`);
+
+        const priced = lines.map((line, index) => ({
+            procedureId: line.procedure.id,
+            quantity: line.quantity,
+            unitPrice: input.procedures[index]?.unitPrice ?? line.procedure.defaultPrice,
+            tooth: line.tooth,
+            note: null,
+        }));
+        const chargedTotal = computeTotal(
+            priced.map((line, index) => ({ ...line, isCheckup: lines[index]?.procedure.isCheckup ?? false })),
+        );
+
+        // `done` holds no slot, which is the only reason a past date is
+        // writable at all — the day is probably already full of real rows.
+        const appointment = insertAppointment(
+            {
+                patientId: input.patientId,
+                branchId,
+                startsAt: at,
+                durationMinutes: db.settings.defaultDuration,
+                note: 'Entered after the day it happened',
+                status: 'done',
+                channel: 'desk',
+                isOpeningBalance: false,
+                isImported: false,
+                dateUnknown: false,
+            },
+            0,
+        );
+
+        const visit: VisitRow = {
+            id: uuidv7(),
+            appointmentId: appointment.id,
+            checkedInAt: at,
+            inChairAt: at,
+            pricedAt: at,
+            completedAt: at,
+            computedTotal: chargedTotal,
+            chargedTotal,
+            createdAt: at,
+        };
+        db.visits.push(visit);
+
+        const rows: VisitProcedureRow[] = priced.map((line) => ({
+            id: uuidv7(),
+            visitId: visit.id,
+            ...line,
+        }));
+        db.visitProcedures.push(...rows);
+
+        save();
+        return { appointmentId: appointment.id, visitId: visit.id, chargedTotal };
     },
 
     reorder(input: RouterInput['procedure']['reorder']): void {

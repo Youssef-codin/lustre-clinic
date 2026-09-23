@@ -85,6 +85,20 @@
       "when": 1789800000000,
       "tag": "0011_patient_ref_next",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0012_ref_edits",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790100000000,
+      "tag": "0013_birth_date_required",
+      "breakpoints": true
     }
   ]
 }

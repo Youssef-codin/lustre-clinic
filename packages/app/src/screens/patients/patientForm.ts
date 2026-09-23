@@ -41,19 +41,43 @@
 //
 // An old patient is never an *edit*: `old` is a registration block, and
 // `updateInputOf` never sends it.
+//
+// ## Historical procedures, which an edit *does* send
+//
+// Work a patient had done before this system recorded it does not only turn up
+// at registration: the paper file surfaces months later, or the patient
+// mentions an extraction in the chair. So the editor carries its own list of it
+// (`history`), and that list leaves by its own door — `procedure.addHistorical`
+// rather than `patient.update`, which takes no such thing.
+//
+// The registration block keeps the list it already had, inside `old` and behind
+// the switch, because there it is part of one write that either all happens or
+// none of it does. The two lists hold the same draft, are drawn by the same
+// component and reach the same server write, so a procedure typed at
+// registration and one typed a year later land as the same imported row: an
+// appointment with no visit behind it, which is what keeps both of them out of
+// checkout and out of every total.
+//
+// ## The ref
+//
+// `ref` is the other field here that does not go through `patient.update`. It
+// has a procedure of its own on the server because correcting the number a
+// record is known by is a different act from correcting a phone number — it is
+// gated by role and it leaves an audit row — so the form holds it, `refEditOf`
+// says whether it moved, and the screen sends it separately.
+//
+// Unlike the *old* ref above, this one is validated for shape before it is
+// sent: this format is ours. Both shapes stay valid, the plain counter number
+// and the four-character code a patient registered before numbering carries —
+// that code is still the number written on their file.
 
-import { PIASTRES_PER_POUND, type Tooth, todayKey } from '@lustre/shared';
-import {
-    birthDateOf,
-    blankNameAndPhone,
-    calendarIsoOf,
-    malformedDraft,
-    orNull,
-} from '../../components/domain/patientDraft';
+import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
+import { birthDateOf, blankNameAndPhone, malformedDraft, orNull } from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import { isWholePounds } from './components/money';
 import type {
+    AddHistoricalProceduresInput,
     Answers,
     CreatePatientInput,
     CustomQuestion,
@@ -62,39 +86,18 @@ import type {
     UpdatePatientInput,
 } from './data/types';
 
-export {
-    ageDigits,
-    birthDateOf,
-    dateDigitsDisplay as oldDateDisplay,
-    FEMALE,
-    MALE,
-} from '../../components/domain/patientDraft';
-
-/** `DDMMYYYY`, the same keypad rhythm the age-adjacent date fields already use. */
-export const OLD_DATE_DIGITS = 8;
-
-export function oldDateDigits(text: string): string {
-    return text.replace(/\D/g, '').slice(0, OLD_DATE_DIGITS);
-}
-
-/**
- * A date that is typed but cannot be read. Half a date is a date still being
- * typed and says nothing; a complete one that is not a day, or is in the
- * future, is wrong and says so. Blank is not an error — it is the honest
- * *before migration, date unknown*.
- */
-export function oldDateError(digits: string, today: string = todayKey()): string | null {
-    if (digits.length === 0 || digits.length < OLD_DATE_DIGITS) {
-        return digits.length === 0 ? null : 'Day, month and year — 01 / 08 / 2026.';
-    }
-    const iso = calendarIsoOf(digits);
-    return iso === null || iso > today ? 'That has to be a day that has happened.' : null;
-}
+export { ageDigits, birthDateOf, FEMALE, MALE } from '../../components/domain/patientDraft';
 
 export type PatientForm = {
     name: string;
     phone: string;
     email: string;
+    /**
+     * This clinic's number for the patient. Empty while registering — the
+     * number is the counter's to hand out, never the desk's to choose — and on
+     * an edit it is the number already on the record.
+     */
+    ref: string;
     /** Whole years as digits, or `''` when the record carries no date of birth. */
     age: string;
     /** `''`, `'female'` or `'male'` — lowercase, the way every record already on file spells it. */
@@ -102,18 +105,32 @@ export type PatientForm = {
     /** One entry per editable question, keyed by `custom_questions.key`. */
     answers: Draft;
     old: OldPatientForm;
+    /**
+     * Work the patient had done before this system recorded it, added from the
+     * editor rather than at registration. Sent by `procedure.addHistorical`
+     * after the patch lands, and never part of `patient.update`.
+     */
+    history: HistoricalProcedureDraft[];
 };
 
-/** One row in the old-procedures list, as the screen holds it before a save. */
-export type OldProcedureDraft = {
+/** One row in a historical-procedures list, as the screen holds it before a save. */
+export type HistoricalProcedureDraft = {
     /** Local to the draft — the row does not exist server-side yet. */
     id: string;
     procedureId: string;
     /** As it is read out: "Composite filling — Class II". Display only; the id is what is sent. */
     name: string;
     tooth: Tooth | null;
-    /** `DDMMYYYY` digits, or `''` — blank is *before migration, date unknown* and is sent as nothing. */
-    dateDigits: string;
+    /**
+     * `YYYY-MM-DD`, or null. Null is *the file does not say* — the honest
+     * answer far more often than it looks — and is sent as nothing at all, which
+     * the record draws as *before migration* rather than as a guessed day.
+     *
+     * It only ever comes from `HistoricalDateSheet`, which does not offer a day
+     * that has not happened or a date that is not one. That is why there is no
+     * validation over it here and nothing it can add to what a save owes.
+     */
+    performedOn: string | null;
 };
 
 export type OldPatientForm = {
@@ -123,7 +140,7 @@ export type OldPatientForm = {
     ref: string;
     /** Whole pounds as digits, or `''` for a patient who owed nothing. */
     owes: string;
-    procedures: OldProcedureDraft[];
+    procedures: HistoricalProcedureDraft[];
 };
 
 export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '', procedures: [] };
@@ -133,10 +150,14 @@ export function emptyForm(questions: CustomQuestion[]): PatientForm {
         name: '',
         phone: '',
         email: '',
+        // A registration is numbered by the counter, so there is nothing to
+        // hold and nothing this screen could put here.
+        ref: '',
         age: '',
         gender: '',
         answers: blankAnswers(questions),
         old: EMPTY_OLD,
+        history: [],
     };
 }
 
@@ -148,6 +169,7 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         name: patient.name,
         phone: patient.phone,
         email: patient.email ?? '',
+        ref: patient.ref,
         // The server's own derivation, not a second one here.
         age: patient.age === null ? '' : String(patient.age),
         gender: patient.gender ?? '',
@@ -155,6 +177,10 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         // An existing record is never registered again, so the switch has
         // nothing to do on an edit and the screen does not draw it.
         old: EMPTY_OLD,
+        // Nothing is ever *read back* into this list. It is a list of things to
+        // add, so it starts empty on a record that already has a history, and
+        // what is already on file is the record screen's to draw.
+        history: [],
     };
 }
 
@@ -173,7 +199,9 @@ export type BasicsField = 'name' | 'phone' | 'email' | 'age';
  * desk has not reached yet is telling them off for not having typed yet.
  */
 export function blankBasics(form: PatientForm): BasicsField[] {
-    return blankNameAndPhone(form);
+    const blank: BasicsField[] = blankNameAndPhone(form);
+    if (form.age.trim().length === 0) blank.push('age');
+    return blank;
 }
 
 /**
@@ -316,30 +344,16 @@ export function malformedOld(form: PatientForm): Partial<Record<OldField, string
     return {};
 }
 
-/**
- * Old procedures whose date has been typed and cannot be read — half a date, a
- * 31st of February, a day that has not happened.
- *
- * A blank date is not one of these: it is the honest *before migration*, and
- * most entries have it. A *wrong* one has to hold the save back, because the
- * alternative is silent — `calendarIsoOf` answers null, the entry goes without
- * a date, and the record shows "Before migration" for a procedure the desk just
- * dated. Returned as ids so the screen can count them; the message is already
- * under each row.
- */
-export function badOldDates(form: PatientForm): string[] {
-    if (!form.old.on) return [];
-    return form.old.procedures
-        .filter((entry) => oldDateError(entry.dateDigits) !== null)
-        .map((entry) => entry.id);
-}
+// There is no check over an entry's date. There used to be one — the date was
+// `DDMMYYYY` on a number pad, and half a date, a 31st of February or a day that
+// had not happened all had to hold the save back, because the alternative was
+// silent: the entry went without a date and the record read "Before migration"
+// for a procedure the desk had just dated. `HistoricalDateSheet` offers days
+// instead of taking digits, so none of those three can be picked and the rule
+// has nothing left to refuse.
 
 function oldIsSound(form: PatientForm): boolean {
-    return (
-        blankOld(form).length === 0 &&
-        Object.keys(malformedOld(form)).length === 0 &&
-        badOldDates(form).length === 0
-    );
+    return blankOld(form).length === 0 && Object.keys(malformedOld(form)).length === 0;
 }
 
 /**
@@ -360,16 +374,36 @@ function oldInputOf(form: PatientForm): OldPatientInput {
     return {
         ref: form.old.ref.trim(),
         ...(owes === null ? {} : { openingBalance: owes }),
-        procedures: form.old.procedures.map((entry) => {
-            const performedOn = calendarIsoOf(entry.dateDigits);
-            return {
-                procedureId: entry.procedureId,
-                quantity: 1,
-                ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
-                ...(performedOn === null ? {} : { performedOn }),
-            };
-        }),
+        procedures: form.old.procedures.map(lineOf),
     };
+}
+
+/**
+ * One draft as the server takes it. `performedOn` is left out for an undated
+ * entry rather than sent as null: the record labels it *before migration*, and
+ * a blank date is an answer rather than a missing field.
+ */
+function lineOf(entry: HistoricalProcedureDraft) {
+    return {
+        procedureId: entry.procedureId,
+        quantity: 1,
+        ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
+        ...(entry.performedOn === null ? {} : { performedOn: entry.performedOn }),
+    };
+}
+
+/**
+ * The editor's historical procedures, or null when there are none to add — an
+ * editor closed without any should not spend a round trip, the same line
+ * `isUnchanged` holds for the patch.
+ *
+ * It is its own call rather than part of the patch because `patient.update`
+ * takes no procedures: these are appointment rows, and the server writes them
+ * through the same path the registration block uses.
+ */
+export function historicalInputOf(patientId: string, form: PatientForm): AddHistoricalProceduresInput | null {
+    if (form.history.length === 0) return null;
+    return { patientId, procedures: form.history.map(lineOf) };
 }
 
 /**
@@ -388,12 +422,14 @@ export function createInputOf(
     if (!basicsAreSound(form)) return null;
     if (missingRequired(form, questions).length > 0) return null;
     if (!oldIsSound(form)) return null;
+    const birthDate = birthDateOf(form.age, today);
+    if (birthDate === null) return null;
 
     return {
         name: form.name.trim(),
         phone: form.phone.trim(),
         email: orNull(form.email),
-        birthDate: birthDateOf(form.age, today),
+        birthDate,
         gender: orNull(form.gender),
         custom: answersOf(form, questions, (key) => isAnswered(form.answers[key] ?? '')),
         ...(form.old.on ? { old: oldInputOf(form) } : {}),
@@ -431,7 +467,11 @@ export function updateInputOf(
     if (form.phone.trim() !== initial.phone.trim()) patch.phone = form.phone.trim();
     if (form.email.trim() !== initial.email.trim()) patch.email = orNull(form.email);
     if (form.gender !== initial.gender) patch.gender = orNull(form.gender);
-    if (form.age.trim() !== initial.age.trim()) patch.birthDate = birthDateOf(form.age, today);
+    if (form.age.trim() !== initial.age.trim()) {
+        const birthDate = birthDateOf(form.age, today);
+        if (birthDate === null) return null;
+        patch.birthDate = birthDate;
+    }
 
     const custom = answersOf(
         form,
@@ -446,4 +486,87 @@ export function updateInputOf(
 /** Whether a save would send anything at all — an editor closed unchanged should not spend a round trip. */
 export function isUnchanged(patch: UpdatePatientInput): boolean {
     return Object.keys(patch).length === 1;
+}
+
+/**
+ * A ref typed and wrong. Blank is its own case and says so, because a record
+ * cannot be without a number and clearing the field is not a correction.
+ *
+ * The message names both shapes, since a desk looking at a patient from before
+ * numbering is holding a paper file with `W5F5` on it and needs to be told that
+ * is still allowed. Matching is case-insensitive and the server stores it
+ * uppercase, so `w5f5` is accepted here rather than refused for its case.
+ */
+export function refError(ref: string): string | null {
+    const trimmed = ref.trim();
+    if (trimmed === '') return 'A patient keeps their number. Type the one on the file.';
+    if (!PATIENT_REF_PATTERN.test(trimmed)) {
+        return 'A number like 910, or the four-character code on an older file.';
+    }
+    return null;
+}
+
+/**
+ * The ref's message while *editing*, which is not the same question `refError`
+ * answers: a number only has to be one this app would issue if it is being
+ * changed to.
+ *
+ * An old patient's ref is whatever their old system used — `A/1991-07` is a
+ * real one — and it becomes their `ref` verbatim, because the desk was given
+ * one number for them and must not be handed a second. `refError` refuses that
+ * shape, correctly, for something being typed now. Judging the value already on
+ * the record by it would lock the editor for every patient who came across:
+ * Save would count one thing owed for a field nobody touched, and their phone
+ * number could never be corrected again.
+ */
+export function refEditError(form: PatientForm, initial: PatientForm): string | null {
+    if (form.ref.trim().toUpperCase() === initial.ref.trim().toUpperCase()) return null;
+    return refError(form.ref);
+}
+
+/**
+ * What an edited ref is compared against: the last number this editor *knows*
+ * is on file — one it saved itself, else the one it was seeded with.
+ *
+ * Deliberately not `initial.ref`. `initial` follows the record, and a refetch
+ * after somebody else corrected the number moves it to theirs while the draft
+ * still holds the old one; compared against that, an untouched field reads as
+ * a change, and a Save pressed for the phone number would send the old ref back
+ * and silently undo theirs. Null until the draft is seeded.
+ */
+export function refBaselineOf(
+    initial: PatientForm | null,
+    seededRef: string | null,
+    savedRef: string | null,
+): PatientForm | null {
+    const onFile = savedRef ?? seededRef;
+    return initial && onFile !== null ? { ...initial, ref: onFile } : null;
+}
+
+/**
+ * The title over a failed edit's callout.
+ *
+ * "Partly saved" is true only when a number landed on an earlier attempt *and*
+ * this failure is somewhere after the ref. A ref call that is itself the
+ * failure means the number now on screen did not land — whatever an earlier
+ * attempt wrote — so claiming it was saved would be telling the desk a number
+ * is on file that is not.
+ */
+export function saveFailureTitle(refFailed: boolean, earlierRefLanded: boolean): string {
+    return earlierRefLanded && !refFailed ? 'The number was saved, the rest was not' : 'Not saved';
+}
+
+/**
+ * The ref to send, or null when there is nothing to send.
+ *
+ * Null covers three cases that all mean *do not call* — registering, a ref that
+ * did not move, and one that is not sound — so the screen has one thing to ask
+ * rather than three. Compared case-insensitively: the server stores `W5F5`, and
+ * a desk retyping it as `w5f5` has not changed the record's number.
+ */
+export function refEditOf(form: PatientForm, initial: PatientForm): string | null {
+    const next = form.ref.trim();
+    if (next === '' || refError(next) !== null) return null;
+    if (next.toUpperCase() === initial.ref.trim().toUpperCase()) return null;
+    return next;
 }

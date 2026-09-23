@@ -19,18 +19,24 @@ import { errorCodeOf, isOffline, trpcClient } from '../../../api';
 // cluster, and the queue rule is all this needs.
 import { arrivalQueue } from '../../day/chair';
 import { checkInTimes, api as dayApi } from '../../day/data';
-import { todayKey } from '../../day/time';
+import { localOffsetMinutes, todayKey } from '../../day/time';
 import { PatientsRequestError } from './requestError';
 import type {
+    AddedHistoricalProcedures,
+    AddedOldVisit,
+    AddHistoricalProceduresInput,
+    AddOldVisitInput,
     CreatePatientInput,
     CustomQuestion,
     Patient,
     PatientBalance,
     PatientDetail,
     RecentPatients,
+    RefEdit,
     SettleInput,
     SettleReport,
     UpdatePatientInput,
+    UpdatePatientRefInput,
 } from './types';
 
 function shaped<T>(value: unknown): T {
@@ -121,6 +127,52 @@ export const patientsApi = {
 
     update(input: UpdatePatientInput): Promise<Patient> {
         return wrap(() => trpcClient.patient.update.mutate(input));
+    },
+
+    /**
+     * Work the patient had done before this system recorded it. It is a
+     * `procedure` call and not a `patient` one because what it writes is
+     * appointment rows: `patient.update` patches the record's own columns and
+     * takes no procedures.
+     *
+     * Never retried. The write is not idempotent — a second call adds the lines
+     * a second time — so the editor clears the drafted entries the moment this
+     * succeeds, and a failure keeps them on screen to be sent again once.
+     */
+    addHistorical(input: AddHistoricalProceduresInput): Promise<AddedHistoricalProcedures> {
+        return wrap(() => trpcClient.procedure.addHistorical.mutate(input));
+    },
+
+    /**
+     * Correcting the record's number, which `patient.update` deliberately
+     * cannot do: the server gates it by role and writes an audit row, so it is
+     * its own procedure and its own call here.
+     */
+    updateRef(input: UpdatePatientRefInput): Promise<Patient> {
+        return wrap(() => trpcClient.patient.updateRef.mutate(input));
+    },
+
+    /**
+     * Every correction made to this record's number, newest first. Answers `[]`
+     * rather than refusing for a record that is gone — the trail outlives it.
+     */
+    refHistory(id: string): Promise<RefEdit[]> {
+        return wrap(() => trpcClient.patient.refHistory.query({ id }));
+    },
+
+    /**
+     * A visit that happened on a day that has passed and was never typed in.
+     * This one bills: what comes back is charged and the patient owes it, so
+     * the record's outstanding strip moves and `balance.settle` is how it gets
+     * paid — there is no second place money is taken.
+     *
+     * Never retried, for the reason `addHistorical` gives: a second call writes
+     * a second visit, and this one has money on it.
+     */
+    addOldVisit(input: AddOldVisitInput): Promise<AddedOldVisit> {
+        return wrap(() =>
+            trpcClient.procedure.addOldVisit.mutate({ ...input, offsetMinutes: localOffsetMinutes() }),
+        );
     },
 
     /**

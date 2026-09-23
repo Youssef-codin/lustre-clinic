@@ -85,6 +85,14 @@ export const ERROR_CODE = {
      * hand out. Taking it would hand the same number to two patients.
      */
     PATIENT_REF_RESERVED: 'PATIENT_REF_RESERVED',
+    /** A ref was edited to something that is not a valid ref for that record. */
+    PATIENT_REF_INVALID: 'PATIENT_REF_INVALID',
+    /**
+     * A ref edit was declared by a role that is not allowed to make one. With no
+     * accounts (§1) the role is the client's own word for itself, so this is a
+     * guard rail rather than authentication — see `REF_EDIT_ROLES`.
+     */
+    REF_EDIT_FORBIDDEN: 'REF_EDIT_FORBIDDEN',
     /**
      * An old patient arrived with money owed or work done, and the clinic has
      * not said which branch and cutoff date that history hangs on (§12).

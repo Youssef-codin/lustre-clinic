@@ -25,6 +25,22 @@
 // white — the design keeps one ground from the status bar down and lets the
 // rule do the separating.
 //
+// Correcting a record also takes **previous procedures**: work the patient had
+// done before this system recorded it, which does not only turn up at
+// registration. That list is not part of the patch — `patient.update` takes no
+// procedures — so it goes by its own call.
+//
+// So does the ref. Correcting the number a record is known by is gated by role
+// and leaves an audit row, so the server gives it a procedure of its own. The
+// row is drawn read-only for a role that may not edit, because the number is
+// worth reading whoever is holding the phone, and it is absent entirely on a
+// registration, where the counter hands it out. `canEditRef` is the same rule
+// the server enforces; the screen asking it first is a correct screen, not the
+// protection.
+//
+// An edit can therefore make three calls — ref, procedures, patch — and the
+// order is not arbitrary. See `onSave`.
+//
 // The write crosses Tailscale, so Save spins, cancel is disabled under it, and
 // a failure keeps every field on screen with a `Callout` saying why.
 //
@@ -34,7 +50,7 @@
 // Expo SDK 54+ default: the app is laid out behind the IME, the window never
 // gets shorter, and the footer sat under the keys with the last fields of the
 // form. See `ui/useKeyboardHeight` for the whole of it.
-import { resolveLabel } from '@lustre/shared';
+import { canEditRef, resolveLabel } from '@lustre/shared';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -46,10 +62,12 @@ import {
     useKeyboardHeight,
 } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
+import { useRole } from '../../shell/roleStore';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
+import { HistoricalProcedures } from './components/HistoricalProcedures';
 import { CloseIcon } from './components/icons';
 import { OldPatientRows, OldProcedures } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
@@ -59,17 +77,21 @@ import type { CustomQuestion, PatientDetail } from './data/types';
 import type { PatientForm } from './patientForm';
 import {
     answeredCount,
-    badOldDates,
     blankBasics,
     blankOld,
     clearedRequired,
     createInputOf,
     emptyForm,
     formOf,
+    historicalInputOf,
     isUnchanged,
     malformedBasics,
     malformedOld,
     missingRequired,
+    refBaselineOf,
+    refEditError,
+    refEditOf,
+    saveFailureTitle,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -110,7 +132,23 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
     const create = useMutation(patientsApi.create);
     const update = useMutation(patientsApi.update);
+    const addHistorical = useMutation(patientsApi.addHistorical);
+    const editRef = useMutation(patientsApi.updateRef);
     const save = creating ? create : update;
+
+    // Any of the three can be the one that failed, and the callout says so for
+    // each. They run in this order and each stops the save when it fails, and
+    // one that is not sent is reset (below), so at most one holds an error.
+    const saveError = editRef.error ?? addHistorical.error ?? save.error;
+    const saving = save.pending || addHistorical.pending || editRef.pending;
+
+    // `hydrated` matters: the store falls back to secretary until storage
+    // answers, and drawing an editable row for a beat and then taking it away
+    // is worse than drawing the locked one a beat late.
+    const { role, hydrated } = useRole();
+    // Never on a registration — the counter hands out the number, so there is
+    // nothing on screen to correct.
+    const refMode = creating ? 'hidden' : hydrated && canEditRef(role) ? 'editable' : 'locked';
 
     // Only the kinds with a control. A `date` answer already on the record is
     // drawn below, read-only, and is never in the form.
@@ -131,7 +169,27 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // null is what says "not seeded yet" — nothing ever sets it back, so the
     // condition cannot fire twice.
     const [form, setForm] = useState<PatientForm | null>(null);
-    if (form === null && initial !== null) setForm(initial);
+    // The number this draft was seeded with, held the same way and for a
+    // sharper reason. `initial` follows the record, so a refetch after somebody
+    // else corrected the number would move it to theirs while the form still
+    // holds the old one — and a Save pressed for an unrelated field would send
+    // the old number back as a "correction", silently undoing theirs.
+    const [seededRef, setSeededRef] = useState<string | null>(null);
+    if (form === null && initial !== null) {
+        setForm(initial);
+        setSeededRef(initial.ref);
+    }
+
+    // The number that landed on an earlier attempt whose rest did not. Two
+    // calls cannot be one transaction from here, so the screen says which half
+    // is already on file rather than letting "Not saved" imply neither is.
+    //
+    // The value and not a flag: it becomes the baseline the ref is compared
+    // against. A flag would skip the ref for the rest of the editor's life, so
+    // a number changed *again* after a partial save would be dropped silently
+    // while the patch went through and closed the screen.
+    const [savedRef, setSavedRef] = useState<string | null>(null);
+    const refBaseline = refBaselineOf(initial, seededRef, savedRef);
 
     const loading = questions.loading || record.loading;
     const failed = questions.error ?? record.error;
@@ -142,12 +200,18 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // can never be owed there.
     const oldBlank = form && creating ? blankOld(form) : [];
     const oldMalformed = form && creating ? malformedOld(form) : {};
-    // A date typed into an old procedure that cannot be read. Counted with the
-    // rest rather than left to the row's own message, because a save that goes
-    // through would record it as "before migration" instead.
-    const oldBadDates = form && creating ? badOldDates(form) : [];
     const missing = form ? missingRequired(form, editable) : [];
     const answered = form ? answeredCount(form, editable) : 0;
+
+    // Only the doctor's row can be wrong: every other role is reading a value it
+    // cannot change, and marking it `due` would be telling them off for a
+    // record they cannot correct here. And only a ref being *changed* is
+    // judged — an old patient's number is their old system's and need not be
+    // one this app would issue. See `refEditError`.
+    const refMessage =
+        form && refBaseline && refMode === 'editable'
+            ? (refEditError(form, refBaseline) ?? undefined)
+            : undefined;
 
     // A required answer the desk has emptied. Not the same as one never given:
     // the blank is in the patch, and the server throws on it rather than
@@ -164,7 +228,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         Object.keys(malformed).length +
         oldBlank.length +
         Object.keys(oldMalformed).length +
-        oldBadDates.length +
+        (refMessage === undefined ? 0 : 1) +
         (creating ? missing.length : cleared.length);
 
     // A required question this screen has no control for (§7.9). Intake cannot
@@ -202,17 +266,88 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
         const patch = updateInputOf(patientId, form, initial, editable);
         if (patch === null) return;
-        // Nothing moved. Closing beats spending a round trip to write the record
-        // back over itself.
-        if (isUnchanged(patch)) {
+
+        const history = historicalInputOf(patientId, form);
+        // The drafts this save is sending, by their own ids. Not by
+        // `procedureId`: the same procedure on two different days is two real
+        // entries, which is exactly what the day grouping exists for.
+        const sent = new Set(form.history.map((row) => row.id));
+
+        // The number, if it moved from the last one on file — the record's, or
+        // the one an earlier partial save already wrote. Its own call:
+        // `patient.update` cannot write a ref, and this one is refused for a
+        // role that may not.
+        const ref = refMode === 'editable' && refBaseline ? refEditOf(form, refBaseline) : null;
+
+        // Nothing moved and nothing to add. Closing beats spending a round trip
+        // to write the record back over itself.
+        if (isUnchanged(patch) && history === null && ref === null) {
             onSaved(patientId);
             return;
         }
 
         onSavingChange?.(true);
-        const saved = await update.mutate(patch);
+
+        // Ref, then procedures, then patch — each stopping the save when it
+        // fails, so a retry has only what is still owed left to send.
+        //
+        // The ref goes first because it is the one most likely to be refused —
+        // a role, a number already taken, one not yet handed out — and the
+        // number is usually what the desk opened this editor to correct. Writing
+        // the rest and then refusing that would be a half-done save reported as
+        // done; refused first, the record is left exactly as it was. Sending it
+        // twice is harmless (an unchanged ref is a no-op server-side), but it is
+        // still marked landed so a retry does not spend the call.
+        //
+        // A call this save is not making is reset: a failed earlier attempt
+        // leaves its error behind, and the callout would otherwise show it over
+        // a different call's failure.
+        if (ref === null) {
+            editRef.reset();
+        } else {
+            const moved = await editRef.mutate({ id: patientId, ref, editedBy: role });
+            if (!moved) {
+                onSavingChange?.(false);
+                return;
+            }
+            setSavedRef(moved.ref);
+        }
+
+        // The procedures, and the entries are dropped the moment they land.
+        // This call is not idempotent — a second send writes the lines a second
+        // time — so if the patch then fails, pressing Save again has only the
+        // patch left to send. A failure here keeps the entries and never reaches
+        // the patch.
+        if (history === null) {
+            addHistorical.reset();
+        } else {
+            const added = await addHistorical.mutate(history);
+            if (!added) {
+                onSavingChange?.(false);
+                return;
+            }
+            // Only the entries that were actually sent. Emptying the list would
+            // also throw away anything added while the request was in flight —
+            // never sent, and gone without a word when the save closes the
+            // editor. The list is untouchable during a save (below), so this is
+            // belt and braces; it is also one line, and the thing it protects
+            // is somebody's typing.
+            setForm((current) =>
+                current
+                    ? { ...current, history: current.history.filter((row) => !sent.has(row.id)) }
+                    : current,
+            );
+        }
+
+        if (!isUnchanged(patch)) {
+            const saved = await update.mutate(patch);
+            if (!saved) {
+                onSavingChange?.(false);
+                return;
+            }
+        }
+
         onSavingChange?.(false);
-        if (!saved) return;
         onSaved(patientId);
     };
 
@@ -220,7 +355,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
         <View style={styles.screen}>
             <EditBar
                 title={creating ? 'New patient' : 'Edit patient'}
-                onCancel={save.pending ? undefined : onCancel}
+                onCancel={saving ? undefined : onCancel}
             />
 
             {loading && !form ? (
@@ -245,10 +380,13 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                         keyboardDismissMode="on-drag"
                         showsVerticalScrollIndicator={false}
                     >
-                        {save.error !== undefined && (
+                        {saveError !== undefined && (
                             <View style={styles.callout}>
-                                <Callout tone="warning" title="Not saved">
-                                    {errorText(save.error)}
+                                <Callout
+                                    tone="warning"
+                                    title={saveFailureTitle(editRef.error !== undefined, savedRef !== null)}
+                                >
+                                    {errorText(saveError)}
                                 </Callout>
                             </View>
                         )}
@@ -279,6 +417,8 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             onChange={change}
                             blank={blank}
                             errors={malformed}
+                            ref={refMode}
+                            refError={refMessage}
                             trailing={
                                 creating ? (
                                     <OldPatientRows
@@ -291,7 +431,27 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             }
                         />
 
-                        {creating ? <OldProcedures form={form} onChange={change} /> : null}
+                        {creating ? (
+                            <OldProcedures form={form} onChange={change} />
+                        ) : (
+                            /* The editor's own list. It is not behind a switch:
+                               the switch is about which *patient* this is, and
+                               that question is settled once, at registration.
+                               What is already on file is the record's to draw —
+                               this list only ever adds. */
+                            /* Untouchable while a save is open, the same line
+                               the bar's cancel holds: a write is the one thing
+                               on screen, and an entry added halfway through one
+                               is an entry the save has already decided not to
+                               send. */
+                            <View pointerEvents={saving ? 'none' : 'auto'}>
+                                <HistoricalProcedures
+                                    title="PREVIOUS PROCEDURES"
+                                    entries={form.history}
+                                    onChange={(history) => change({ history })}
+                                />
+                            </View>
+                        )}
 
                         <Questions
                             questions={editable}
@@ -309,7 +469,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                     <SaveBar
                         label={owed > 0 ? `${owed} required left` : 'Save patient'}
                         disabled={owed > 0 || unaskable.length > 0}
-                        pending={save.pending}
+                        pending={saving}
                         onPress={onSave}
                     />
                 </>

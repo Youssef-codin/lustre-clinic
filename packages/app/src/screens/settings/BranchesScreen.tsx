@@ -36,6 +36,7 @@ import {
     Textarea,
     TextField,
     Toast,
+    usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
@@ -212,9 +213,17 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
     const create = useMutation(trpc.branch.create.mutationOptions({ onSuccess: onBranchWritten }));
     const update = useMutation(trpc.branch.update.mutationOptions({ onSuccess: onBranchWritten }));
 
+    /**
+     * One lock for the pane's two writes. Save and the deactivate confirm are the
+     * same `update`, and `isPending` is state: the second of two taps landing in
+     * one frame reads the old `false` and sends a second write. The guard's ref
+     * refuses it, and clears on failure so the write can be tried again.
+     */
+    const write = usePendingAction((job: () => Promise<unknown>) => job());
+
     const nameError = submitted && name.trim() === '' ? 'A branch needs a name.' : undefined;
-    const saving = create.isPending || (update.isPending && !confirming);
-    const busy = create.isPending || update.isPending;
+    const saving = write.pending && !confirming;
+    const busy = write.pending;
     const failure = create.error ?? update.error;
 
     function onSave() {
@@ -223,25 +232,25 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
 
         const details = { name: name.trim(), address: address.trim() || null };
 
-        if (!branch) {
-            create.mutate(details, { onSuccess: () => onSaved('Branch added') });
-            return;
-        }
-        update.mutate({ id: branch.id, ...details }, { onSuccess: () => onSaved('Branch saved') });
+        write.run(async () => {
+            if (!branch) {
+                await create.mutateAsync(details);
+                onSaved('Branch added');
+                return;
+            }
+            await update.mutateAsync({ id: branch.id, ...details });
+            onSaved('Branch saved');
+        });
     }
 
     function onToggleActive() {
         if (!branch) return;
 
-        update.mutate(
-            { id: branch.id, active: !branch.active },
-            {
-                onSuccess: (updated) => {
-                    setConfirming(false);
-                    onSaved(updated.active ? 'Branch reactivated' : 'Branch deactivated');
-                },
-            },
-        );
+        write.run(async () => {
+            const updated = await update.mutateAsync({ id: branch.id, active: !branch.active });
+            setConfirming(false);
+            onSaved(updated.active ? 'Branch reactivated' : 'Branch deactivated');
+        });
     }
 
     // A write in flight swallows Back, the same as the header's.
@@ -331,7 +340,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                                 />
                             }
                             onPress={() => setConfirming(true)}
-                            loading={update.isPending && confirming}
+                            loading={write.pending && confirming}
                             block
                         />
 
@@ -352,7 +361,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                 }
                 confirmLabel={branch?.active ? 'Deactivate' : 'Reactivate'}
                 destructive={branch?.active}
-                loading={update.isPending && confirming}
+                loading={write.pending && confirming}
                 onConfirm={onToggleActive}
                 onCancel={() => setConfirming(false)}
             />
