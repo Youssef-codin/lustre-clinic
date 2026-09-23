@@ -307,13 +307,13 @@ describe('the patient form — age is a date of birth (BLOCKED.md)', () => {
         expect(patch && 'birthDate' in patch).toBe(false);
     });
 
-    it('does send one when the age was corrected, and clears it when it was emptied', () => {
+    it('does send one when the age was corrected, and refuses to save it emptied', () => {
         const initial = formOf(patient({ age: 34 }), []);
 
         expect(updateInputOf('id', { ...initial, age: '35' }, initial, [], TODAY)?.birthDate).toBe(
             '1991-01-01',
         );
-        expect(updateInputOf('id', { ...initial, age: '' }, initial, [], TODAY)?.birthDate).toBeNull();
+        expect(updateInputOf('id', { ...initial, age: '' }, initial, [], TODAY)).toBeNull();
     });
 });
 
@@ -323,9 +323,9 @@ describe('the patient form — what a save sends', () => {
     const allergies = question({ key: 'allergies', kind: 'text' });
     const questions = [blood, diabetic, allergies];
 
-    it('counts a blank name and number as owed, and says nothing about them', () => {
+    it('counts a blank name, number and age as owed, and says nothing about them', () => {
         const form = emptyForm(questions);
-        expect(blankBasics(form)).toEqual(['name', 'phone']);
+        expect(blankBasics(form)).toEqual(['name', 'phone', 'age']);
         expect(malformedBasics(form)).toEqual({});
     });
 

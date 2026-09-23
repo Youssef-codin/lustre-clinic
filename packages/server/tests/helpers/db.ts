@@ -85,8 +85,8 @@ export async function insertPatient(name = 'Test Patient'): Promise<string> {
     let ref = '';
     while (!/\D/.test(ref)) ref = buildRef(new Date()).split('-')[1] ?? '';
     await sql`
-        INSERT INTO patients (id, ref, name, phone)
-        VALUES (${id}, ${ref}, ${name}, '+201000000000')
+        INSERT INTO patients (id, ref, name, phone, birth_date)
+        VALUES (${id}, ${ref}, ${name}, '+201000000000', '1990-01-01')
     `;
     return id;
 }

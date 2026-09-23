@@ -43,7 +43,7 @@ export interface Patient {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string | null;
+    birthDate: string;
     gender: string | null;
     custom: Answers;
     notes: string | null;
@@ -162,7 +162,7 @@ export interface CreatePatientInput {
     name: string;
     phone: string;
     email?: string | null;
-    birthDate?: string | null;
+    birthDate: string;
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
@@ -218,7 +218,7 @@ export interface UpdatePatientInput {
     name?: string;
     phone?: string;
     email?: string | null;
-    birthDate?: string | null;
+    birthDate?: string;
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;

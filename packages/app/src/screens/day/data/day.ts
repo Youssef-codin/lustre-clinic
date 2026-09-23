@@ -62,7 +62,7 @@ export type PatientRef =
           name: string;
           phone: string;
           email?: string | null;
-          birthDate?: string | null;
+          birthDate: string;
           gender?: string | null;
           notes?: string | null;
       };

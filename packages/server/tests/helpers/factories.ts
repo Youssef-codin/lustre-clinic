@@ -68,6 +68,7 @@ export async function clinic(): Promise<Clinic> {
     const patient = await patientService.create({
         name: 'Nadia Hassan',
         phone: '01012345678',
+        birthDate: '1990-01-01',
         custom: {},
     });
 

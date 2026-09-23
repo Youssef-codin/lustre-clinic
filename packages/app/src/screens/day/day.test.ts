@@ -694,19 +694,17 @@ describe('a patient who is new here', () => {
         expect(emailError('nadia.example.com')).not.toBeNull();
     });
 
-    it('books on a name and a number alone', () => {
-        const ref = patientRefOf({
-            ...EMPTY_PATIENT_DRAFT,
-            mode: 'new',
-            name: 'Nadia',
-            phone: '01012345678',
-        });
+    it('books on a name, a number and a date of birth', () => {
+        const draft = { ...EMPTY_PATIENT_DRAFT, mode: 'new' as const, name: 'Nadia', phone: '01012345678' };
+        expect(patientRefOf(draft)).toBeNull();
+
+        const ref = patientRefOf({ ...draft, birthDate: '05111990' });
         expect(ref).toEqual({
             kind: 'new',
             name: 'Nadia',
             phone: '01012345678',
             email: null,
-            birthDate: null,
+            birthDate: '1990-11-05',
             gender: null,
             notes: null,
         });
@@ -736,7 +734,13 @@ describe('a patient who is new here', () => {
 
     // Sending it as blank would throw away what she was in the middle of writing.
     it('holds the booking while a detail is half-written', () => {
-        const half = { ...EMPTY_PATIENT_DRAFT, mode: 'new' as const, name: 'Nadia', phone: '01012345678' };
+        const half = {
+            ...EMPTY_PATIENT_DRAFT,
+            mode: 'new' as const,
+            name: 'Nadia',
+            phone: '01012345678',
+            birthDate: '05111990',
+        };
         expect(patientRefOf({ ...half, birthDate: '0511' })).toBeNull();
         expect(patientRefOf({ ...half, email: 'nadia@' })).toBeNull();
     });

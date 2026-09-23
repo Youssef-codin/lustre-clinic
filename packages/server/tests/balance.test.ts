@@ -377,6 +377,7 @@ describe('balance.summary — duePatients', () => {
         const second = await patientService.create({
             name: 'Omar Khaled',
             phone: '01099887766',
+            birthDate: '1990-01-01',
             custom: {},
         });
 

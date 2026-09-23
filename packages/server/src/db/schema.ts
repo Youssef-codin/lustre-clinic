@@ -112,7 +112,7 @@ export const patients = pgTable(
         name: text('name').notNull(),
         phone: text('phone').notNull(),
         email: text('email'),
-        birthDate: date('birth_date'),
+        birthDate: date('birth_date').notNull(),
         gender: text('gender'),
         custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),

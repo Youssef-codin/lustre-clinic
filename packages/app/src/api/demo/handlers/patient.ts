@@ -49,13 +49,16 @@ function answersOf(row: PatientRow): Answers {
 type MinimalPatientInput = Omit<RouterInput['patient']['create'], 'custom'>;
 
 export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
+    // The server's schema refuses a patient without one; the demo has no schema in front of it.
+    if (!input.birthDate) throw new DemoError(ERROR_CODE.VALIDATION, 'a patient needs an age', 422);
+
     const row: PatientRow = {
         id: uuidv7(),
         ref: buildPatientRef(),
         name: input.name,
         phone: normalizePhone(input.phone),
         email: input.email ?? null,
-        birthDate: input.birthDate ?? null,
+        birthDate: input.birthDate,
         gender: input.gender ?? null,
         custom: {},
         notes: input.notes ?? null,

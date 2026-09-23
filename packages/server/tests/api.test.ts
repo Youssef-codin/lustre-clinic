@@ -42,6 +42,7 @@ async function clinicViaApi() {
     const patient = await client.patient.create.mutate({
         name: 'Nadia Hassan',
         phone: '01012345678',
+        birthDate: '1990-01-01',
         custom: {},
     });
 
@@ -545,7 +546,12 @@ describe('error mapping', () => {
 
     test('an unnormalizable phone is 422 INVALID_PHONE', async () => {
         await expectTrpcError(ERROR_CODE.INVALID_PHONE, 422, () =>
-            api.client.patient.create.mutate({ name: 'Nobody', phone: 'not a phone', custom: {} }),
+            api.client.patient.create.mutate({
+                name: 'Nobody',
+                phone: 'not a phone',
+                birthDate: '1990-01-01',
+                custom: {},
+            }),
         );
     });
 
@@ -584,6 +590,35 @@ describe('error mapping', () => {
         const body = (await res.json()) as { error: { data: { appCode?: string } } };
 
         expect(body.error.data.appCode).toBe(ERROR_CODE.VALIDATION);
+    });
+
+    test('a patient cannot be registered without an age, or have it cleared', async () => {
+        const { client } = api;
+        const { patient } = await clinicViaApi();
+        const appCodeOf = async (run: () => Promise<unknown>) => {
+            try {
+                await run();
+                return null;
+            } catch (err) {
+                return (err as { data?: { appCode?: string } }).data?.appCode ?? null;
+            }
+        };
+
+        const noAge = { name: 'No Age', phone: '01055550000', custom: {} };
+        expect(
+            await appCodeOf(() =>
+                client.patient.create.mutate(noAge as Parameters<typeof client.patient.create.mutate>[0]),
+            ),
+        ).toBe(ERROR_CODE.VALIDATION);
+
+        const cleared = { id: patient.id, birthDate: null };
+        expect(
+            await appCodeOf(() =>
+                client.patient.update.mutate(
+                    cleared as unknown as Parameters<typeof client.patient.update.mutate>[0],
+                ),
+            ),
+        ).toBe(ERROR_CODE.VALIDATION);
     });
 });
 
