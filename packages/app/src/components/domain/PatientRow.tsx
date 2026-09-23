@@ -112,7 +112,10 @@ const styles = StyleSheet.create({
         borderTopColor: color.hair,
     },
     pressed: { backgroundColor: color.surface2 },
-    text: { flex: 1, minWidth: 0, gap: space[0.5] },
+    // `flex-start`, not the default stretch: a stretched line aligns a Latin name
+    // by its own script, so in Arabic it sat against the chevron instead of the
+    // row's start edge. Shrunk to its content, the line goes where the row starts.
+    text: { flex: 1, minWidth: 0, gap: space[0.5], alignItems: 'flex-start' },
     due: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
     // Not `ui/Dot`: that one animates and this one never pulses, so the row does
     // not carry an `Animated.Value` per patient down a list.

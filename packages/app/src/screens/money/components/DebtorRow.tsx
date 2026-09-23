@@ -84,6 +84,8 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface,
     },
     divided: { borderTopWidth: 1, borderTopColor: color.hair },
-    text: { flex: 1, gap: space[0.5] },
+    // `flex-start` for the reason `domain/PatientRow` gives: a stretched line
+    // aligns a Latin name by its own script, off the row's start edge in Arabic.
+    text: { flex: 1, minWidth: 0, gap: space[0.5], alignItems: 'flex-start' },
     pressed: { backgroundColor: color.canvas },
 });
