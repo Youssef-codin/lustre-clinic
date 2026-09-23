@@ -227,7 +227,6 @@ export function AppShell() {
     );
     const openFromMoney = useCallback((patientId: string) => openRecord(patientId, 'Money'), [openRecord]);
     const bookLater = useCallback((patient: PatientTarget) => openBooking(patient, 'later'), [openBooking]);
-    const bookNow = useCallback((patient: PatientTarget) => openBooking(patient, 'now'), [openBooking]);
     const clearToast = useCallback(() => setToast(null), []);
 
     /**
@@ -313,12 +312,7 @@ export function AppShell() {
                     mounted={visited.includes('patients')}
                     back={stacks.patients}
                 >
-                    <PatientsCluster
-                        open={record}
-                        goHome={home.patients}
-                        onBook={bookLater}
-                        onWalkIn={bookNow}
-                    />
+                    <PatientsCluster open={record} goHome={home.patients} onBook={bookLater} />
                 </Pane>
 
                 <Pane

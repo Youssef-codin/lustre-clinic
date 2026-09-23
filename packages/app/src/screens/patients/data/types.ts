@@ -208,6 +208,39 @@ export interface AddedHistoricalProcedures {
     appointmentIds: string[];
 }
 
+/** One line of an old visit: what was done, and what it is charged at. */
+export interface OldVisitLineInput {
+    procedureId: string;
+    quantity: number;
+    tooth?: Tooth | null;
+    /** Piastres. Absent means the catalogue's current price, resolved server-side. */
+    unitPrice?: number;
+}
+
+/**
+ * A visit that happened on a day that has passed and was never entered.
+ *
+ * Unlike `AddHistoricalProceduresInput` this one **carries money**: it lands as
+ * an ordinary completed visit, so it is charged and the patient owes it. The
+ * date is required and there is no time of day — the desk is recording which
+ * day it was, not which slot.
+ */
+export interface AddOldVisitInput {
+    patientId: string;
+    /** `YYYY-MM-DD`, and it has to be a day that has happened. */
+    performedOn: string;
+    /** Absent lets the server use the clinic's first active branch. */
+    branchId?: string | null;
+    procedures: OldVisitLineInput[];
+}
+
+export interface AddedOldVisit {
+    appointmentId: string;
+    visitId: string;
+    /** Piastres charged. The patient owes it until it is settled. */
+    chargedTotal: number;
+}
+
 /**
  * A partial patch, throughout: a key left out keeps what is stored, and only
  * the keys sent are validated. `null` is an answer — it clears the column — so

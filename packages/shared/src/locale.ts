@@ -700,6 +700,19 @@ export const COPY_AR = {
     'No date': 'بدون تاريخ',
     'Saved as prior history with no day on it — the record reads it as before migration.':
         'يُحفظ كسجل سابق بلا يوم — ويقرأه السجل على أنه قبل الانتقال.',
+    // The old-visit sheet: a visit entered after the day it happened. Unlike a
+    // previous procedure this one is charged, so the copy says so out loud.
+    'Old visit': 'زيارة سابقة',
+    'Day of the visit: not set': 'يوم الزيارة: غير محدد',
+    'Day of the visit: {date}': 'يوم الزيارة: {date}',
+    'Pick a day': 'اختر يومًا',
+    'Pick a day and what was done': 'اختر اليوم وما تم عمله',
+    'Pick the day it happened.': 'اختر اليوم الذي حدث فيه.',
+    'Record this visit': 'سجل هذه الزيارة',
+    Total: 'الإجمالي',
+    'Visit recorded — {amount} charged': 'تم تسجيل الزيارة — حُسب {amount}',
+    'What was done that day. It is charged like any other visit, so the patient will owe it.':
+        'ما تم عمله ذلك اليوم. يُحسب كأي زيارة أخرى، وسيصبح على المريض دفعه.',
     'Saved against this day and shown on it in the history.': 'يُحفظ على هذا اليوم ويظهر عليه في السجل.',
     'Remove {name}': 'إزالة {name}',
     Date: 'التاريخ',

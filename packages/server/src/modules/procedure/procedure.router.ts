@@ -2,6 +2,7 @@ import { publicProcedure, router } from '../../trpc/init.ts';
 import { procedureHistoryService } from './procedure.history.ts';
 import {
     addHistoricalProceduresInput,
+    addOldVisitInput,
     createCategoryInput,
     createProcedureInput,
     procedureTreeInput,
@@ -35,4 +36,9 @@ export const procedureRouter = router({
     addHistorical: publicProcedure
         .input(addHistoricalProceduresInput)
         .mutation(({ input }) => procedureHistoryService.add(input)),
+
+    /** A visit that happened on a day that has passed and was never typed in. */
+    addOldVisit: publicProcedure
+        .input(addOldVisitInput)
+        .mutation(({ input }) => procedureHistoryService.addOldVisit(input)),
 });
