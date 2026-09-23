@@ -294,6 +294,41 @@ describe('a visit, end to end', () => {
         );
     });
 
+    // The visit editor writes the note onto the appointment, and it is opened
+    // on a patient who is already checked in — the one status a move is refused
+    // on. A note is not a move, so it lands, and clearing it writes null.
+    it('takes a note on a visit that is already checked in, and clears it again', () => {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[2];
+        const cleaning = db.procedureTypes.find((row) => row.name === 'Scaling & polishing');
+        if (!branch || !patient || !cleaning) throw new Error('the seed is missing its fixtures');
+
+        const appointment = appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() + 11 * 24 * 3_600_000).toISOString(),
+            durationMinutes: 30,
+            procedures: [{ procedureId: cleaning.id, quantity: 1 }],
+            offsetMinutes: 0,
+        });
+
+        expect(appointment.note).toBeNull();
+
+        appointment.startsAt = new Date();
+        visitHandlers.checkIn({ appointmentId: appointment.id });
+
+        expect(
+            appointmentHandlers.update({ id: appointment.id, note: 'Anxious about the drill.' }).note,
+        ).toBe('Anxious about the drill.');
+
+        // The plan is untouched by a note-only write: the editor sends the two
+        // separately, and an absent `procedures` must not read as an empty one.
+        expect(appointmentHandlers.byId({ id: appointment.id }).procedures).toHaveLength(1);
+
+        expect(appointmentHandlers.update({ id: appointment.id, note: null }).note).toBeNull();
+    });
+
     it('empties the chair into the longest wait when the patient goes to the desk', () => {
         const db = getDb();
 

@@ -486,6 +486,7 @@ export const COPY_AR = {
     'Treatment or payment': 'علاج أو دفع',
     'Type two letters of a name, or part of a phone number.': 'اكتب حرفين من الاسم أو جزءًا من رقم الهاتف.',
     VISIT: 'الزيارة',
+    'Visit note': 'ملاحظة الزيارة',
     Visits: 'الزيارات',
     'Visits already recorded keep the price they were charged at.':
         'الزيارات المسجلة بالفعل تحتفظ بالسعر الذي حُسب وقتها.',

@@ -9,7 +9,7 @@ import { StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { size, space, Text } from '../../../theme';
-import { procedureLabel } from '../agenda';
+import { rowSummary } from '../agenda';
 import type { Appointment } from '../data';
 import { AgendaRow } from './Agenda';
 import { ArrowForwardIcon } from './icons';
@@ -37,7 +37,7 @@ export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisPr
                 <AgendaRow
                     key={appointment.id}
                     appointment={appointment}
-                    procedure={procedureLabel(appointment)}
+                    procedure={rowSummary(appointment)}
                     onPress={() => onSelect(appointment)}
                     trailing={<Where appointment={appointment} />}
                 />

@@ -159,6 +159,11 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                             onBack={routes.pop}
                             onConfirm={(priced) => {
                                 setEdited(priced);
+                                // The note is written onto the appointment, not
+                                // the visit, so the priced visit coming back
+                                // says nothing about it — the read-only page
+                                // underneath would go on showing the old one.
+                                appointment.refetch();
                                 routes.push('payment');
                             }}
                         />

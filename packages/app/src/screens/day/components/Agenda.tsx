@@ -21,7 +21,7 @@ import {
 } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { procedureLabel } from '../agenda';
+import { rowSummary } from '../agenda';
 import type { Appointment } from '../data';
 import { type DayDelay, isProjected, ON_TIME, projectedStart } from '../delay';
 import { clock12, minutesOfDay, time12 } from '../time';
@@ -295,7 +295,7 @@ export function UpNext({
                 <AgendaRow
                     key={appointment.id}
                     appointment={appointment}
-                    procedure={procedureLabel(appointment)}
+                    procedure={rowSummary(appointment)}
                     onPress={() => onSelect(appointment)}
                     dim={!live}
                     inChair={live && appointment.id === chairId}
@@ -423,7 +423,7 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
                         <AgendaRow
                             key={appointment.id}
                             appointment={appointment}
-                            procedure={procedureLabel(appointment)}
+                            procedure={rowSummary(appointment)}
                             onPress={() => onSelect(appointment)}
                             dim
                             trailing={
