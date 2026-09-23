@@ -32,7 +32,16 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
-import { Button, Callout, Chevron, Chip, Select, Textarea, useKeyboardHeight } from '../../../components/ui';
+import {
+    Button,
+    Callout,
+    Chevron,
+    Chip,
+    Select,
+    StepView,
+    Textarea,
+    useKeyboardHeight,
+} from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import {
@@ -565,232 +574,236 @@ export function BookingScreen({
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
             >
-                {step === 'what' ? (
-                    <>
-                        <ProcedurePlan
-                            value={plan}
-                            onChange={setPlan}
-                            categories={catalogue.data ?? []}
-                            loading={catalogue.status === 'loading'}
-                            error={catalogue.status === 'error' ? catalogue.error : null}
-                            onRetry={catalogue.refetch}
-                        />
-
-                        <Textarea
-                            label="Note"
-                            value={note}
-                            onChangeText={setNote}
-                            placeholder="Anything the doctor should know."
-                        />
-                    </>
-                ) : step === 'when' ? (
-                    <>
-                        <View style={styles.section}>
-                            <Text variant="eyebrow" tone="muted">
-                                {t('WHEN')}
-                            </Text>
-
-                            {branches.length > 1 ? (
-                                <Select
-                                    label="Branch"
-                                    options={branches.map((row) => ({
-                                        value: row.id,
-                                        label: row.name,
-                                    }))}
-                                    value={branch}
-                                    onChange={(next) => {
-                                        setBranch(next);
-                                        setSlotMinutes(null);
-                                        // Branches keep different working days, so
-                                        // the day in hand may not be one of the new
-                                        // one's. Landing on its next working day
-                                        // beats a strip with nothing in it.
-                                        setDate(nextWorkingDay(date, schedule, next));
-                                        reset();
-                                    }}
-                                    sheetTitle="Which branch"
-                                />
-                            ) : null}
-
-                            {rescheduling ? null : (
-                                <>
-                                    <View style={styles.row}>
-                                        <Chip
-                                            label="Now — walk-in"
-                                            grow
-                                            selected={!scheduled}
-                                            disabled={!canWalkIn}
-                                            onPress={() => {
-                                                setTiming('now');
-                                                reset();
-                                            }}
-                                        />
-                                        <Chip
-                                            label="Another time"
-                                            grow
-                                            selected={scheduled}
-                                            onPress={() => {
-                                                setTiming('later');
-                                                reset();
-                                            }}
-                                        />
-                                    </View>
-
-                                    {!canWalkIn ? (
-                                        <Text variant="caption" tone="muted">
-                                            {branchName ?? 'The clinic'} is not working today, so there is no
-                                            walk-in to take.
-                                        </Text>
-                                    ) : !scheduled && dateKey !== today ? (
-                                        <Text variant="caption" tone="muted">
-                                            A walk-in starts now, so it lands on today — not the day on
-                                            screen.
-                                        </Text>
-                                    ) : !scheduled ? (
-                                        <Text variant="subhead" tone="muted">
-                                            Booked and checked in at once, the same as anyone already in the
-                                            waiting room.
-                                        </Text>
-                                    ) : null}
-                                </>
-                            )}
-                        </View>
-
-                        {scheduled ? (
-                            <SlotPicker
-                                dateKey={date}
-                                days={settled.strip}
-                                daysLoading={fetched === undefined && fortnight.status !== 'error'}
-                                onPickDate={setDate}
-                                onPickFurtherDate={() => setCalendar(openCalendar)}
-                                slotMinutes={slotMinutes}
-                                onPickSlot={(next) => {
-                                    setSlotMinutes(next);
-                                    reset();
-                                }}
-                                slots={slots}
-                                loading={fetched === undefined && fortnight.status !== 'error'}
-                                error={fortnight.status === 'error' ? fortnight.error : null}
-                                onRetry={fortnight.refetch}
-                                branchName={branchName}
-                                duration={howLong}
+                {/* Keyed on the step, not the answers: every answer lives up here,
+                    so the slide only moves what is drawn. */}
+                <StepView index={index} style={styles.stepBody}>
+                    {step === 'what' ? (
+                        <>
+                            <ProcedurePlan
+                                value={plan}
+                                onChange={setPlan}
+                                categories={catalogue.data ?? []}
+                                loading={catalogue.status === 'loading'}
+                                error={catalogue.status === 'error' ? catalogue.error : null}
+                                onRetry={catalogue.refetch}
                             />
-                        ) : (
-                            howLong
-                        )}
-                    </>
-                ) : (
-                    <>
-                        <View style={styles.card}>
-                            <SummaryRow
-                                label="When"
-                                value={
-                                    scheduled && slotMinutes !== null
-                                        ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
-                                        : 'Now — walk-in'
-                                }
-                                icon={<CalendarIcon size={17} />}
-                                lead
+
+                            <Textarea
+                                label="Note"
+                                value={note}
+                                onChangeText={setNote}
+                                placeholder="Anything the doctor should know."
                             />
-                            {rescheduling && movingFrom ? (
-                                <SummaryRow
-                                    label="Was"
-                                    value={`${relativeDayLabel(movingFrom)} · ${timeLabel(minutesOfDay(rescheduling.startsAt))}`}
-                                    icon={<CalendarIcon size={15} />}
-                                />
-                            ) : null}
-                            <SummaryRow
-                                label="How long"
-                                value={t('{minutes} min', { minutes: duration })}
-                                icon={<DurationIcon />}
-                            />
-                            {branches.length > 1 ? (
-                                <SummaryRow
-                                    label="Branch"
-                                    value={branches.find((row) => row.id === branch)?.name ?? '—'}
-                                    icon={<PinIcon />}
-                                />
-                            ) : null}
-                            <SummaryRow
-                                label="Patient"
-                                value={patient.mode === 'new' ? `${name} · new record` : name}
-                                icon={<PatientIcon />}
-                            />
-                        </View>
-
-                        <View style={styles.section}>
-                            <View style={styles.head}>
-                                <Text variant="eyebrow" tone="muted">
-                                    {t('WHAT IS PLANNED')}
-                                </Text>
-                                <Text variant="caption" weight="medium" tone="muted">
-                                    {plan.length === 0
-                                        ? 'Nothing yet'
-                                        : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
-                                </Text>
-                            </View>
-
-                            {plan.length === 0 ? (
-                                <View style={styles.emptyPlan}>
-                                    <Text variant="subhead" tone="muted">
-                                        {t('No procedures planned — it will be decided in the chair.')}
-                                    </Text>
-                                </View>
-                            ) : (
-                                <View style={styles.groups}>
-                                    {groupByTooth(plan).map((group) => (
-                                        <ToothGroupCard
-                                            key={group.tooth ?? 'none'}
-                                            tooth={group.tooth}
-                                            position={toothPosition(group.tooth)}
-                                            subtotal={
-                                                <MoneyValue
-                                                    piastres={group.subtotal}
-                                                    variant="headline"
-                                                    weight="bold"
-                                                />
-                                            }
-                                            lines={group.items.map((item) => ({
-                                                id: item.id,
-                                                name: item.name,
-                                                detail: item.variant,
-                                                money: (
-                                                    <MoneyValue
-                                                        piastres={item.price}
-                                                        variant="body"
-                                                        weight="bold"
-                                                    />
-                                                ),
-                                            }))}
-                                        />
-                                    ))}
-
-                                    <View style={styles.total}>
-                                        <Text variant="subhead" tone="muted">
-                                            {t('Estimated total')}
-                                        </Text>
-                                        <Text variant="title3" weight="bold">
-                                            {formatMoney(totalOf(plan))}
-                                        </Text>
-                                    </View>
-                                </View>
-                            )}
-                        </View>
-
-                        {note.trim() ? (
+                        </>
+                    ) : step === 'when' ? (
+                        <>
                             <View style={styles.section}>
                                 <Text variant="eyebrow" tone="muted">
-                                    {t('NOTE')}
+                                    {t('WHEN')}
                                 </Text>
-                                <View style={styles.noteCard}>
-                                    <Text variant="callout" tone="ink2">
-                                        {note.trim()}
+
+                                {branches.length > 1 ? (
+                                    <Select
+                                        label="Branch"
+                                        options={branches.map((row) => ({
+                                            value: row.id,
+                                            label: row.name,
+                                        }))}
+                                        value={branch}
+                                        onChange={(next) => {
+                                            setBranch(next);
+                                            setSlotMinutes(null);
+                                            // Branches keep different working days, so
+                                            // the day in hand may not be one of the new
+                                            // one's. Landing on its next working day
+                                            // beats a strip with nothing in it.
+                                            setDate(nextWorkingDay(date, schedule, next));
+                                            reset();
+                                        }}
+                                        sheetTitle="Which branch"
+                                    />
+                                ) : null}
+
+                                {rescheduling ? null : (
+                                    <>
+                                        <View style={styles.row}>
+                                            <Chip
+                                                label="Now — walk-in"
+                                                grow
+                                                selected={!scheduled}
+                                                disabled={!canWalkIn}
+                                                onPress={() => {
+                                                    setTiming('now');
+                                                    reset();
+                                                }}
+                                            />
+                                            <Chip
+                                                label="Another time"
+                                                grow
+                                                selected={scheduled}
+                                                onPress={() => {
+                                                    setTiming('later');
+                                                    reset();
+                                                }}
+                                            />
+                                        </View>
+
+                                        {!canWalkIn ? (
+                                            <Text variant="caption" tone="muted">
+                                                {branchName ?? 'The clinic'} is not working today, so there is
+                                                no walk-in to take.
+                                            </Text>
+                                        ) : !scheduled && dateKey !== today ? (
+                                            <Text variant="caption" tone="muted">
+                                                A walk-in starts now, so it lands on today — not the day on
+                                                screen.
+                                            </Text>
+                                        ) : !scheduled ? (
+                                            <Text variant="subhead" tone="muted">
+                                                Booked and checked in at once, the same as anyone already in
+                                                the waiting room.
+                                            </Text>
+                                        ) : null}
+                                    </>
+                                )}
+                            </View>
+
+                            {scheduled ? (
+                                <SlotPicker
+                                    dateKey={date}
+                                    days={settled.strip}
+                                    daysLoading={fetched === undefined && fortnight.status !== 'error'}
+                                    onPickDate={setDate}
+                                    onPickFurtherDate={() => setCalendar(openCalendar)}
+                                    slotMinutes={slotMinutes}
+                                    onPickSlot={(next) => {
+                                        setSlotMinutes(next);
+                                        reset();
+                                    }}
+                                    slots={slots}
+                                    loading={fetched === undefined && fortnight.status !== 'error'}
+                                    error={fortnight.status === 'error' ? fortnight.error : null}
+                                    onRetry={fortnight.refetch}
+                                    branchName={branchName}
+                                    duration={howLong}
+                                />
+                            ) : (
+                                howLong
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.card}>
+                                <SummaryRow
+                                    label="When"
+                                    value={
+                                        scheduled && slotMinutes !== null
+                                            ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
+                                            : 'Now — walk-in'
+                                    }
+                                    icon={<CalendarIcon size={17} />}
+                                    lead
+                                />
+                                {rescheduling && movingFrom ? (
+                                    <SummaryRow
+                                        label="Was"
+                                        value={`${relativeDayLabel(movingFrom)} · ${timeLabel(minutesOfDay(rescheduling.startsAt))}`}
+                                        icon={<CalendarIcon size={15} />}
+                                    />
+                                ) : null}
+                                <SummaryRow
+                                    label="How long"
+                                    value={t('{minutes} min', { minutes: duration })}
+                                    icon={<DurationIcon />}
+                                />
+                                {branches.length > 1 ? (
+                                    <SummaryRow
+                                        label="Branch"
+                                        value={branches.find((row) => row.id === branch)?.name ?? '—'}
+                                        icon={<PinIcon />}
+                                    />
+                                ) : null}
+                                <SummaryRow
+                                    label="Patient"
+                                    value={patient.mode === 'new' ? `${name} · new record` : name}
+                                    icon={<PatientIcon />}
+                                />
+                            </View>
+
+                            <View style={styles.section}>
+                                <View style={styles.head}>
+                                    <Text variant="eyebrow" tone="muted">
+                                        {t('WHAT IS PLANNED')}
+                                    </Text>
+                                    <Text variant="caption" weight="medium" tone="muted">
+                                        {plan.length === 0
+                                            ? 'Nothing yet'
+                                            : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
                                     </Text>
                                 </View>
+
+                                {plan.length === 0 ? (
+                                    <View style={styles.emptyPlan}>
+                                        <Text variant="subhead" tone="muted">
+                                            {t('No procedures planned — it will be decided in the chair.')}
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <View style={styles.groups}>
+                                        {groupByTooth(plan).map((group) => (
+                                            <ToothGroupCard
+                                                key={group.tooth ?? 'none'}
+                                                tooth={group.tooth}
+                                                position={toothPosition(group.tooth)}
+                                                subtotal={
+                                                    <MoneyValue
+                                                        piastres={group.subtotal}
+                                                        variant="headline"
+                                                        weight="bold"
+                                                    />
+                                                }
+                                                lines={group.items.map((item) => ({
+                                                    id: item.id,
+                                                    name: item.name,
+                                                    detail: item.variant,
+                                                    money: (
+                                                        <MoneyValue
+                                                            piastres={item.price}
+                                                            variant="body"
+                                                            weight="bold"
+                                                        />
+                                                    ),
+                                                }))}
+                                            />
+                                        ))}
+
+                                        <View style={styles.total}>
+                                            <Text variant="subhead" tone="muted">
+                                                {t('Estimated total')}
+                                            </Text>
+                                            <Text variant="title3" weight="bold">
+                                                {formatMoney(totalOf(plan))}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
                             </View>
-                        ) : null}
-                    </>
-                )}
+
+                            {note.trim() ? (
+                                <View style={styles.section}>
+                                    <Text variant="eyebrow" tone="muted">
+                                        {t('NOTE')}
+                                    </Text>
+                                    <View style={styles.noteCard}>
+                                        <Text variant="callout" tone="ink2">
+                                            {note.trim()}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ) : null}
+                        </>
+                    )}
+                </StepView>
             </ScrollView>
 
             {/* Over the scroll rather than beside it. As a sibling in the column
@@ -955,7 +968,8 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     // No `paddingBottom` here — it is measured off the dock and supplied inline,
     // so the grid's bottom row can always be scrolled clear of the floating bar.
-    body: { paddingHorizontal: size.gutter, gap: space[5] },
+    body: { paddingHorizontal: size.gutter },
+    stepBody: { gap: space[5] },
     section: { gap: space[2.5] },
     row: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
     grow: { flex: 1, minWidth: 0 },
