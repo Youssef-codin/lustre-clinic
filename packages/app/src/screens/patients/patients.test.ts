@@ -40,6 +40,7 @@ import {
     refEditError,
     refEditOf,
     refError,
+    saveFailureTitle,
     unaskableRequired,
     updateInputOf,
 } from './patientForm';
@@ -853,6 +854,23 @@ describe('the ref', () => {
 
         it('passes a sound change', () => {
             expect(refEditError(on('910'), on('A/1991-07'))).toBeNull();
+        });
+    });
+
+    describe('saveFailureTitle', () => {
+        it('says partly saved when the number landed and a later call failed', () => {
+            expect(saveFailureTitle(false, true)).toBe('The number was saved, the rest was not');
+        });
+
+        // An earlier attempt wrote one number; this one tried another and was
+        // refused. The number on screen is not on file.
+        it('does not claim the number saved when the ref call is the failure', () => {
+            expect(saveFailureTitle(true, true)).toBe('Not saved');
+        });
+
+        it('says not saved when nothing has landed', () => {
+            expect(saveFailureTitle(false, false)).toBe('Not saved');
+            expect(saveFailureTitle(true, false)).toBe('Not saved');
         });
     });
 
