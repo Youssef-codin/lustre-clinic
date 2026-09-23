@@ -684,8 +684,8 @@ export function VisitScreen({
                         <Textarea
                             value={note}
                             onChangeText={setNote}
-                            placeholder="Anything the doctor should know."
-                            accessibilityLabel="Visit note"
+                            placeholder={t('Anything the doctor should know.')}
+                            accessibilityLabel={t('Visit note')}
                             testID="visit-note"
                         />
                     </View>

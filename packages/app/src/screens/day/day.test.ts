@@ -198,6 +198,8 @@ describe('the visit note', () => {
         expect(noteChanged('Bring the X-rays.', '  Bring the X-rays. ')).toBe(false);
         expect(noteChanged(null, '')).toBe(false);
         expect(noteChanged(null, '   ')).toBe(false);
+        // A note stored with stray spaces, opened and left alone, is not an edit.
+        expect(noteChanged(' Bring the X-rays. ', ' Bring the X-rays. ')).toBe(false);
 
         expect(noteChanged(null, 'Anxious about the drill.')).toBe(true);
         expect(noteChanged('Bring the X-rays.', 'Bring the panoramic.')).toBe(true);

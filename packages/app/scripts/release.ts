@@ -111,7 +111,9 @@ async function glitchtipDsn(): Promise<string | null> {
         );
     }
     // The DSN is read on the phone, so loopback names the phone, not the clinic server.
-    if (/^https?:\/\/[^@]+@(localhost|127\.0\.0\.1|\[::1\])(:|\/)/.test(dsn)) {
+    // `URL` lowercases the host and canonicalises IP forms (`127.1`, `[0:0::1]`), so one check covers them.
+    const host = new URL(dsn).hostname;
+    if (host === 'localhost' || host.startsWith('127.') || host === '[::1]') {
         fail(
             `LUSTRE_GLITCHTIP_DSN points at ${dsn.slice(dsn.indexOf('@') + 1)}. Use the server's MagicDNS name: no phone can reach loopback.`,
         );

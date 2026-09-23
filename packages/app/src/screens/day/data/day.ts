@@ -278,10 +278,12 @@ export async function arrive(input: {
     edited: boolean;
     note?: string | null;
 }): Promise<Visit> {
+    // The note first: it is safe to send twice, and a check-in is not. A note
+    // that fails leaves the patient still booked, so Confirm can simply be retried.
+    await writeNote(input.appointmentId, input.note);
+
     const row = await api.checkIn(input.appointmentId);
     rememberVisit(input.appointmentId, row.id);
-
-    await writeNote(input.appointmentId, input.note);
 
     if (!input.edited) return api.visitById(row.id);
     return api.setProcedures({ visitId: row.id, procedures: input.procedures });
@@ -325,12 +327,14 @@ export async function amend(input: {
     // and that refusal would replace the real complaint about the tooth with
     // one about the checkout, on every retry. So the state is re-read rather
     // than assumed, and only on the path that might need it.
+    // The note first, for the reason `arrive` gives: resending it is harmless,
+    // so a failure after it leaves nothing a retry cannot finish.
+    await writeNote(input.appointmentId, input.note);
+
     if (input.closed) {
         const current = await api.visitById(input.visitId);
         if (current.completedAt) await api.reopenVisit(input.visitId);
     }
-
-    await writeNote(input.appointmentId, input.note);
 
     return api.setProcedures({ visitId: input.visitId, procedures: input.procedures });
 }

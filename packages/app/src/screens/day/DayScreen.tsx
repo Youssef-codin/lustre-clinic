@@ -960,7 +960,9 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                                     day.refetch();
                                     return;
                                 }
-                                setVisit({ ...visit, visit: priced });
+                                // Functional: `onNoteSaved` may have moved the held
+                                // appointment's note since this snapshot was taken.
+                                setVisit((current) => (current ? { ...current, visit: priced } : current));
                                 pushPage({ name: 'payment' });
                             }}
                             onSentToDesk={(message) => {

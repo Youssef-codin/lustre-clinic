@@ -139,7 +139,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
 
     async function linkDrive() {
         setLinkingDrive(false);
-        const result = await driveSignIn.signIn();
+        // `usePendingAction` swallows a rejection, so one that escapes the
+        // sign-in is caught here and said, rather than clearing the spinner silently.
+        const result = await driveSignIn
+            .signIn()
+            .catch(() => ({ kind: 'failed' as const, code: 'INTERNAL' }));
         if (result.kind === 'cancelled') return;
         setToast(
             result.kind === 'linked'

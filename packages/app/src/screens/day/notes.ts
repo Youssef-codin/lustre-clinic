@@ -25,5 +25,5 @@ export function noteValue(draft: string): string | null {
 }
 
 export function noteChanged(original: string | null | undefined, draft: string): boolean {
-    return noteValue(draft) !== (original ?? null);
+    return noteValue(draft) !== noteValue(original ?? '');
 }

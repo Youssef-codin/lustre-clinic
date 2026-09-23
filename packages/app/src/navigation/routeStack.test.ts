@@ -124,6 +124,15 @@ describe('routeStack', () => {
         expect(rendered(second)).toHaveLength(1);
         // A different row is a different pane and still opens.
         expect(rendered(push(first, { kind: 'edit', id: 'p1' }))).toHaveLength(2);
+
+        // Same kind, another row: still its own pane, and both stay open.
+        const one = push(emptyStack<Editor>(), { kind: 'edit', id: 'p1' });
+        const two = push(one, { kind: 'edit', id: 'p2' });
+        expect(rendered(two)).toHaveLength(2);
+        expect(two.open.map((entry) => entry.route)).toEqual([
+            { kind: 'edit', id: 'p1' },
+            { kind: 'edit', id: 'p2' },
+        ]);
     });
 
     it('reopens a route once its pane has been popped', () => {
