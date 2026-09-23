@@ -24,6 +24,7 @@ import {
     Radio,
     SectionLabel,
     Tag,
+    usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
@@ -55,9 +56,24 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
 
     const pull = usePullToRefresh(settings.refetch, settings.isFetching);
 
+    /**
+     * Every control on the pane goes through one guarded write. A Radio and a
+     * remove Pressable have no press lock of their own, and `isPending` is state
+     * — two taps in a frame both read the old `false` and the second one writes
+     * a list built from the same stale `durations`, undoing the first. The
+     * guard's ref refuses the overlap outright; a failure clears it, so the tap
+     * can be made again.
+     */
+    const write = usePendingAction(
+        async (patch: Parameters<typeof save.mutateAsync>[0], after?: () => void) => {
+            await save.mutateAsync(patch);
+            after?.();
+        },
+    );
+
     const data = settings.data;
     const durations = data?.durationOptions ?? [];
-    const busy = save.isPending;
+    const busy = write.pending;
 
     /**
      * Which control is mid-write. One mutation serves all three, so `isPending`
@@ -74,22 +90,19 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
         if (draftError !== undefined || !Number.isFinite(drafted)) return;
 
         acting.current = 'add';
-        save.mutate(
-            { durationOptions: [...durations, drafted].sort((a, b) => a - b) },
-            { onSuccess: () => setDraft('') },
-        );
+        write.run({ durationOptions: [...durations, drafted].sort((a, b) => a - b) }, () => setDraft(''));
     }
 
     // The default has to stay bookable, so it cannot be the row you remove.
     // The pane hides the control on that row; the server refuses it too.
     function onRemove(minutes: number) {
         acting.current = 'row';
-        save.mutate({ durationOptions: durations.filter((d) => d !== minutes) });
+        write.run({ durationOptions: durations.filter((d) => d !== minutes) });
     }
 
     function onSetDefault(minutes: number) {
         acting.current = 'row';
-        save.mutate({ defaultDuration: minutes });
+        write.run({ defaultDuration: minutes });
     }
 
     return (
