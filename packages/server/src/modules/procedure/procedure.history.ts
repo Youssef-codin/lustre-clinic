@@ -74,6 +74,7 @@ export const procedureHistoryService = {
 
         const write = await db.transaction((tx) => writeOldPatientHistory(tx, input.patientId, plan));
 
+        broadcast(WS_EVENT.PATIENT_UPDATED, { id: input.patientId });
         return { appointmentIds: write.importedAppointmentIds };
     },
 

@@ -59,6 +59,7 @@ import {
     EmptyState,
     ProgressBar,
     SkeletonRows,
+    Textarea,
     useKeyboardHeight,
 } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
@@ -85,6 +86,7 @@ import {
     formOf,
     historicalInputOf,
     isUnchanged,
+    MAX_NOTES_LENGTH,
     malformedBasics,
     malformedOld,
     missingRequired,
@@ -464,6 +466,25 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                             loading={questions.loading && !questions.data}
                             error={questions.error}
                         />
+
+                        {/* The patient's own notes, and the one place they are
+                            written: not a visit's or a booking's, which stay on
+                            those. Last, because they are whatever the rows above
+                            had no place for. */}
+                        <View style={styles.section}>
+                            <Text variant="eyebrow" tone="muted" style={styles.eyebrow}>
+                                {t('NOTES')}
+                            </Text>
+                            <Textarea
+                                accessibilityLabel={t('Patient notes')}
+                                placeholder="Anything the clinic should know"
+                                value={form.notes}
+                                onChangeText={(notes) => change({ notes })}
+                                maxLength={MAX_NOTES_LENGTH}
+                                editable={!saving}
+                                testID="patient-notes-input"
+                            />
+                        </View>
                     </ScrollView>
 
                     <SaveBar

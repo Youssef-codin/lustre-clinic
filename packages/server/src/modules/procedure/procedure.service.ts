@@ -8,11 +8,12 @@
  * `findCheckup` supplies the line seeded on check-in (§8), and exactly one row
  * carries the flag it looks for — see `clearOtherCheckups`.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { procedureTypes } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
+import { broadcast } from '../../ws/index.ts';
 import type {
     CreateCategoryInput,
     CreateProcedureInput,
@@ -116,7 +117,7 @@ export const procedureService = {
     async create(input: CreateProcedureInput): Promise<Procedure> {
         if (input.parentId) await assertUsableAsParent(input.parentId);
 
-        return db.transaction(async (tx) => {
+        const created = await db.transaction(async (tx) => {
             const [row] = await tx
                 .insert(procedureTypes)
                 .values({
@@ -135,6 +136,9 @@ export const procedureService = {
             if (row.isCheckup) await clearOtherCheckups(tx, row.id);
             return row;
         });
+
+        broadcast(WS_EVENT.CATALOG_UPDATED, { id: created.id });
+        return created;
     },
 
     /**
@@ -144,7 +148,7 @@ export const procedureService = {
      * on a visit, and a retry would write the heading twice.
      */
     async createCategory(input: CreateCategoryInput): Promise<{ category: Procedure; first: Procedure }> {
-        return db.transaction(async (tx) => {
+        const created = await db.transaction(async (tx) => {
             const [category] = await tx
                 .insert(procedureTypes)
                 .values({
@@ -177,6 +181,9 @@ export const procedureService = {
 
             return { category, first };
         });
+
+        broadcast(WS_EVENT.CATALOG_UPDATED, { id: created.category.id });
+        return created;
     },
 
     async update({ id, ...patch }: UpdateProcedureInput): Promise<Procedure> {
@@ -201,7 +208,7 @@ export const procedureService = {
             }
         }
 
-        return db.transaction(async (tx) => {
+        const updated = await db.transaction(async (tx) => {
             const [row] = await tx
                 .update(procedureTypes)
                 .set({
@@ -215,6 +222,9 @@ export const procedureService = {
             if (patch.isCheckup) await clearOtherCheckups(tx, row.id);
             return row;
         });
+
+        broadcast(WS_EVENT.CATALOG_UPDATED, { id });
+        return updated;
     },
 
     /**
@@ -248,6 +258,7 @@ export const procedureService = {
                 await tx.update(procedureTypes).set({ sortOrder: index }).where(eq(procedureTypes.id, id));
             }
         });
+        broadcast(WS_EVENT.CATALOG_UPDATED);
     },
 
     async selectableList(): Promise<Procedure[]> {

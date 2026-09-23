@@ -11,12 +11,13 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { REMINDER_PLACEHOLDERS } from '@lustre/shared';
+import { REMINDER_PLACEHOLDERS, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, reminders } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { toWhatsAppNumber } from '../../util/phone.ts';
+import { broadcast } from '../../ws/index.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import type { DismissTodayInput, PendingRemindersInput } from './reminder.schema.ts';
 
@@ -156,6 +157,7 @@ export const reminderService = {
             .returning();
 
         if (!row) throw AppError.notFound('reminder');
+        broadcast(WS_EVENT.REMINDER_UPDATED, { id });
         return row;
     },
 
@@ -167,6 +169,7 @@ export const reminderService = {
             .returning();
 
         if (!row) throw AppError.notFound('reminder');
+        broadcast(WS_EVENT.REMINDER_UPDATED, { id });
         return row;
     },
 

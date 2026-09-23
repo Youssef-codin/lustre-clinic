@@ -258,6 +258,7 @@ describe('recording a visit that already happened', () => {
             patientId: patient.id,
             performedOn: DAY,
             branchId: clinic.branch.id,
+            offsetMinutes: 0,
             procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
         });
         const [payment] = await db.select().from(payments).where(eq(payments.visitId, added.visitId));
@@ -276,6 +277,7 @@ describe('recording a visit that already happened', () => {
             patientId: patient.id,
             performedOn: DAY,
             branchId: clinic.branch.id,
+            offsetMinutes: 0,
             procedures: [{ procedureId: clinic.checkup.id, quantity: 1, unitPrice: 0 }],
         });
 

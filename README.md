@@ -36,6 +36,14 @@ Then, in `packages/app`:
 bun start
 ```
 
+Open it in Expo Go by scanning the QR code it prints. When 8081 is already
+taken — another worktree's bundler — run `bun start --port 8082`. Expo Go only
+finds a server on 8081 by itself, so scan the QR code or use *Enter URL
+manually* with `exp://<this machine's IP>:8082`.
+
+`bun app` from the root is the other route: a development build on a USB
+phone (`packages/app/scripts/device.sh`), for anything native.
+
 ## Checks
 
 ```sh

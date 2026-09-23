@@ -699,6 +699,15 @@ export const COPY_AR = {
     Booked: 'محجوز',
     'In the chair': 'على الكرسي',
     'At the desk': 'في الاستقبال',
+    '{name} is coming to the desk': '{name} في الطريق إلى الاستقبال',
+    'A patient is coming to the desk': 'مريض في الطريق إلى الاستقبال',
+    'The doctor is finished. Ready for checkout.': 'انتهى الطبيب. جاهز للمحاسبة.',
+    'Patients coming to the desk': 'مرضى في الطريق إلى الاستقبال',
+    'When the doctor finishes with a patient.': 'عندما ينتهي الطبيب من مريض.',
+    'Listening for the doctor': 'في انتظار الطبيب',
+    'You will be told when a patient is coming to the desk.':
+        'سيتم إعلامك عندما يكون مريض في الطريق إلى الاستقبال.',
+    'Staying connected to the clinic': 'البقاء متصلاً بالعيادة',
     Cancelled: 'ملغي',
     Waiting: 'في الانتظار',
     Sun: 'الأحد',
@@ -905,6 +914,10 @@ export const COPY_AR = {
         'المال المستلم يبقى في السجل. أزل الدفعات أولًا إن كانت قد سُجلت بالخطأ.',
     'This patient has payments on file, so the record stays. Remove the payments from their visits first if they were entered by mistake.':
         'لهذا المريض دفعات مسجلة، لذا يبقى السجل. أزل الدفعات من زياراته أولًا إن كانت قد سُجلت بالخطأ.',
+    // The patient's own notes: written in the editor, read on the record.
+    NOTES: 'ملاحظات',
+    'Patient notes': 'ملاحظات المريض',
+    'Anything the clinic should know': 'أي شيء يجب أن تعرفه العيادة',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

@@ -9,7 +9,9 @@
 // not a filled panel: it is a fact about the patient, not an alert. The Details
 // tab is the clinic's questions and nothing else; sex and age live in the meta
 // line under the name, so a second card repeating them was this screen's
-// invention, not the design's.
+// invention, not the design's. The patient's own notes head that tab, above the
+// questions, when there are any. They are written in the editor and only read
+// here, and kept apart from what a visit or a booking notes about itself.
 //
 // `patient.byId` is one payload — patient, history and `questionnaireGaps` — so
 // the record is a single round trip and what it is missing is answered by the
@@ -270,6 +272,7 @@ export function PatientRecordScreen({
                         />
                     ) : (
                         <Details
+                            notes={patient.notes}
                             answers={patient.custom}
                             gaps={record.data.questionnaireGaps}
                             questions={questions}
@@ -603,6 +606,7 @@ function groupByYear(history: PatientHistoryEntry[]): Array<[string, PatientHist
 }
 
 type DetailsProps = {
+    notes: string | null;
     answers: Answers;
     gaps: QuestionnaireGap[];
     questions: { data: CustomQuestion[] | undefined; loading: boolean; error: Error | undefined };
@@ -610,11 +614,12 @@ type DetailsProps = {
 };
 
 /**
- * The clinic's questions and their answers, and nothing else — the design puts
- * age, sex and the phone number in the meta line under the name, so this tab is
- * only the part that differs from clinic to clinic.
+ * The patient's notes, then the clinic's questions and their answers — the
+ * design puts age, sex and the phone number in the meta line under the name, so
+ * this tab is only what the desk has written about this one person. Notes are
+ * read here and written in the editor; a patient with none has no section.
  */
-function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
+function Details({ notes, answers, gaps, questions, onEdit }: DetailsProps) {
     const t = useT();
     const gapByKey = useMemo(() => new Map(gaps.map((gap) => [gap.key, gap])), [gaps]);
 
@@ -629,6 +634,21 @@ function Details({ answers, gaps, questions, onEdit }: DetailsProps) {
 
     return (
         <View style={styles.details}>
+            {notes ? (
+                <>
+                    <View style={styles.sectionHead}>
+                        <Text variant="eyebrow" tone="muted">
+                            {t('NOTES')}
+                        </Text>
+                    </View>
+                    <View style={styles.notes}>
+                        <Text variant="body" selectable testID="patient-notes">
+                            {notes}
+                        </Text>
+                    </View>
+                </>
+            ) : null}
+
             <View style={styles.sectionHead}>
                 <Text variant="eyebrow" tone="muted">
                     {questions.data
@@ -796,6 +816,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: size.gutter,
         paddingTop: space[3],
         paddingBottom: space[2],
+    },
+    notes: {
+        paddingHorizontal: size.gutter,
+        paddingBottom: space[3],
+        borderBottomWidth: border.hair,
+        borderBottomColor: color.line,
     },
     gap: { paddingHorizontal: size.gutter, paddingVertical: space[1] },
     answer: {

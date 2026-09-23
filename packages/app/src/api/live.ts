@@ -1,11 +1,12 @@
-import { WS_EVENT, type WsEvent } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: opens the `/ws` socket and closes it on cleanup — the subscription case this hook exists for
 import { useEffect } from 'react';
+import { noteLive } from '../reporting/trail';
 import { api } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
 import { subscribeToDemoEvents, useDemoMode } from './demo';
 import { queryClient } from './queryClient';
+import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
 
 // `/ws` tells this phone what the other phone changed (SPEC §13). Payloads carry
 // IDs only — no patient data crosses the channel — so every event does the same
@@ -13,36 +14,55 @@ import { queryClient } from './queryClient';
 // One socket for the app's lifetime, reconnecting with backoff while the clinic
 // PC is down; it is a freshness optimisation on top of the query cache, never a
 // data path. A malformed frame is ignored rather than crashing the app.
-function invalidate(event: WsEvent): void {
-    switch (event) {
-        case WS_EVENT.APPOINTMENT_CREATED:
-        case WS_EVENT.APPOINTMENT_UPDATED:
-            void queryClient.invalidateQueries(api.appointment.pathFilter());
-            void queryClient.invalidateQueries(api.reminder.pathFilter());
-            void queryClient.invalidateQueries(api.stats.pathFilter());
-            return;
-        case WS_EVENT.VISIT_UPDATED:
-            void queryClient.invalidateQueries(api.visit.pathFilter());
-            void queryClient.invalidateQueries(api.balance.pathFilter());
-            void queryClient.invalidateQueries(api.patient.pathFilter());
-            void queryClient.invalidateQueries(api.appointment.pathFilter());
-            void queryClient.invalidateQueries(api.stats.pathFilter());
-            return;
-        case WS_EVENT.SETTINGS_UPDATED:
-            void queryClient.invalidateQueries(api.settings.pathFilter());
-            // The pending list is rendered from the settings: the template is
-            // its wording and the lead time is which reminders are on it at
-            // all, and a new lead time moves the ones already booked.
-            void queryClient.invalidateQueries(api.reminder.pathFilter());
-            return;
+//
+// The cursor outlives the socket, so a reconnect resumes where the last one
+// stopped and the server replays what was missed (`serverEvents.ts`).
+const cursor = createEventCursor();
+
+const changeListeners = new Set<(areas: ReadonlySet<Area> | 'all') => void>();
+
+/**
+ * What the refetch below cannot reach: reads that are not tRPC-keyed React
+ * Query — the day cluster's `useLocalQuery`, the patients cluster's own keys.
+ * Each is told which routers changed and re-reads what it holds. Demo events
+ * arrive here too.
+ */
+export function onServerChange(listener: (areas: ReadonlySet<Area> | 'all') => void): () => void {
+    changeListeners.add(listener);
+    return () => {
+        changeListeners.delete(listener);
+    };
+}
+
+const refresh = createRefreshBatch((areas) => {
+    if (areas === 'all') {
+        void queryClient.invalidateQueries();
+    } else {
+        for (const area of areas) void queryClient.invalidateQueries(api[area].pathFilter());
     }
+    for (const listener of changeListeners) listener(areas);
+});
+
+const listeners = new Set<(event: ServerEvent) => void>();
+
+/** Every event the cursor applied, after its refetch has been asked for. Not called in demo mode. */
+export function onServerEvent(listener: (event: ServerEvent) => void): () => void {
+    listeners.add(listener);
+    return () => {
+        listeners.delete(listener);
+    };
 }
 
-function isWsEvent(value: unknown): value is WsEvent {
-    return Object.values(WS_EVENT).includes(value as WsEvent);
+function receive(frame: unknown): void {
+    const step = cursor.read(frame);
+    if (step.outcome !== 'ignored') noteLive(step.event?.event ?? 'hello', step.outcome);
+    if (step.resync) refresh('all');
+    if (!step.event) return;
+    refresh(step.event.event);
+    for (const listener of listeners) listener(step.event);
 }
 
-function connect(onEvent: (event: WsEvent) => void): () => void {
+function connect(): () => void {
     let socket: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let delay: number = timing.reconnectMinMs;
@@ -69,18 +89,20 @@ function connect(onEvent: (event: WsEvent) => void): () => void {
         }
         if (closed) return;
 
-        const next = new WebSocket(wsUrl(base));
+        const next = new WebSocket(`${wsUrl(base)}${cursor.resumeQuery()}`);
         socket = next;
 
         next.onopen = () => {
             delay = timing.reconnectMinMs;
         };
         next.onmessage = (message) => {
+            let frame: unknown;
             try {
-                const payload: unknown = JSON.parse(String(message.data));
-                const event = (payload as { event?: unknown } | null)?.event;
-                if (isWsEvent(event)) onEvent(event);
-            } catch {}
+                frame = JSON.parse(String(message.data));
+            } catch {
+                return;
+            }
+            receive(frame);
         };
         next.onerror = () => next.close();
         next.onclose = () => {
@@ -118,5 +140,5 @@ export function useServerEvents(): void {
     // deaf to the events it does get, until the app was next launched.
     const { enabled } = useDemoMode();
 
-    useEffect(() => (enabled ? subscribeToDemoEvents(invalidate) : connect(invalidate)), [enabled]);
+    useEffect(() => (enabled ? subscribeToDemoEvents(refresh) : connect()), [enabled]);
 }

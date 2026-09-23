@@ -765,6 +765,62 @@ app-wide rather than per host: Tailscale is the security boundary (SPEC §1), an
 a network security config cannot name the `100.64.0.0/10` range a raw tailnet
 address comes from.
 
+## `/ws` stays the one push channel, and now it is numbered
+
+"Push server-change events" was built on the socket §13 already had, not on SSE
+or FCM. FCM is a third party holding a device registry for a clinic whose rule
+is that none holds anything (PRODUCT.md), and SSE is the same socket with fewer
+features. What the socket lacked was a way to know it had missed something.
+
+**Every frame is numbered.** `epoch` names one server process, `seq` counts up
+within it, and `v` is `WS_PROTOCOL_VERSION`. A reconnect sends back the epoch
+and last seq it applied; the server replays what it still holds (the last 256)
+and closes every connect with `hello`. `hello.resync` is true when the gap
+cannot be filled — a restart, too much missed, a first connect — and the client
+refetches every query.
+
+The guarantees, as `api/serverEvents.ts` and `ws/index.ts` implement them:
+
+- **Converges.** Anything the phone cannot prove it saw becomes a full
+  refetch: a hole in `seq`, a new epoch, an unknown version, an unknown event
+  name. An event never carries data to apply, so a wrong guess costs a round of
+  queries and nothing else.
+- **At most once per event, per phone process.** The cursor drops a `seq` it has
+  applied, so a replay never runs an event twice. Nothing survives the app
+  process being killed; the next connect is a first connect and resyncs.
+- **No loops.** An event only ever triggers reads, never a write, so nothing a
+  phone does on receipt can produce another event.
+- **Authenticated the way everything is.** The socket is on the tailnet and
+  nowhere else (§1). There are no accounts to authenticate it as.
+- **Mutations announce themselves.** Patients, reminders, branches, procedure
+  types and the questionnaire changed without telling the other phone before
+  this; each now has an event.
+- **Every read hears it.** The stale screens were mostly not the socket's
+  fault. The day cluster reads through `useLocalQuery`, which has no cache, and
+  the patients cluster keys its queries `['patients', …]` — so invalidating by
+  tRPC router, which is all `live.ts` did, reached neither. `onServerChange`
+  tells both: a mounted local read re-reads on any event, the patients cluster
+  drops its root when a router it draws from changed.
+
+Observability is a pino line per connect (`replayed`, `resync`) and per event
+at debug, and a `live` breadcrumb per frame on the phone — event name and
+outcome, never the ID.
+
+## The desk hears the doctor finish over `/ws`, kept alive by a foreground service
+
+"The doctor completes a visit" is `appointment.awaitPayment` — the Finish
+button, `checked_in → awaiting_payment` — not `visit.checkOut`, which is the
+desk's own payment step. `visit:completed` rides the numbered channel above and
+becomes a local notification on the secretary's phone.
+
+Background delivery could not be had from the socket alone: Android 15+
+network-blocks a cached app within seconds. The options were FCM (a second
+transport and Google in the path, against PRODUCT.md) or a foreground service
+that keeps the process, and the socket, alive. It is the service
+(`modules/lustre-listener`), secretary phone only, at the cost of an ongoing
+notification and a native build. The details and how to check it are in
+`src/notifications/README.md`.
+
 ---
 
 # Design fidelity

@@ -705,6 +705,10 @@ export const appointmentService = {
         }
 
         broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id });
+        // The doctor finishing is this transition and nothing else — `checkOut`
+        // is the desk's own write. The conditional UPDATE above is what makes it
+        // one event per visit: a retry finds the appointment already moved on.
+        broadcast(WS_EVENT.VISIT_COMPLETED, { id });
         return updated;
     },
 
