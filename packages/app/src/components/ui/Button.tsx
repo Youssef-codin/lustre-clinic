@@ -19,12 +19,12 @@
  * lighten, so they only lose their colour.
  */
 import type { ReactNode } from 'react';
-import { useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';
 import type { TextTone } from '../../theme';
 import { border, color, radius, shadow, size, space, Text } from '../../theme';
+import { usePressLock } from './usePressLock';
 
 export type ButtonVariant =
     | 'primary'
@@ -109,7 +109,7 @@ export function Button({
 }: ButtonProps) {
     const t = useT();
     const shownLabel = t(label);
-    const lockedUntil = useRef(0);
+    const lock = usePressLock(pressLockMs);
     const inert = disabled || loading;
     // A button that refuses the press always looks it. One that kept its fill
     // while disabled read as a screen that had frozen, not as a step unfinished.
@@ -117,15 +117,14 @@ export function Button({
 
     function handlePress() {
         if (inert || !onPress) return;
-        const now = Date.now();
-        if (now < lockedUntil.current) return;
-        lockedUntil.current = now + pressLockMs;
-        // A press is the end of typing. Left up, the keyboard covers whatever the
-        // press opens next — a booking's second step, a save's result. A screen
-        // that wants the caret back (data entry's next row) focuses a field
-        // afterwards, which raises it again.
-        Keyboard.dismiss();
-        onPress();
+        lock(() => {
+            // A press is the end of typing. Left up, the keyboard covers whatever
+            // the press opens next — a booking's second step, a save's result. A
+            // screen that wants the caret back (data entry's next row) focuses a
+            // field afterwards, which raises it again.
+            Keyboard.dismiss();
+            onPress();
+        });
     }
 
     return (

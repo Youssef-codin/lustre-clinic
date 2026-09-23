@@ -101,4 +101,5 @@ export { useHardwareBack } from './useHardwareBack';
 export { useKeyboardHeight } from './useKeyboardHeight';
 export type { PendingAction } from './usePendingAction';
 export { usePendingAction } from './usePendingAction';
+export { usePressLock } from './usePressLock';
 export { useReducedMotion } from './useReducedMotion';
