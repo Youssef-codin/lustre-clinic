@@ -14,9 +14,9 @@ import { WS_EVENT, WS_PROTOCOL_VERSION, WS_RESUME_PARAM, type WsEvent, type WsFr
 
 export type ServerEvent = Extract<WsFrame, { type: 'event' }>;
 
-export type Outcome = 'applied' | 'duplicate' | 'resync' | 'ignored';
+type Outcome = 'applied' | 'duplicate' | 'resync' | 'ignored';
 
-export interface Step {
+interface Step {
     outcome: Outcome;
     /** Everything is stale: refetch every query, not only what `event` touched. */
     resync: boolean;
@@ -102,7 +102,7 @@ export type Area =
     | 'stats'
     | 'visit';
 
-export const REFRESHES: Record<WsEvent, readonly Area[]> = {
+const REFRESHES: Record<WsEvent, readonly Area[]> = {
     [WS_EVENT.APPOINTMENT_CREATED]: ['appointment', 'reminder', 'stats'],
     [WS_EVENT.APPOINTMENT_UPDATED]: ['appointment', 'reminder', 'stats'],
     [WS_EVENT.VISIT_COMPLETED]: ['appointment', 'visit', 'stats'],

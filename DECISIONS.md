@@ -806,6 +806,21 @@ Observability is a pino line per connect (`replayed`, `resync`) and per event
 at debug, and a `live` breadcrumb per frame on the phone — event name and
 outcome, never the ID.
 
+## The desk hears the doctor finish over `/ws`, kept alive by a foreground service
+
+"The doctor completes a visit" is `appointment.awaitPayment` — the Finish
+button, `checked_in → awaiting_payment` — not `visit.checkOut`, which is the
+desk's own payment step. `visit:completed` rides the numbered channel above and
+becomes a local notification on the secretary's phone.
+
+Background delivery could not be had from the socket alone: Android 15+
+network-blocks a cached app within seconds. The options were FCM (a second
+transport and Google in the path, against PRODUCT.md) or a foreground service
+that keeps the process, and the socket, alive. It is the service
+(`modules/lustre-listener`), secretary phone only, at the cost of an ongoing
+notification and a native build. The details and how to check it are in
+`src/notifications/README.md`.
+
 ---
 
 # Design fidelity
