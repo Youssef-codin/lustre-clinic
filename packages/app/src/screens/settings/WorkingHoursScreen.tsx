@@ -30,6 +30,7 @@ import {
     Switch,
     Tag,
     Toast,
+    usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
@@ -213,27 +214,34 @@ function DayEditor({ weekday, name, day, branches, onClose, onSaved }: DayEditor
     // only worked because every option was zero-padded `HH:MM`.
     const orderError = open && opens >= closes ? t('Closing time must be after opening.') : undefined;
     const canSave = !open || (branchId !== null && orderError === undefined);
-    const pending = setDay.isPending || clearDay.isPending;
+    /**
+     * Save writes one of two mutations depending on the switch, so neither
+     * `isPending` refuses a tap that lands on the other — and the state behind
+     * both lags a frame. One ref for the sheet is what refuses the second tap.
+     */
+    const write = usePendingAction((job: () => Promise<unknown>) => job());
+
+    const pending = write.pending;
     const failure = setDay.error ?? clearDay.error;
 
     function onSave() {
         if (!open) {
-            clearDay.mutate(
-                { weekday },
-                { onSuccess: () => onSaved(t('{day} marked closed', { day: name })) },
-            );
+            write.run(async () => {
+                await clearDay.mutateAsync({ weekday });
+                onSaved(t('{day} marked closed', { day: name }));
+            });
             return;
         }
         if (!branchId) return;
-        setDay.mutate(
-            {
+        write.run(async () => {
+            await setDay.mutateAsync({
                 weekday,
                 branchId,
                 opensAt: timeFromMinutes(opens),
                 closesAt: timeFromMinutes(closes),
-            },
-            { onSuccess: () => onSaved(t('{day} saved', { day: name })) },
-        );
+            });
+            onSaved(t('{day} saved', { day: name }));
+        });
     }
 
     return (

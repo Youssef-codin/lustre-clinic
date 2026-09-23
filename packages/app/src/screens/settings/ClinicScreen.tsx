@@ -44,6 +44,7 @@ import {
     Select,
     TextField,
     Toast,
+    usePendingAction,
 } from '../../components/ui';
 import { useT } from '../../i18n';
 import { space, Text } from '../../theme';
@@ -104,6 +105,13 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     // one half is exactly what the pane looks like while the other is being set.
     const pairIssue = cutoffIssue === null ? migrationIssue(cutoffValue, branchValue) : null;
 
+    /**
+     * The pane's one write, behind a ref the second tap cannot get past —
+     * `isPending` is state, and a Save pressed twice in a frame bumps
+     * `patientRefNext` on a pane whose draft has not been cleared yet.
+     */
+    const write = usePendingAction((job: () => Promise<unknown>) => job());
+
     function onSave() {
         setSubmitted(true);
         if (nameValue.trim() === '' || phoneValue.trim() === '') return;
@@ -112,8 +120,8 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
         const patientRefNext = Number(patientNumberValue);
         const migrationCutoffDate = cutoffValue === '' ? null : cutoffIso(cutoffValue);
 
-        save.mutate(
-            {
+        write.run(async () => {
+            await save.mutateAsync({
                 clinicName: nameValue.trim(),
                 clinicPhone: phoneValue.trim(),
                 ...(patientRefNext !== data?.patientRefNext ? { patientRefNext } : {}),
@@ -123,33 +131,29 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                 ...(branchValue !== (data?.migrationBranchId ?? null)
                     ? { migrationBranchId: branchValue }
                     : {}),
-            },
-            {
-                onSuccess: () => {
-                    setName(undefined);
-                    setPhone(undefined);
-                    setPatientNumber(undefined);
-                    setCutoff(undefined);
-                    setBranchId(undefined);
-                    setSubmitted(false);
-                    setToast(true);
-                },
-            },
-        );
+            });
+            setName(undefined);
+            setPhone(undefined);
+            setPatientNumber(undefined);
+            setCutoff(undefined);
+            setBranchId(undefined);
+            setSubmitted(false);
+            setToast(true);
+        });
     }
 
     return (
         <Pane
             title="Clinic"
-            onBack={save.isPending ? () => {} : onBack}
+            onBack={write.pending ? () => {} : onBack}
             testID="settings-clinic"
             overlay={<Toast visible={toast} message="Clinic saved" onDismiss={() => setToast(false)} />}
             footer={
                 data ? (
                     <ActionBar
-                        primaryLabel={save.isPending ? 'Saving' : 'Save'}
+                        primaryLabel={write.pending ? 'Saving' : 'Save'}
                         onPrimary={onSave}
-                        primaryLoading={save.isPending}
+                        primaryLoading={write.pending}
                         testID="clinic-save"
                     />
                 ) : undefined
