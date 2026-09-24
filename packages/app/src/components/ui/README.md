@@ -104,7 +104,7 @@ in the content.
 
 | | |
 | --- | --- |
-| Chrome | `TopBar` `ScreenHeader` `ActionBar` `PushView` |
+| Chrome | `TopBar` `ScreenHeader` `ActionBar` `PushView` `StepView` |
 | Controls | `Button` `IconButton` `AddButton` `Chip` `Switch` `Radio` `SegmentedControl` `Stepper` `ReorderControls` |
 | Fields | `Field` `TextField` `Textarea` `NumericField` `SearchField` `Select` `InlineEditor` `ListEditor` `Placeholder` |
 | Surfaces | `Card` `CardDivider` `SectionLabel` `Tag` `Dot` `ProgressBar` `Chevron` |

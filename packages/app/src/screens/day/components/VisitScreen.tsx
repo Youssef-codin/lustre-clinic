@@ -28,6 +28,7 @@
 import { PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { formatMoney } from '../../../components/domain';
 import {
     Button,
     Callout,
@@ -37,15 +38,15 @@ import {
     Toast,
     useKeyboardHeight,
 } from '../../../components/ui';
-import { useT } from '../../../i18n';
+import { useLocale, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
-import { formatAmount, formatMoney, poundsEntry } from '../money';
+import { discountPercent, formatAmount, poundsEntry } from '../money';
 import { noteChanged, noteDraft, noteValue } from '../notes';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime12, todayKey } from '../time';
+import { dateKey, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
@@ -186,6 +187,7 @@ export function VisitScreen({
     onSentToDesk,
 }: VisitScreenProps) {
     const t = useT();
+    const locale = useLocale();
     const keyboard = useKeyboardHeight();
     const [lines, setLines] = useState<DraftLine[]>(() => seed(appointment, visit));
     const [note, setNote] = useState(() => noteDraft(appointment.note));
@@ -235,6 +237,9 @@ export function VisitScreen({
     }, [catalogue.data]);
 
     const priceOf = (line: DraftLine): number => line.unitPrice ?? prices.get(line.procedureId) ?? 0;
+    // Per unit on both sides, so a quantity does not read as a discount.
+    const percentOffDefault = (line: DraftLine): number | null =>
+        discountPercent(prices.get(line.procedureId) ?? 0, priceOf(line));
     const isCheckupLine = (line: DraftLine): boolean => line.isCheckup || checkupIds.has(line.procedureId);
     const priced = (rows: readonly DraftLine[]) =>
         rows.map((line) => ({
@@ -416,7 +421,10 @@ export function VisitScreen({
             sendToDesk.mutate(appointment.id, {
                 onSuccess: () =>
                     onSentToDesk?.(
-                        `${appointment.patient.name} sent to the desk · ${formatMoney(total)} to pay`,
+                        t('{name} sent to the desk · {amount} to pay', {
+                            name: appointment.patient.name,
+                            amount: formatMoney(total),
+                        }),
                     ),
             }),
         );
@@ -455,7 +463,7 @@ export function VisitScreen({
                         {new Date(appointment.startsAt).getDate()}
                     </Text>
                     <Text variant="tag" tone="inverse" style={styles.tileMonth}>
-                        {monthOf(appointment.startsAt)}
+                        {monthShort(day)}
                     </Text>
                 </View>
 
@@ -464,7 +472,7 @@ export function VisitScreen({
                         {appointment.patient.name}
                     </Text>
                     <Text variant="subhead" tone="muted">
-                        {`${formatLongDate(day)} · ${formatTime12(appointment.startsAt)}`}
+                        {`${formatLongDate(day)} · ${formatTime12(appointment.startsAt, locale)}`}
                     </Text>
                     <View style={styles.chipRow}>
                         <VisitStatusChip state={visitState(where, visit?.completedAt != null)} />
@@ -475,7 +483,7 @@ export function VisitScreen({
             <View style={styles.strip}>
                 <View style={[styles.stripDot, empty ? styles.dotNeutral : styles.dotRunning]} />
                 <Text variant="subhead" tone="muted">
-                    {empty ? 'No procedures yet' : TOTAL[where]}
+                    {t(empty ? 'No procedures yet' : TOTAL[where])}
                 </Text>
                 <Text
                     variant="headline"
@@ -497,10 +505,12 @@ export function VisitScreen({
             >
                 <View style={styles.sectionHead}>
                     <Text variant="eyebrow" tone="muted">
-                        {planning ? 'WHAT THEY ARE HERE FOR' : 'WHAT WAS DONE'}
+                        {t(planning ? 'WHAT THEY ARE HERE FOR' : 'WHAT WAS DONE')}
                     </Text>
                     <Text variant="footnote" tone="muted">
-                        {lines.length === 1 ? '1 procedure' : `${lines.length} procedures`}
+                        {t(lines.length === 1 ? '{count} procedure' : '{count} procedures', {
+                            count: lines.length,
+                        })}
                     </Text>
                 </View>
 
@@ -510,12 +520,14 @@ export function VisitScreen({
                             <PlusIcon size={22} stroke={color.ink} width={2.2} />
                         </View>
                         <Text variant="headline" weight="semibold">
-                            {planning ? 'Nothing planned' : 'Nothing recorded yet'}
+                            {t(planning ? 'Nothing planned' : 'Nothing recorded yet')}
                         </Text>
                         <Text variant="subhead" tone="muted" style={styles.emptyBody}>
-                            {planning
-                                ? 'This booking came with no procedures. Add one now, or leave it to be decided in the chair.'
-                                : 'Add the procedure the dentist performed — you can come back and edit this at any time.'}
+                            {t(
+                                planning
+                                    ? 'This booking came with no procedures. Add one now, or leave it to be decided in the chair.'
+                                    : 'Add the procedure the dentist performed — you can come back and edit this at any time.',
+                            )}
                         </Text>
                         <Button
                             label="Add a procedure"
@@ -535,7 +547,10 @@ export function VisitScreen({
                                     <Pressable
                                         accessibilityRole="button"
                                         accessibilityState={{ expanded: open }}
-                                        accessibilityLabel={`${toothPosition(group.tooth)}, ${group.items.length} procedures`}
+                                        accessibilityLabel={t('{position}, {count} procedures', {
+                                            position: toothPosition(group.tooth),
+                                            count: group.items.length,
+                                        })}
                                         onPress={() => toggle(key)}
                                         style={({ pressed }) => [styles.groupHead, pressed && styles.pressed]}
                                     >
@@ -589,6 +604,24 @@ export function VisitScreen({
                                                                 {line.variant}
                                                             </Text>
                                                         ) : null}
+                                                        {/* Read only: what a typed price takes off
+                                                            the catalogue's. A price at or above it
+                                                            says nothing. */}
+                                                        {percentOffDefault(line) !== null ? (
+                                                            <Text
+                                                                variant="caption"
+                                                                tone="muted"
+                                                                style={styles.variant}
+                                                                testID={`visit-line-discount-${line.id}`}
+                                                            >
+                                                                {t('{percent}% off the usual {price}', {
+                                                                    percent: percentOffDefault(line) ?? 0,
+                                                                    price: formatMoney(
+                                                                        prices.get(line.procedureId) ?? 0,
+                                                                    ),
+                                                                })}
+                                                            </Text>
+                                                        ) : null}
                                                         {/* The price stays on the line — it is what
                                                             the checkup costs, and the row is the
                                                             record that the patient was seen — so
@@ -614,13 +647,17 @@ export function VisitScreen({
                                                         onChangeText={(entry) => reprice(line.id, entry)}
                                                         keyboardType="decimal-pad"
                                                         selectTextOnFocus
-                                                        accessibilityLabel={`Cost for ${line.name}`}
+                                                        accessibilityLabel={t('Cost for {name}', {
+                                                            name: line.name,
+                                                        })}
                                                         style={styles.cost}
                                                     />
 
                                                     <Pressable
                                                         accessibilityRole="button"
-                                                        accessibilityLabel={`Remove ${line.name}`}
+                                                        accessibilityLabel={t('Remove {name}', {
+                                                            name: line.name,
+                                                        })}
                                                         hitSlop={8}
                                                         onPress={() => remove(line.id)}
                                                         style={({ pressed }) => [
@@ -693,7 +730,7 @@ export function VisitScreen({
 
                 <View style={[styles.total, empty && styles.totalIdle]}>
                     <Text variant="subhead" tone="muted">
-                        {empty ? 'Total' : TOTAL[where]}
+                        {t(empty ? 'Total' : TOTAL[where])}
                     </Text>
                     <Text variant="headline" script="mono" weight="bold">
                         {empty ? '—' : formatMoney(total)}
@@ -771,12 +808,6 @@ export function VisitScreen({
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
     );
-}
-
-const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-function monthOf(iso: string): string {
-    return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
 }
 
 const styles = StyleSheet.create({

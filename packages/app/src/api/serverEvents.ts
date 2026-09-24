@@ -106,6 +106,7 @@ const REFRESHES: Record<WsEvent, readonly Area[]> = {
     [WS_EVENT.APPOINTMENT_CREATED]: ['appointment', 'reminder', 'stats'],
     [WS_EVENT.APPOINTMENT_UPDATED]: ['appointment', 'reminder', 'stats'],
     [WS_EVENT.VISIT_COMPLETED]: ['appointment', 'visit', 'stats'],
+    [WS_EVENT.APPOINTMENT_CHECKED_IN]: ['appointment', 'visit', 'stats'],
     [WS_EVENT.VISIT_UPDATED]: ['visit', 'balance', 'patient', 'appointment', 'stats'],
     // The pending list is rendered from the settings: the template is its
     // wording and the lead time is which reminders are on it at all, and a new

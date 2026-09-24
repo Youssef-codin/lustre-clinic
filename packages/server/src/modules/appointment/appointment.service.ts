@@ -552,6 +552,7 @@ export const appointmentService = {
         for (const move of result.moved) {
             broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: move.id });
         }
+        broadcast(WS_EVENT.APPOINTMENT_CHECKED_IN, { id: result.appointment.id });
         return result;
     },
 

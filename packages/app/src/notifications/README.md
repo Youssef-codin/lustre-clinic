@@ -201,3 +201,92 @@ adb shell dumpsys netpolicy | grep "UID=<app uid>"     # procState=FGS, effectiv
 
 Finish a visit from the other phone (or `appointment.awaitPayment` by curl) with
 the desk phone on the home screen.
+
+---
+
+# Finish from the shade
+
+The doctor's half, and the same foreground service. While someone is in the
+chair, the doctor's phone carries an ongoing notice — "Mariam is in the chair" —
+with a **Finish visit** action that works with the app in the background.
+
+```tsx
+useVisitFinishAction(roleReady ? role : null);   // once, in the shell
+```
+
+| | |
+|---|---|
+| [`visitAction.ts`](./visitAction.ts) | **Which visit**, what the notice shows of the patient, and which failures are reported. Pure, and tested. |
+| [`useVisitFinishAction.ts`](./useVisitFinishAction.ts) | Keeps the notice on the chair, and does the finish. |
+| `modules/lustre-listener` | The notice itself, its action, and the network it needs. |
+
+## What Finish does
+
+`appointment.awaitPayment`, the same write as **Finish** on the day screen:
+`checked_in → awaiting_payment`, the next patient is seated, and the desk is
+told. No payment is recorded — that is the desk's job.
+
+The visit is the chair as `DoctorDayScreen` reads it (`chair.ts`), on the branch
+holding most of the day. It is re-read on every `/ws` change to appointments or
+visits and on every foreground, so a finish on the screen, or a patient checked
+in by the desk, moves the notice with it.
+
+## One tap, one finish
+
+- The service takes the button off the notification before JS hears of the tap
+  ("Finishing the visit…"), so there is nothing left to tap twice.
+- A tap for a visit the notice no longer shows is dropped natively.
+- JS holds a visit it is finishing and does not send it again.
+- The server's conditional UPDATE refuses a second one anyway.
+
+A refusal because the visit had already left the chair (`INVALID_STATUS_TRANSITION`,
+`NOT_FOUND`) is not a failure — it was finished some other way. Anything else is
+posted as "The visit was not finished" on its own channel, with no name in it,
+and the button comes back on the ongoing notice.
+
+## What it shows
+
+The first name, and nothing else. It sits in the shade of a phone left on a
+desk; the first name is enough for the doctor to be sure which visit the button
+ends. The lock screen shows "A visit is in progress" instead.
+
+## When it is up
+
+Only on the doctor's phone, with notifications allowed, outside demo mode — and
+all day, not only while someone is in the chair. With the chair empty it reads
+"Listening for patients" and has no button; it is kept up so the socket is, and
+a check-in reaches the phone in the background (below). Android only lets the
+service start from the foreground, so it comes up when the app is opened; in the
+background it is only redrawn.
+
+## Checking it
+
+```
+adb shell dumpsys notification --noredact | grep -A3 "in the chair"
+adb shell cmd statusbar expand-notifications     # then tap Finish visit
+```
+
+Open the app as the doctor with someone checked in, press HOME, and finish from
+the shade. The desk phone (or `appointment.byDate`) shows the visit at the desk.
+
+---
+
+# "Checked in"
+
+The doctor's phone is told when the desk checks a patient in, foreground or not.
+
+```tsx
+useArrivalNotices(roleReady ? role : null);   // once, in the shell
+```
+
+The server broadcasts `appointment:checked_in` with the appointment's ID from
+`visit.checkIn`, and from `appointment.walkIn` once its transaction has
+committed — a walk-in checks in inside that transaction, where the doctor's
+phone asking for the name would find nothing yet. The phone asks
+`appointment.byId` for the name and posts "{name} has checked in" on its own
+high-importance, private channel, under `lustre.visit.arrived.<appointmentId>`.
+The rule (`arrivalToAnnounce` in `visitNotice.ts`) is the completion's mirror:
+doctor only, and nothing for an arrival replayed more than ten minutes late.
+
+It needs the foreground service above to be running, which is why that now runs
+all day on the doctor's phone.

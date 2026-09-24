@@ -16,6 +16,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { PULSE, useReducedMotion } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import type { Standing } from '../chair';
 
@@ -48,13 +49,14 @@ export function visitState(standing: Standing | 'arriving', closed: boolean): Vi
 }
 
 export function VisitStatusChip({ state }: { state: VisitState }) {
+    const t = useT();
     const settled = state === 'finished';
 
     return (
         <View style={[styles.chip, settled && styles.chipSettled]}>
             <Dot settled={settled} pulse={state === 'chair'} />
             <Text variant="caption" weight="bold" tone={settled ? 'successText' : 'ink2'}>
-                {LABEL[state]}
+                {t(LABEL[state])}
             </Text>
         </View>
     );

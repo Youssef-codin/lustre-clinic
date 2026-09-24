@@ -28,7 +28,14 @@ import { dayDelay, delayLabel, isProjected, ON_TIME, projectedStart } from './de
 import { emptyDay } from './empty';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
-import { amountDue, formatAmount, formatMoney, poundsEntry } from './money';
+import {
+    amountDue,
+    discountPercent,
+    formatAmount,
+    formatMoney,
+    poundsEntry,
+    procedureDiscount,
+} from './money';
 import { busiestBranch, loadsFrom } from './month';
 import { noteChanged, noteDraft, noteValue } from './notes';
 import {
@@ -646,6 +653,66 @@ describe('money', () => {
         expect(formatAmount(260_000)).toBe('2,600');
         expect(formatAmount(0)).toBe('0');
         expect(formatAmount(-90_000)).toBe('-900');
+    });
+
+    it('says what share of the procedure total a discount takes off', () => {
+        expect(discountPercent(200_000, 150_000)).toBe(25);
+        expect(discountPercent(300_000, 200_000)).toBe(33);
+        expect(discountPercent(200_000, 0)).toBe(100);
+    });
+
+    it('never rounds part of the bill to none or all of it', () => {
+        expect(discountPercent(1_000_000, 999_900)).toBe(1);
+        expect(discountPercent(1_000_000, 100)).toBe(99);
+    });
+
+    it('sums what the procedures were priced under the catalogue, against the whole visit', () => {
+        const defaults = new Map([
+            ['filling', 100_000],
+            ['cleaning', 50_000],
+        ]);
+        expect(
+            procedureDiscount(
+                [
+                    { procedureId: 'filling', unitPrice: 80_000, quantity: 2 },
+                    { procedureId: 'cleaning', unitPrice: 50_000, quantity: 1 },
+                ],
+                defaults,
+            ),
+        ).toEqual({ off: 40_000, usual: 250_000, percent: 16 });
+    });
+
+    it('nets a line priced over its default against one priced under it', () => {
+        const defaults = new Map([
+            ['filling', 10_000],
+            ['cleaning', 10_000],
+        ]);
+        const line = (procedureId: string, unitPrice: number) => ({ procedureId, unitPrice, quantity: 1 });
+        expect(procedureDiscount([line('filling', 8_000), line('cleaning', 20_000)], defaults)).toBeNull();
+        expect(procedureDiscount([line('filling', 5_000), line('cleaning', 12_000)], defaults)).toEqual({
+            off: 3_000,
+            usual: 20_000,
+            percent: 15,
+        });
+    });
+
+    it('has nothing to say when every procedure is at or above its default', () => {
+        const defaults = new Map([['filling', 100_000]]);
+        expect(
+            procedureDiscount([{ procedureId: 'filling', unitPrice: 120_000, quantity: 1 }], defaults),
+        ).toBeNull();
+        expect(
+            procedureDiscount([{ procedureId: 'unknown', unitPrice: 10_000, quantity: 1 }], defaults),
+        ).toBeNull();
+        expect(procedureDiscount([], defaults)).toBeNull();
+    });
+
+    it('shows no percentage without a discount or a total to measure it against', () => {
+        expect(discountPercent(200_000, 200_000)).toBeNull();
+        expect(discountPercent(200_000, 250_000)).toBeNull();
+        expect(discountPercent(0, 0)).toBeNull();
+        expect(discountPercent(0, 100)).toBeNull();
+        expect(discountPercent(Number.NaN, 100)).toBeNull();
     });
 });
 

@@ -108,6 +108,8 @@ export const WS_EVENT = {
     CATALOG_UPDATED: 'catalog:updated',
     /** The doctor is finished and the patient is on the way to the desk (`checked_in → awaiting_payment`). */
     VISIT_COMPLETED: 'visit:completed',
+    /** A patient has arrived and is checked in (`booked → checked_in`), walk-ins included. */
+    APPOINTMENT_CHECKED_IN: 'appointment:checked_in',
 } as const;
 
 export type WsEvent = (typeof WS_EVENT)[keyof typeof WS_EVENT];

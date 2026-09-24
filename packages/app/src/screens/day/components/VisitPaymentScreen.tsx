@@ -20,16 +20,16 @@
  * date alone.
  */
 import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { formatMoney } from '../../../components/domain';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
-import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
+import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
-import { amountDue, formatAmount, poundsEntry } from '../money';
+import { amountDue, discountPercent, formatAmount, poundsEntry, procedureDiscount } from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CashIcon, CheckIcon, InstapayIcon, OtherMethodIcon, PaymentIcon } from './icons';
 
@@ -91,12 +91,24 @@ export function VisitPaymentScreen({
     const isRTL = useIsRTL();
     const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
-    // The desk's discount comes off the total the lines add up to, and never
-    // below what has already been paid — that money stays paid.
-    const [discount, setDiscount] = useState('');
-    const maxDiscount = Math.max(visit.chargedTotal - collected, 0);
-    const discountPiastres = Math.min(toPiastres(discount), maxDiscount);
-    const charged = visit.chargedTotal - discountPiastres;
+    // There is no discount to type here: a discount is a procedure priced under
+    // the catalogue's on the visit screen, and this only says how much that is.
+    const charged = visit.chargedTotal;
+    const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
+    const defaults = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const category of catalogue.data ?? []) {
+            map.set(category.id, category.defaultPrice);
+            for (const child of category.children) map.set(child.id, child.defaultPrice);
+        }
+        return map;
+    }, [catalogue.data]);
+    const discount = useMemo(
+        () => procedureDiscount(visit.procedures, defaults),
+        [visit.procedures, defaults],
+    );
+    const lineDiscount = (line: Visit['procedures'][number]) =>
+        discountPercent(defaults.get(line.procedureId) ?? 0, line.unitPrice);
     const due = amountDue(charged, collected);
     // What the field means, and so the most it can hold: money being taken now
     // cannot exceed what is owed, but a *total* collected is measured against
@@ -154,19 +166,6 @@ export function VisitPaymentScreen({
             return;
         }
         setPaid(digits);
-    }
-
-    function changeDiscount(entry: string) {
-        const digits = poundsEntry(entry);
-        const over = toPiastres(digits) > maxDiscount;
-        if (over) setToast(t('The discount cannot be more than is left to pay'));
-        setDiscount(over ? toPounds(maxDiscount) : digits);
-
-        const nextCharged = visit.chargedTotal - Math.min(toPiastres(digits), maxDiscount);
-        const nextCeiling = correcting ? nextCharged : amountDue(nextCharged, collected);
-        // Paying in full stays paying in full as the total moves; a figure
-        // someone typed stays, unless it is now more than can be paid.
-        if (paidPiastres === ceiling || paidPiastres > nextCeiling) setPaid(toPounds(nextCeiling));
     }
 
     function methodText(): string {
@@ -366,9 +365,40 @@ export function VisitPaymentScreen({
                         <Text variant="footnote" weight="bold" tone="muted">
                             {t('EGP')}
                         </Text>
+                        {/* A procedure priced under the catalogue's: what it
+                            would have been, struck through, then what it is. */}
+                        {discount ? (
+                            <Text
+                                variant="headline"
+                                script="mono"
+                                tone="muted"
+                                style={styles.struck}
+                                accessibilityLabel={t('Usually {amount}', {
+                                    amount: formatMoney(ceiling + discount.off),
+                                })}
+                            >
+                                {formatAmount(ceiling + discount.off)}
+                            </Text>
+                        ) : null}
                         <Text variant="display" script="mono">
                             {formatAmount(ceiling)}
                         </Text>
+                        {discount ? (
+                            <View style={styles.percentOff} testID="visit-payment-discount">
+                                <Text
+                                    variant="footnote"
+                                    weight="bold"
+                                    script="mono"
+                                    style={styles.percentOffText}
+                                >
+                                    {t('-{percent}%', {
+                                        percent:
+                                            discountPercent(ceiling + discount.off, ceiling) ??
+                                            discount.percent,
+                                    })}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
 
                     <Pressable
@@ -412,42 +442,43 @@ export function VisitPaymentScreen({
                                         </Text>
                                     </View>
 
+                                    {lineDiscount(line) !== null ? (
+                                        <Text
+                                            variant="footnote"
+                                            script="mono"
+                                            tone="muted"
+                                            style={styles.struck}
+                                            accessibilityLabel={t('Usually {amount}', {
+                                                amount: formatMoney(
+                                                    (defaults.get(line.procedureId) ?? 0) * line.quantity,
+                                                ),
+                                            })}
+                                        >
+                                            {formatAmount(
+                                                (defaults.get(line.procedureId) ?? 0) * line.quantity,
+                                            )}
+                                        </Text>
+                                    ) : null}
                                     <Text variant="callout" script="mono" weight="semibold">
                                         {formatAmount(line.lineTotal)}
                                     </Text>
+                                    {lineDiscount(line) !== null ? (
+                                        <View style={[styles.percentOff, styles.percentOffSmall]}>
+                                            <Text
+                                                variant="tag"
+                                                weight="bold"
+                                                script="mono"
+                                                style={styles.percentOffText}
+                                            >
+                                                {t('-{percent}%', { percent: lineDiscount(line) ?? 0 })}
+                                            </Text>
+                                        </View>
+                                    ) : null}
                                 </View>
                             ))}
                         </View>
                     ) : null}
                 </View>
-
-                <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
-                    {t('DISCOUNT')}
-                </Text>
-                <View style={styles.discountField}>
-                    <Text variant="footnote" weight="bold" tone="muted">
-                        {t('EGP')}
-                    </Text>
-                    <TextInput
-                        value={discount}
-                        onChangeText={changeDiscount}
-                        placeholder="0"
-                        placeholderTextColor={color.muted}
-                        keyboardType="number-pad"
-                        accessibilityLabel={t('Discount')}
-                        selectTextOnFocus
-                        style={[styles.discountInput, { textAlign: isRTL ? 'left' : 'right' }]}
-                        testID="visit-payment-discount"
-                    />
-                </View>
-                {discountPiastres > 0 ? (
-                    <Text variant="footnote" tone="muted" style={styles.hint}>
-                        {t('{amount} off the {total} the procedures add up to.', {
-                            amount: formatMoney(discountPiastres),
-                            total: formatMoney(visit.chargedTotal),
-                        })}
-                    </Text>
-                ) : null}
 
                 <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
                     {t(correcting ? 'TOTAL PAID' : 'AMOUNT PAID')}
@@ -696,7 +727,25 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface2,
         overflow: 'hidden',
     },
-    figure: { flexDirection: 'row', alignItems: 'baseline', gap: space[1.5], marginTop: space[2] },
+    figure: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        gap: space[1.5],
+        marginTop: space[2],
+    },
+    struck: { textDecorationLine: 'line-through' },
+    // Accent, which is neither "good" nor "paid": a discount is a fact about
+    // the price, not a state of the money.
+    percentOff: {
+        alignSelf: 'center',
+        paddingHorizontal: space[2.5],
+        paddingVertical: space[1],
+        borderRadius: radius.full,
+        backgroundColor: color.accent,
+    },
+    percentOffText: { color: color.inverse },
+    percentOffSmall: { paddingHorizontal: space[1.5], paddingVertical: space[0.5] },
     // Full-bleed inside the card: the rule under the figure is the card's own
     // width, not the text column's.
     procToggle: {
@@ -747,27 +796,6 @@ const styles = StyleSheet.create({
         padding: 0,
         color: color.ink,
         ...type.figure,
-        fontFamily: font.mono.medium,
-    },
-
-    discountField: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        height: size.control,
-        marginHorizontal: size.gutter,
-        paddingHorizontal: space[4],
-        borderRadius: radius.lg,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-    },
-    discountInput: {
-        flex: 1,
-        minWidth: 0,
-        padding: 0,
-        color: color.ink,
-        ...type.body,
         fontFamily: font.mono.medium,
     },
 

@@ -12,7 +12,7 @@
  * guess while the first is this screen's.
  */
 import { memo, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import {
     Banner,
     Button,
@@ -25,7 +25,7 @@ import {
 } from '../../components/ui';
 import { useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
-import { border, color, radius, size, space, Text } from '../../theme';
+import { color, size, space } from '../../theme';
 // Imported from the file rather than from `../patients`, which re-exports the
 // cluster that mounts `VisitPage` from here — going through the barrel would
 // close the loop between the two clusters.
@@ -43,7 +43,8 @@ import { CalendarSheet } from './components/CalendarSheet';
 import { ClosedDay } from './components/ClosedDay';
 import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
-import { ChatIcon, ClockIcon, CloseIcon } from './components/icons';
+import { ChatIcon, ClockIcon } from './components/icons';
+import { LateNotice } from './components/LateNotice';
 import { NowCard } from './components/NowCard';
 import { Reminders } from './components/Reminders';
 import { VisitPaymentScreen } from './components/VisitPaymentScreen';
@@ -696,20 +697,11 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                         {isToday ? <BeforeThis appointments={past} onSelect={openDetail} /> : null}
 
                         {lateText && !lateDismissed ? (
-                            <View style={styles.late}>
-                                <ClockIcon size={13} stroke={color.due} />
-                                <Text variant="footnote" weight="bold" tone="due" style={styles.lateText}>
-                                    {t('Running {late}', { late: lateText })}
-                                </Text>
-                                <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Dismiss"
-                                    hitSlop={space[3]}
-                                    onPress={() => setLateDismissed(true)}
-                                >
-                                    <CloseIcon size={14} stroke={color.due} />
-                                </Pressable>
-                            </View>
+                            <LateNotice
+                                late={lateText}
+                                gap={AGENDA_GAP}
+                                onDismissed={() => setLateDismissed(true)}
+                            />
                         ) : null}
 
                         {isToday ? (
@@ -1012,22 +1004,11 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
  */
 export const DayScreen = memo(DayScreenView);
 
+const AGENDA_GAP = space[3];
+
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
     body: { flex: 1 },
-    agenda: { paddingBottom: size.nav, gap: space[3] },
+    agenda: { paddingBottom: size.nav, gap: AGENDA_GAP },
     tabs: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
-    lateText: { flex: 1 },
-    late: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[1.5],
-        marginHorizontal: size.gutter,
-        paddingVertical: space[2],
-        paddingHorizontal: space[3],
-        borderRadius: radius.lg,
-        borderWidth: border.hair,
-        borderColor: color.dueSoft,
-        backgroundColor: color.dueSoft,
-    },
 });
