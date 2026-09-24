@@ -14,7 +14,8 @@
  *
  * Money is integer piastres end to end (§7.12); nothing here formats it.
  */
-import { DECIDUOUS_TEETH, PERMANENT_TEETH, type Tooth } from '@lustre/shared';
+import { DECIDUOUS_TEETH, localizeCopy, PERMANENT_TEETH, type Tooth } from '@lustre/shared';
+import { getLocale } from '../../i18n/runtime';
 import type { BookedProcedure, ProcedureCategory } from './data';
 
 export interface PlannedProcedure {
@@ -74,8 +75,9 @@ const TOOTH_ORDER = new Map<string, number>(
 
 /** "Upper left · 6" — what the badge cannot fit, said in words. */
 export function toothPosition(tooth: Tooth | null): string {
-    if (!tooth) return 'No tooth assigned';
-    return `${QUADRANT_WORDS[tooth.slice(0, 2)] ?? ''} · ${tooth.slice(2)}`;
+    const say = (copy: string) => localizeCopy(getLocale(), copy);
+    if (!tooth) return say('No tooth assigned');
+    return `${say(QUADRANT_WORDS[tooth.slice(0, 2)] ?? '')} · ${tooth.slice(2)}`;
 }
 
 /**
