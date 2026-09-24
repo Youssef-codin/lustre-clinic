@@ -12,6 +12,9 @@ import type { ServerEvent } from '../api/serverEvents';
  */
 export const NOTICE_MAX_AGE_MS = 10 * 60_000;
 
+// `now` below is the server's clock (`serverNow`), not the phone's: `event.at`
+// is the server's stamp, and a phone an hour fast drops every notice as stale.
+
 /** The appointment to announce, or null when this event is not one to announce on this phone. */
 export function completionToAnnounce(event: ServerEvent, role: ClientRole, now: number): string | null {
     if (role !== 'secretary' || event.event !== WS_EVENT.VISIT_COMPLETED || !event.id) return null;

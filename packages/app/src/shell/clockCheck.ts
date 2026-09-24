@@ -22,6 +22,14 @@ const CLOCK_TOLERANCE_MS = 2 * 60_000;
 /** A reply slower than this says too little about when the server read its clock. */
 const MAX_ROUND_TRIP_MS = 30_000;
 
+/** How far the server's clock is ahead of the phone's, or null when the reply was too slow to say. */
+export function clockSkew(serverNow: number, sentAt: number, receivedAt: number): number | null {
+    if (receivedAt - sentAt > MAX_ROUND_TRIP_MS) return null;
+    // The server read its clock somewhere inside the round trip; the midpoint
+    // is the best guess, and the tolerance dwarfs the error in it.
+    return serverNow - (sentAt + receivedAt) / 2;
+}
+
 export function clockProblem(
     server: { now: number; utcOffsetMinutes: number },
     sentAt: number,
@@ -29,12 +37,9 @@ export function clockProblem(
     phoneOffsetMinutes: number,
 ): ClockProblem | null {
     if (phoneOffsetMinutes !== server.utcOffsetMinutes) return { kind: 'zone' };
-    if (receivedAt - sentAt > MAX_ROUND_TRIP_MS) return null;
 
-    // The server read its clock somewhere inside the round trip; the midpoint
-    // is the best guess, and the tolerance dwarfs the error in it.
-    const skew = server.now - (sentAt + receivedAt) / 2;
-    if (Math.abs(skew) <= CLOCK_TOLERANCE_MS) return null;
+    const skew = clockSkew(server.now, sentAt, receivedAt);
+    if (skew === null || Math.abs(skew) <= CLOCK_TOLERANCE_MS) return null;
 
     return { kind: 'clock', offByMinutes: Math.round(Math.abs(skew) / 60_000) };
 }

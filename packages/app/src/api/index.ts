@@ -10,6 +10,7 @@ export { dataGeneration, subscribeToDataReset } from './dataReset';
 export { enableDemoMode, resetDemoData, useDemoMode } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
 export { onServerChange, onServerEvent } from './live';
+export { noteServerClock, serverNow } from './serverClock';
 export type { Area } from './serverEvents';
 export type { RouterOutput } from './types';
 export { useConnection } from './useConnection';

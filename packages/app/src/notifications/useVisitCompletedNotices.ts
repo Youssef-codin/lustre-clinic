@@ -20,7 +20,7 @@ import { type ClientRole, localizeCopy } from '@lustre/shared';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { startListening, stopListening } from '../../modules/lustre-listener';
-import { onServerEvent, trpcClient, useDemoMode } from '../api';
+import { onServerEvent, serverNow, trpcClient, useDemoMode } from '../api';
 import { getLocale } from '../i18n/runtime';
 import { ensurePermission, notificationsAllowed, presentVisitNotice } from './notifications';
 import { completionToAnnounce } from './visitNotice';
@@ -61,7 +61,7 @@ export function useVisitCompletedNotices(role: ClientRole | null): void {
             });
         });
         const unsubscribe = onServerEvent((event) => {
-            const appointmentId = completionToAnnounce(event, role, Date.now());
+            const appointmentId = completionToAnnounce(event, role, serverNow());
             if (appointmentId) void announce(appointmentId).catch(() => undefined);
         });
 

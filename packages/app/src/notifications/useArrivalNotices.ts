@@ -10,7 +10,7 @@
 import type { ClientRole } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: subscribes to the `/ws` event stream, outside React
 import { useEffect } from 'react';
-import { onServerEvent, trpcClient, useDemoMode } from '../api';
+import { onServerEvent, serverNow, trpcClient, useDemoMode } from '../api';
 import { presentArrivalNotice } from './notifications';
 import { arrivalToAnnounce } from './visitNotice';
 
@@ -32,7 +32,7 @@ export function useArrivalNotices(role: ClientRole | null): void {
         if (role !== 'doctor' || demo) return;
         let active = true;
         const unsubscribe = onServerEvent((event) => {
-            const appointmentId = arrivalToAnnounce(event, role, Date.now());
+            const appointmentId = arrivalToAnnounce(event, role, serverNow());
             if (appointmentId) void announce(appointmentId, () => active).catch(() => undefined);
         });
         return () => {
