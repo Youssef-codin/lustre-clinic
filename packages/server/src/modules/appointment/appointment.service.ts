@@ -26,7 +26,14 @@
  * Omitting it leaves the list alone, an empty array clears it (§13). Reads
  * batch the catalogue join once per page rather than once per row.
  */
-import { canTransition, ERROR_CODE, SLOT_HOLDING_STATUSES, type Tooth, WS_EVENT } from '@lustre/shared';
+import {
+    canTransition,
+    ERROR_CODE,
+    type LabStatus,
+    SLOT_HOLDING_STATUSES,
+    type Tooth,
+    WS_EVENT,
+} from '@lustre/shared';
 import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointmentProcedures, appointments, patients, procedureTypes } from '../../db/schema.ts';
@@ -66,6 +73,10 @@ interface AppointmentWithPatient extends AppointmentRow {
 }
 
 const REF_ATTEMPTS = 5;
+
+function labStatusFor(needsLab: boolean | undefined): LabStatus | null {
+    return needsLab ? 'pending' : null;
+}
 
 function mapWriteError(err: unknown): never {
     if (pgErrorCode(err) === PG_ERROR.EXCLUSION_VIOLATION) {
@@ -477,6 +488,7 @@ export const appointmentService = {
                     startsAt,
                     durationMinutes,
                     note: input.note ?? null,
+                    labStatus: labStatusFor(input.needsLab),
                 },
                 input.offsetMinutes,
             );
@@ -522,6 +534,7 @@ export const appointmentService = {
                         durationMinutes,
                         note: input.note ?? null,
                         channel: 'walk_in',
+                        labStatus: labStatusFor(input.needsLab),
                     },
                     input.offsetMinutes,
                 );
@@ -557,7 +570,7 @@ export const appointmentService = {
     },
 
     async update(input: UpdateAppointmentInput): Promise<AppointmentRow> {
-        const { id, startsAt: _startsAt, procedures, ...patch } = input;
+        const { id, startsAt: _startsAt, procedures, needsLab, ...patch } = input;
         const current = await requireRow(id);
 
         if (patch.status && !canTransition(current.status, patch.status)) {
@@ -605,6 +618,13 @@ export const appointmentService = {
                         ...patch,
                         ...(startsAt ? { startsAt } : {}),
                         ...(durationMinutes ? { durationMinutes } : {}),
+                        ...(needsLab === undefined
+                            ? {}
+                            : {
+                                  labStatus: needsLab
+                                      ? sql<LabStatus>`coalesce(${appointments.labStatus}, 'pending')`
+                                      : null,
+                              }),
                         updatedAt: new Date(),
                     })
                     // The status is repeated here for the check-in that lands
@@ -638,6 +658,24 @@ export const appointmentService = {
 
         broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id });
         return row;
+    },
+
+    /**
+     * Idempotent: the reminder row and the detail sheet can both offer it, and
+     * a second tap, or a tap on a screen that has not yet seen the requirement
+     * switched off, finds nothing pending and gets the row back unchanged.
+     */
+    async markLabReady(id: string): Promise<AppointmentRow> {
+        const [updated] = await db
+            .update(appointments)
+            .set({ labStatus: 'ready', updatedAt: new Date() })
+            .where(and(eq(appointments.id, id), eq(appointments.labStatus, 'pending')))
+            .returning();
+
+        if (!updated) return requireRow(id);
+
+        broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id });
+        return updated;
     },
 
     async cancel(id: string): Promise<AppointmentRow> {

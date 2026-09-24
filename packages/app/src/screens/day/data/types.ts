@@ -15,6 +15,7 @@
 import type {
     AppointmentChannel,
     AppointmentStatus,
+    LabStatus,
     PaymentMethod,
     Tooth,
     WhatsAppApp,
@@ -46,6 +47,8 @@ export interface Appointment {
     note: string | null;
     status: AppointmentStatus;
     channel: AppointmentChannel;
+    /** Null when the visit needs no lab work. */
+    labStatus: LabStatus | null;
     createdAt: string;
     updatedAt: string;
     patient: EmbeddedPatient;
@@ -174,6 +177,7 @@ export interface PendingReminder {
     whatsAppUrl: string;
     whatsappApp: WhatsAppApp;
     message: string;
+    labStatus: LabStatus | null;
 }
 
 export interface ClinicSettings {

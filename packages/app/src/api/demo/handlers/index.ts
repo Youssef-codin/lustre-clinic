@@ -81,6 +81,7 @@ const handlers = {
     'appointment.create': appointmentHandlers.create,
     'appointment.walkIn': appointmentHandlers.walkIn,
     'appointment.update': appointmentHandlers.update,
+    'appointment.markLabReady': appointmentHandlers.markLabReady,
     'appointment.cancel': appointmentHandlers.cancel,
     'appointment.awaitPayment': appointmentHandlers.awaitPayment,
 

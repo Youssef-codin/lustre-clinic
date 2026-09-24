@@ -21,10 +21,17 @@
  * the same size and made the wall of full-width buttons read as one control
  * repeated.
  *
+ * Lab work sits with the facts, not the actions: it is something to know about
+ * the booking, and turning it on or off changes nothing about the slot. It is
+ * editable only while the appointment is booked — past check-in the patient is
+ * in the chair and the question has been answered. The sheet holds a snapshot,
+ * so a lab write is shown from its own answer until the day re-reads.
+ *
  * One rule in the body, and it spans the sheet like the footer's does. Hairlines
  * between every pair of facts chopped a short sheet into four, and an inset rule
  * over a full-bleed one reads as two different rules.
  */
+import type { LabStatus } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -42,6 +49,7 @@ import {
 } from '../data';
 import { describeError } from '../errors';
 import { dateKey, formatSpan, minutesOfDay, todayKey } from '../time';
+import { LabState, LabSwitch } from './LabWork';
 import { PlanSummary } from './PlanSummary';
 
 export type AppointmentDetailSheetProps = {
@@ -105,6 +113,14 @@ export function AppointmentDetailSheet({
     const awaitPayment = useLocalMutation(api.awaitPayment);
     const cancel = useLocalMutation(api.cancel);
     const noShow = useLocalMutation(api.markNoShow);
+    const setNeedsLab = useLocalMutation((input: { id: string; needsLab: boolean }) =>
+        api.setNeedsLab(input.id, input.needsLab),
+    );
+    const labReady = useLocalMutation(api.markLabReady);
+    // What this sheet last wrote, and what the snapshot said when it wrote it.
+    // It stands only while the snapshot still says that: once the day re-reads,
+    // whatever it brings back — this write or another phone's — wins.
+    const [labWrite, setLabWrite] = useState<{ from: LabStatus | null; to: LabStatus | null } | null>(null);
 
     const status = appointment?.status;
     const hasVisit = status === 'checked_in' || status === 'awaiting_payment' || status === 'done';
@@ -115,8 +131,10 @@ export function AppointmentDetailSheet({
         { enabled: visible && hasVisit },
     );
 
-    const writing = awaitPayment.pending || cancel.pending || noShow.pending;
+    const labWriting = setNeedsLab.pending || labReady.pending;
+    const writing = awaitPayment.pending || cancel.pending || noShow.pending || labWriting;
     const writeError = awaitPayment.error ?? cancel.error ?? noShow.error;
+    const labError = setNeedsLab.error ?? labReady.error;
 
     function after() {
         setConfirming(null);
@@ -136,6 +154,14 @@ export function AppointmentDetailSheet({
     }
 
     const startMinutes = minutesOfDay(appointment.startsAt);
+    const labStatus =
+        labWrite && labWrite.from === appointment.labStatus ? labWrite.to : appointment.labStatus;
+
+    function labWritten(result: { labStatus: LabStatus | null }) {
+        if (!appointment) return;
+        setLabWrite({ from: appointment.labStatus, to: result.labStatus });
+        onChanged();
+    }
 
     return (
         <Sheet
@@ -196,6 +222,27 @@ export function AppointmentDetailSheet({
                 <Fact label="Phone" value={appointment.patient.phone} mono />
                 {appointment.note ? <Note text={appointment.note} /> : null}
             </View>
+
+            <LabPanel
+                status={labStatus}
+                editable={appointment.status === 'booked'}
+                markingReady={labReady.pending}
+                disabled={writing}
+                onSwitch={(needsLab) => {
+                    labReady.reset();
+                    setNeedsLab.mutate({ id: appointment.id, needsLab }, { onSuccess: labWritten });
+                }}
+                onReady={() => {
+                    setNeedsLab.reset();
+                    labReady.mutate(appointment.id, { onSuccess: labWritten });
+                }}
+            />
+
+            {labError ? (
+                <Callout tone="warning" title={describeError(labError).title}>
+                    {describeError(labError).body ?? ''}
+                </Callout>
+            ) : null}
 
             {hasVisit ? (
                 <VisitPanel
@@ -475,6 +522,58 @@ function VisitPanel({
 }
 
 /**
+ * The switch while the booking can still change, and the state of the work
+ * under it when there is any. Nothing at all for a finished appointment that
+ * never needed a lab.
+ */
+function LabPanel({
+    status,
+    editable,
+    markingReady,
+    disabled,
+    onSwitch,
+    onReady,
+}: {
+    status: LabStatus | null;
+    editable: boolean;
+    markingReady: boolean;
+    disabled: boolean;
+    onSwitch: (needsLab: boolean) => void;
+    onReady: () => void;
+}) {
+    if (!editable && status === null) return null;
+
+    return (
+        <View style={styles.lab} testID="appointment-lab">
+            {editable ? (
+                <LabSwitch
+                    value={status !== null}
+                    onValueChange={onSwitch}
+                    disabled={disabled}
+                    testID="appointment-needs-lab"
+                />
+            ) : null}
+            {status ? (
+                <View style={styles.labState}>
+                    <LabState status={status} />
+                    {editable && status === 'pending' ? (
+                        <Button
+                            label="Lab arrived"
+                            variant="secondary"
+                            size="md"
+                            loading={markingReady}
+                            disabled={disabled && !markingReady}
+                            onPress={onReady}
+                            testID="appointment-lab-arrived"
+                        />
+                    ) : null}
+                </View>
+            ) : null}
+        </View>
+    );
+}
+
+/**
  * Label and value on one line, not a label column — a fixed column left the
  * phone number stranded in the middle of the sheet with nothing to align to.
  * The number is mono: it is read off the screen onto a keypad.
@@ -525,6 +624,19 @@ const styles = StyleSheet.create({
     },
     factValue: { flexShrink: 1 },
     note: { paddingVertical: space[2.5], gap: space[1] },
+    lab: {
+        padding: space[3.5],
+        gap: space[3],
+        backgroundColor: color.canvas,
+        borderRadius: radius.xl,
+    },
+    labState: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: space[3],
+        flexWrap: 'wrap',
+    },
     panel: {
         padding: space[3.5],
         gap: space[2],

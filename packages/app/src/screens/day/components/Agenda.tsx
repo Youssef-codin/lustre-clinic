@@ -34,6 +34,7 @@ import {
     PaymentIcon,
     WaitingIcon,
 } from './icons';
+import { LabTag } from './LabWork';
 
 export type AgendaRowProps = {
     appointment: Appointment;
@@ -148,7 +149,12 @@ function RowBody({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${time} ${meridiem}, ${appointment.patient.name}, ${statusLabel(appointment.status, inChair)}`}
+            accessibilityLabel={[
+                `${time} ${meridiem}`,
+                appointment.patient.name,
+                statusLabel(appointment.status, inChair),
+                ...(appointment.labStatus === 'pending' ? [t('Lab not back yet')] : []),
+            ].join(', ')}
             onPress={onPress}
             style={({ pressed }) => [
                 styles.row,
@@ -173,15 +179,18 @@ function RowBody({
             </View>
 
             <View style={styles.body}>
-                <Text
-                    variant="headline"
-                    weight="semibold"
-                    tone={dim ? 'ink2' : 'ink'}
-                    numberOfLines={1}
-                    style={styles.name}
-                >
-                    {appointment.patient.name}
-                </Text>
+                <View style={styles.nameLine}>
+                    <Text
+                        variant="headline"
+                        weight="semibold"
+                        tone={dim ? 'ink2' : 'ink'}
+                        numberOfLines={1}
+                        style={styles.name}
+                    >
+                        {appointment.patient.name}
+                    </Text>
+                    <LabTag status={appointment.labStatus} />
+                </View>
 
                 <View style={styles.meta}>
                     <ClockIcon size={13} />
@@ -499,6 +508,7 @@ const styles = StyleSheet.create({
     body: { flex: 1, gap: space[0.5] },
     name: { flexShrink: 1 },
     meta: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+    nameLine: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     /** One width for every state, so the column of controls reads as a column. */
     pill: { borderRadius: radius.full, paddingHorizontal: space[3], minWidth: 118 },
     chip: {

@@ -129,6 +129,7 @@ export const reminderHandlers = {
                     whatsAppUrl: `https://wa.me/${toWhatsAppNumber(phone)}?text=${encodeURIComponent(message)}`,
                     whatsappApp: branch?.whatsappApp ?? 'regular',
                     message,
+                    labStatus: appointment.labStatus,
                 };
             });
     },
