@@ -29,7 +29,7 @@ import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
-import { amountDue, formatAmount, poundsEntry, procedureDiscount } from '../money';
+import { amountDue, discountPercent, formatAmount, poundsEntry, procedureDiscount } from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CashIcon, CheckIcon, InstapayIcon, OtherMethodIcon, PaymentIcon } from './icons';
 
@@ -95,14 +95,20 @@ export function VisitPaymentScreen({
     // the catalogue's on the visit screen, and this only says how much that is.
     const charged = visit.chargedTotal;
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
-    const discount = useMemo(() => {
-        const defaults = new Map<string, number>();
+    const defaults = useMemo(() => {
+        const map = new Map<string, number>();
         for (const category of catalogue.data ?? []) {
-            defaults.set(category.id, category.defaultPrice);
-            for (const child of category.children) defaults.set(child.id, child.defaultPrice);
+            map.set(category.id, category.defaultPrice);
+            for (const child of category.children) map.set(child.id, child.defaultPrice);
         }
-        return procedureDiscount(visit.procedures, defaults);
-    }, [catalogue.data, visit.procedures]);
+        return map;
+    }, [catalogue.data]);
+    const discount = useMemo(
+        () => procedureDiscount(visit.procedures, defaults),
+        [visit.procedures, defaults],
+    );
+    const lineDiscount = (line: Visit['procedures'][number]) =>
+        discountPercent(defaults.get(line.procedureId) ?? 0, line.unitPrice);
     const due = amountDue(charged, collected);
     // What the field means, and so the most it can hold: money being taken now
     // cannot exceed what is owed, but a *total* collected is measured against
@@ -432,9 +438,38 @@ export function VisitPaymentScreen({
                                         </Text>
                                     </View>
 
+                                    {lineDiscount(line) !== null ? (
+                                        <Text
+                                            variant="footnote"
+                                            script="mono"
+                                            tone="muted"
+                                            style={styles.struck}
+                                            accessibilityLabel={t('Usually {amount}', {
+                                                amount: formatMoney(
+                                                    (defaults.get(line.procedureId) ?? 0) * line.quantity,
+                                                ),
+                                            })}
+                                        >
+                                            {formatAmount(
+                                                (defaults.get(line.procedureId) ?? 0) * line.quantity,
+                                            )}
+                                        </Text>
+                                    ) : null}
                                     <Text variant="callout" script="mono" weight="semibold">
                                         {formatAmount(line.lineTotal)}
                                     </Text>
+                                    {lineDiscount(line) !== null ? (
+                                        <View style={[styles.percentOff, styles.percentOffSmall]}>
+                                            <Text
+                                                variant="tag"
+                                                weight="bold"
+                                                script="mono"
+                                                style={styles.percentOffText}
+                                            >
+                                                {t('-{percent}%', { percent: lineDiscount(line) ?? 0 })}
+                                            </Text>
+                                        </View>
+                                    ) : null}
                                 </View>
                             ))}
                         </View>
@@ -706,6 +741,7 @@ const styles = StyleSheet.create({
         backgroundColor: color.accent,
     },
     percentOffText: { color: color.inverse },
+    percentOffSmall: { paddingHorizontal: space[1.5], paddingVertical: space[0.5] },
     // Full-bleed inside the card: the rule under the figure is the card's own
     // width, not the text column's.
     procToggle: {
