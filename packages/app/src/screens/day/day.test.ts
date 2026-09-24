@@ -5,7 +5,7 @@
  * double booking.
  */
 import { describe, expect, it } from 'bun:test';
-import { type AppointmentStatus, ERROR_CODE, type Tooth } from '@lustre/shared';
+import { type AppointmentStatus, COPY_AR, ERROR_CODE, type Tooth } from '@lustre/shared';
 import { computeTotal } from '../../api/demo/rules';
 import { setRuntimeLocale } from '../../i18n/runtime';
 import { procedureLabel, rowSummary, splitDay } from './agenda';
@@ -627,6 +627,21 @@ describe('an empty day', () => {
     // the same to the desk and to the doctor.
     it('says the same thing about a past day to both screens', () => {
         expect(emptyDay(true, false)).toEqual(emptyDay(true, true));
+    });
+
+    // `EmptyState` puts these through `t`, but they are object fields in a
+    // plain module, so the catalogue test's source scan never sees them.
+    it('has Arabic for everything it says', () => {
+        for (const [past, canBook] of [
+            [false, true],
+            [false, false],
+            [true, true],
+        ] as const) {
+            const { title, body, actionLabel } = emptyDay(past, canBook);
+            for (const copy of [title, body, actionLabel]) {
+                if (copy) expect(COPY_AR).toHaveProperty([copy]);
+            }
+        }
     });
 });
 

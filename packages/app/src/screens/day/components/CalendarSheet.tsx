@@ -36,6 +36,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron, IconButton, Sheet } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import { api, type Branch, type ClinicDay, useLocalQuery } from '../data';
 import { describeError } from '../errors';
@@ -85,6 +86,7 @@ export function CalendarSheet({
     onPick,
     onClose,
 }: CalendarSheetProps) {
+    const t = useT();
     const [month, setMonth] = useState(selected);
     const [pending, setPending] = useState(selected);
     const [scope, setScope] = useState(lastScope);
@@ -347,7 +349,7 @@ export function CalendarSheet({
                 </Text>
                 {query.status === 'loading' ? (
                     <Text variant="footnote" tone="muted">
-                        Counting the month…
+                        {t('Counting the month…')}
                     </Text>
                 ) : query.status === 'error' && query.error ? (
                     <View style={styles.summaryError}>
@@ -360,20 +362,20 @@ export function CalendarSheet({
                     <>
                         <Text variant="footnote" tone="muted">
                             {mode === 'book' && pending < today
-                                ? 'That day has gone — pick one from today on.'
+                                ? t('That day has gone — pick one from today on.')
                                 : pendingClosed
-                                  ? 'Closed that day.'
+                                  ? t('Closed that day.')
                                   : pendingLoad && pendingLoad.count > 0
-                                    ? `${pendingLoad.used} of ${pendingLoad.slots} slots${
+                                    ? `${t('{used} of {slots} slots', { used: pendingLoad.used, slots: pendingLoad.slots })}${
                                           pendingLoad.firstAt
-                                              ? ` · first ${firstLabel(pendingLoad.firstAt)}`
+                                              ? ` · ${t('first {time}', { time: firstLabel(pendingLoad.firstAt) })}`
                                               : ''
                                       }`
-                                    : 'Nothing booked yet.'}
+                                    : t('Nothing booked yet.')}
                         </Text>
                         {movesToName ? (
                             <Text variant="footnote" tone="accent">
-                                Most of it is in {movesToName} — the day opens there.
+                                {t('Most of it is in {name} — the day opens there.', { name: movesToName })}
                             </Text>
                         ) : null}
                     </>

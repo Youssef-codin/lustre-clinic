@@ -22,6 +22,7 @@
  */
 import { StyleSheet, View } from 'react-native';
 import { Button, EmptyState } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { RequestError } from '../data';
 import { emptyDay } from '../empty';
@@ -72,6 +73,7 @@ export type DayEmptyProps = {
 };
 
 export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
+    const t = useT();
     const state = emptyDay(past, onBook !== undefined);
 
     return (
@@ -88,11 +90,15 @@ export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
             {elsewhere ? (
                 <View style={styles.elsewhere}>
                     <Text variant="footnote" tone="muted" style={styles.centredText}>
-                        {elsewhere.count} {elsewhere.count === 1 ? 'appointment' : 'appointments'} that day,
-                        in {elsewhere.name}.
+                        {t(
+                            elsewhere.count === 1
+                                ? '{count} appointment that day, in {name}.'
+                                : '{count} appointments that day, in {name}.',
+                            { count: elsewhere.count, name: elsewhere.name },
+                        )}
                     </Text>
                     <Button
-                        label={`Open ${elsewhere.name}`}
+                        label={t('Open {name}', { name: elsewhere.name })}
                         variant="text"
                         size="md"
                         onPress={elsewhere.onGo}
