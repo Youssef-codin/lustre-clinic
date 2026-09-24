@@ -36,6 +36,15 @@ export function usePickedBranch(): string | null {
     return useSyncExternalStore(subscribe, () => pickedOn(pick, todayKey()));
 }
 
+/**
+ * The branch the desk is on now. Read when it is needed rather than at the
+ * last render, because a screen can sit open across midnight.
+ */
+export function currentBranchId(schedule: readonly ClinicDay[] | undefined): string | null {
+    const today = todayKey();
+    return pickedOn(pick, today) ?? scheduledBranch(today, schedule);
+}
+
 /** The branch `clinic_days` has working on this date, or null when none is. */
 export function scheduledBranch(dateKey: string, schedule: readonly ClinicDay[] | undefined): string | null {
     const weekday = weekdayOf(dateKey);

@@ -266,6 +266,8 @@ export const COPY_AR = {
         'لا يستطيع التطبيق الوصول إلى كمبيوتر العيادة. تأكد من تسجيل الدخول إلى تايل سكيل ثم حاول مرة أخرى.',
     'Never connected': 'لم يتصل من قبل',
     'Connect to the clinic': 'الاتصال بالعيادة',
+    "The branches haven't loaded yet. Try again in a moment.":
+        'لم يتم تحميل الفروع بعد. حاول مرة أخرى بعد قليل.',
     "The clinic computer's address on the local network.": 'عنوان كمبيوتر العيادة على الشبكة المحلية.',
     'Usually filled in by the clinic computer once connected. Leave blank.':
         'يُملأ عادةً من كمبيوتر العيادة بعد الاتصال. اتركه فارغًا.',

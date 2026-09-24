@@ -17,27 +17,29 @@
  * day nobody has picked a branch on — it asks, unless every active branch lands
  * in the same place anyway.
  */
+
+import type { WhatsAppApp } from '@lustre/shared';
 import { Fragment, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Sheet } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, containsArabic, radius, size, space, Text } from '../../../theme';
-import { installedWhatsApp, openWhatsApp, whatsAppTarget } from '../../../whatsapp';
-import type { Branch } from '../../day/data/types';
+import { installedWhatsApp, openWhatsApp } from '../../../whatsapp';
+import { currentBranchId } from '../../day/currentBranch';
+import type { Branch, ClinicDay } from '../../day/data/types';
 import type { Patient } from '../data/types';
 import { sentenceCase } from './format';
 import { CallIcon, WhatsAppIcon } from './icons';
 
 export type PatientHeaderProps = {
     patient: Patient;
-    /** Active branches. */
-    branches: readonly Branch[];
-    /** The branch the day view is on, when there is one. */
-    current: Branch | undefined;
+    /** Active branches; undefined until they load. */
+    branches: readonly Branch[] | undefined;
+    schedule: readonly ClinicDay[] | undefined;
     onFailed: (message: string) => void;
 };
 
-export function PatientHeader({ patient, branches, current, onFailed }: PatientHeaderProps) {
+export function PatientHeader({ patient, branches, schedule, onFailed }: PatientHeaderProps) {
     const t = useT();
     const [choosing, setChoosing] = useState(false);
     // A ref, not state: the sheet's dismiss callback can be a render behind.
@@ -47,25 +49,32 @@ export function PatientHeader({ patient, branches, current, onFailed }: PatientH
         void Linking.openURL(url).catch(() => onFailed(failure));
     };
 
-    const message = (branch: Branch | undefined) => {
-        void openWhatsApp(whatsAppUrl(patient.phone), branch?.whatsappApp ?? 'regular').catch(() =>
+    const message = (app: WhatsAppApp) => {
+        void openWhatsApp(whatsAppUrl(patient.phone), app).catch(() =>
             onFailed('WhatsApp could not be opened.'),
         );
     };
 
     function onWhatsApp() {
-        if (current) {
-            message(current);
+        const installed = installedWhatsApp();
+        // With one app installed it is the only one that can open, whatever
+        // the branch says, so there is nothing to wait for.
+        if (!(installed.regular && installed.business)) {
+            message('regular');
             return;
         }
-        const installed = installedWhatsApp();
-        const targets = new Set(
-            branches.map((b) => JSON.stringify(whatsAppTarget(installed, b.whatsappApp))),
-        );
-        if (targets.size > 1) {
+        // Guessing here is how a message goes out from the other branch's number.
+        if (!branches) {
+            onFailed("The branches haven't loaded yet. Try again in a moment.");
+            return;
+        }
+        const current = branches.find((b) => b.id === currentBranchId(schedule));
+        if (current) {
+            message(current.whatsappApp);
+        } else if (new Set(branches.map((b) => b.whatsappApp)).size > 1) {
             setChoosing(true);
         } else {
-            message(branches[0]);
+            message(branches[0]?.whatsappApp ?? 'regular');
         }
     }
 
@@ -144,13 +153,13 @@ export function PatientHeader({ patient, branches, current, onFailed }: PatientH
                 // Leaving the app waits for the sheet to finish leaving, as any
                 // answer that changes the screen underneath does.
                 onClosed={() => {
-                    if (chosen.current) message(chosen.current);
+                    if (chosen.current) message(chosen.current.whatsappApp);
                     chosen.current = null;
                 }}
                 title="Message from which branch?"
             >
                 <View style={styles.branches}>
-                    {branches.map((branch) => (
+                    {(branches ?? []).map((branch) => (
                         <Pressable
                             key={branch.id}
                             accessibilityRole="menuitem"
