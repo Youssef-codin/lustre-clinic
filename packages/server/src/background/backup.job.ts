@@ -10,11 +10,14 @@
  * runs at boot, and the staleness check waits for it rather than alerting about
  * a gap the boot run is about to close.
  *
+ * A run the last boot cut short leaves a `.partial` file; that is deleted
+ * before the boot run starts, so the two never touch the same file.
+ *
  * `runBackup` already logs and alerts a failed run; `runNow` swallows the
  * rejection so one bad night cannot take the interval, and every later backup,
  * down with it.
  */
-import { readLastSuccess, runBackup } from '../backup/index.ts';
+import { readLastSuccess, removePartialDumps, runBackup } from '../backup/index.ts';
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import { alert } from '../monitoring/index.ts';
@@ -59,13 +62,26 @@ export function startBackupJob(): BackupJob {
         }
     }
 
-    void readLastSuccess().then((last) => {
-        if (isBackupDue(last?.at ?? null, Date.now(), intervalMs)) {
-            logger.info({ lastSuccessAt: last?.at ?? null }, 'backup due at boot');
-            return runNow().then(checkStaleness);
+    async function removeLeftovers(): Promise<void> {
+        try {
+            const removed = await removePartialDumps(config.BACKUP_DIR);
+            if (removed.length > 0) {
+                logger.warn({ files: removed }, 'removed partial dumps left by an interrupted run');
+            }
+        } catch (err) {
+            logger.error({ err }, 'could not remove partial dumps');
         }
-        return checkStaleness();
-    });
+    }
+
+    void removeLeftovers()
+        .then(() => readLastSuccess())
+        .then((last) => {
+            if (isBackupDue(last?.at ?? null, Date.now(), intervalMs)) {
+                logger.info({ lastSuccessAt: last?.at ?? null }, 'backup due at boot');
+                return runNow().then(checkStaleness);
+            }
+            return checkStaleness();
+        });
 
     const timer = setInterval(() => {
         void runNow().then(checkStaleness);

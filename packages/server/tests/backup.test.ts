@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DriveReauthorizationRequiredError } from '../src/backup/drive.ts';
@@ -9,6 +9,7 @@ import {
     backupFailureAlert,
     backupFileName,
     clearOffsiteState,
+    commitDump,
     decrypt,
     encrypt,
     generateKey,
@@ -19,6 +20,7 @@ import {
     readLastSuccess,
     readOffsiteState,
     recordOffsiteFailure,
+    removePartialDumps,
     runBackup,
     selectForDeletion,
     selectOffsiteDumps,
@@ -41,6 +43,12 @@ import { insertBranch, insertPatient, setupDatabase, truncateAll } from './helpe
  * exactly as the backup code does. It runs with `offsite: false` so a
  * throwaway dump never reaches a real Drive folder when credentials exist.
  */
+
+async function scratch(): Promise<string> {
+    const directory = join(tmpdir(), `lustre-backup-${Bun.randomUUIDv7()}`);
+    await mkdir(directory, { recursive: true });
+    return directory;
+}
 
 describe('backup file names', () => {
     test('round-trips a timestamp', () => {
@@ -130,6 +138,93 @@ describe('retention', () => {
     });
 });
 
+describe('a dump is named only once it is complete, checked and on disk', () => {
+    const name = backupFileName(new Date('2027-01-01T00:00:00Z'));
+
+    test('a dump that passes gets its final name and leaves nothing behind', async () => {
+        const directory = await scratch();
+        try {
+            await commitDump(join(directory, name), (partial) => writeFile(partial, 'complete dump'));
+
+            expect(await readdir(directory)).toEqual([name]);
+            expect(await Bun.file(join(directory, name)).text()).toBe('complete dump');
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('an interrupted dump never gets the final name', async () => {
+        const directory = await scratch();
+        try {
+            const run = commitDump(join(directory, name), async (partial) => {
+                await writeFile(partial, 'half a du');
+                throw new Error('pg_dump exited 1');
+            });
+
+            await expect(run).rejects.toThrow('pg_dump exited 1');
+            expect(await readdir(directory)).toEqual([]);
+            expect(await listLocalBackups(directory)).toEqual([]);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a dump that fails the restore check never gets the final name', async () => {
+        const directory = await scratch();
+        try {
+            const run = commitDump(join(directory, name), async (partial) => {
+                await writeFile(partial, 'complete but wrong dump');
+                throw new Error('restored patients has 0 rows, source had 3');
+            });
+
+            await expect(run).rejects.toThrow('restored patients');
+            expect(await readdir(directory)).toEqual([]);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a failed run leaves the previous good dump alone', async () => {
+        const directory = await scratch();
+        try {
+            const previous = backupFileName(new Date('2026-12-31T00:00:00Z'));
+            await writeFile(join(directory, previous), 'yesterday');
+
+            await commitDump(join(directory, name), async () => {
+                throw new Error('pg_dump exited 1');
+            }).catch(() => {});
+
+            expect(await readdir(directory)).toEqual([previous]);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('a run killed part-way leaves a .partial that is not a backup, and the next start removes it', async () => {
+        const directory = await scratch();
+        try {
+            const good = backupFileName(new Date('2026-12-31T00:00:00Z'));
+            await writeFile(join(directory, good), 'yesterday');
+            await writeFile(join(directory, `${name}.partial`), 'half a du');
+            await writeFile(join(directory, 'drive-grant.json'), '{}');
+            await writeFile(join(directory, 'notes.partial'), 'not ours');
+
+            expect((await listLocalBackups(directory)).map((f) => f.name)).toEqual([good]);
+
+            expect(await removePartialDumps(directory)).toEqual([`${name}.partial`]);
+            expect((await readdir(directory)).sort()).toEqual(
+                [good, 'drive-grant.json', 'notes.partial'].sort(),
+            );
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    test('removing leftovers from a folder that does not exist yet is a no-op', async () => {
+        expect(await removePartialDumps(join(tmpdir(), `lustre-missing-${Bun.randomUUIDv7()}`))).toEqual([]);
+    });
+});
+
 describe('offsiteDestination', () => {
     test('is null when nothing is configured, so a run stays local', async () => {
         expect(await offsiteDestination()).toBeNull();
@@ -150,12 +245,6 @@ describe('backup failure alerts', () => {
 });
 
 describe('a revoked Drive grant outlives the run that found it', () => {
-    async function scratch(): Promise<string> {
-        const directory = join(tmpdir(), `lustre-offsite-${Bun.randomUUIDv7()}`);
-        await mkdir(directory, { recursive: true });
-        return directory;
-    }
-
     test('nothing is recorded until a grant actually fails', async () => {
         const directory = await scratch();
         try {
@@ -444,8 +533,29 @@ describe.skipIf(!hasPgTools)('runBackup', () => {
 
             const marker = await readLastSuccess(directory);
             expect(marker?.file).toBe(result.file);
+            expect((await readdir(directory)).filter((n) => n.endsWith('.partial'))).toEqual([]);
         } finally {
             await rm(directory, { recursive: true, force: true });
+        }
+    }, 60_000);
+
+    test('a failed pg_dump leaves no file with a dump name', async () => {
+        const failing = join(tmpdir(), `lustre-backup-fail-${Bun.randomUUIDv7()}`);
+        const missing = new URL(config.DATABASE_URL);
+        missing.pathname = '/lustre_does_not_exist_test';
+        try {
+            const run = runBackup({
+                databaseUrl: missing.toString(),
+                directory: failing,
+                now: new Date('2027-01-02T00:00:00Z'),
+                offsite: false,
+            });
+
+            await expect(run).rejects.toThrow('pg_dump');
+            const names = await readdir(failing);
+            expect(names.filter((n) => n.includes('.dump'))).toEqual([]);
+        } finally {
+            await rm(failing, { recursive: true, force: true });
         }
     }, 60_000);
 });
