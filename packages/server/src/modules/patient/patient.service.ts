@@ -58,7 +58,7 @@ import { broadcast } from '../../ws/index.ts';
 import type { Answers, QuestionnaireGap } from '../customQuestion/customQuestion.service.ts';
 import { customQuestionService } from '../customQuestion/customQuestion.service.ts';
 import { planOldPatientHistory, writeOldPatientHistory } from '../migration/migration.service.ts';
-import { settingsService } from '../settings/settings.service.ts';
+import { type PatientRequirements, settingsService } from '../settings/settings.service.ts';
 import type {
     CreatePatientInput,
     OldPatientInput,
@@ -207,6 +207,46 @@ async function insertPatientWithRef(
             throw err;
         }
     });
+}
+
+function ageRequired(): AppError {
+    return new AppError(ERROR_CODE.AGE_REQUIRED, 'this clinic requires an age on every patient', 422);
+}
+
+function genderRequired(): AppError {
+    return new AppError(ERROR_CODE.GENDER_REQUIRED, 'this clinic requires a sex on every patient', 422);
+}
+
+/** A sex typed as spaces is not one; the schema trims it to `''`. */
+function isBlank(value: string | null | undefined): boolean {
+    return value === null || value === undefined || value.trim() === '';
+}
+
+/**
+ * Refuses a registration the clinic's settings say is incomplete. Checked in
+ * the service, not by the schema or a column constraint, because the clinic
+ * can turn either rule on or off (Settings → Patient fields).
+ */
+async function assertRegistrable(
+    details: { birthDate?: string | null; gender?: string | null },
+    executor: Executor = db,
+): Promise<void> {
+    const requires = await settingsService.patientRequirements(executor);
+    if (requires.requireAge && isBlank(details.birthDate)) throw ageRequired();
+    if (requires.requireGender && isBlank(details.gender)) throw genderRequired();
+}
+
+/**
+ * Refuses an edit that clears a field the clinic requires. A field the patch
+ * leaves out is not judged: turning a rule on must not lock every record
+ * already on file without it, so those are asked for by the editor instead.
+ */
+function assertNotCleared(
+    patch: { birthDate?: string | null; gender?: string | null },
+    requires: PatientRequirements,
+): void {
+    if (requires.requireAge && patch.birthDate !== undefined && isBlank(patch.birthDate)) throw ageRequired();
+    if (requires.requireGender && patch.gender !== undefined && isBlank(patch.gender)) throw genderRequired();
 }
 
 /**
@@ -516,13 +556,14 @@ export const patientService = {
      * where an old patient's history is dated.
      */
     async create(input: CreatePatientInput): Promise<Patient> {
+        await assertRegistrable(input);
         const custom = await customQuestionService.validateIntake(input.custom);
 
         const values = {
             name: input.name,
             phone: normalizePhone(input.phone),
             email: input.email ?? null,
-            birthDate: input.birthDate,
+            birthDate: input.birthDate ?? null,
             gender: input.gender ?? null,
             custom,
             notes: input.notes ?? null,
@@ -552,6 +593,7 @@ export const patientService = {
 
     async update({ id, ...patch }: UpdatePatientInput): Promise<Patient> {
         const current = await requireRow(id);
+        assertNotCleared(patch, await settingsService.patientRequirements());
 
         const custom = patch.custom
             ? await customQuestionService.validatePatch(answersOf(current), patch.custom)
@@ -726,11 +768,12 @@ export const patientService = {
     },
 
     async createMinimal(input: MinimalPatientInput, executor: Executor = db): Promise<PatientRow> {
+        await assertRegistrable(input, executor);
         return insertPatientWithRef(executor, {
             name: input.name,
             phone: normalizePhone(input.phone),
             email: input.email ?? null,
-            birthDate: input.birthDate,
+            birthDate: input.birthDate ?? null,
             gender: input.gender ?? null,
             notes: input.notes ?? null,
             legacyRef: input.legacyRef ?? null,

@@ -43,7 +43,7 @@ export interface Patient {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string;
+    birthDate: string | null;
     gender: string | null;
     custom: Answers;
     notes: string | null;
@@ -155,14 +155,15 @@ export interface RecentPatients {
  * Registering someone. `custom` is the whole form rather than a patch — the
  * server's `validateIntake` runs over it and every active required question has
  * to come back with an answer, which is what makes the editor's Save refuse
- * until they do. `birthDate` is `YYYY-MM-DD`; the editor asks for an age and
- * derives it (see `patientForm.ts`).
+ * until they do. `birthDate` is `YYYY-MM-DD`, or null for no age; the editor
+ * asks for an age and derives it (see `patientForm.ts`). Whether it and
+ * `gender` may be left out is the clinic's setting.
  */
 export interface CreatePatientInput {
     name: string;
     phone: string;
     email?: string | null;
-    birthDate: string;
+    birthDate?: string | null;
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;
@@ -251,7 +252,7 @@ export interface UpdatePatientInput {
     name?: string;
     phone?: string;
     email?: string | null;
-    birthDate?: string;
+    birthDate?: string | null;
     gender?: string | null;
     custom?: Answers;
     notes?: string | null;

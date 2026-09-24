@@ -15,6 +15,7 @@
  * patient, and the clinic-wide total belongs to the money cluster.
  */
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
+import type { PatientRequirements } from '../../../components/domain/patientDraft';
 // By file, not through `../../day`: that barrel mounts screens that open this
 // cluster, and the queue rule is all this needs.
 import { arrivalQueue } from '../../day/chair';
@@ -88,6 +89,12 @@ export const patientsApi = {
     listBranches: () => dayApi.branches(),
 
     schedule: () => dayApi.schedule(),
+
+    /** Whether the clinic requires an age and a sex on a record (Settings → Patient fields). */
+    async requirements(): Promise<PatientRequirements> {
+        const settings = await wrap<PatientRequirements>(() => trpcClient.settings.get.query());
+        return { requireAge: settings.requireAge, requireGender: settings.requireGender };
+    },
 
     async listQuestions(): Promise<CustomQuestion[]> {
         const rows = await wrap<Array<Omit<CustomQuestion, 'options'> & { options: unknown }>>(() =>

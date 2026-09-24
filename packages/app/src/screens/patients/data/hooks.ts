@@ -134,6 +134,8 @@ const READS: readonly Area[] = [
     'procedure',
     'customQuestion',
     'branch',
+    // Whether an age and a sex are required, which the editor marks due from.
+    'settings',
 ];
 
 /**

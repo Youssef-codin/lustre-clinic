@@ -29,6 +29,8 @@ function toSettings(row: SettingsRow): Settings {
         patientRefNext: row.patientRefNext,
         migrationBranchId: row.migrationBranchId,
         migrationCutoffDate: row.migrationCutoffDate,
+        requireAge: row.requireAge,
+        requireGender: row.requireGender,
         updatedAt: row.updatedAt,
     };
 }

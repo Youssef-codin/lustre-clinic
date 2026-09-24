@@ -18,7 +18,14 @@
  * as this one by everybody who typed into it, which is how a clinic that typed
  * 910 got 911. An old patient keeps their own number and never moves it.
  */
-import { DEFAULT_CLINIC_NAME, DEFAULT_REMINDER_TEMPLATE, ERROR_CODE, WS_EVENT } from '@lustre/shared';
+import {
+    DEFAULT_CLINIC_NAME,
+    DEFAULT_REMINDER_TEMPLATE,
+    DEFAULT_REQUIRE_AGE,
+    DEFAULT_REQUIRE_GENDER,
+    ERROR_CODE,
+    WS_EVENT,
+} from '@lustre/shared';
 import { asc, eq, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { clinicDays, patients, settings } from '../../db/schema.ts';
@@ -44,7 +51,17 @@ interface Settings {
     /** Where an old patient's carried-over money and history are dated. Null until the clinic says. */
     migrationBranchId: string | null;
     migrationCutoffDate: string | null;
+    /** A registration is refused without an age. Records already on file without one are left alone. */
+    requireAge: boolean;
+    /** The same for a sex. */
+    requireGender: boolean;
     updatedAt: Date;
+}
+
+/** What a patient must carry to be registered, under this clinic's settings. */
+export interface PatientRequirements {
+    requireAge: boolean;
+    requireGender: boolean;
 }
 
 type SettingsRow = typeof settings.$inferSelect;
@@ -63,6 +80,8 @@ function toSettings(row: SettingsRow): Settings {
         patientRefNext: row.patientRefNext,
         migrationBranchId: row.migrationBranchId,
         migrationCutoffDate: row.migrationCutoffDate,
+        requireAge: row.requireAge,
+        requireGender: row.requireGender,
         updatedAt: row.updatedAt,
     };
 }
@@ -196,6 +215,22 @@ export const settingsService = {
     },
 
     leadHoursForWrite,
+
+    /**
+     * Read through the caller's executor, and without seeding: a booking asks
+     * from inside its own transaction, which may be the one that seeded the
+     * row, and a second connection inserting behind it would wait on that
+     * transaction for as long as it waits on this. No row yet is the column
+     * defaults.
+     */
+    async patientRequirements(executor: Executor = db): Promise<PatientRequirements> {
+        const [row] = await executor
+            .select({ requireAge: settings.requireAge, requireGender: settings.requireGender })
+            .from(settings)
+            .where(eq(settings.id, 1))
+            .limit(1);
+        return row ?? { requireAge: DEFAULT_REQUIRE_AGE, requireGender: DEFAULT_REQUIRE_GENDER };
+    },
 
     async update(input: UpdateSettingsInput): Promise<Settings> {
         const current = await readRow();

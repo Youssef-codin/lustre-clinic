@@ -52,6 +52,8 @@ import {
     DEFAULT_REMINDER_LEAD_HOURS,
     DEFAULT_REMINDER_NOTIFY_AT,
     DEFAULT_REMINDER_REPEAT_MINUTES,
+    DEFAULT_REQUIRE_AGE,
+    DEFAULT_REQUIRE_GENDER,
     PAYMENT_METHODS,
     QUESTION_KINDS,
     REMINDER_STATUSES,
@@ -114,7 +116,7 @@ export const patients = pgTable(
         name: text('name').notNull(),
         phone: text('phone').notNull(),
         email: text('email'),
-        birthDate: date('birth_date').notNull(),
+        birthDate: date('birth_date'),
         gender: text('gender'),
         custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),
@@ -317,6 +319,12 @@ export const settings = pgTable(
         // registration that needs them is refused rather than inventing either.
         migrationBranchId: uuid('migration_branch_id').references(() => branches.id),
         migrationCutoffDate: date('migration_cutoff_date'),
+        // Whether a registration needs an age, and a sex. Checked by the
+        // patient service, not by a constraint on `patients`: turning one off
+        // has to be possible, and turning one on must not break the records
+        // already on file without it.
+        requireAge: boolean('require_age').notNull().default(DEFAULT_REQUIRE_AGE),
+        requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],
