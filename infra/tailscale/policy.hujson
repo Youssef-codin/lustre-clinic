@@ -11,39 +11,58 @@
 	"tagOwners": {
 		// Only the clinic account may tag a machine as the server.
 		"tag:clinic-server": ["autogroup:owner"],
+		// The phones, tagged from the Machines page (Edit ACL tags). A tag
+		// covers both of a device's addresses and survives an address change,
+		// and a tagged device's key does not expire.
+		"tag:clinic-phone":  ["autogroup:owner"],
+		"tag:test-phone":    ["autogroup:owner"],
 	},
 
 	"hosts": {
-		"smilemakers":   "100.125.78.21",
-		// Fill each in from the admin console's Machines page.
-		"archbtw":       "100.x.x.x",
-		"mha-l29":       "100.x.x.x",
-		"oneplus-open":  "100.x.x.x",
-		"test-android":  "100.x.x.x",
+		// From the admin console's Machines page. A phone that is removed and
+		// re-added gets new addresses: update them here, or it loses access.
+		//
+		// Each machine has an IPv4 and an IPv6 address, and a host names only
+		// one, so both are listed. The phones' tags make these redundant once
+		// every phone carries one.
+		"smilemakers":     "100.125.78.21",
+		"archbtw":         "100.122.204.107",
+		"archbtw-6":       "fd7a:115c:a1e0::535:cc6d",
+		"mha-l29":         "100.74.199.126",
+		"mha-l29-6":       "fd7a:115c:a1e0::8b35:c77f",
+		"oneplus-open":    "100.100.9.7",
+		"oneplus-open-6":  "fd7a:115c:a1e0::3335:908",
+		"test-android":    "100.114.57.43",
+		"test-android-6":  "fd7a:115c:a1e0::8f35:392f",
 	},
 
 	"acls": [
-		// The doctor's and the assistant's phones: the production API only.
-		// Not GlitchTip, not SSH, not the dev stack.
+		// The doctor's and the assistant's phones: the production API, and
+		// GlitchTip because release builds send their crash reports there (the
+		// DSN names :8000). User signup is off in GlitchTip, so all a phone
+		// can reach there is the ingest endpoint and a login page. Not SSH,
+		// not the dev stack.
 		{
 			"action": "accept",
-			"src":    ["mha-l29", "oneplus-open"],
-			"dst":    ["tag:clinic-server:3000"],
+			"src":    ["tag:clinic-phone", "mha-l29", "mha-l29-6", "oneplus-open", "oneplus-open-6"],
+			"dst":    ["tag:clinic-server:3000,8000"],
 		},
 
-		// The test phone: the dev stack only. It must never be able to open a
-		// session against production data.
+		// The operator's phone: the dev stack, and for now production too, so a
+		// release can be checked the way the doctor sees it. That puts real
+		// patient records on it: losing it is losing a clinic phone. Drop
+		// 3000,8000 here to take it back to dev only. Never SSH.
 		{
 			"action": "accept",
-			"src":    ["test-android"],
-			"dst":    ["tag:clinic-server:3001"],
+			"src":    ["tag:test-phone", "test-android", "test-android-6"],
+			"dst":    ["tag:clinic-server:3000,3001,8000"],
 		},
 
 		// The operator's machine: everything it needs to run the plays, read
 		// GlitchTip, and pull backups. SSH included.
 		{
 			"action": "accept",
-			"src":    ["archbtw"],
+			"src":    ["archbtw", "archbtw-6"],
 			"dst":    ["tag:clinic-server:22,3000,3001,8000"],
 		},
 
@@ -57,13 +76,18 @@
 	"tests": [
 		{
 			"src":    "mha-l29",
-			"accept": ["tag:clinic-server:3000"],
-			"deny":   ["tag:clinic-server:22", "tag:clinic-server:3001", "tag:clinic-server:8000"],
+			"accept": ["tag:clinic-server:3000", "tag:clinic-server:8000"],
+			"deny":   ["tag:clinic-server:22", "tag:clinic-server:3001", "oneplus-open:1", "archbtw:22"],
+		},
+		{
+			"src":    "oneplus-open",
+			"accept": ["tag:clinic-server:3000", "tag:clinic-server:8000"],
+			"deny":   ["tag:clinic-server:22", "tag:clinic-server:3001", "mha-l29:1", "archbtw:22"],
 		},
 		{
 			"src":    "test-android",
-			"accept": ["tag:clinic-server:3001"],
-			"deny":   ["tag:clinic-server:3000", "tag:clinic-server:22"],
+			"accept": ["tag:clinic-server:3000", "tag:clinic-server:3001", "tag:clinic-server:8000"],
+			"deny":   ["tag:clinic-server:22", "mha-l29:1", "archbtw:22"],
 		},
 		{
 			"src":    "archbtw",

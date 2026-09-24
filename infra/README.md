@@ -21,15 +21,26 @@ The host firewall accepts anything arriving on `tailscale0`, so the tailnet's
 access policy is the only thing separating a phone from the server's SSH port.
 Tailscale's default policy separates nothing. `infra/tailscale/policy.hujson`
 is the policy this deployment expects: the server carries `tag:clinic-server`,
-the doctor's phones get `:3000`, the test phone gets `:3001`, and only the
-operator's machine gets `:22` and GlitchTip.
+the doctor's phones get `:3000` and GlitchTip's `:8000` (their crash
+reports go there), the operator's phone gets both stacks, and only the
+operator's machine gets `:22`.
 
 Every machine is logged in as the same Google account, so the phones are named
-by Tailscale IP rather than by user. Fill those in from the Machines page,
-paste the file into Access controls, and save; the built-in tests fail the save
-if a rule is wrong. Tagging the server re-authenticates it, so run
-`sudo tailscale up --advertise-tags=tag:clinic-server` on it afterwards, from
-the keyboard or the LAN — not over the tailnet, which the re-auth drops.
+by Tailscale IP rather than by user. The server must carry its tag before the
+policy is saved, or no rule matches it and the operator loses SSH with
+everyone else. All of this is done from the admin console, so it works without
+being at the clinic:
+
+1. Add only the policy's `tagOwners` block to the current policy and save. The
+   default allow-all rule stays, so nothing changes yet.
+2. Machines → the server → Edit ACL tags → `tag:clinic-server`. Tagging from
+   the console does not re-authenticate the node, so it stays connected.
+   (`tailscale up --advertise-tags` on the server does, and cannot be finished
+   remotely.)
+3. Fill the phones' addresses in from the Machines page, paste the whole file,
+   and save; the built-in tests fail the save if a rule is wrong. Check SSH
+   over the tailnet right away. If it fails, revert the policy in the console:
+   it lives with Tailscale, not on the server.
 
 ## Running it
 
