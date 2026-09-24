@@ -56,6 +56,7 @@ import {
     QUESTION_KINDS,
     REMINDER_STATUSES,
     TEETH,
+    WHATSAPP_APPS,
 } from '@lustre/shared';
 import { sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -81,6 +82,7 @@ export const branches = pgTable('branches', {
     name: text('name').notNull(),
     address: text('address'),
     active: boolean('active').notNull().default(true),
+    whatsappApp: text('whatsapp_app', { enum: WHATSAPP_APPS }).notNull().default('regular'),
 });
 
 export const clinicDays = pgTable(

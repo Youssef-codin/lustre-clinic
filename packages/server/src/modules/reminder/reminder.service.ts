@@ -11,10 +11,10 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { REMINDER_PLACEHOLDERS, WS_EVENT } from '@lustre/shared';
+import { REMINDER_PLACEHOLDERS, type WhatsAppApp, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
-import { appointments, patients, reminders } from '../../db/schema.ts';
+import { appointments, branches, patients, reminders } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { toWhatsAppNumber } from '../../util/phone.ts';
 import { broadcast } from '../../ws/index.ts';
@@ -31,6 +31,8 @@ interface PendingReminder {
     ref: string;
     patient: { id: string; name: string; phone: string };
     whatsAppUrl: string;
+    /** The app the appointment's branch messages from. */
+    whatsappApp: WhatsAppApp;
     message: string;
 }
 
@@ -111,10 +113,12 @@ export const reminderService = {
                 patientId: patients.id,
                 name: patients.name,
                 phone: patients.phone,
+                whatsappApp: branches.whatsappApp,
             })
             .from(reminders)
             .innerJoin(appointments, eq(reminders.appointmentId, appointments.id))
             .innerJoin(patients, eq(appointments.patientId, patients.id))
+            .innerJoin(branches, eq(appointments.branchId, branches.id))
             .where(
                 and(
                     eq(reminders.status, 'pending'),
@@ -144,6 +148,7 @@ export const reminderService = {
                 ref: row.ref,
                 patient: { id: row.patientId, name: row.name, phone: row.phone },
                 whatsAppUrl: `https://wa.me/${toWhatsAppNumber(row.phone)}?text=${encodeURIComponent(message)}`,
+                whatsappApp: row.whatsappApp,
                 message,
             };
         });

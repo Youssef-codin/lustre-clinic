@@ -75,6 +75,8 @@ export const COPY_AR = {
     'Interface language': 'لغة الواجهة',
     English: 'English',
     LANGUAGE: 'اللغة',
+    'Message from which branch?': 'الإرسال من أي فرع؟',
+    'Open WhatsApp in': 'فتح واتساب في',
     'SERVER CONNECTION': 'الاتصال بالخادم',
     VERSION: 'الإصدار',
     "Changes the interface everywhere, including printed receipts. Patient messages use the patient's own language.":
@@ -162,6 +164,9 @@ export const COPY_AR = {
         'كل من يستخدم هذا الجهاز يشترك في تسجيل دخول واحد. يغيّر تبديل الدور ما يعرضه التطبيق وما يسمح بفعله.',
     FROM: 'من',
     TO: 'إلى',
+    'Used when a phone has both WhatsApp apps. A phone with only one opens that one.':
+        'يُستخدم عندما يكون على الهاتف تطبيقا واتساب. الهاتف الذي عليه تطبيق واحد يفتحه.',
+    'WhatsApp Business': 'واتساب للأعمال',
     "You'll see the doctor's day view and clinic settings": 'سترى يوم الطبيب وإعدادات العيادة',
     'Prices, procedures and patient fields become editable': 'يمكن تعديل الأسعار والإجراءات وحقول المرضى',
     "You'll see the desk view: check-in, payments, reminders":
