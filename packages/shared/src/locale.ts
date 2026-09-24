@@ -471,7 +471,7 @@ export const COPY_AR = {
     'Upper left': 'العلوي الأيسر',
     'Lower left': 'السفلي الأيسر',
     'Lower right': 'السفلي الأيمن',
-    '-{percent}%': '-{percent}%',
+    '-{percent}%': '\u200E-{percent}%',
     '{percent}% off the usual {price}': 'خصم {percent}% من السعر المعتاد {price}',
     'Not charged — other work was done': 'بدون رسوم — تم عمل آخر',
     'Nothing collected — the full amount stays on this visit.':
