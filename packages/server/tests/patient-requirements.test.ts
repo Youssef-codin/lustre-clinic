@@ -253,3 +253,75 @@ async function birthDateOf(id: string): Promise<string | null> {
     `;
     return row?.birth_date ?? null;
 }
+
+describe('0018_clear_zero_ages', () => {
+    /**
+     * An age typed as N is stored as 1 January of (the year it was typed − N),
+     * so an age of 0 typed at registration is 1 January of the registration
+     * year — in Cairo, because that is where the phone was.
+     */
+    const ROWS = [
+        {
+            why: 'age 0, typed this year',
+            createdAt: '2026-03-10T10:00:00Z',
+            birthDate: '2026-01-01',
+            after: null,
+        },
+        {
+            why: 'age 0, typed last year',
+            createdAt: '2025-06-01T10:00:00Z',
+            birthDate: '2025-01-01',
+            after: null,
+        },
+        {
+            why: 'age 0, typed just after midnight on New Year in Cairo',
+            createdAt: '2025-12-31T22:30:00Z',
+            birthDate: '2026-01-01',
+            after: null,
+        },
+        {
+            why: 'age 1, typed just before midnight on New Year in Cairo',
+            createdAt: '2025-12-31T21:30:00Z',
+            birthDate: '2024-01-01',
+            after: '2024-01-01',
+        },
+        { why: 'age 1', createdAt: '2026-03-10T10:00:00Z', birthDate: '2025-01-01', after: '2025-01-01' },
+        { why: 'age 36', createdAt: '2026-03-10T10:00:00Z', birthDate: '1990-01-01', after: '1990-01-01' },
+        {
+            why: 'a real date of birth under a year old',
+            createdAt: '2026-03-10T10:00:00Z',
+            birthDate: '2026-02-14',
+            after: '2026-02-14',
+        },
+        {
+            why: 'a 0013 placeholder',
+            createdAt: '2026-03-10T10:00:00Z',
+            birthDate: '1926-01-01',
+            after: '1926-01-01',
+        },
+        { why: 'no age at all', createdAt: '2026-03-10T10:00:00Z', birthDate: null, after: null },
+    ] as const;
+
+    test('empties ages of 0 and leaves every other age as it was, run once or twice', async () => {
+        const ids = await Promise.all(ROWS.map((row) => insertPatientAt(row.createdAt, row.birthDate)));
+
+        for (let run = 0; run < 2; run++) {
+            await runMigrationFile('0018_clear_zero_ages.sql');
+
+            const after = await Promise.all(ids.map(birthDateOf));
+            expect(ROWS.map((row, i) => [row.why, after[i]])).toEqual(
+                ROWS.map((row) => [row.why, row.after]),
+            );
+        }
+    });
+
+    test('a cleared record reads back with no age', async () => {
+        const id = await insertPatientAt('2026-03-10T10:00:00Z', '2026-01-01');
+
+        await runMigrationFile('0018_clear_zero_ages.sql');
+
+        const read = await patientService.byId(id);
+        expect(read.patient.birthDate).toBeNull();
+        expect(read.patient.age).toBeNull();
+    });
+});
