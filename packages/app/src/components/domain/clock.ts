@@ -16,6 +16,9 @@
  * different size, and because ص/م has to reach the Naskh face without dragging
  * the digits along with it.
  *
+ * Every formatter follows the app's language unless told otherwise, so a
+ * caller that forgets to pass one still gets ص/م in Arabic.
+ *
  * Storage and transport are unchanged — `TIME` and `timestamptz` as before.
  * This is formatting only. The 24-hour `HH:MM` the server reads and writes is
  * still handled at the edges: `clockToMinutes` in the day cluster parses it in,
@@ -62,7 +65,7 @@ export function secondsOfDay(iso: string): number {
     return date.getHours() * 3_600 + date.getMinutes() * 60 + date.getSeconds();
 }
 
-export function clock12(minutes: number, locale: Locale = 'en'): Clock12 {
+export function clock12(minutes: number, locale: Locale = getLocale()): Clock12 {
     const wrapped = ((minutes % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
     const hours = Math.floor(wrapped / 60);
     const marker = MERIDIEM[locale];
@@ -73,22 +76,22 @@ export function clock12(minutes: number, locale: Locale = 'en'): Clock12 {
     };
 }
 
-export function time12(iso: string, locale: Locale = 'en'): Clock12 {
+export function time12(iso: string, locale: Locale = getLocale()): Clock12 {
     return clock12(minutesOfDay(iso), locale);
 }
 
 /** "6:00 PM" — the one-string form, for a label rather than a tabular column. */
-export function formatClock12(minutes: number, locale: Locale = 'en'): string {
+export function formatClock12(minutes: number, locale: Locale = getLocale()): string {
     const { time, meridiem } = clock12(minutes, locale);
     return `${time} ${meridiem}`;
 }
 
-export function formatTime12(iso: string, locale: Locale = 'en'): string {
+export function formatTime12(iso: string, locale: Locale = getLocale()): string {
     return formatClock12(minutesOfDay(iso), locale);
 }
 
 /** The same, off a wall-clock timestamp: the connection card's probe stamp. */
-export function formatStamp(at: number, locale: Locale = 'en'): string {
+export function formatStamp(at: number, locale: Locale = getLocale()): string {
     const date = new Date(at);
     return formatClock12(date.getHours() * 60 + date.getMinutes(), locale);
 }
@@ -143,6 +146,6 @@ export function formatElapsed(totalSeconds: number): string {
  * meridiem to save four characters makes 10–6 ambiguous in a clinic that could
  * plausibly do either.
  */
-export function formatSpan(from: number, to: number, locale: Locale = 'en'): string {
+export function formatSpan(from: number, to: number, locale: Locale = getLocale()): string {
     return `${formatClock12(from, locale)} – ${formatClock12(to, locale)}`;
 }
