@@ -75,7 +75,7 @@ import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
 import type { CustomQuestion, PatientDetail } from './data/types';
-import type { PatientForm } from './patientForm';
+import type { PatientForm, PatientPrefill } from './patientForm';
 import {
     answeredCount,
     blankBasics,
@@ -101,6 +101,12 @@ import {
 export type PatientEditScreenProps = {
     /** Absent = registering someone new. Present = correcting the record it names. */
     patientId?: string;
+    /**
+     * What the list's search held when it came up empty, for a registration.
+     * Read once, into the draft the screen starts from; ignored on an edit,
+     * where the record is what the form starts from.
+     */
+    prefill?: PatientPrefill;
     onCancel: () => void;
     /**
      * A save is open. Cancel goes missing while one is, and the cluster above
@@ -120,7 +126,13 @@ export type PatientEditScreenProps = {
     onSaved: (patientId: string, basics?: { name: string; phone: string }) => void;
 };
 
-export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
+export function PatientEditScreen({
+    patientId,
+    prefill,
+    onCancel,
+    onSavingChange,
+    onSaved,
+}: PatientEditScreenProps) {
     const t = useT();
     const creating = patientId === undefined;
 
@@ -162,9 +174,9 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
 
     const initial = useMemo<PatientForm | null>(() => {
         if (!questions.data) return null;
-        if (creating) return emptyForm(editable);
+        if (creating) return emptyForm(editable, prefill);
         return record.data ? formOf(record.data.patient, editable) : null;
-    }, [creating, questions.data, record.data, editable]);
+    }, [creating, prefill, questions.data, record.data, editable]);
 
     // Seeded once and then left alone: this is a draft the desk is typing into,
     // and a re-read landing underneath it would take back what they wrote. The

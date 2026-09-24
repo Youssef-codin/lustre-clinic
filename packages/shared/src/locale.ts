@@ -233,6 +233,9 @@ export const COPY_AR = {
     RECENT: 'الأحدث',
     RESULTS: 'النتائج',
     'New patient': 'مريض جديد',
+    // Isolated: a typed phone number is weak text in an RTL line, and without it
+    // `+20 109 555-0199` is drawn as `0199-555 109 20+`.
+    'Add “{term}” as a new patient': 'إضافة «\u2068{term}\u2069» كمريض جديد',
     Finances: 'الحسابات',
     'Older visits': 'زيارات سابقة',
     'No outstanding patients': 'لا توجد أرصدة مستحقة',
