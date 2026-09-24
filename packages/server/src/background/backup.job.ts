@@ -10,8 +10,8 @@
  * runs at boot, and the staleness check waits for it rather than alerting about
  * a gap the boot run is about to close.
  *
- * A run the last boot cut short leaves a `.partial` file; that is deleted
- * before the boot run starts, so the two never touch the same file.
+ * A run the last boot cut short leaves a `.partial` file. It is deleted before
+ * any run of this job starts, so cleanup never races a dump in progress.
  *
  * `runBackup` already logs and alerts a failed run; `runNow` swallows the
  * rejection so one bad night cannot take the interval, and every later backup,
@@ -40,6 +40,7 @@ export function startBackupJob(): BackupJob {
     const staleAfterMs = config.BACKUP_STALE_AFTER_HOURS * 3_600_000;
 
     async function runNow(): Promise<boolean> {
+        await cleanup;
         return runBackup().then(
             () => true,
             () => false,
@@ -73,7 +74,9 @@ export function startBackupJob(): BackupJob {
         }
     }
 
-    void removeLeftovers()
+    const cleanup = removeLeftovers();
+
+    void cleanup
         .then(() => readLastSuccess())
         .then((last) => {
             if (isBackupDue(last?.at ?? null, Date.now(), intervalMs)) {

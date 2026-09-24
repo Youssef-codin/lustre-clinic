@@ -428,11 +428,11 @@ alerts Discord if nothing newer than 72 hours has arrived. Logs:
 `journalctl --user -u 'lustre-*'`.
 
 No restore check runs here: the server restores every dump before it can be
-pulled. It writes each dump as `lustre-<stamp>.dump.partial` and renames it to
-`lustre-<stamp>.dump` only after the restore check passes and the file is on
-disk, and the pull only copies the final name. A run cut short leaves just the
-`.partial` file, which the server deletes the next time it starts. To restore
-from a copy here:
+pulled. It writes each dump as `lustre-<stamp>.dump.<id>.partial` and renames
+it to `lustre-<stamp>.dump` only after the restore check passes and the file is
+on disk, and the pull only copies the final name. A run cut short leaves just
+the `.partial` file, which the server deletes the next time it starts. To
+restore from a copy here:
 
 ```sh
 age -d -i key.txt lustre-<stamp>.dump.age > lustre.dump

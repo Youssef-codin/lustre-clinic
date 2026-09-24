@@ -200,18 +200,48 @@ describe('a dump is named only once it is complete, checked and on disk', () => 
         }
     });
 
+    test("two runs that share a name cannot delete or rename each other's dump", async () => {
+        const directory = await scratch();
+        try {
+            const path = join(directory, name);
+            let failing!: () => void;
+            const failingStarted = new Promise<void>((resolve) => {
+                failing = resolve;
+            });
+
+            const good = commitDump(path, async (partial) => {
+                await writeFile(partial, 'complete dump');
+                await failingStarted;
+            });
+            const bad = commitDump(path, async (partial) => {
+                await writeFile(partial, 'half a du');
+                failing();
+                throw new Error('pg_dump exited 1');
+            });
+
+            await expect(bad).rejects.toThrow('pg_dump exited 1');
+            await good;
+
+            expect(await readdir(directory)).toEqual([name]);
+            expect(await Bun.file(path).text()).toBe('complete dump');
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     test('a run killed part-way leaves a .partial that is not a backup, and the next start removes it', async () => {
         const directory = await scratch();
         try {
             const good = backupFileName(new Date('2026-12-31T00:00:00Z'));
             await writeFile(join(directory, good), 'yesterday');
-            await writeFile(join(directory, `${name}.partial`), 'half a du');
+            const leftover = `${name}.${Bun.randomUUIDv7()}.partial`;
+            await writeFile(join(directory, leftover), 'half a du');
             await writeFile(join(directory, 'drive-grant.json'), '{}');
             await writeFile(join(directory, 'notes.partial'), 'not ours');
 
             expect((await listLocalBackups(directory)).map((f) => f.name)).toEqual([good]);
 
-            expect(await removePartialDumps(directory)).toEqual([`${name}.partial`]);
+            expect(await removePartialDumps(directory)).toEqual([leftover]);
             expect((await readdir(directory)).sort()).toEqual(
                 [good, 'drive-grant.json', 'notes.partial'].sort(),
             );
