@@ -92,6 +92,8 @@ export interface AppointmentProcedureRow {
     quantity: number;
     tooth: Tooth | null;
     note: string | null;
+    /** Null unless the desk quoted a price; check-in then bills the catalogue's. */
+    quotedPrice: number | null;
     sortOrder: number;
 }
 
@@ -216,8 +218,9 @@ const STORE_KEY = 'lustre.demo.db';
  * 9: settings carry `requireAge` and `requireGender`, and one seeded patient
  *    has no age again.
  * 10: settings carry `askToEditOnFinish`.
+ * 11: planned procedures carry `quotedPrice`.
  */
-const STORE_VERSION = 10;
+const STORE_VERSION = 11;
 
 let db: DemoDb | null = null;
 

@@ -21,7 +21,8 @@
  * validated against §5 before the transaction opens — reads against reference
  * data, and the checks are about the request, not the booking — and written by
  * `replaceProcedures`, whose `sortOrder` preserves the entered order, which is
- * the order check-in seeds visit lines in. `procedures` must be destructured
+ * the order check-in seeds visit lines in, each at its `quotedPrice` when the
+ * desk quoted one. `procedures` must be destructured
  * out of `update`'s patch: it is a separate table and would corrupt `set()`.
  * Omitting it leaves the list alone, an empty array clears it (§13). Reads
  * batch the catalogue join once per page rather than once per row.
@@ -42,7 +43,11 @@ import { buildRef } from '../../util/ref.ts';
 import { clinicDayOf, dayRange } from '../../util/time.ts';
 import { broadcast } from '../../ws/index.ts';
 import { patientService } from '../patient/patient.service.ts';
-import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
+import {
+    type RequestedLine,
+    type ResolvedLine,
+    resolveProcedureLines,
+} from '../procedure/procedure.rules.ts';
 import { reminderService } from '../reminder/reminder.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import { seatNextInChair } from '../visit/visit.service.ts';
@@ -65,6 +70,8 @@ interface AppointmentLine {
     quantity: number;
     tooth: Tooth | null;
     note: string | null;
+    /** Null unless the desk quoted a price; check-in then bills the catalogue's. */
+    quotedPrice: number | null;
 }
 
 interface AppointmentWithPatient extends AppointmentRow {
@@ -126,6 +133,7 @@ async function loadProcedures(ids: string[]): Promise<Map<string, AppointmentLin
             quantity: appointmentProcedures.quantity,
             tooth: appointmentProcedures.tooth,
             note: appointmentProcedures.note,
+            quotedPrice: appointmentProcedures.quotedPrice,
         })
         .from(appointmentProcedures)
         .innerJoin(procedureTypes, eq(appointmentProcedures.procedureId, procedureTypes.id))
@@ -147,10 +155,19 @@ async function withProcedures(
     return rows.map((row) => ({ ...row, procedures: byAppointment.get(row.id) ?? [] }));
 }
 
+type PlannedLine = ResolvedLine & { quotedPrice: number | null };
+
+async function resolvePlan(
+    lines: (RequestedLine & { quotedPrice?: number | null })[],
+): Promise<PlannedLine[]> {
+    const resolved = await resolveProcedureLines(lines);
+    return resolved.map((line, i) => ({ ...line, quotedPrice: lines[i]?.quotedPrice ?? null }));
+}
+
 async function replaceProcedures(
     executor: Executor,
     appointmentId: string,
-    resolved: Awaited<ReturnType<typeof resolveProcedureLines>>,
+    resolved: PlannedLine[],
 ): Promise<void> {
     await executor
         .delete(appointmentProcedures)
@@ -166,6 +183,7 @@ async function replaceProcedures(
             quantity: line.quantity,
             tooth: line.tooth,
             note: line.note,
+            quotedPrice: line.quotedPrice,
             sortOrder: i,
         })),
     );
@@ -463,7 +481,7 @@ export const appointmentService = {
     async create(input: CreateAppointmentInput): Promise<AppointmentRow> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const startsAt = new Date(input.startsAt);
-        const resolved = await resolveProcedureLines(input.procedures ?? []);
+        const resolved = await resolvePlan(input.procedures ?? []);
 
         const row = await db.transaction(async (tx) => {
             // A booking races the walk-in taken at the same moment. It does not
@@ -508,7 +526,7 @@ export const appointmentService = {
     ): Promise<{ appointment: AppointmentRow; visitId: string; moved: Moved[] }> {
         const durationMinutes = await resolveDuration(input.durationMinutes);
         const arrivedAt = new Date();
-        const resolved = await resolveProcedureLines(input.procedures ?? []);
+        const resolved = await resolvePlan(input.procedures ?? []);
 
         const { visitService } = await import('../visit/visit.service.ts');
 
@@ -599,7 +617,7 @@ export const appointmentService = {
         const durationMinutes =
             patch.durationMinutes === undefined ? undefined : await resolveDuration(patch.durationMinutes);
         const startsAt = input.startsAt ? new Date(input.startsAt) : undefined;
-        const resolved = procedures === undefined ? undefined : await resolveProcedureLines(procedures);
+        const resolved = procedures === undefined ? undefined : await resolvePlan(procedures);
 
         const row = await db.transaction(async (tx) => {
             // Rescheduling and re-timing both move a span, so this contends

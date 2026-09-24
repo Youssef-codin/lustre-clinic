@@ -2,8 +2,9 @@
  * SPEC §8, §9. A visit is what happened, as opposed to what was scheduled.
  *
  * Check-in creates it and seeds its lines: one per procedure the booking
- * planned (§7), each priced at the catalogue price on the day rather than at
- * booking, and nothing else. The checkup is not added for them: a consultation
+ * planned (§7), each priced at the price the desk quoted if it quoted one, else
+ * at the catalogue price on the day rather than at booking, and nothing else.
+ * The checkup is not added for them: a consultation
  * is a line someone picks, like any other, and one on every visit buried what
  * the bookings were actually for. Pricing is not a prerequisite for
  * checkout: `setProcedures` and `setPrice` are optional, may be called in any
@@ -254,6 +255,7 @@ export const visitService = {
                     quantity: appointmentProcedures.quantity,
                     tooth: appointmentProcedures.tooth,
                     note: appointmentProcedures.note,
+                    quotedPrice: appointmentProcedures.quotedPrice,
                     defaultPrice: procedureTypes.defaultPrice,
                 })
                 .from(appointmentProcedures)
@@ -268,7 +270,7 @@ export const visitService = {
                         visitId: visit.id,
                         procedureId: line.procedureId,
                         quantity: line.quantity,
-                        unitPrice: line.defaultPrice,
+                        unitPrice: line.quotedPrice ?? line.defaultPrice,
                         tooth: line.tooth,
                         note: line.note,
                     })),

@@ -128,6 +128,7 @@ export function ProcedurePlan({
                 variant: picked.variant,
                 tooth,
                 price: picked.price,
+                defaultPrice: picked.price,
             },
         ]);
         setAsking(null);

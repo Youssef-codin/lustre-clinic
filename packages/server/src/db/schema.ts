@@ -39,9 +39,10 @@
  * *before migration* rather than reading it out.
  *
  * `appointment_procedures` is the work a booking plans (§7). It mirrors
- * `visit_procedures` minus `unit_price`: a booking made three weeks out must
- * bill at the price on the day, so the price is snapshotted at check-in, which
- * seeds one visit line per planned row. Teeth are Palmer notation, null unless
+ * `visit_procedures`, but `quoted_price` is null unless the desk quoted a price:
+ * a booking made three weeks out bills at the price on the day, so check-in
+ * snapshots the catalogue price for every row without one, seeding one visit
+ * line per planned row. Teeth are Palmer notation, null unless
  * the procedure is tooth-specific (§5).
  */
 import {
@@ -190,11 +191,13 @@ export const appointmentProcedures = pgTable(
         quantity: integer('quantity').notNull().default(1),
         tooth: text('tooth', { enum: TEETH }),
         note: text('note'),
+        quotedPrice: integer('quoted_price'),
         sortOrder: integer('sort_order').notNull().default(0),
     },
     (t) => [
         index('appointment_procedures_appointment_id_idx').on(t.appointmentId),
         check('appointment_procedures_quantity_positive', sql`${t.quantity} > 0`),
+        check('appointment_procedures_quoted_price_non_negative', sql`${t.quotedPrice} >= 0`),
     ],
 );
 

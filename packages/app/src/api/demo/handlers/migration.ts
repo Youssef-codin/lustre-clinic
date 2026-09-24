@@ -168,6 +168,7 @@ export function writeOldPatientHistory(
             quantity: line.quantity ?? 1,
             tooth: line.tooth ?? null,
             note: null,
+            quotedPrice: null,
             sortOrder,
         }));
         db.appointmentProcedures.push(...lines);

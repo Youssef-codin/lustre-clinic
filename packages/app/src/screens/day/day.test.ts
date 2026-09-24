@@ -57,7 +57,9 @@ import {
     groupByTooth,
     offeredFor,
     type PlannedProcedure,
+    planFrom,
     QUADRANTS,
+    samePlan,
     toothPosition,
     totalOf,
 } from './procedures';
@@ -1298,6 +1300,7 @@ describe('the procedure plan', () => {
         variant: 'Class II',
         tooth,
         price,
+        defaultPrice: price,
     });
 
     it('groups by tooth, in the order a chart is read, with no tooth last', () => {
@@ -1333,9 +1336,9 @@ describe('the procedure plan', () => {
         expect(totalOf([])).toBe(0);
     });
 
-    // The price stays behind: the visit snapshots the catalogue's at check-in,
-    // so what is booked is the work, never what it was quoted at.
-    it('sends every line of the plan, with its tooth and without its price', () => {
+    // A catalogue price stays behind: the visit snapshots the catalogue's at
+    // check-in, so a price change in between reaches the bill.
+    it('sends every line of the plan, with its tooth and without a catalogue price', () => {
         expect(bookedProcedures([line('a', 'UL6', 900_00), line('b', null, 400_00)])).toEqual([
             { procedureId: 'proc-a', tooth: 'UL6' },
             { procedureId: 'proc-b', tooth: null },
@@ -1343,8 +1346,96 @@ describe('the procedure plan', () => {
         expect(bookedProcedures([])).toEqual([]);
     });
 
+    it('sends a price the desk quoted', () => {
+        const quoted = { ...line('a', 'UL6', 900_00), price: 750_00 };
+        expect(bookedProcedures([quoted, line('b', null, 400_00)])).toEqual([
+            { procedureId: 'proc-a', tooth: 'UL6', quotedPrice: 750_00 },
+            { procedureId: 'proc-b', tooth: null },
+        ]);
+    });
+
     it('keeps two of the same procedure as two lines rather than a quantity', () => {
         expect(bookedProcedures([line('a', 'UL6', 900_00), line('b', 'UL6', 900_00)])).toHaveLength(2);
+    });
+
+    describe('a booking reopened for a reschedule', () => {
+        const row = (id: string, name: string, defaultPrice: number, parentId: string | null = null) => ({
+            id,
+            parentId,
+            name,
+            defaultPrice,
+            hasQuantity: false,
+            isToothSpecific: false,
+            isCheckup: false,
+            active: true,
+            sortOrder: 0,
+        });
+        const catalogue: ProcedureCategory[] = [
+            {
+                ...row('cat-filling', 'Composite filling', 0),
+                children: [row('proc-a', 'Class II', 900_00, 'cat-filling')],
+                selectable: false,
+            },
+            { ...row('proc-b', 'Scaling', 400_00), children: [], selectable: true },
+        ];
+        const booked = (quotedPrice: number | null): Appointment['procedures'] => [
+            {
+                id: 'a',
+                procedureId: 'proc-a',
+                name: 'Class II',
+                quantity: 1,
+                tooth: 'UL6',
+                note: null,
+                quotedPrice,
+            },
+            {
+                id: 'b',
+                procedureId: 'proc-b',
+                name: 'Scaling',
+                quantity: 1,
+                tooth: null,
+                note: null,
+                quotedPrice: null,
+            },
+        ];
+
+        it('prices a line at the catalogue unless a price was quoted', () => {
+            expect(planFrom(booked(null), catalogue).map((row) => [row.price, row.defaultPrice])).toEqual([
+                [900_00, 900_00],
+                [400_00, 400_00],
+            ]);
+            expect(planFrom(booked(750_00), catalogue)[0]).toMatchObject({
+                price: 750_00,
+                defaultPrice: 900_00,
+            });
+        });
+
+        it('is unchanged as it opens, quoted or not', () => {
+            expect(samePlan(planFrom(booked(null), catalogue), booked(null))).toBe(true);
+            expect(samePlan(planFrom(booked(750_00), catalogue), booked(750_00))).toBe(true);
+        });
+
+        it('counts a new price on its own as a change, and sends it', () => {
+            const [first, second] = planFrom(booked(null), catalogue);
+            if (!first || !second) throw new Error('plan lost a line');
+            const repriced = [{ ...first, price: 800_00 }, second];
+
+            expect(samePlan(repriced, booked(null))).toBe(false);
+            expect(bookedProcedures(repriced)[0]).toEqual({
+                procedureId: 'proc-a',
+                tooth: 'UL6',
+                quotedPrice: 800_00,
+            });
+        });
+
+        it('drops a quote set back to the catalogue price', () => {
+            const [first, second] = planFrom(booked(750_00), catalogue);
+            if (!first || !second) throw new Error('plan lost a line');
+            const restored = [{ ...first, price: 900_00 }, second];
+
+            expect(samePlan(restored, booked(750_00))).toBe(false);
+            expect(bookedProcedures(restored)[0]).toEqual({ procedureId: 'proc-a', tooth: 'UL6' });
+        });
     });
 
     it('reads a line back the way the note and the summary print it', () => {

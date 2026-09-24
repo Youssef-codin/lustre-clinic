@@ -210,7 +210,7 @@ export const visitHandlers = {
                 visitId: visit.id,
                 procedureId: line.procedureId,
                 quantity: line.quantity,
-                unitPrice: procedure?.defaultPrice ?? 0,
+                unitPrice: line.quotedPrice ?? procedure?.defaultPrice ?? 0,
                 tooth: line.tooth,
                 note: line.note,
             });
