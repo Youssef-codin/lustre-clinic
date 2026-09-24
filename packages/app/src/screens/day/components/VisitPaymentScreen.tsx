@@ -20,16 +20,16 @@
  * date alone.
  */
 import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre/shared';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { formatMoney } from '../../../components/domain';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
-import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
+import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
-import { amountDue, formatAmount, poundsEntry } from '../money';
+import { amountDue, formatAmount, poundsEntry, procedureDiscount } from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CashIcon, CheckIcon, InstapayIcon, OtherMethodIcon, PaymentIcon } from './icons';
 
@@ -91,12 +91,18 @@ export function VisitPaymentScreen({
     const isRTL = useIsRTL();
     const keyboard = useKeyboardHeight();
     const collected = visit.paidTotal;
-    // The desk's discount comes off the total the lines add up to, and never
-    // below what has already been paid — that money stays paid.
-    const [discount, setDiscount] = useState('');
-    const maxDiscount = Math.max(visit.chargedTotal - collected, 0);
-    const discountPiastres = Math.min(toPiastres(discount), maxDiscount);
-    const charged = visit.chargedTotal - discountPiastres;
+    // There is no discount to type here: a discount is a procedure priced under
+    // the catalogue's on the visit screen, and this only says how much that is.
+    const charged = visit.chargedTotal;
+    const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
+    const discount = useMemo(() => {
+        const defaults = new Map<string, number>();
+        for (const category of catalogue.data ?? []) {
+            defaults.set(category.id, category.defaultPrice);
+            for (const child of category.children) defaults.set(child.id, child.defaultPrice);
+        }
+        return procedureDiscount(visit.procedures, defaults);
+    }, [catalogue.data, visit.procedures]);
     const due = amountDue(charged, collected);
     // What the field means, and so the most it can hold: money being taken now
     // cannot exceed what is owed, but a *total* collected is measured against
@@ -154,19 +160,6 @@ export function VisitPaymentScreen({
             return;
         }
         setPaid(digits);
-    }
-
-    function changeDiscount(entry: string) {
-        const digits = poundsEntry(entry);
-        const over = toPiastres(digits) > maxDiscount;
-        if (over) setToast(t('The discount cannot be more than is left to pay'));
-        setDiscount(over ? toPounds(maxDiscount) : digits);
-
-        const nextCharged = visit.chargedTotal - Math.min(toPiastres(digits), maxDiscount);
-        const nextCeiling = correcting ? nextCharged : amountDue(nextCharged, collected);
-        // Paying in full stays paying in full as the total moves; a figure
-        // someone typed stays, unless it is now more than can be paid.
-        if (paidPiastres === ceiling || paidPiastres > nextCeiling) setPaid(toPounds(nextCeiling));
     }
 
     function methodText(): string {
@@ -421,30 +414,12 @@ export function VisitPaymentScreen({
                     ) : null}
                 </View>
 
-                <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
-                    {t('DISCOUNT')}
-                </Text>
-                <View style={styles.discountField}>
-                    <Text variant="footnote" weight="bold" tone="muted">
-                        {t('EGP')}
-                    </Text>
-                    <TextInput
-                        value={discount}
-                        onChangeText={changeDiscount}
-                        placeholder="0"
-                        placeholderTextColor={color.muted}
-                        keyboardType="number-pad"
-                        accessibilityLabel={t('Discount')}
-                        selectTextOnFocus
-                        style={[styles.discountInput, { textAlign: isRTL ? 'left' : 'right' }]}
-                        testID="visit-payment-discount"
-                    />
-                </View>
-                {discountPiastres > 0 ? (
-                    <Text variant="footnote" tone="muted" style={styles.hint}>
-                        {t('{amount} off the {total} the procedures add up to.', {
-                            amount: formatMoney(discountPiastres),
-                            total: formatMoney(visit.chargedTotal),
+                {discount ? (
+                    <Text variant="footnote" tone="muted" style={styles.hint} testID="visit-payment-discount">
+                        {t('{amount} ({percent}%) off the usual {total}.', {
+                            amount: formatMoney(discount.off),
+                            percent: discount.percent,
+                            total: formatMoney(discount.usual),
                         })}
                     </Text>
                 ) : null}
@@ -747,27 +722,6 @@ const styles = StyleSheet.create({
         padding: 0,
         color: color.ink,
         ...type.figure,
-        fontFamily: font.mono.medium,
-    },
-
-    discountField: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        height: size.control,
-        marginHorizontal: size.gutter,
-        paddingHorizontal: space[4],
-        borderRadius: radius.lg,
-        borderWidth: border.hair,
-        borderColor: color.line,
-        backgroundColor: color.surface,
-    },
-    discountInput: {
-        flex: 1,
-        minWidth: 0,
-        padding: 0,
-        color: color.ink,
-        ...type.body,
         fontFamily: font.mono.medium,
     },
 

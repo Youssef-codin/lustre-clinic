@@ -388,14 +388,12 @@ export const COPY_AR = {
     "Couldn't load this": 'تعذر تحميل البيانات',
     Crowns: 'التيجان',
     'DD / MM / YYYY': 'يوم / شهر / سنة',
-    DISCOUNT: 'الخصم',
     'Daily notification time, if any reminders are pending':
         'موعد الإشعار اليومي إذا كانت هناك تذكيرات معلّقة',
     'Day or reminders': 'اليوم أو التذكيرات',
     Decrease: 'إنقاص',
     'Diabetic?': 'مريض سكر؟',
     'Did not attend': 'لم يحضر',
-    Discount: 'خصم',
     Dismiss: 'إخفاء',
     Done: 'تم',
     EGP: 'ج.م',
@@ -452,6 +450,7 @@ export const COPY_AR = {
     'Nobody waiting': 'لا أحد في الانتظار',
     'Not answered': 'بدون إجابة',
     'Not been here before?': 'أول مرة هنا؟',
+    '{amount} ({percent}%) off the usual {total}.': 'خصم {amount} ({percent}%) من السعر المعتاد {total}.',
     '{percent}% off the usual {price}': 'خصم {percent}% من السعر المعتاد {price}',
     'Not charged — other work was done': 'بدون رسوم — تم عمل آخر',
     'Nothing collected — the full amount stays on this visit.':
@@ -515,7 +514,6 @@ export const COPY_AR = {
     'That is more than they owe. They owe {amount}.': 'هذا أكثر مما عليه. المستحق عليه {amount}.',
     'That visit ends after the clinic closes.': 'هذه الزيارة تنتهي بعد إغلاق العيادة.',
     'The day is done. Anyone new comes through the desk.': 'انتهى اليوم. أي مريض جديد يمر عبر الاستقبال.',
-    'The discount cannot be more than is left to pay': 'لا يمكن أن يزيد الخصم عن المتبقي للدفع',
     'The dialler could not be opened.': 'تعذر فتح تطبيق الاتصال.',
     'The next patient registered gets the number after this one.': 'المريض التالي يأخذ الرقم الذي يلي هذا.',
     'The next screen asks for the first procedure under it.': 'الشاشة التالية تطلب أول إجراء تحته.',
@@ -569,7 +567,6 @@ export const COPY_AR = {
         'يُحصّل {amount} الآن. و{collected} المسجلة على هذه الزيارة تحتفظ بطريقة دفعها.',
     '{amount} given back. What stays paid keeps how it was paid.':
         'أُعيد {amount}. وما يبقى مدفوعًا يحتفظ بطريقة دفعه.',
-    '{amount} off the {total} the procedures add up to.': 'خصم {amount} من {total} إجمالي الإجراءات.',
     '{amount} paid — {balance} still owed on this visit.':
         'دُفع {amount} — وما زال {balance} مستحقًا على هذه الزيارة.',
     '{amount} paid. Nothing left on this visit.': 'دُفع {amount}. لم يتبق شيء على هذه الزيارة.',

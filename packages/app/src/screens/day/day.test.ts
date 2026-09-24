@@ -28,7 +28,14 @@ import { dayDelay, delayLabel, isProjected, ON_TIME, projectedStart } from './de
 import { emptyDay } from './empty';
 import { describeError } from './errors';
 import { hoursFor, isClosed, openMinutes } from './hours';
-import { amountDue, discountPercent, formatAmount, formatMoney, poundsEntry } from './money';
+import {
+    amountDue,
+    discountPercent,
+    formatAmount,
+    formatMoney,
+    poundsEntry,
+    procedureDiscount,
+} from './money';
 import { busiestBranch, loadsFrom } from './month';
 import { noteChanged, noteDraft, noteValue } from './notes';
 import {
@@ -657,6 +664,33 @@ describe('money', () => {
     it('never rounds part of the bill to none or all of it', () => {
         expect(discountPercent(1_000_000, 999_900)).toBe(1);
         expect(discountPercent(1_000_000, 100)).toBe(99);
+    });
+
+    it('sums what the procedures were priced under the catalogue, against the whole visit', () => {
+        const defaults = new Map([
+            ['filling', 100_000],
+            ['cleaning', 50_000],
+        ]);
+        expect(
+            procedureDiscount(
+                [
+                    { procedureId: 'filling', unitPrice: 80_000, quantity: 2 },
+                    { procedureId: 'cleaning', unitPrice: 50_000, quantity: 1 },
+                ],
+                defaults,
+            ),
+        ).toEqual({ off: 40_000, usual: 250_000, percent: 16 });
+    });
+
+    it('has nothing to say when every procedure is at or above its default', () => {
+        const defaults = new Map([['filling', 100_000]]);
+        expect(
+            procedureDiscount([{ procedureId: 'filling', unitPrice: 120_000, quantity: 1 }], defaults),
+        ).toBeNull();
+        expect(
+            procedureDiscount([{ procedureId: 'unknown', unitPrice: 10_000, quantity: 1 }], defaults),
+        ).toBeNull();
+        expect(procedureDiscount([], defaults)).toBeNull();
     });
 
     it('shows no percentage without a discount or a total to measure it against', () => {

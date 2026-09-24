@@ -36,3 +36,24 @@ export function discountPercent(procedureTotal: number, charged: number): number
     if (off >= procedureTotal) return 100;
     return Math.min(Math.max(Math.round((off / procedureTotal) * 100), 1), 99);
 }
+
+/**
+ * What the procedures were priced under the catalogue, summed: `off` is the
+ * difference, and `usual` what the whole visit would have cost at the defaults.
+ * A line priced at or above its default takes nothing off, and one whose
+ * default is unknown counts at its own price. Null when nothing is off.
+ */
+export function procedureDiscount(
+    lines: ReadonlyArray<{ procedureId: string; unitPrice: number; quantity: number }>,
+    defaults: ReadonlyMap<string, number>,
+): { off: number; usual: number; percent: number } | null {
+    let off = 0;
+    let usual = 0;
+    for (const line of lines) {
+        const standard = defaults.get(line.procedureId) ?? line.unitPrice;
+        usual += Math.max(standard, line.unitPrice) * line.quantity;
+        if (line.unitPrice < standard) off += (standard - line.unitPrice) * line.quantity;
+    }
+    const percent = discountPercent(usual, usual - off);
+    return percent === null ? null : { off, usual, percent };
+}
