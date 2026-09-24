@@ -118,9 +118,19 @@ class LustreListenerService : Service() {
 
   private fun buildNotification(notice: Notice): Notification {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      // Low: it is always there, so it must never make a sound.
-      getSystemService(NotificationManager::class.java).createNotificationChannel(
-        NotificationChannel(CHANNEL_ID, notice.channelName, NotificationManager.IMPORTANCE_LOW),
+      // Default, not low: Android keeps a low ("silent") channel off the lock
+      // screen, and the doctor finishes from there. It must still never make a
+      // sound, so the channel has none and no vibration. A channel's importance
+      // cannot be raised once made, hence the new ID and the old one deleted.
+      val manager = getSystemService(NotificationManager::class.java)
+      // Refused while a foreground notice still sits on it; it goes on a later redraw.
+      runCatching { manager.deleteNotificationChannel(OLD_CHANNEL_ID) }
+      manager.createNotificationChannel(
+        NotificationChannel(CHANNEL_ID, notice.channelName, NotificationManager.IMPORTANCE_DEFAULT).apply {
+          setSound(null, null)
+          enableVibration(false)
+          setShowBadge(false)
+        },
       )
     }
 
@@ -130,6 +140,8 @@ class LustreListenerService : Service() {
 
     val builder = builder()
       .setSmallIcon(smallIcon())
+      .setColor(ICON_COLOR)
+      .setOnlyAlertOnce(true)
       .setContentTitle(notice.title)
       .setContentText(notice.body)
       .setStyle(Notification.BigTextStyle().bigText(notice.body))
@@ -143,7 +155,7 @@ class LustreListenerService : Service() {
       builder
         .setVisibility(Notification.VISIBILITY_PRIVATE)
         .setPublicVersion(
-          builder().setSmallIcon(smallIcon()).setContentTitle(notice.publicTitle).setShowWhen(false).build(),
+          builder().setSmallIcon(smallIcon()).setColor(ICON_COLOR).setContentTitle(notice.publicTitle).setShowWhen(false).build(),
         )
     }
 
@@ -208,7 +220,10 @@ class LustreListenerService : Service() {
     private const val ACTION_FINISH = "expo.modules.lustrelistener.FINISH"
     // Registered in `index.ts` with `AppRegistry.registerHeadlessTask`.
     const val TASK_KEY = "LustreListener"
-    private const val CHANNEL_ID = "listener"
+    private const val CHANNEL_ID = "listener-visible"
+    private const val OLD_CHANNEL_ID = "listener"
+    // `color.ink` in src/theme/tokens.ts.
+    private const val ICON_COLOR = 0xFF111114.toInt()
     private const val NOTIFICATION_ID = 7201
 
     @Volatile
