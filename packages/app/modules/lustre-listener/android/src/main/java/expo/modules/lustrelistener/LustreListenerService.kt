@@ -130,8 +130,6 @@ class LustreListenerService : Service() {
 
     val builder = builder()
       .setSmallIcon(smallIcon())
-      .setColor(ACCENT)
-      .setLargeIcon(Icon.createWithResource(this, applicationInfo.icon))
       .setContentTitle(notice.title)
       .setContentText(notice.body)
       .setStyle(Notification.BigTextStyle().bigText(notice.body))
@@ -145,7 +143,7 @@ class LustreListenerService : Service() {
       builder
         .setVisibility(Notification.VISIBILITY_PRIVATE)
         .setPublicVersion(
-          builder().setSmallIcon(smallIcon()).setColor(ACCENT).setContentTitle(notice.publicTitle).setShowWhen(false).build(),
+          builder().setSmallIcon(smallIcon()).setContentTitle(notice.publicTitle).setShowWhen(false).build(),
         )
     }
 
@@ -200,8 +198,6 @@ class LustreListenerService : Service() {
   }
 
   companion object {
-    // `color.accent` in src/theme/tokens.ts.
-    private const val ACCENT = 0xFF2F5BFF.toInt()
     private const val EXTRA_TITLE = "title"
     private const val EXTRA_BODY = "body"
     private const val EXTRA_CHANNEL_NAME = "channelName"

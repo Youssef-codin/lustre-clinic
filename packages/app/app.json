@@ -35,8 +35,7 @@
             [
                 "expo-notifications",
                 {
-                    "icon": "./assets/notification-icon.png",
-                    "color": "#2f5bff"
+                    "icon": "./assets/notification-icon.png"
                 }
             ],
             "@sentry/react-native/expo"
