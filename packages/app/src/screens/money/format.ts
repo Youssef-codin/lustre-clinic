@@ -10,6 +10,7 @@ import {
     PAYMENT_METHODS,
     type PaymentMethod,
 } from '@lustre/shared';
+import { serverNow } from '../../api/serverClock';
 import { getLocale } from '../../i18n/runtime';
 
 const MONTHS_LONG = [
@@ -29,7 +30,7 @@ const MONTHS_LONG = [
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export function outstandingAge(iso: string, now: Date = new Date()): string {
+export function outstandingAge(iso: string, now: Date = new Date(serverNow())): string {
     const locale = getLocale();
     const days = Math.floor((now.getTime() - new Date(iso).getTime()) / MS_PER_DAY);
 
@@ -59,7 +60,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
 
 // The stats heading names the month the figures are being read in, not the
 // period the pills select — "Stats · June 2026" stays put while the pills move.
-export function statsPeriodLabel(now: Date = new Date()): string {
+export function statsPeriodLabel(now: Date = new Date(serverNow())): string {
     const locale = getLocale();
     return localizeCopy(locale, 'Stats · {month} {year}', {
         month: localizeCopy(locale, MONTHS_LONG[now.getMonth()] ?? ''),

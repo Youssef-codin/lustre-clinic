@@ -31,6 +31,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { serverNow } from '../../../api';
 import { MoneyValue, ToothGroupCard } from '../../../components/domain';
 import {
     Button,
@@ -434,7 +435,7 @@ export function BookingScreen({
                         // A minute of slack: the round trip alone puts the
                         // start a few seconds behind the clock, and that is
                         // still "now" to the person at the desk.
-                        const waits = new Date(result.appointment.startsAt).getTime() > Date.now() + 60_000;
+                        const waits = new Date(result.appointment.startsAt).getTime() > serverNow() + 60_000;
 
                         const parts = [
                             waits ? `${who}, seen at ${seated.time} ${seated.meridiem}` : who,

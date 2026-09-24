@@ -29,7 +29,8 @@
  * patient is the New patient screen's **Old patient** switch — and the cutoff
  * is a fact about the clinic, answered once.
  */
-import { MAX_PATIENT_REF, todayKey } from '@lustre/shared';
+import { MAX_PATIENT_REF } from '@lustre/shared';
+import { serverToday as todayKey } from '../../../api/serverClock';
 import { calendarIsoOf } from '../../../components/domain/patientDraft';
 
 export { dateDigitsDisplay as cutoffDisplay } from '../../../components/domain/patientDraft';

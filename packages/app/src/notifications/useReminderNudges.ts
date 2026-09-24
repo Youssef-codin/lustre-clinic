@@ -67,6 +67,7 @@ export function useReminderNudges(): void {
             return;
         }
 
+        // The phone's clock, not the server's: the OS fires what is armed by it.
         const now = new Date();
 
         void armNudges(

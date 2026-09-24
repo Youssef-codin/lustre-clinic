@@ -17,6 +17,7 @@
  * else with no locale in hand, get the English.
  */
 import { type CopyVars, localizeCopy } from '@lustre/shared';
+import { serverNow } from '../../../api/serverClock';
 
 type Translate = (copy: string, vars?: CopyVars) => string;
 const english: Translate = (copy, vars) => localizeCopy('en', copy, vars);
@@ -85,7 +86,7 @@ function lastLine(lastSuccessAt: string | null, now: number, t: Translate): stri
 
 export function backupView(
     status: BackupStatusData,
-    now: number = Date.now(),
+    now: number = serverNow(),
     t: Translate = english,
 ): BackupView {
     const last = lastLine(status.lastSuccessAt, now, t);

@@ -16,7 +16,15 @@ import type { ClientRole } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
-import { allowsDemo, BUILD_VARIANT, type RouterOutput, resetDemoData, useDemoMode, useTRPC } from '../../api';
+import {
+    allowsDemo,
+    BUILD_VARIANT,
+    type RouterOutput,
+    resetDemoData,
+    serverNow,
+    useDemoMode,
+    useTRPC,
+} from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
 import {
     Button,
@@ -528,7 +536,7 @@ function useBackups(): BackupView | null {
     const trpc = useTRPC();
     const t = useT();
     const status = useQuery(trpc.backup.status.queryOptions(undefined, { refetchInterval: 5 * 60_000 }));
-    return status.data ? backupView(status.data, Date.now(), t) : null;
+    return status.data ? backupView(status.data, serverNow(), t) : null;
 }
 
 function useSummary() {

@@ -14,18 +14,19 @@
  */
 // biome-ignore lint/style/noRestrictedImports: a `setInterval` is the only thing that can move "now" — nothing renders or is tapped when the clock ticks past a minute
 import { useEffect, useState } from 'react';
+import { serverNow } from '../../api/serverClock';
 import { minutesOfDay } from './time';
 
 const TICK_MS = 30_000;
 const SECOND_MS = 1_000;
 
 function nowMinutes(): number {
-    return minutesOfDay(new Date().toISOString());
+    return minutesOfDay(new Date(serverNow()).toISOString());
 }
 
 /** Minutes since midnight carrying a fraction, so a caller can read seconds. */
 function nowExact(): number {
-    const now = new Date();
+    const now = new Date(serverNow());
     return minutesOfDay(now.toISOString()) + now.getSeconds() / 60;
 }
 
@@ -56,7 +57,7 @@ export function useNowSeconds(): number {
     useEffect(() => {
         let timer: ReturnType<typeof setTimeout>;
 
-        const untilNextSecond = () => SECOND_MS - (Date.now() % SECOND_MS);
+        const untilNextSecond = () => SECOND_MS - (serverNow() % SECOND_MS);
         const tick = () => {
             setMinutes(nowExact());
             timer = setTimeout(tick, untilNextSecond());

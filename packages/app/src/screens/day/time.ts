@@ -29,7 +29,9 @@
  * 24-hour `HH:MM` the server sends, and nothing in this cluster writes one back
  * — the schedule is edited in settings, which has its own `timeFromMinutes`.
  */
-import { dateKey, localizeCopy, localOffsetMinutes, offsetForDate, parseKey, todayKey } from '@lustre/shared';
+import { dateKey, localizeCopy, localOffsetMinutes, offsetForDate, parseKey } from '@lustre/shared';
+// Past the `api` barrel for the same reason as `domain/clock` below.
+import { serverToday } from '../../api/serverClock';
 import { getLocale } from '../../i18n/runtime';
 
 export {
@@ -44,7 +46,7 @@ export {
     time12,
 } from '../../components/domain/clock';
 
-export { dateKey, localOffsetMinutes, offsetForDate, parseKey, todayKey };
+export { dateKey, localOffsetMinutes, offsetForDate, parseKey, serverToday as todayKey };
 
 function pad(value: number): string {
     return value < 10 ? `0${value}` : String(value);
@@ -133,7 +135,7 @@ export function formatDate(key: string): string {
     return `${say(WEEKDAYS_SHORT[date.getDay()] ?? '')} ${date.getDate()} ${say(MONTHS_SHORT[date.getMonth()] ?? '')}`;
 }
 
-export function formatDatePill(key: string, today: string = todayKey()): string {
+export function formatDatePill(key: string, today: string = serverToday()): string {
     const date = parseKey(key);
     const month = MONTHS_SHORT[date.getMonth()] ?? '';
     const stamp = `${date.getDate()} ${getLocale() === 'ar' ? say(month) : month.toUpperCase()}`;
@@ -152,7 +154,7 @@ export function formatMonth(key: string): string {
     return `${say(MONTHS_SHORT[date.getMonth()] ?? '')} ${date.getFullYear()}`;
 }
 
-export function relativeDayLabel(key: string, today: string = todayKey()): string {
+export function relativeDayLabel(key: string, today: string = serverToday()): string {
     if (key === today) return say('Today');
     if (key === addDays(today, 1)) return say('Tomorrow');
     if (key === addDays(today, -1)) return say('Yesterday');
