@@ -38,29 +38,8 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
                     {patient.name}
                 </Text>
 
-                {/* On the meta line, not above the name. Above it the badge
-                    pushed the name down while the call buttons stayed put, and
-                    the header's whole shape is the name and the two ways to
-                    reach them on one line. Here it leads the line it belongs
-                    to — the row of small facts about who this is. */}
                 <View style={styles.meta}>
                     <RefChip value={patient.ref} />
-
-                    {patient.legacyRef !== null ? (
-                        <LegacyBadge
-                            // The number the old system knew them by is drawn
-                            // only when it is *not* the one already in the chip
-                            // beside it. For a patient registered through the
-                            // Old patient switch the two are the same string —
-                            // they were given one number and the chip is it —
-                            // and repeating it would read as two numbers. Where
-                            // they differ the record came across under the old
-                            // data-entry flow, which allocated a second number
-                            // on top of the real one, and the real one is the
-                            // one the paper file has on its front.
-                            oldRef={patient.legacyRef === patient.ref ? null : patient.legacyRef}
-                        />
-                    ) : null}
 
                     {metaParts(patient, t).map((part, index) => (
                         <Fragment key={part}>
@@ -111,9 +90,6 @@ export function PatientHeader({ patient, onFailed }: PatientHeaderProps) {
  *
  * Drawn as a chip rather than as another part of the line: the rest of the line
  * is muted mono figures, and a fourth one would read as a second phone number.
- * Outlined rather than filled, so it does not compete with `LEGACY` — that badge
- * is a warning and this is an identifier, and the loud one should stay the
- * warning.
  */
 function RefChip({ value }: { value: string }) {
     return (
@@ -130,47 +106,9 @@ function metaParts(patient: Patient, t: (copy: string) => string): string[] {
     const sex = sentenceCase(patient.gender);
     const who = [sex && t(sex), patient.age === null ? null : String(patient.age)].filter(Boolean).join(', ');
 
-    // The old system's number is not one of these. It is either the ref already
-    // in the chip or it is inside the badge beside it; a third mono figure on
-    // this line would read as a second phone number.
+    // The old system's number is not one of these: a third mono figure on this
+    // line would read as a second phone number.
     return [who, patient.phone].filter((part): part is string => Boolean(part));
-}
-
-/**
- * This record came across from the old system rather than being registered
- * here. It has to be unmissable: a migrated record has almost no history behind
- * it, and without the badge that reads as a patient who has never been in —
- * which is the wrong thing to tell someone standing at the desk.
- *
- * `oldRef` is the number the old system used, and it is drawn inside the badge
- * only when the record's own ref is something else. That used to be every
- * migrated record and the figure was deliberately not drawn anywhere, on the
- * grounds that three numbers in mono on one line is a line nobody reads. It is
- * now the exception rather than the rule — an old patient's ref *is* their old
- * number — and the exception is exactly the case where hiding it costs
- * something: the desk is holding a file marked 710 and looking at a record that
- * says 909, with nothing on screen joining the two.
- *
- * Local rather than `ui/Tag`, which is frozen (§10) and cannot go this loud:
- * its strongest fill is `surface2`, four values off `canvas`, and its `ink`
- * tone puts dark type on that — a chip that disappears into the page. This is
- * the inversion `Tag` has no variant for, drawn the way every other emphatic
- * chip in the app is: solid `ink`, `inverse` type. See BLOCKED.md.
- */
-function LegacyBadge({ oldRef }: { oldRef: string | null }) {
-    const t = useT();
-    return (
-        <View
-            style={styles.legacy}
-            accessibilityLabel={
-                oldRef === null ? t('From the old system') : t('Old system number {ref}', { ref: oldRef })
-            }
-        >
-            <Text variant="tag" weight="bold" tone="inverse" script={oldRef === null ? undefined : 'mono'}>
-                {oldRef === null ? t('LEGACY') : t('OLD {ref}', { ref: oldRef })}
-            </Text>
-        </View>
-    );
 }
 
 /** `wa.me` wants the number without a `+` or separators. */
@@ -182,18 +120,6 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'flex-start', gap: space[3] },
     identity: { flex: 1, gap: space[1.5] },
     name: { flexShrink: 1 },
-    // Solid ink, so it reads before the name does. Slightly more padding than
-    // `ui/Tag` gives its chips: this one is a label on the record and not a
-    // status on a row, and at `tag` size it needs the room to carry.
-    legacy: {
-        paddingHorizontal: space[2],
-        paddingVertical: space[1],
-        borderRadius: radius.sm,
-        backgroundColor: color.ink,
-    },
-    // Outlined and in ink, against `LEGACY`'s solid fill next to it. Same
-    // vertical metrics as that badge so the two sit on one line without either
-    // shifting the row's height.
     ref: {
         paddingHorizontal: space[2],
         paddingVertical: space[1],
