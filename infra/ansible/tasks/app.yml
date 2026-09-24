@@ -165,7 +165,8 @@
     chdir: "{{ stack_dir }}"
   changed_when: false
 
-# The running production server cannot change the schema (DECISIONS.md), so the
+# The production server connects as `lustre_app`, which cannot DROP, TRUNCATE or
+# ALTER (infra/postgres/init/10-roles.sh), so it never migrates on boot: the
 # deploy migrates as the owner in a one-off container. The password is read
 # from .env by the shell and never passes through Ansible.
 - name: "{{ stack.name }}: migrate as the owner"

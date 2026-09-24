@@ -9,7 +9,7 @@
  *
  * `linkDrive` is the exception, and the only unauthenticated write in the
  * codebase that sets where patient data goes. That exposure is accepted
- * deliberately (§1, DECISIONS.md) on the grounds that a tailnet peer already
+ * deliberately (§1) on the grounds that a tailnet peer already
  * reads every record — but the phone confirms before calling it, and the code
  * it sends is single-use and worthless without the verifier that made it.
  */

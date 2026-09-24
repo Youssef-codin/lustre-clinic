@@ -8,8 +8,7 @@
 // its `trailing`), with the ref and the balance opening under it in the same
 // card — it is one more fact read off the paper file, next to the age and the
 // sex, not a section of its own. The procedures are a list under their own
-// eyebrow below the card (`OldProcedures`). Recorded in DECISIONS.md rather
-// than passed off as drawn.
+// eyebrow below the card (`OldProcedures`).
 //
 // Off is the default and off sends nothing. The fields keep what is in them
 // while the switch is off rather than being wiped — a mis-tap that lost a typed

@@ -169,7 +169,7 @@ Drive the clinic uses. Delete that file to fall back to the environment.
 
 This mutation is unauthenticated, like every other procedure (SPEC §1): anyone
 who can reach the API on the tailnet can re-point the clinic's off-site backups.
-That was accepted deliberately — see DECISIONS.md — on the grounds that such a
+That was accepted deliberately, on the grounds that such a
 peer already reads every patient record, and the dumps leave encrypted with a key
 that is not on this machine. Leave `BACKUP_DRIVE_ANDROID_CLIENT_ID` empty if you
 would rather not take it.

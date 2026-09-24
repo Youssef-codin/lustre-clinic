@@ -16,7 +16,7 @@ be picked before money could be taken. `balance.settle` allocates a
 patient-level payment across their unsettled visits oldest-first, so nothing
 has to be picked and both panes are gone. Tapping a debtor opens that patient's
 **record**, which is where the payment sheet lives and where per-visit history
-already was. See `DECISIONS.md`, *A payment is taken against a patient*.
+already was.
 
 ## The dashboard, against the design
 

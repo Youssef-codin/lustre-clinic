@@ -13,7 +13,7 @@
 // the patient's number anywhere. It is built as one more ruled row of this card
 // rather than as a block of its own, because that is what it is: the first
 // fact on the record, read off the top of the paper page. Mono, like the phone
-// and the age, because it is a code and not a word. See DECISIONS.md.
+// and the age, because it is a code and not a word.
 //
 // The name sets no face — `<Text>`-style script detection is what puts an
 // Arabic name in Noto Naskh, so the input picks its family from the value it

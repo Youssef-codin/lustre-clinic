@@ -26,7 +26,7 @@
  * It lives in the cluster rather than in `ui/` because `ui/boundaries.test.ts`
  * allows a primitive to import only react, react-native, the theme and its own
  * siblings, and this needs a native module outside that list. Promoting it to
- * the `ui/TimeField` DECISIONS.md asks for means widening that allowlist, which
+ * a `ui/TimeField` means widening that allowlist, which
  * is a bigger call than one screen's picker.
  */
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';

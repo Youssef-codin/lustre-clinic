@@ -34,7 +34,7 @@ number at the top of that page — is on the record header.
 
 It used to push into the money cluster and land on a list of that patient's
 visits, because `visit.recordPayment` took one `visitId` and someone had to pick
-it. See `DECISIONS.md`, *A payment is taken against a patient*.
+it.
 
 What the screen guarantees, and what is tested in
 [`patients.test.ts`](./patients.test.ts):
@@ -180,8 +180,7 @@ Both refusals that remain are the server's, and both are the registration
 block's own: a clinic with no migration branch and cutoff configured gets
 `MIGRATION_NOT_CONFIGURED`, and a date after the cutoff gets
 `IMPORTED_DATE_AFTER_CUTOFF` — work done here since the changeover belongs to a
-visit that charges for it. See `DECISIONS.md`, *Historical procedures are the
-migration write*.
+visit that charges for it.
 
 ## Arabic
 

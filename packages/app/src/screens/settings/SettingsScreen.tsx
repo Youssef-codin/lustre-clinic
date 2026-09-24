@@ -316,7 +316,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     testID="settings-branches"
                                 />
                                 <CardDivider />
-                                {/* Not in `settings.html` — see DECISIONS.md. */}
+                                {/* Not in `settings.html`, which never mentions opening hours; kept rather than delete a working screen. */}
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"
