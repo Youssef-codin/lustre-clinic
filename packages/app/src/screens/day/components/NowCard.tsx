@@ -8,14 +8,14 @@
  * re-render at that rate.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Dot } from '../../../components/ui';
+import { Button, Dot, IconButton } from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
 import { formatDuration, minutesOfDay, time12 } from '../time';
 import { ChairProgress } from './ChairProgress';
-import { CheckIcon, ClockIcon } from './icons';
+import { CheckIcon, ClockIcon, MoreIcon } from './icons';
 
 export type NowCardProps = {
     active: Appointment | null;
@@ -71,6 +71,26 @@ function Name({
                 {appointment.patient.name}
             </Text>
         </Pressable>
+    );
+}
+
+/**
+ * The way to everything that is not checking in — cancel, no-show, reschedule
+ * — which the sheet already holds. It sits over the card like `Name` does, and
+ * for the same reason: a tap meant for the sheet must not also check them in.
+ * The negative margin keeps its 30pt box from pushing the eyebrow row taller.
+ */
+function More({ appointment, onOpen }: { appointment: Appointment; onOpen: (a: Appointment) => void }) {
+    const t = useT();
+    return (
+        <IconButton
+            accessibilityLabel={t('More for {name}', { name: appointment.patient.name })}
+            icon={<MoreIcon size={18} stroke={color.muted} />}
+            variant="bare"
+            style={styles.more}
+            onPress={() => onOpen(appointment)}
+            testID="now-card-more"
+        />
     );
 }
 
@@ -149,6 +169,7 @@ export function NowCard({
                         {t('NEXT UP')}
                     </Text>
                     <StartedAt appointment={next} />
+                    <More appointment={next} onOpen={onOpen} />
                 </View>
 
                 <Name appointment={next} onOpenRecord={onOpenRecord} />
@@ -210,6 +231,7 @@ const styles = StyleSheet.create({
     empty: { gap: space[1], padding: space[5] },
     eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     startedAt: { marginStart: 'auto' },
+    more: { marginVertical: -space[2], marginEnd: -space[1.5] },
     // `flex-start` so the target is the name's own width: stretched across the
     // card, the gap beside a short name would open the record instead of doing
     // what the rest of the card does.
