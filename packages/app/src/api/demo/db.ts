@@ -172,6 +172,7 @@ export interface SettingsRow {
     migrationCutoffDate: string | null;
     requireAge: boolean;
     requireGender: boolean;
+    askToEditOnFinish: boolean;
     updatedAt: Date;
 }
 
@@ -214,8 +215,9 @@ const STORE_KEY = 'lustre.demo.db';
  * 8: appointments carry `labStatus`.
  * 9: settings carry `requireAge` and `requireGender`, and one seeded patient
  *    has no age again.
+ * 10: settings carry `askToEditOnFinish`.
  */
-const STORE_VERSION = 9;
+const STORE_VERSION = 10;
 
 let db: DemoDb | null = null;
 

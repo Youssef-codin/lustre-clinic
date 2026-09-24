@@ -8,6 +8,9 @@
  * the pane has to state and the API has to enforce: the default row has no
  * remove control, because deleting it would leave the booking screen pre-filling
  * a duration that is no longer offered. Pick another default first.
+ *
+ * Under them, whether the doctor's Finish asks if the procedures need editing
+ * first. On until the clinic says otherwise.
  */
 import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +26,7 @@ import {
     NumericField,
     Radio,
     SectionLabel,
+    Switch,
     Tag,
     usePendingAction,
     usePullToRefresh,
@@ -103,6 +107,11 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
     function onSetDefault(minutes: number) {
         acting.current = 'row';
         write.run({ defaultDuration: minutes });
+    }
+
+    function onAskToEdit(on: boolean) {
+        acting.current = 'row';
+        write.run({ askToEditOnFinish: on });
     }
 
     return (
@@ -233,6 +242,31 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                             pick another option first if you want to remove it.
                         </Text>
                     </Card>
+
+                    <View style={styles.section}>
+                        <SectionLabel inset={false}>FINISHING A VISIT</SectionLabel>
+                        <Card>
+                            <View style={styles.flagRow}>
+                                <View style={styles.flagText}>
+                                    <Text variant="body" weight="medium">
+                                        {t('Ask to edit procedures')}
+                                    </Text>
+                                    <Text variant="subhead" tone="muted">
+                                        {t(
+                                            'Finish asks the doctor whether the procedures need editing before the patient goes to the desk.',
+                                        )}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    value={data.askToEditOnFinish}
+                                    onValueChange={onAskToEdit}
+                                    disabled={busy}
+                                    accessibilityLabel="Ask to edit procedures"
+                                    testID="finish-ask-to-edit"
+                                />
+                            </View>
+                        </Card>
+                    </View>
                 </>
             ) : null}
         </Pane>
@@ -290,5 +324,14 @@ const styles = StyleSheet.create({
     quick: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
 
     defaultCard: { gap: space[2] },
+    flagRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[3],
+        paddingHorizontal: space[4],
+        paddingVertical: space[3],
+        minHeight: size.row,
+    },
+    flagText: { flex: 1, gap: space[1] },
     figure: { flexDirection: 'row', alignItems: 'baseline', gap: space[1.5] },
 });

@@ -7,6 +7,12 @@
  * It lives on the chair card, where he is already looking. Everything else is a
  * read.
  *
+ * Finish asks first whether the procedures need editing (`FinishSheet`), unless
+ * the clinic has turned the question off. Editing opens the same `VisitScreen`
+ * the sheet's Record button does, with its one button saving and then finishing;
+ * a save that fails leaves the visit where it was. Both Finish buttons, the
+ * strip's and the card's, go through `pressFinish`.
+ *
  * The secretary's appointment sheet is not mounted here. It is a column of desk
  * writes — check in, no-show, cancel — and the doctor makes none of them; a
  * modal of buttons he must not press is worse than no modal at all. Check-out
@@ -56,6 +62,7 @@ import { DayHeader } from './components/DayHeader';
 import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
+import { FinishSheet } from './components/FinishSheet';
 import { VisitScreen } from './components/VisitScreen';
 import { pickBranch, scheduledBranch, usePickedBranch } from './currentBranch';
 import type { OpenBookingRequest } from './DayScreen';
@@ -69,6 +76,7 @@ import {
     visitForAppointment,
 } from './data';
 import { describeError } from './errors';
+import { finishPress } from './finish';
 import { isClosed } from './hours';
 import { formatMoney } from './money';
 import { busiestBranch, holdsSlot } from './month';
@@ -111,8 +119,15 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         appointment: Appointment;
         visit: Visit;
         standing: Standing;
+        /** Opened from Finish: saving sends the patient to the desk. */
+        finishing: boolean;
         seq: number;
     } | null>(null);
+    /** The Finish prompt, kept past its exit slide like `opened`. */
+    const [asking, setAsking] = useState<{ appointment: Appointment | null; open: boolean }>({
+        appointment: null,
+        open: false,
+    });
     /** The booking being edited, kept past the page's exit slide for the same reason. */
     const [moving, setMoving] = useState<Appointment | null>(null);
     // Seeded from the request already standing, so swapping roles does not
@@ -136,12 +151,14 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     if (open && open.seq !== seenOpen) {
         setSeenOpen(open.seq);
         setOpened((current) => ({ ...current, sheet: false }));
+        setAsking((current) => ({ ...current, open: false }));
         routes.resetTo('booking');
     }
 
     if (goHome !== seenHome) {
         setSeenHome(goHome);
         setOpened((current) => ({ ...current, sheet: false }));
+        setAsking((current) => ({ ...current, open: false }));
         setCalendar(closeCalendar);
         routes.popToRoot();
     }
@@ -248,11 +265,19 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         return chair?.id === appointment.id ? 'chair' : 'waiting';
     }
 
-    function recordVisit(appointment: Appointment) {
+    const closeFinishSheet = () => setAsking((current) => ({ ...current, open: false }));
+
+    /**
+     * Opens the editor from whichever sheet asked for it. The sheet stays up
+     * while the visit loads and goes once there is something to hand over to;
+     * a load that fails closes the Finish prompt so its banner can be read.
+     */
+    function recordVisit(appointment: Appointment, finishing = false) {
         if (loadVisit.pending) return;
         loadVisit.mutate(appointment.id, {
             onSuccess: (loaded) => {
                 if (!loaded) {
+                    closeFinishSheet();
                     setToast('This visit could not be found');
                     return;
                 }
@@ -260,11 +285,14 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                     appointment,
                     visit: loaded,
                     standing: standingOf(appointment),
+                    finishing,
                     seq: (current?.seq ?? 0) + 1,
                 }));
                 setOpened((current) => ({ ...current, sheet: false }));
+                closeFinishSheet();
                 sheetDone.after(() => routes.resetTo('treatment'));
             },
+            onError: closeFinishSheet,
         });
     }
 
@@ -274,7 +302,14 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
         sheetDone.after(() => routes.resetTo('reschedule'));
     }
 
+    function pressFinish(appointment: Appointment) {
+        const press = finishPress(settings.data?.askToEditOnFinish, finish.pending || loadVisit.pending);
+        if (press === 'finish') finishVisit(appointment);
+        if (press === 'ask') setAsking({ appointment, open: true });
+    }
+
     function finishVisit(appointment: Appointment) {
+        if (finish.pending) return;
         setFinishing(appointment.id);
         finish.mutate(appointment.id, {
             onSuccess: () => {
@@ -361,7 +396,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                                 finishing={finishingId === strip.id}
                                 onOpen={openVisit}
                                 onOpenRecord={onOpenRecord}
-                                onFinish={finishVisit}
+                                onFinish={pressFinish}
                             />
                         ) : null}
 
@@ -378,7 +413,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                                 finishing={finishingId === headline?.id}
                                 onOpenRecord={onOpenRecord}
                                 onOpen={openVisit}
-                                onFinish={finishVisit}
+                                onFinish={pressFinish}
                             />
                         ) : null}
 
@@ -420,6 +455,21 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 onRecord={recordVisit}
                 onEditBooking={editBooking}
                 recording={loadVisit.pending}
+                onClosed={sheetDone.closed}
+            />
+
+            <FinishSheet
+                visible={asking.open}
+                patientName={asking.appointment?.patient.name ?? ''}
+                loading={loadVisit.pending}
+                onEdit={() => {
+                    if (asking.appointment) recordVisit(asking.appointment, true);
+                }}
+                onFinish={() => {
+                    closeFinishSheet();
+                    if (asking.appointment) finishVisit(asking.appointment);
+                }}
+                onClose={closeFinishSheet}
                 onClosed={sheetDone.closed}
             />
 
@@ -479,6 +529,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                             visit={editing.visit}
                             mode="checkout"
                             standing={editing.standing}
+                            finishing={editing.finishing}
                             onBack={routes.pop}
                             onConfirm={(priced) => {
                                 routes.popToRoot();

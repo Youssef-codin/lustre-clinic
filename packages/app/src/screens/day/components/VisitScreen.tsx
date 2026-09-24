@@ -134,6 +134,12 @@ export type VisitScreenProps = {
     onNoteSaved?: (note: string | null) => void;
     /** Priced and handed to the desk; the chair is free and nobody has paid. */
     onSentToDesk?: (message: string) => void;
+    /**
+     * Opened from the doctor's Finish. The visit is being finished either way,
+     * so the one button saves and sends to the desk — a Confirm that saved and
+     * stopped would leave the patient in the chair after the doctor said done.
+     */
+    finishing?: boolean;
 };
 
 /**
@@ -185,6 +191,7 @@ export function VisitScreen({
     onConfirm,
     onNoteSaved,
     onSentToDesk,
+    finishing = false,
 }: VisitScreenProps) {
     const t = useT();
     const locale = useLocale();
@@ -750,31 +757,46 @@ export function VisitScreen({
                 the chair and lets the desk — is the chair's alone. An arrival,
                 a patient still in the queue and one already standing at the
                 desk each get the single button, because for all three the desk
-                is not the next place they go. */}
+                is not the next place they go. Opened from Finish, the desk is
+                already decided and the one button goes there. */}
             <View style={[styles.bar, { paddingBottom: Math.max(space[4], keyboard) }]}>
-                {inChair ? (
-                    <View style={styles.secondaryAction}>
+                {finishing ? (
+                    <View style={styles.primaryAction}>
                         <Button
-                            label="Send to desk"
-                            variant="ghost"
+                            label="Save and send to desk"
                             block
                             loading={handingOver}
-                            disabled={confirming}
                             onPress={handToDesk}
-                            testID="visit-send-to-desk"
+                            testID="visit-save-and-finish"
                         />
                     </View>
-                ) : null}
-                <View style={styles.primaryAction}>
-                    <Button
-                        label="Confirm"
-                        block
-                        loading={confirming}
-                        disabled={handingOver}
-                        onPress={confirm}
-                        testID="visit-confirm"
-                    />
-                </View>
+                ) : (
+                    <>
+                        {inChair ? (
+                            <View style={styles.secondaryAction}>
+                                <Button
+                                    label="Send to desk"
+                                    variant="ghost"
+                                    block
+                                    loading={handingOver}
+                                    disabled={confirming}
+                                    onPress={handToDesk}
+                                    testID="visit-send-to-desk"
+                                />
+                            </View>
+                        ) : null}
+                        <View style={styles.primaryAction}>
+                            <Button
+                                label="Confirm"
+                                block
+                                loading={confirming}
+                                disabled={handingOver}
+                                onPress={confirm}
+                                testID="visit-confirm"
+                            />
+                        </View>
+                    </>
+                )}
             </View>
 
             <ToothSheet

@@ -55,6 +55,8 @@ interface Settings {
     requireAge: boolean;
     /** The same for a sex. */
     requireGender: boolean;
+    /** Whether the doctor's Finish asks first if the procedures need editing. */
+    askToEditOnFinish: boolean;
     updatedAt: Date;
 }
 
@@ -82,6 +84,7 @@ function toSettings(row: SettingsRow): Settings {
         migrationCutoffDate: row.migrationCutoffDate,
         requireAge: row.requireAge,
         requireGender: row.requireGender,
+        askToEditOnFinish: row.askToEditOnFinish,
         updatedAt: row.updatedAt,
     };
 }

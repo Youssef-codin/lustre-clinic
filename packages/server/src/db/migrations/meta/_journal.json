@@ -127,6 +127,13 @@
       "when": 1790800000000,
       "tag": "0018_clear_zero_ages",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0020_ask_to_edit_on_finish",
+      "breakpoints": true
     }
   ]
 }
