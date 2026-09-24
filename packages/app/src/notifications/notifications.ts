@@ -31,7 +31,7 @@ import { Platform } from 'react-native';
 import { getLocale } from '../i18n/runtime';
 import type { NudgePlan } from './schedule';
 import { failureIdentifier } from './visitAction';
-import { noticeIdentifier } from './visitNotice';
+import { arrivalIdentifier, noticeIdentifier } from './visitNotice';
 
 const CHANNEL_ID = 'reminders';
 
@@ -235,4 +235,43 @@ export async function presentFinishFailure(appointmentId: string, offline: boole
 
 export async function dismissFinishFailure(appointmentId: string): Promise<void> {
     await Notifications.dismissNotificationAsync(failureIdentifier(appointmentId));
+}
+
+const ARRIVAL_CHANNEL_ID = 'arrivals';
+
+let arrivalChannelReady = false;
+
+/** High importance and private, like the desk's: someone is waiting now, and a locked phone says so without saying who. */
+async function ensureArrivalChannel(): Promise<void> {
+    if (arrivalChannelReady || Platform.OS !== 'android') {
+        arrivalChannelReady = true;
+        return;
+    }
+
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    await Notifications.setNotificationChannelAsync(ARRIVAL_CHANNEL_ID, {
+        name: t('Patients checked in'),
+        description: t('When the desk checks a patient in.'),
+        importance: Notifications.AndroidImportance.HIGH,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+    });
+    arrivalChannelReady = true;
+}
+
+/** Posts "{name} has checked in" on the doctor's phone. `name` is null when it could not be fetched, and the notice still goes. */
+export async function presentArrivalNotice(appointmentId: string, name: string | null): Promise<void> {
+    if (!(await Notifications.getPermissionsAsync()).granted) return;
+    await ensureArrivalChannel();
+
+    const locale = getLocale();
+    await Notifications.scheduleNotificationAsync({
+        identifier: arrivalIdentifier(appointmentId),
+        content: {
+            title: name
+                ? localizeCopy(locale, '{name} has checked in', { name })
+                : localizeCopy(locale, 'A patient has checked in'),
+            body: localizeCopy(locale, 'They are waiting to be seen.'),
+        },
+        trigger: Platform.OS === 'android' ? { channelId: ARRIVAL_CHANNEL_ID } : null,
+    });
 }

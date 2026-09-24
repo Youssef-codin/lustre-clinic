@@ -289,6 +289,10 @@ export const visitService = {
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: visit.id });
         broadcast(WS_EVENT.APPOINTMENT_UPDATED, { id: visit.appointmentId });
+        // Inside a caller's transaction (a walk-in) nothing is committed yet,
+        // and the doctor's phone asks for the name the moment it hears this.
+        // The caller announces the arrival once it has committed.
+        if (!executor) broadcast(WS_EVENT.APPOINTMENT_CHECKED_IN, { id: visit.appointmentId });
         return visit;
     },
 

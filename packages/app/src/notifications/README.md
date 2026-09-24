@@ -252,13 +252,12 @@ ends. The lock screen shows "A visit is in progress" instead.
 
 ## When it is up
 
-Only on the doctor's phone, with notifications allowed, outside demo mode, and
-only while someone is in the chair. Android only lets the service start from
-the foreground, so the notice appears when the app is opened with someone in
-the chair; in the background it is only redrawn — the next patient, after a
-finish — or taken down when the chair empties. A patient checked in while the
-doctor's phone sits in the background with an empty chair shows up on the next
-foreground, not before.
+Only on the doctor's phone, with notifications allowed, outside demo mode — and
+all day, not only while someone is in the chair. With the chair empty it reads
+"Listening for patients" and has no button; it is kept up so the socket is, and
+a check-in reaches the phone in the background (below). Android only lets the
+service start from the foreground, so it comes up when the app is opened; in the
+background it is only redrawn.
 
 ## Checking it
 
@@ -269,3 +268,25 @@ adb shell cmd statusbar expand-notifications     # then tap Finish visit
 
 Open the app as the doctor with someone checked in, press HOME, and finish from
 the shade. The desk phone (or `appointment.byDate`) shows the visit at the desk.
+
+---
+
+# "Checked in"
+
+The doctor's phone is told when the desk checks a patient in, foreground or not.
+
+```tsx
+useArrivalNotices(roleReady ? role : null);   // once, in the shell
+```
+
+The server broadcasts `appointment:checked_in` with the appointment's ID from
+`visit.checkIn`, and from `appointment.walkIn` once its transaction has
+committed — a walk-in checks in inside that transaction, where the doctor's
+phone asking for the name would find nothing yet. The phone asks
+`appointment.byId` for the name and posts "{name} has checked in" on its own
+high-importance, private channel, under `lustre.visit.arrived.<appointmentId>`.
+The rule (`arrivalToAnnounce` in `visitNotice.ts`) is the completion's mirror:
+doctor only, and nothing for an arrival replayed more than ten minutes late.
+
+It needs the foreground service above to be running, which is why that now runs
+all day on the doctor's phone.

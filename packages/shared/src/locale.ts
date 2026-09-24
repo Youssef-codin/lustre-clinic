@@ -709,6 +709,13 @@ export const COPY_AR = {
     'You will be told when a patient is coming to the desk.':
         'سيتم إعلامك عندما يكون مريض في الطريق إلى الاستقبال.',
     'Staying connected to the clinic': 'البقاء متصلاً بالعيادة',
+    '{name} has checked in': 'وصل {name}',
+    'A patient has checked in': 'وصل مريض',
+    'They are waiting to be seen.': 'في انتظار الكشف.',
+    'Patients checked in': 'مرضى وصلوا',
+    'When the desk checks a patient in.': 'عندما يسجّل الاستقبال وصول مريض.',
+    'Listening for patients': 'في انتظار المرضى',
+    'You will be told when a patient checks in.': 'سيتم إعلامك عندما يصل مريض.',
     '{name} is in the chair': '{name} على الكرسي',
     'Finish the visit to send them to the desk.': 'أنهِ الزيارة لإرساله إلى الاستقبال.',
     'A visit is in progress': 'زيارة جارية',

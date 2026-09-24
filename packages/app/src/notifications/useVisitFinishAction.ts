@@ -12,9 +12,11 @@
  * A refusal because the visit had already left the chair is not a failure; any
  * other is reported, and the button comes back.
  *
- * The service can only be started from the foreground, so the notice appears
- * when the app is opened with someone in the chair. In the background it is
- * only redrawn — the next patient, after a finish — or taken down.
+ * The service runs all day, not only while someone is in the chair: with the
+ * chair empty it shows a quiet "Listening for patients" instead, and the socket
+ * it keeps up is what carries `useArrivalNotices` to a phone in the background.
+ * It can only be started from the foreground, so it comes up when the app is
+ * opened; in the background it is only redrawn.
  */
 import { type ClientRole, localizeCopy } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: runs the Android foreground service and subscribes to its action, `/ws` changes and `AppState` — all outside React
@@ -52,6 +54,15 @@ function noticeFor(chair: Appointment): ListenerNotice {
     };
 }
 
+function idleNotice(): ListenerNotice {
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    return {
+        title: t('Listening for patients'),
+        body: t('You will be told when a patient checks in.'),
+        channelName: t('Staying connected to the clinic'),
+    };
+}
+
 async function readChair(): Promise<Appointment | null> {
     const day = await dayApi.byDate(todayKey());
     const checkedIn = day.filter((row) => row.status === 'checked_in').map((row) => row.id);
@@ -71,32 +82,41 @@ export function useVisitFinishAction(role: ClientRole | null): void {
         let shown: Appointment | null = null;
         const finishing = new Set<string>();
 
+        const show = (notice: ListenerNotice): boolean =>
+            AppState.currentState === 'active' ? startListening(notice) : updateListening(notice);
+
         const draw = (chair: Appointment) => {
-            const notice = noticeFor(chair);
-            const drawn =
-                AppState.currentState === 'active' ? startListening(notice) : updateListening(notice);
-            shown = drawn ? chair : null;
+            shown = show(noticeFor(chair)) ? chair : null;
         };
 
         const refresh = async () => {
             const mine = ++generation;
-            let chair: Appointment | null = null;
-            if (await notificationsAllowed()) {
-                try {
-                    chair = await readChair();
-                } catch {
-                    // Unreachable: leave the notice as it is rather than take
-                    // down the one way to finish from the shade.
-                    return;
-                }
+            if (!(await notificationsAllowed())) {
+                if (!active || mine !== generation) return;
+                shown = null;
+                stopListening();
+                return;
+            }
+            let chair: Appointment | null;
+            try {
+                chair = await readChair();
+            } catch {
+                // Unreachable: leave the notice as it is rather than take
+                // down the one way to finish from the shade. With nothing up
+                // yet, bring the service up anyway, so the socket it keeps
+                // alive can reconnect and still hear a check-in.
+                if (active && mine === generation && shown === null) show(idleNotice());
+                return;
             }
             if (!active || mine !== generation) return;
             if (chair && finishing.has(chair.id)) return;
             if (chair) {
                 draw(chair);
             } else {
+                // The chair is empty, but the service stays: it is what keeps
+                // a check-in reaching this phone in the background.
                 shown = null;
-                stopListening();
+                show(idleNotice());
             }
         };
 

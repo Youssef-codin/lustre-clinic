@@ -655,6 +655,22 @@ describe('websocket broadcasts', () => {
             event: WS_EVENT.APPOINTMENT_UPDATED,
             id: appointment.id,
         });
+        expect(events).toContainEqual({ event: WS_EVENT.APPOINTMENT_CHECKED_IN, id: appointment.id });
+    });
+
+    test('a walk-in announces its arrival once, after it is committed', async () => {
+        const { client } = api;
+        const { branch, patient } = await clinicViaApi();
+
+        const { result, events } = await captureWsEvents(api.wsUrl, () =>
+            client.appointment.walkIn.mutate({
+                patient: { kind: 'existing', patientId: patient.id },
+                branchId: branch.id,
+            }),
+        );
+
+        const arrivals = events.filter((event) => event.event === WS_EVENT.APPOINTMENT_CHECKED_IN);
+        expect(arrivals).toEqual([{ event: WS_EVENT.APPOINTMENT_CHECKED_IN, id: result.appointment.id }]);
     });
 
     test('awaiting payment pushes appointment:updated and visit:completed', async () => {

@@ -1,6 +1,7 @@
 /**
- * Which `/ws` events become "the doctor is finished" on the desk's phone. Pure,
- * so the rule is tested without `expo-notifications`.
+ * Which `/ws` events become a notice: "the doctor is finished" on the desk's
+ * phone, and "a patient has checked in" on the doctor's. Pure, so the rules are
+ * tested without `expo-notifications`.
  */
 import { type ClientRole, WS_EVENT } from '@lustre/shared';
 import type { ServerEvent } from '../api/serverEvents';
@@ -25,4 +26,20 @@ export function completionToAnnounce(event: ServerEvent, role: ClientRole, now: 
  */
 export function noticeIdentifier(appointmentId: string): string {
     return `lustre.visit.completed.${appointmentId}`;
+}
+
+/**
+ * The appointment to announce as arrived, on the doctor's phone only — the desk
+ * is the one that checked them in. The same age limit: an arrival replayed long
+ * after is a patient who has already been seen.
+ */
+export function arrivalToAnnounce(event: ServerEvent, role: ClientRole, now: number): string | null {
+    if (role !== 'doctor' || event.event !== WS_EVENT.APPOINTMENT_CHECKED_IN || !event.id) return null;
+    if (now - event.at > NOTICE_MAX_AGE_MS) return null;
+    return event.id;
+}
+
+/** One arrival notice per appointment, as with the completion. */
+export function arrivalIdentifier(appointmentId: string): string {
+    return `lustre.visit.arrived.${appointmentId}`;
 }
