@@ -84,6 +84,11 @@ interface OutstandingRow {
 }
 
 export const patientsApi = {
+    /** Active only: the WhatsApp button offers one per branch the clinic still works from. */
+    listBranches: () => dayApi.branches(),
+
+    schedule: () => dayApi.schedule(),
+
     async listQuestions(): Promise<CustomQuestion[]> {
         const rows = await wrap<Array<Omit<CustomQuestion, 'options'> & { options: unknown }>>(() =>
             trpcClient.customQuestion.list.query({ includeInactive: false }),

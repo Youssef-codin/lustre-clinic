@@ -13,11 +13,12 @@
  */
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Banner, Button, EmptyState, type PullToRefresh, RefreshView } from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
 import { useRearmReminderNudges } from '../../../notifications';
 import { border, color, size, space, Text } from '../../../theme';
+import { openWhatsApp } from '../../../whatsapp';
 import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
 import { dateKey, relativeDayLabel, time12 } from '../time';
@@ -73,7 +74,7 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     }
 
     async function open(reminder: PendingReminder) {
-        await Linking.openURL(reminder.whatsAppUrl).then(
+        await openWhatsApp(reminder.whatsAppUrl, reminder.whatsappApp).then(
             () => settle(reminder, 'sent'),
             () => setFailed(reminder.patient.name),
         );

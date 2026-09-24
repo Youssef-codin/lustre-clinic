@@ -49,6 +49,7 @@ import { Reminders } from './components/Reminders';
 import { VisitPaymentScreen } from './components/VisitPaymentScreen';
 import { VisitScreen } from './components/VisitScreen';
 import { VisitViewScreen } from './components/VisitViewScreen';
+import { pickBranch, scheduledBranch, usePickedBranch } from './currentBranch';
 import {
     type Appointment,
     api,
@@ -158,7 +159,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
     const t = useT();
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
-    const [branchId, setBranchId] = useState<string | null>(null);
+    const branchId = usePickedBranch();
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [booking, setBooking] = useState({ open: false, seq: 0 });
     /**
@@ -333,12 +334,16 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
     // The day is fetched for the whole clinic and split here, so the screen can
     // open on the branch holding most of it: `branches[0]` drew an empty Maadi
     // while Nasr City had the day, and the emptiness read as a broken fetch. A
-    // branch the user picked wins over the count, and holds until they pick
-    // another.
+    // branch the user picked wins, for the rest of that day, and after it the
+    // branch the schedule has working (`currentBranch.ts`).
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const clinicDay = day.data ?? [];
     const branch =
-        branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
+        branchId ??
+        scheduledBranch(dateKey, schedule.data) ??
+        busiestBranch(clinicDay.filter(holdsSlot), null) ??
+        branches.data?.[0]?.id ??
+        null;
 
     const reminders = useLocalQuery('reminders', () => api.pendingReminders(todayKey()));
     const reminderCount = reminders.data?.length ?? 0;
@@ -362,7 +367,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
             ? {
                   name: awayName,
                   count: away.filter((row) => row.branchId === awayId).length,
-                  onGo: () => setBranchId(awayId),
+                  onGo: () => pickBranch(awayId),
               }
             : undefined;
     const isToday = dateKey === todayKey();
@@ -440,7 +445,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
     // day view then draws empty. A day with nothing booked carries no branch.
     const pickDay = (nextDate: string, nextBranch: string | null) => {
         setDateKey(nextDate);
-        if (nextBranch) setBranchId(nextBranch);
+        if (nextBranch) pickBranch(nextBranch);
     };
 
     const openBooking = () => setBooking((current) => ({ open: true, seq: current.seq + 1 }));
@@ -591,7 +596,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                 dateKey={dateKey}
                 branches={branches.data ?? []}
                 branchId={branch}
-                onPickBranch={setBranchId}
+                onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
             />
 

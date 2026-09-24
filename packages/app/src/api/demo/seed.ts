@@ -451,12 +451,19 @@ export function seedDemoDb(): DemoDb {
     const db = emptyDb();
     setDb(db);
 
-    const main: BranchRow = { id: uuidv7(), name: 'Maadi', address: '12 Road 9, Maadi', active: true };
+    const main: BranchRow = {
+        id: uuidv7(),
+        name: 'Maadi',
+        address: '12 Road 9, Maadi',
+        active: true,
+        whatsappApp: 'business',
+    };
     const second: BranchRow = {
         id: uuidv7(),
         name: 'Zamalek',
         address: '4 Brazil St, Zamalek',
         active: true,
+        whatsappApp: 'regular',
     };
     db.branches.push(main, second);
 

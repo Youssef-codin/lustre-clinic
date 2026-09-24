@@ -50,6 +50,7 @@ import {
 } from '../../components/ui';
 import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
+import { scheduledBranch, usePickedBranch } from '../day/currentBranch';
 import { dateKey, formatMonth, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
@@ -138,6 +139,12 @@ export function PatientRecordScreen({
 
     const record = useQuery(['byId', patientId], () => patientsApi.byId(patientId));
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
+    const branches = useQuery(['branches'], () => patientsApi.listBranches());
+    const schedule = useQuery(['schedule'], () => patientsApi.schedule());
+    // The branch the day view is on, so a message goes out from its number.
+    const pickedBranch = usePickedBranch();
+    const currentBranchId = pickedBranch ?? scheduledBranch(todayKey(), schedule.data);
+    const currentBranch = branches.data?.find((b) => b.id === currentBranchId);
     const settle = useMutation(patientsApi.settle);
     const remove = useMutation(patientsApi.delete);
 
@@ -232,7 +239,12 @@ export function PatientRecordScreen({
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.top}>
-                        <PatientHeader patient={patient} onFailed={setToast} />
+                        <PatientHeader
+                            patient={patient}
+                            branches={branches.data ?? []}
+                            current={currentBranch}
+                            onFailed={setToast}
+                        />
 
                         <Openers
                             patient={patient}

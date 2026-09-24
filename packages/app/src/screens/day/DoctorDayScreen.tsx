@@ -57,6 +57,7 @@ import { DayEmpty, DayError, DaySkeleton } from './components/DayStates';
 import { AfterThis } from './components/DoctorAgenda';
 import { DoctorVisitSheet } from './components/DoctorVisitSheet';
 import { VisitScreen } from './components/VisitScreen';
+import { pickBranch, scheduledBranch, usePickedBranch } from './currentBranch';
 import type { OpenBookingRequest } from './DayScreen';
 import {
     type Appointment,
@@ -92,7 +93,7 @@ type DoctorDayScreenProps = {
 
 function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: DoctorDayScreenProps) {
     const [dateKey, setDateKey] = useState(todayKey);
-    const [branchId, setBranchId] = useState<string | null>(null);
+    const branchId = usePickedBranch();
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
     const [seenHome, setSeenHome] = useState(goHome);
     // The appointment the sheet is about. Kept while the sheet slides back out;
@@ -152,11 +153,15 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     const settings = useLocalQuery('settings', api.settings);
     // Fetched for the whole clinic and split here, so the screen opens on the
     // branch holding most of the day rather than on `branches[0]` — see
-    // `DayScreen`. A branch the user picked wins over the count.
+    // `DayScreen`. A branch the user picked that day wins, then the schedule's.
     const day = useLocalQuery(`day:${dateKey}`, () => api.byDate(dateKey));
     const clinicDay = day.data ?? [];
     const branch =
-        branchId ?? busiestBranch(clinicDay.filter(holdsSlot), null) ?? branches.data?.[0]?.id ?? null;
+        branchId ??
+        scheduledBranch(dateKey, schedule.data) ??
+        busiestBranch(clinicDay.filter(holdsSlot), null) ??
+        branches.data?.[0]?.id ??
+        null;
 
     const appointments = useMemo(
         () => clinicDay.filter((row) => row.branchId === branch),
@@ -173,7 +178,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
             ? {
                   name: awayName,
                   count: away.filter((row) => row.branchId === awayId).length,
-                  onGo: () => setBranchId(awayId),
+                  onGo: () => pickBranch(awayId),
               }
             : undefined;
 
@@ -233,7 +238,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
     // busiest in, so the day it promised is the day this draws.
     const pickDay = (nextDate: string, nextBranch: string | null) => {
         setDateKey(nextDate);
-        if (nextBranch) setBranchId(nextBranch);
+        if (nextBranch) pickBranch(nextBranch);
     };
 
     /** The queue's answer, as `DayScreen.standingOf` gives it; the status alone cannot tell the chair from the queue. */
@@ -285,7 +290,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 dateKey={dateKey}
                 branches={branches.data ?? []}
                 branchId={branch}
-                onPickBranch={setBranchId}
+                onPickBranch={pickBranch}
                 onOpenCalendar={() => setCalendar(openCalendar)}
             />
 

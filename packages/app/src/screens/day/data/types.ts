@@ -12,7 +12,13 @@
  * message and a `wa.me` URL, and the user marks it sent or skipped, because
  * delivery cannot be confirmed.
  */
-import type { AppointmentChannel, AppointmentStatus, PaymentMethod, Tooth } from '@lustre/shared';
+import type {
+    AppointmentChannel,
+    AppointmentStatus,
+    PaymentMethod,
+    Tooth,
+    WhatsAppApp,
+} from '@lustre/shared';
 
 export interface EmbeddedPatient {
     id: string;
@@ -119,6 +125,7 @@ export interface Branch {
     name: string;
     address: string | null;
     active: boolean;
+    whatsappApp: WhatsAppApp;
 }
 
 export interface Patient {
@@ -165,6 +172,7 @@ export interface PendingReminder {
     ref: string;
     patient: EmbeddedPatient;
     whatsAppUrl: string;
+    whatsappApp: WhatsAppApp;
     message: string;
 }
 
