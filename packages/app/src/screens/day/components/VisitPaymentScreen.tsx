@@ -29,7 +29,7 @@ import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Appointment, api, closeVisit, useLocalMutation, type Visit } from '../data';
 import { describeError } from '../errors';
-import { amountDue, discountPercent, formatAmount, poundsEntry } from '../money';
+import { amountDue, formatAmount, poundsEntry } from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CashIcon, CheckIcon, InstapayIcon, OtherMethodIcon, PaymentIcon } from './icons';
 
@@ -98,7 +98,6 @@ export function VisitPaymentScreen({
     const discountPiastres = Math.min(toPiastres(discount), maxDiscount);
     const charged = visit.chargedTotal - discountPiastres;
     const due = amountDue(charged, collected);
-    const percentOff = discountPercent(visit.chargedTotal, charged);
     // What the field means, and so the most it can hold: money being taken now
     // cannot exceed what is owed, but a *total* collected is measured against
     // the whole charge — which is the figure a correction has to be free to
@@ -441,16 +440,10 @@ export function VisitPaymentScreen({
                         testID="visit-payment-discount"
                     />
                 </View>
-                {percentOff !== null ? (
-                    <Text
-                        variant="footnote"
-                        tone="muted"
-                        style={styles.hint}
-                        testID="visit-payment-discount-percent"
-                    >
-                        {t('{amount} ({percent}%) off the {total} the procedures add up to.', {
+                {discountPiastres > 0 ? (
+                    <Text variant="footnote" tone="muted" style={styles.hint}>
+                        {t('{amount} off the {total} the procedures add up to.', {
                             amount: formatMoney(discountPiastres),
-                            percent: percentOff,
                             total: formatMoney(visit.chargedTotal),
                         })}
                     </Text>

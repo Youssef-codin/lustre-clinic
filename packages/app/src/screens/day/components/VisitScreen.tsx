@@ -42,7 +42,7 @@ import { border, color, font, radius, size, space, Text, type } from '../../../t
 import { type Standing, standingFor } from '../chair';
 import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
-import { formatAmount, formatMoney, poundsEntry } from '../money';
+import { discountPercent, formatAmount, formatMoney, poundsEntry } from '../money';
 import { noteChanged, noteDraft, noteValue } from '../notes';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12, todayKey } from '../time';
@@ -235,6 +235,9 @@ export function VisitScreen({
     }, [catalogue.data]);
 
     const priceOf = (line: DraftLine): number => line.unitPrice ?? prices.get(line.procedureId) ?? 0;
+    // Per unit on both sides, so a quantity does not read as a discount.
+    const percentOffDefault = (line: DraftLine): number | null =>
+        discountPercent(prices.get(line.procedureId) ?? 0, priceOf(line));
     const isCheckupLine = (line: DraftLine): boolean => line.isCheckup || checkupIds.has(line.procedureId);
     const priced = (rows: readonly DraftLine[]) =>
         rows.map((line) => ({
@@ -587,6 +590,24 @@ export function VisitScreen({
                                                                 style={styles.variant}
                                                             >
                                                                 {line.variant}
+                                                            </Text>
+                                                        ) : null}
+                                                        {/* Read only: what a typed price takes off
+                                                            the catalogue's. A price at or above it
+                                                            says nothing. */}
+                                                        {percentOffDefault(line) !== null ? (
+                                                            <Text
+                                                                variant="caption"
+                                                                tone="muted"
+                                                                style={styles.variant}
+                                                                testID={`visit-line-discount-${line.id}`}
+                                                            >
+                                                                {t('{percent}% off the usual {price}', {
+                                                                    percent: percentOffDefault(line) ?? 0,
+                                                                    price: formatMoney(
+                                                                        prices.get(line.procedureId) ?? 0,
+                                                                    ),
+                                                                })}
                                                             </Text>
                                                         ) : null}
                                                         {/* The price stays on the line — it is what

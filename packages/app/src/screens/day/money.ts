@@ -10,8 +10,8 @@
  * overpayment. `poundsEntry` sanitises on the way in so a typed `12.5` can
  * never be read as 125 with the field still showing `12.5`.
  *
- * `discountPercent` is presentation only: the discount itself stays whole
- * piastres, and this just says how much of the procedure total it is.
+ * `discountPercent` is presentation only: prices stay whole piastres, and this
+ * just says how far a typed price sits under the catalogue's.
  */
 export { formatAmount, formatMoney } from '../../components/domain/money';
 
@@ -24,10 +24,10 @@ export function poundsEntry(entry: string): string {
 }
 
 /**
- * How much of `procedureTotal` the desk has taken off to charge `charged`, as
+ * How much under `procedureTotal` (a procedure's default price) `charged` is, as
  * a whole percent — or null when there is nothing to show: no discount, or no
- * total to measure one against. A discount that is some but not all of the
- * bill never rounds to 0% or 100%, which would read as none or everything.
+ * default to measure one against. A discount that is some but not all of the
+ * price never rounds to 0% or 100%, which would read as none or everything.
  */
 export function discountPercent(procedureTotal: number, charged: number): number | null {
     if (!Number.isFinite(procedureTotal) || !Number.isFinite(charged) || procedureTotal <= 0) return null;

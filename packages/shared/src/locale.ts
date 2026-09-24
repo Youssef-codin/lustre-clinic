@@ -452,6 +452,7 @@ export const COPY_AR = {
     'Nobody waiting': 'لا أحد في الانتظار',
     'Not answered': 'بدون إجابة',
     'Not been here before?': 'أول مرة هنا؟',
+    '{percent}% off the usual {price}': 'خصم {percent}% من السعر المعتاد {price}',
     'Not charged — other work was done': 'بدون رسوم — تم عمل آخر',
     'Nothing collected — the full amount stays on this visit.':
         'لم يُحصّل شيء — يبقى المبلغ كاملًا على هذه الزيارة.',
@@ -568,8 +569,7 @@ export const COPY_AR = {
         'يُحصّل {amount} الآن. و{collected} المسجلة على هذه الزيارة تحتفظ بطريقة دفعها.',
     '{amount} given back. What stays paid keeps how it was paid.':
         'أُعيد {amount}. وما يبقى مدفوعًا يحتفظ بطريقة دفعه.',
-    '{amount} ({percent}%) off the {total} the procedures add up to.':
-        'خصم {amount} ({percent}%) من {total} إجمالي الإجراءات.',
+    '{amount} off the {total} the procedures add up to.': 'خصم {amount} من {total} إجمالي الإجراءات.',
     '{amount} paid — {balance} still owed on this visit.':
         'دُفع {amount} — وما زال {balance} مستحقًا على هذه الزيارة.',
     '{amount} paid. Nothing left on this visit.': 'دُفع {amount}. لم يتبق شيء على هذه الزيارة.',
