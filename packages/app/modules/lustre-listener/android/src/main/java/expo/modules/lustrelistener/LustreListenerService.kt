@@ -111,6 +111,11 @@ class LustreListenerService : Service() {
       Notification.Builder(this)
     }
 
+  // The white "C" `expo-notifications` generates from assets/notification-icon.png.
+  // The launcher icon is full colour, and Android draws that as a white blob.
+  private fun smallIcon(): Int =
+    resources.getIdentifier("notification_icon", "drawable", packageName).takeIf { it != 0 } ?: applicationInfo.icon
+
   private fun buildNotification(notice: Notice): Notification {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       // Low: it is always there, so it must never make a sound.
@@ -124,9 +129,12 @@ class LustreListenerService : Service() {
     }
 
     val builder = builder()
-      .setSmallIcon(applicationInfo.icon)
+      .setSmallIcon(smallIcon())
+      .setColor(ACCENT)
+      .setLargeIcon(Icon.createWithResource(this, applicationInfo.icon))
       .setContentTitle(notice.title)
       .setContentText(notice.body)
+      .setStyle(Notification.BigTextStyle().bigText(notice.body))
       .setOngoing(true)
       .setShowWhen(false)
       .setCategory(Notification.CATEGORY_SERVICE)
@@ -137,7 +145,7 @@ class LustreListenerService : Service() {
       builder
         .setVisibility(Notification.VISIBILITY_PRIVATE)
         .setPublicVersion(
-          builder().setSmallIcon(applicationInfo.icon).setContentTitle(notice.publicTitle).setShowWhen(false).build(),
+          builder().setSmallIcon(smallIcon()).setColor(ACCENT).setContentTitle(notice.publicTitle).setShowWhen(false).build(),
         )
     }
 
@@ -152,7 +160,7 @@ class LustreListenerService : Service() {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
       )
       builder.addAction(
-        Notification.Action.Builder(Icon.createWithResource(this, applicationInfo.icon), notice.actionLabel, pending)
+        Notification.Action.Builder(Icon.createWithResource(this, smallIcon()), notice.actionLabel, pending)
           .build(),
       )
     }
@@ -192,6 +200,8 @@ class LustreListenerService : Service() {
   }
 
   companion object {
+    // `color.accent` in src/theme/tokens.ts.
+    private const val ACCENT = 0xFF2F5BFF.toInt()
     private const val EXTRA_TITLE = "title"
     private const val EXTRA_BODY = "body"
     private const val EXTRA_CHANNEL_NAME = "channelName"
