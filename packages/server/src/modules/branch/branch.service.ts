@@ -32,6 +32,7 @@ export const branchService = {
                 id: Bun.randomUUIDv7(),
                 name: input.name,
                 address: input.address ?? null,
+                whatsappApp: input.whatsappApp,
             })
             .returning();
 

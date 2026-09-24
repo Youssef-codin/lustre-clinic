@@ -27,6 +27,7 @@ export const branchHandlers = {
             name: input.name,
             address: input.address ?? null,
             active: true,
+            whatsappApp: input.whatsappApp ?? 'regular',
         };
 
         getDb().branches.push(row);

@@ -21,6 +21,7 @@ import type {
     QuestionKind,
     ReminderStatus,
     Tooth,
+    WhatsAppApp,
 } from '@lustre/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -29,6 +30,7 @@ export interface BranchRow {
     name: string;
     address: string | null;
     active: boolean;
+    whatsappApp: WhatsAppApp;
 }
 
 export interface ClinicDayRow {
@@ -204,8 +206,9 @@ const STORE_KEY = 'lustre.demo.db';
  *    is not refused as one the sequence still owes.
  * 6: `refEdits` — a stored database from 5 has no such array, and every read of
  *    it would be of `undefined`.
+ * 7: branches carry `whatsappApp`.
  */
-const STORE_VERSION = 6;
+const STORE_VERSION = 7;
 
 let db: DemoDb | null = null;
 

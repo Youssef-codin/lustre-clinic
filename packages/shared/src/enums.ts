@@ -55,6 +55,15 @@ export const APPOINTMENT_CHANNELS = ['desk', 'walk_in'] as const;
 export const appointmentChannelSchema = z.enum(APPOINTMENT_CHANNELS);
 export type AppointmentChannel = z.infer<typeof appointmentChannelSchema>;
 
+/**
+ * Which WhatsApp app a branch's reminders open in, when a phone has both. There
+ * is no "ask each time": `wa.me` is a verified link WhatsApp claims, so Android
+ * never shows its chooser for it.
+ */
+export const WHATSAPP_APPS = ['business', 'regular'] as const;
+export const whatsAppAppSchema = z.enum(WHATSAPP_APPS);
+export type WhatsAppApp = z.infer<typeof whatsAppAppSchema>;
+
 /** §5. Fixed, not configurable. `other` requires `methodNote`. */
 export const PAYMENT_METHODS = ['cash', 'visa', 'instapay', 'other'] as const;
 export const paymentMethodSchema = z.enum(PAYMENT_METHODS);

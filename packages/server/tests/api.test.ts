@@ -90,6 +90,7 @@ describe('every path in §13 answers', () => {
 
         const renamed = await client.branch.update.mutate({ id: branch.id, name: 'Downtown' });
         expect(renamed.name).toBe('Downtown');
+        expect(branch.whatsappApp).toBe('regular');
 
         const question = await client.customQuestion.create.mutate({
             key: 'allergies',
@@ -273,6 +274,54 @@ describe('a full visit, end to end', () => {
 
         expect(day.length).toBe(1);
         expect(day[0]?.patient.name).toBe('Nadia Hassan');
+    });
+
+    test("a branch's WhatsApp app is saved, changed, listed and carried on its reminders", async () => {
+        const { client } = api;
+        const { branch, patient } = await clinicViaApi();
+        const second = await client.branch.create.mutate({ name: 'Second', whatsappApp: 'regular' });
+        expect(second.whatsappApp).toBe('regular');
+
+        const business = await client.branch.update.mutate({ id: branch.id, whatsappApp: 'business' });
+        expect(business.whatsappApp).toBe('business');
+        expect((await client.branch.list.query()).map((b) => [b.name, b.whatsappApp])).toEqual([
+            ['Main', 'business'],
+            ['Second', 'regular'],
+        ]);
+
+        const onMain = await client.appointment.create.mutate({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: todaySlot(),
+        });
+        const onSecond = await client.appointment.create.mutate({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: second.id,
+            startsAt: new Date(Date.parse(todaySlot()) + 3_600_000).toISOString(),
+        });
+        const appOf = async () =>
+            new Map(
+                (await client.reminder.pending.query({ dueOnly: false })).map((r) => [
+                    r.appointmentId,
+                    r.whatsappApp,
+                ]),
+            );
+        expect(await appOf()).toEqual(
+            new Map([
+                [onMain.id, 'business'],
+                [onSecond.id, 'regular'],
+            ]),
+        );
+
+        await client.branch.update.mutate({ id: branch.id, whatsappApp: 'regular' });
+        expect((await appOf()).get(onMain.id)).toBe('regular');
+
+        await expectValidationError(() =>
+            client.branch.update.mutate({ id: branch.id, whatsappApp: null as unknown as 'regular' }),
+        );
+        await expectValidationError(() =>
+            client.branch.update.mutate({ id: branch.id, whatsappApp: 'telegram' as 'regular' }),
+        );
     });
 
     test('cancel and the reminder calls work over the wire', async () => {

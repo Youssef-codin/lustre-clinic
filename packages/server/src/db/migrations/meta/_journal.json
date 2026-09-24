@@ -99,6 +99,13 @@
       "when": 1790100000000,
       "tag": "0013_birth_date_required",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790200000000,
+      "tag": "0014_branch_whatsapp_app",
+      "breakpoints": true
     }
   ]
 }

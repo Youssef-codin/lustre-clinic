@@ -105,6 +105,7 @@ export const reminderHandlers = {
                 const patient = db.patients.find((row) => row.id === appointment.patientId);
                 const name = patient?.name ?? '';
                 const phone = patient?.phone ?? '';
+                const branch = db.branches.find((row) => row.id === appointment.branchId);
 
                 // `startsAt` is UTC, so the quoted date and time are shifted
                 // into the clinic's local day before they are formatted.
@@ -126,6 +127,7 @@ export const reminderHandlers = {
                     ref: appointment.ref,
                     patient: { id: appointment.patientId, name, phone },
                     whatsAppUrl: `https://wa.me/${toWhatsAppNumber(phone)}?text=${encodeURIComponent(message)}`,
+                    whatsappApp: branch?.whatsappApp ?? 'regular',
                     message,
                 };
             });

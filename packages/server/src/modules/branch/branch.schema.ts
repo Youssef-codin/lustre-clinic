@@ -2,11 +2,13 @@
  * SPEC §12 — branches are rows the clinic edits in-app. A branch is
  * deactivated rather than deleted, because appointments reference branches.
  */
+import { whatsAppAppSchema } from '@lustre/shared';
 import { z } from 'zod';
 
 export const createBranchInput = z.object({
     name: z.string().trim().min(1).max(120),
     address: z.string().trim().max(500).nullish(),
+    whatsappApp: whatsAppAppSchema.optional(),
 });
 
 export const updateBranchInput = z.object({
@@ -14,6 +16,7 @@ export const updateBranchInput = z.object({
     name: z.string().trim().min(1).max(120).optional(),
     address: z.string().trim().max(500).nullish(),
     active: z.boolean().optional(),
+    whatsappApp: whatsAppAppSchema.optional(),
 });
 
 export const listBranchInput = z

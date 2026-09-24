@@ -32,6 +32,7 @@ import {
     IconButton,
     PushView,
     SectionLabel,
+    Select,
     Tag,
     Textarea,
     TextField,
@@ -207,6 +208,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
 
     const [name, setName] = useState(branch?.name ?? '');
     const [address, setAddress] = useState(branch?.address ?? '');
+    const [whatsApp, setWhatsApp] = useState(branch?.whatsappApp ?? 'regular');
     const [submitted, setSubmitted] = useState(false);
     const [confirming, setConfirming] = useState(false);
 
@@ -230,7 +232,11 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
         setSubmitted(true);
         if (name.trim() === '') return;
 
-        const details = { name: name.trim(), address: address.trim() || null };
+        const details = {
+            name: name.trim(),
+            address: address.trim() || null,
+            whatsappApp: whatsApp,
+        };
 
         write.run(async () => {
             if (!branch) {
@@ -307,6 +313,17 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                         onChangeText={setAddress}
                         placeholder="Street, area"
                         testID="branch-address"
+                    />
+                    <Select
+                        label="Open WhatsApp in"
+                        hint="Used when a phone has both WhatsApp apps. A phone with only one opens that one."
+                        options={[
+                            { value: 'business', label: t('WhatsApp Business') },
+                            { value: 'regular', label: t('WhatsApp') },
+                        ]}
+                        value={whatsApp}
+                        onChange={setWhatsApp}
+                        testID="branch-whatsapp-app"
                     />
                 </Card>
             </View>
