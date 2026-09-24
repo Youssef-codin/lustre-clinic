@@ -150,10 +150,34 @@ export type OldPatientForm = {
 
 export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '', procedures: [] };
 
-export function emptyForm(questions: CustomQuestion[]): PatientForm {
+/**
+ * What the desk had already typed into the list's search when it came up empty,
+ * carried into a registration so it is not typed twice. One field or the other,
+ * never both: a search term is a name or a number, and guessing it is both
+ * would put the same text in two places.
+ */
+export type PatientPrefill = { name: string } | { phone: string };
+
+/** Digits and the separators a number is written with — nothing that could be a name. */
+const PHONE_LIKE = /^[\d\s+-]+$/;
+
+/**
+ * Which field a search term belongs in, or null for a blank one. A term with a
+ * digit in it and nothing but separators around it is a number; anything else,
+ * a name with a digit typed by mistake included, is a name. Both are trimmed
+ * and nothing more — the phone is sent as typed (`createInputOf` trims it and
+ * no further), so the prefill holds it the same way.
+ */
+export function prefillOf(term: string): PatientPrefill | null {
+    const text = term.trim();
+    if (text === '') return null;
+    return PHONE_LIKE.test(text) && /\d/.test(text) ? { phone: text } : { name: text };
+}
+
+export function emptyForm(questions: CustomQuestion[], prefill?: PatientPrefill): PatientForm {
     return {
-        name: '',
-        phone: '',
+        name: prefill && 'name' in prefill ? prefill.name : '',
+        phone: prefill && 'phone' in prefill ? prefill.phone : '',
         email: '',
         // A registration is numbered by the counter, so there is nothing to
         // hold and nothing this screen could put here.

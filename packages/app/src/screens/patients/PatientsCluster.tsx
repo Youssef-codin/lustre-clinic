@@ -39,10 +39,11 @@ import { OldVisitScreen } from './OldVisitScreen';
 import { PatientEditScreen } from './PatientEditScreen';
 import { PatientListScreen } from './PatientListScreen';
 import { PatientRecordScreen } from './PatientRecordScreen';
+import type { PatientPrefill } from './patientForm';
 
 type Route =
     | { name: 'record'; patientId: string; backLabel?: string }
-    | { name: 'edit'; patientId?: string }
+    | { name: 'edit'; patientId?: string; prefill?: PatientPrefill }
     | { name: 'visit'; appointmentId: string; visitId: string }
     | { name: 'reschedule'; appointmentId: string }
     | { name: 'oldVisit'; patientId: string };
@@ -161,7 +162,7 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
             <PatientListScreen
                 goHome={goHome}
                 onOpen={(patientId) => routes.push({ name: 'record', patientId })}
-                onNewPatient={() => routes.push({ name: 'edit' })}
+                onNewPatient={(prefill) => routes.push({ name: 'edit', prefill })}
             />
 
             {/* Bottom to top, the order they were opened in. A popped route is
@@ -206,6 +207,7 @@ function PatientsClusterView({ open, goHome = 0, onBook }: PatientsClusterProps)
                         <PatientEditScreen
                             key={`edit:${route.patientId ?? 'new'}`}
                             patientId={route.patientId}
+                            prefill={route.prefill}
                             onCancel={routes.pop}
                             onSavingChange={setSaving}
                             onSaved={(saved) => afterSave(id, saved)}

@@ -37,6 +37,7 @@ import {
     missingRequired,
     owesInput,
     owesPiastres,
+    prefillOf,
     refBaselineOf,
     refEditError,
     refEditOf,
@@ -342,6 +343,36 @@ describe('the patient form — age is a date of birth (BLOCKED.md)', () => {
             '1991-01-01',
         );
         expect(updateInputOf('id', { ...initial, age: '' }, initial, [], TODAY)).toBeNull();
+    });
+});
+
+describe('registering from a search that found nobody', () => {
+    it('reads digits and the separators a number is written with as a phone', () => {
+        expect(prefillOf('01002248891')).toEqual({ phone: '01002248891' });
+        expect(prefillOf('  +20 100 224-8891 ')).toEqual({ phone: '+20 100 224-8891' });
+    });
+
+    it('reads anything else as a name, trimmed', () => {
+        expect(prefillOf('  Nour Hassan ')).toEqual({ name: 'Nour Hassan' });
+        expect(prefillOf('نور')).toEqual({ name: 'نور' });
+        expect(prefillOf('Nour 2')).toEqual({ name: 'Nour 2' });
+    });
+
+    it('does not call separators with no digit in them a number', () => {
+        expect(prefillOf('+ -')).toEqual({ name: '+ -' });
+    });
+
+    it('offers nothing for a blank term', () => {
+        expect(prefillOf('')).toBeNull();
+        expect(prefillOf('   ')).toBeNull();
+    });
+
+    it('fills only the field the term belongs in', () => {
+        const byName = emptyForm([], { name: 'Nour' });
+        expect([byName.name, byName.phone]).toEqual(['Nour', '']);
+        const byPhone = emptyForm([], { phone: '0100' });
+        expect([byPhone.name, byPhone.phone]).toEqual(['', '0100']);
+        expect(emptyForm([])).toEqual({ ...byName, name: '' });
     });
 });
 
