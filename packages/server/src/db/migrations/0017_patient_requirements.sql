@@ -7,7 +7,11 @@
 -- 0013's placeholder birth dates (1 January, a hundred years back) are left
 -- where they are. Nothing tells a real one apart from a backfilled one.
 --
--- Numbered 0017: 0015 and 0016 are taken by branches in flight.
+-- Numbered 0017: 0015 and 0016 are taken by branches in flight. drizzle skips
+-- a journal entry whose `when` is older than the last one a database applied,
+-- so the journal must stay monotonic in file order: 0015 and 0016 need `when`
+-- values below this one's, or, if this lands first, above 0018's, fixed by
+-- whichever branch merges later.
 ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "require_age" boolean NOT NULL DEFAULT true;
 --> statement-breakpoint
 ALTER TABLE "settings" ADD COLUMN IF NOT EXISTS "require_gender" boolean NOT NULL DEFAULT false;

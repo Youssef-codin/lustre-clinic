@@ -700,11 +700,11 @@ export const COPY_AR = {
         'الرصيد يحتاج إلى تاريخ. اضبط الفرع وتاريخ الإقفال بالأعلى، أو اترك المبلغ فارغًا.',
     ACTIVE: 'نشط',
     'ALWAYS ON THE RECORD': 'دائمًا في الملف',
-    'REQUIRED ON EVERY RECORD': 'مطلوب في كل ملف',
+    'REQUIRED OR OPTIONAL': 'مطلوب أم اختياري',
     'Require an age': 'اشتراط العمر',
     'Require a sex': 'اشتراط النوع',
-    'Name and phone are always required. A patient already on file without one of these is asked for it the next time the record is edited.':
-        'الاسم والهاتف مطلوبان دائمًا. إذا كان ملف مريض مسجَّل ينقصه أحدهما، فسيُطلب عند تعديل الملف في المرة القادمة.',
+    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.':
+        'الاسم والهاتف مطلوبان دائمًا. عند اشتراط العمر أو النوع، يُطلب الحقل الناقص في ملف أي مريض مسجَّل عند تعديل الملف في المرة القادمة.',
     'ANSWER TYPE': 'نوع الإجابة',
     'ASK AGAIN': 'اسأل مرة أخرى',
     'BALANCES AS OF': 'الأرصدة حتى',

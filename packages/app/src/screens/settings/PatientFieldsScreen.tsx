@@ -124,8 +124,11 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     }
 
     // Not while reordering — the same reason as `ProceduresScreen`.
+    // The requirements card reads `settings.get` itself; a pull refreshes it too.
     const pull = usePullToRefresh(() => {
-        if (!reordering) void questions.refetch();
+        if (reordering) return;
+        void questions.refetch();
+        void queryClient.invalidateQueries(trpc.settings.pathFilter());
     }, questions.isFetching);
 
     return (
@@ -328,7 +331,7 @@ function RequirementsCard() {
 
     return (
         <View style={styles.section}>
-            <SectionLabel inset={false}>REQUIRED ON EVERY RECORD</SectionLabel>
+            <SectionLabel inset={false}>REQUIRED OR OPTIONAL</SectionLabel>
 
             {save.error ? (
                 <Callout tone="warning" title="Not saved">
@@ -358,7 +361,7 @@ function RequirementsCard() {
 
             <Text variant="footnote" tone="muted" style={styles.note}>
                 {t(
-                    'Name and phone are always required. A patient already on file without one of these is asked for it the next time the record is edited.',
+                    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.',
                 )}
             </Text>
         </View>
