@@ -11,9 +11,13 @@ export function installedWhatsApp(): InstalledWhatsApp {
     };
 }
 
-/** Rejects when nothing could open the link. */
-export async function openWhatsApp(url: string, branchApp: WhatsAppApp): Promise<void> {
-    const target = whatsAppTarget(installedWhatsApp(), branchApp);
+/**
+ * Rejects when nothing could open the link. `branchApp` is optional because a
+ * server older than the per-branch setting sends none, and a missing package
+ * name made the native call throw before Android was asked anything.
+ */
+export async function openWhatsApp(url: string, branchApp: WhatsAppApp | null | undefined): Promise<void> {
+    const target = whatsAppTarget(installedWhatsApp(), branchApp ?? 'regular');
     if (typeof target === 'object' && openInPackage(url, target.package)) return;
     await Linking.openURL(url);
 }
