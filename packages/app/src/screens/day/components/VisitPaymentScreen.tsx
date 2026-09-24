@@ -379,7 +379,12 @@ export function VisitPaymentScreen({
                         </Text>
                         {discount ? (
                             <View style={styles.percentOff} testID="visit-payment-discount">
-                                <Text variant="footnote" weight="bold" script="mono">
+                                <Text
+                                    variant="footnote"
+                                    weight="bold"
+                                    script="mono"
+                                    style={styles.percentOffText}
+                                >
                                     {t('-{percent}%', { percent: discount.percent })}
                                 </Text>
                             </View>
@@ -691,14 +696,16 @@ const styles = StyleSheet.create({
         marginTop: space[2],
     },
     struck: { textDecorationLine: 'line-through' },
-    // On the card's `surface2`, so a step lighter than it.
+    // Accent, which is neither "good" nor "paid": a discount is a fact about
+    // the price, not a state of the money.
     percentOff: {
         alignSelf: 'center',
-        paddingHorizontal: space[2],
-        paddingVertical: space[0.5],
+        paddingHorizontal: space[2.5],
+        paddingVertical: space[1],
         borderRadius: radius.full,
-        backgroundColor: color.surface,
+        backgroundColor: color.accent,
     },
+    percentOffText: { color: color.inverse },
     // Full-bleed inside the card: the rule under the figure is the card's own
     // width, not the text column's.
     procToggle: {
