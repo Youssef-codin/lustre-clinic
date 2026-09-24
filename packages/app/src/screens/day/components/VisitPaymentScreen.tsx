@@ -359,9 +359,31 @@ export function VisitPaymentScreen({
                         <Text variant="footnote" weight="bold" tone="muted">
                             {t('EGP')}
                         </Text>
+                        {/* A procedure priced under the catalogue's: what it
+                            would have been, struck through, then what it is. */}
+                        {discount ? (
+                            <Text
+                                variant="headline"
+                                script="mono"
+                                tone="muted"
+                                style={styles.struck}
+                                accessibilityLabel={t('Usually {amount}', {
+                                    amount: formatMoney(ceiling + discount.off),
+                                })}
+                            >
+                                {formatAmount(ceiling + discount.off)}
+                            </Text>
+                        ) : null}
                         <Text variant="display" script="mono">
                             {formatAmount(ceiling)}
                         </Text>
+                        {discount ? (
+                            <View style={styles.percentOff} testID="visit-payment-discount">
+                                <Text variant="footnote" weight="bold" script="mono">
+                                    {t('-{percent}%', { percent: discount.percent })}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
 
                     <Pressable
@@ -413,16 +435,6 @@ export function VisitPaymentScreen({
                         </View>
                     ) : null}
                 </View>
-
-                {discount ? (
-                    <Text variant="footnote" tone="muted" style={styles.hint} testID="visit-payment-discount">
-                        {t('{amount} ({percent}%) off the usual {total}.', {
-                            amount: formatMoney(discount.off),
-                            percent: discount.percent,
-                            total: formatMoney(discount.usual),
-                        })}
-                    </Text>
-                ) : null}
 
                 <Text variant="eyebrow" tone="muted" style={styles.secLabel}>
                     {t(correcting ? 'TOTAL PAID' : 'AMOUNT PAID')}
@@ -671,7 +683,22 @@ const styles = StyleSheet.create({
         backgroundColor: color.surface2,
         overflow: 'hidden',
     },
-    figure: { flexDirection: 'row', alignItems: 'baseline', gap: space[1.5], marginTop: space[2] },
+    figure: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        alignItems: 'baseline',
+        gap: space[1.5],
+        marginTop: space[2],
+    },
+    struck: { textDecorationLine: 'line-through' },
+    // On the card's `surface2`, so a step lighter than it.
+    percentOff: {
+        alignSelf: 'center',
+        paddingHorizontal: space[2],
+        paddingVertical: space[0.5],
+        borderRadius: radius.full,
+        backgroundColor: color.surface,
+    },
     // Full-bleed inside the card: the rule under the figure is the card's own
     // width, not the text column's.
     procToggle: {

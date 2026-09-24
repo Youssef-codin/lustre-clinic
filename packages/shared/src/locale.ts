@@ -450,7 +450,8 @@ export const COPY_AR = {
     'Nobody waiting': 'لا أحد في الانتظار',
     'Not answered': 'بدون إجابة',
     'Not been here before?': 'أول مرة هنا؟',
-    '{amount} ({percent}%) off the usual {total}.': 'خصم {amount} ({percent}%) من السعر المعتاد {total}.',
+    'Usually {amount}': 'عادةً {amount}',
+    '-{percent}%': '-{percent}%',
     '{percent}% off the usual {price}': 'خصم {percent}% من السعر المعتاد {price}',
     'Not charged — other work was done': 'بدون رسوم — تم عمل آخر',
     'Nothing collected — the full amount stays on this visit.':
