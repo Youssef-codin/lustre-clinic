@@ -37,6 +37,7 @@ type Path = {
 
 const handlers = {
     'health.check': healthHandlers.check,
+    'health.clock': healthHandlers.clock,
 
     'release.latestApk': releaseHandlers.latestApk,
 

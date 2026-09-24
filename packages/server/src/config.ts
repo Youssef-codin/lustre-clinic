@@ -29,6 +29,10 @@ const envSchema = z.object({
     // next to the schema in the source tree.
     MIGRATIONS_DIR: z.string().min(1).optional(),
     PORT: z.coerce.number().int().positive().default(3000),
+    // The clinic's zone, not the host's: the container runs on UTC. Handsets
+    // are checked against it (`health.clock`), because the app reads and writes
+    // every booked time in the phone's own zone.
+    CLINIC_TIME_ZONE: z.string().min(1).default('Africa/Cairo'),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     DISCORD_WEBHOOK_URL: z

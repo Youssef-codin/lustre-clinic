@@ -18,6 +18,7 @@ import { SettingsScreen } from '../screens/settings';
 import { color } from '../theme';
 import { ApkUpdateBanner } from './ApkUpdateBanner';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
+import { ClockBanner } from './ClockBanner';
 import { OfflineScreen } from './OfflineScreen';
 import { useRole } from './roleStore';
 import {
@@ -296,6 +297,7 @@ export function AppShell() {
                     {/* Over whichever day the role draws: the home screen is
                         where a clinic phone spends its day, so it is where a
                         new build gets noticed. */}
+                    <ClockBanner />
                     <ApkUpdateBanner />
                     {role === 'doctor' ? (
                         <DoctorDayScreen

@@ -156,6 +156,11 @@ export const COPY_AR = {
     'Back to the clinic the demo opens on': 'العودة إلى بيانات العيادة التجريبية الأصلية',
     'Connect to the clinic server instead': 'الاتصال بخادم العيادة بدلًا من ذلك',
     'New version ready': 'يتوفر إصدار جديد',
+    "This phone's time zone doesn't match the clinic's. Turn on automatic date and time.":
+        'المنطقة الزمنية لهذا الهاتف لا تطابق العيادة. فعّل ضبط التاريخ والوقت تلقائيًا.',
+    "This phone's clock is off by {duration}. Turn on automatic date and time.":
+        'ساعة هذا الهاتف غير مضبوطة بفارق {duration}. فعّل ضبط التاريخ والوقت تلقائيًا.',
+    'Open settings': 'فتح الإعدادات',
     'Sends your last taps, never patient details': 'يرسل آخر النقرات دون بيانات المرضى',
     'Off on this build': 'متوقف في هذا الإصدار',
     'Problem reports are off on this build': 'تقارير المشاكل متوقفة في هذا الإصدار',

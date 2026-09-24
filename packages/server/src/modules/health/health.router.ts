@@ -3,4 +3,5 @@ import { healthService } from './health.service.ts';
 
 export const healthRouter = router({
     check: publicProcedure.query(() => healthService.check()),
+    clock: publicProcedure.query(() => healthService.clock()),
 });

@@ -9,6 +9,7 @@ import { appRouter } from '../src/trpc/router.ts';
 
 const EXPECTED = [
     'health.check',
+    'health.clock',
     'settings.get',
     'settings.update',
     'settings.schedule',

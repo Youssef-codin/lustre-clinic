@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { ERROR_CODE, TRPC_ENDPOINT, WS_PATH } from '@lustre/shared';
+import { utcOffsetMinutes } from '../src/modules/health/health.service.ts';
 import { setupDatabase } from './helpers/db.ts';
 import { startTestServer, type TestServer } from './helpers/trpc.ts';
 
@@ -22,6 +23,26 @@ beforeAll(async () => {
 
 afterAll(() => {
     server.stop();
+});
+
+describe('health.clock', () => {
+    test("reports this machine's time and the clinic's offset", async () => {
+        const before = Date.now();
+        const result = await client().health.clock.query();
+
+        expect(result.now).toBeGreaterThanOrEqual(before);
+        expect(result.now).toBeLessThanOrEqual(Date.now());
+        expect([120, 180]).toContain(result.utcOffsetMinutes);
+    });
+
+    // Cairo keeps summer time from the last Friday of April to the last
+    // Thursday of October. A handset left on +2 in September is the bug this
+    // endpoint exists to catch, so the offset has to follow the season.
+    test("follows the clinic's summer time", () => {
+        expect(utcOffsetMinutes('Africa/Cairo', new Date('2026-09-24T12:00:00Z'))).toBe(180);
+        expect(utcOffsetMinutes('Africa/Cairo', new Date('2026-12-24T12:00:00Z'))).toBe(120);
+        expect(utcOffsetMinutes('UTC', new Date('2026-09-24T12:00:00Z'))).toBe(0);
+    });
 });
 
 describe('health.check', () => {

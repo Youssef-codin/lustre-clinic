@@ -11,4 +11,10 @@ export const healthHandlers = {
     check(): Dated<RouterOutput['health']['check']> {
         return { ok: true, db: true, migration: null, tailscale: null };
     },
+
+    // The phone is the server, so its clock always agrees with itself.
+    clock(): Dated<RouterOutput['health']['clock']> {
+        const now = new Date();
+        return { now: now.getTime(), utcOffsetMinutes: -now.getTimezoneOffset() };
+    },
 };
