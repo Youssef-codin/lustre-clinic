@@ -4,7 +4,7 @@
  *
  * `Iso<T>` is the one bridge: there is no transformer on either side, so a
  * `Date` the server returns is an ISO string by the time it lands while the
- * inferred type still says `Date` (`api/README.md`). Rewriting the date fields
+ * inferred type still says `Date`. Rewriting the date fields
  * here is what stops `.getTime()` compiling and throwing at the call site. It
  * goes when a transformer lands in `trpc/init.ts`.
  */

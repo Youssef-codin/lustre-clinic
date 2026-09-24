@@ -22,7 +22,7 @@
         { "file": "packages/app/src/components/ui/**", "exports": ["*"] },
         { "file": "packages/app/src/components/domain/**", "exports": ["*"] },
         { "file": "packages/app/src/theme/**", "exports": ["*"] },
-        // api/README.md prescribes it for the double-booking message, ahead of the screens adopting it.
+        // Meant for the double-booking message, ahead of the screens adopting it.
         { "file": "packages/app/src/api/{errors,index}.ts", "exports": ["isSlotOverlap"] },
         // `money.ts` is the renderer-free arithmetic; MoneyValue.tsx wraps it with the layout direction.
         { "file": "packages/app/src/components/domain/MoneyValue.tsx", "exports": ["formatMoney"] },

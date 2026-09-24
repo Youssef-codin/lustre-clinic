@@ -2,8 +2,8 @@
 // and `entryForm.test.ts` each cover their own submission shape on top of these;
 // what is here is the rules themselves, at their edges.
 //
-// Pure logic, no renderer — see this directory's README for why the components
-// beside it have no tests.
+// Pure logic, no renderer: the components beside it import `react-native`, which
+// fails outside Metro, so the rules live here and are tested here.
 import { describe, expect, test } from 'bun:test';
 import {
     ageError,
