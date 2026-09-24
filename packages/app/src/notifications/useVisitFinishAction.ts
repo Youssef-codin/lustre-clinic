@@ -123,7 +123,6 @@ export function useVisitFinishAction(role: ClientRole | null): void {
         const finish = async (id: string) => {
             if (finishing.has(id)) return;
             finishing.add(id);
-            const chair = shown;
             try {
                 await dayApi.awaitPayment(id);
                 void dismissFinishFailure(id).catch(() => undefined);
@@ -132,7 +131,11 @@ export function useVisitFinishAction(role: ClientRole | null): void {
                 if (failure !== 'gone') {
                     // The service took the button away on the tap; put it back
                     // now rather than after a refetch that may fail the same way.
-                    if (active && chair?.id === id) draw(chair);
+                    // Only while that visit is still the one shown: a refresh
+                    // may have moved the notice on, and redrawing the old
+                    // visit would put a stale Finish back over the new one.
+                    const current = shown;
+                    if (active && current?.id === id) draw(current);
                     void presentFinishFailure(id, failure === 'offline').catch(() => undefined);
                 }
             } finally {

@@ -391,7 +391,11 @@ export function VisitPaymentScreen({
                                     script="mono"
                                     style={styles.percentOffText}
                                 >
-                                    {t('-{percent}%', { percent: discount.percent })}
+                                    {t('-{percent}%', {
+                                        percent:
+                                            discountPercent(ceiling + discount.off, ceiling) ??
+                                            discount.percent,
+                                    })}
                                 </Text>
                             </View>
                         ) : null}

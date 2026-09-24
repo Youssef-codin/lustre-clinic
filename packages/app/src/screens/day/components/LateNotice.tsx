@@ -76,7 +76,14 @@ export function LateNotice({ late, gap, onDismissed }: LateNoticeProps) {
         >
             <View style={styles.late}>
                 <ClockIcon size={13} stroke={color.due} />
-                <Text variant="footnote" weight="bold" tone="due" style={styles.text}>
+                <Text
+                    variant="footnote"
+                    weight="bold"
+                    tone="due"
+                    style={styles.text}
+                    accessibilityRole="alert"
+                    accessibilityLiveRegion="assertive"
+                >
                     {t('Running {late}', { late })}
                 </Text>
                 <Pressable

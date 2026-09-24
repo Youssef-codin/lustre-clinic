@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -78,10 +79,13 @@ class LustreListenerService : Service() {
       if (!foreground) stopSelf()
       return
     }
+    // With nothing in JS to hear it (a reload, a moment before it subscribes),
+    // the tap would be swallowed. Leave the button where it is to be tapped again.
+    val listener = finishListener ?: return
     // The action goes before JS hears of the tap, so a second tap has nothing
     // to land on while the first is still in flight.
     show(current.copy(body = current.pendingBody ?: current.body, actionLabel = null, actionId = null))
-    finishListener?.invoke(id)
+    listener(id)
   }
 
   private fun headlessContext(): HeadlessJsTaskContext? {
@@ -162,6 +166,10 @@ class LustreListenerService : Service() {
     if (notice.actionLabel != null && notice.actionId != null) {
       val tap = Intent(this, LustreListenerService::class.java)
         .setAction(ACTION_FINISH)
+        // One PendingIntent per visit. Without it `FLAG_UPDATE_CURRENT` rewrites
+        // the one shared intent when the next visit is drawn, and a button still
+        // on screen for the last one would carry the new visit's ID.
+        .setData(Uri.parse("lustre://finish/${Uri.encode(notice.actionId)}"))
         .putExtra(EXTRA_ACTION_ID, notice.actionId)
       val pending = PendingIntent.getService(
         this,

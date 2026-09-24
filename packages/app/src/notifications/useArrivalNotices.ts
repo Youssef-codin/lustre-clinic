@@ -14,12 +14,13 @@ import { onServerEvent, trpcClient, useDemoMode } from '../api';
 import { presentArrivalNotice } from './notifications';
 import { arrivalToAnnounce } from './visitNotice';
 
-async function announce(appointmentId: string): Promise<void> {
+/** `stillWanted` is asked after the name comes back: the role can change while it is on its way. */
+async function announce(appointmentId: string, stillWanted: () => boolean): Promise<void> {
     const name = await trpcClient.appointment.byId.query({ id: appointmentId }).then(
         (appointment) => appointment.patient.name,
         () => null,
     );
-    await presentArrivalNotice(appointmentId, name);
+    if (stillWanted()) await presentArrivalNotice(appointmentId, name);
 }
 
 /** `role` is null until the stored role has been read, so a desk phone never subscribes for a frame. */
@@ -29,9 +30,14 @@ export function useArrivalNotices(role: ClientRole | null): void {
 
     useEffect(() => {
         if (role !== 'doctor' || demo) return;
-        return onServerEvent((event) => {
+        let active = true;
+        const unsubscribe = onServerEvent((event) => {
             const appointmentId = arrivalToAnnounce(event, role, Date.now());
-            if (appointmentId) void announce(appointmentId).catch(() => undefined);
+            if (appointmentId) void announce(appointmentId, () => active).catch(() => undefined);
         });
+        return () => {
+            active = false;
+            unsubscribe();
+        };
     }, [role, demo]);
 }

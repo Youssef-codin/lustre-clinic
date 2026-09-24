@@ -682,6 +682,20 @@ describe('money', () => {
         ).toEqual({ off: 40_000, usual: 250_000, percent: 16 });
     });
 
+    it('nets a line priced over its default against one priced under it', () => {
+        const defaults = new Map([
+            ['filling', 10_000],
+            ['cleaning', 10_000],
+        ]);
+        const line = (procedureId: string, unitPrice: number) => ({ procedureId, unitPrice, quantity: 1 });
+        expect(procedureDiscount([line('filling', 8_000), line('cleaning', 20_000)], defaults)).toBeNull();
+        expect(procedureDiscount([line('filling', 5_000), line('cleaning', 12_000)], defaults)).toEqual({
+            off: 3_000,
+            usual: 20_000,
+            percent: 15,
+        });
+    });
+
     it('has nothing to say when every procedure is at or above its default', () => {
         const defaults = new Map([['filling', 100_000]]);
         expect(
