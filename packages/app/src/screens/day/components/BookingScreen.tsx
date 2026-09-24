@@ -507,7 +507,7 @@ export function BookingScreen({
             <View style={styles.topbar}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={index === 0 ? 'Back to the day' : 'Back a step'}
+                    accessibilityLabel={t(index === 0 ? 'Back to the day' : 'Back a step')}
                     disabled={pending}
                     onPress={() => {
                         if (index === 0) {
@@ -523,7 +523,7 @@ export function BookingScreen({
                     <Chevron direction="back" size={10} tone="ink" />
                 </Pressable>
                 <Text variant="eyebrow" tone="muted">
-                    {rescheduling ? 'RESCHEDULE' : 'NEW BOOKING'}
+                    {t(rescheduling ? 'RESCHEDULE' : 'NEW BOOKING')}
                 </Text>
             </View>
 
@@ -550,17 +550,17 @@ export function BookingScreen({
                         {name}
                     </Text>
                     <Text variant="footnote" tone="muted" numberOfLines={1}>
-                        {patientPhoneOf(patient) || 'No phone on file'}
+                        {patientPhoneOf(patient) || t('No phone on file')}
                     </Text>
                     <View style={styles.chip}>
                         <Text variant="footnote" weight="bold" tone="ink2">
                             {scheduled
                                 ? slotMinutes === null
                                     ? wasLabel
-                                        ? `Booked ${wasLabel}`
-                                        : `${dayLabel(date)} · no time yet`
+                                        ? t('Booked {when}', { when: wasLabel })
+                                        : t('{day} · no time yet', { day: dayLabel(date) })
                                     : `${dayLabel(date)} · ${timeLabel(slotMinutes)}`
-                                : 'Walk-in · starting now'}
+                                : t('Walk-in · starting now')}
                         </Text>
                     </View>
                 </View>
@@ -650,18 +650,28 @@ export function BookingScreen({
 
                                         {!canWalkIn ? (
                                             <Text variant="caption" tone="muted">
-                                                {branchName ?? 'The clinic'} is not working today, so there is
-                                                no walk-in to take.
+                                                {branchName
+                                                    ? t(
+                                                          '{branch} is not working today, so there is no walk-in to take.',
+                                                          {
+                                                              branch: branchName,
+                                                          },
+                                                      )
+                                                    : t(
+                                                          'The clinic is not working today, so there is no walk-in to take.',
+                                                      )}
                                             </Text>
                                         ) : !scheduled && dateKey !== today ? (
                                             <Text variant="caption" tone="muted">
-                                                A walk-in starts now, so it lands on today — not the day on
-                                                screen.
+                                                {t(
+                                                    'A walk-in starts now, so it lands on today — not the day on screen.',
+                                                )}
                                             </Text>
                                         ) : !scheduled ? (
                                             <Text variant="subhead" tone="muted">
-                                                Booked and checked in at once, the same as anyone already in
-                                                the waiting room.
+                                                {t(
+                                                    'Booked and checked in at once, the same as anyone already in the waiting room.',
+                                                )}
                                             </Text>
                                         ) : null}
                                     </>
@@ -699,7 +709,7 @@ export function BookingScreen({
                                     value={
                                         scheduled && slotMinutes !== null
                                             ? `${relativeDayLabel(date)} · ${timeLabel(slotMinutes)}`
-                                            : 'Now — walk-in'
+                                            : t('Now — walk-in')
                                     }
                                     icon={<CalendarIcon size={17} />}
                                     lead
@@ -725,7 +735,7 @@ export function BookingScreen({
                                 ) : null}
                                 <SummaryRow
                                     label="Patient"
-                                    value={patient.mode === 'new' ? `${name} · new record` : name}
+                                    value={patient.mode === 'new' ? t('{name} · new record', { name }) : name}
                                     icon={<PatientIcon />}
                                 />
                             </View>
@@ -737,8 +747,15 @@ export function BookingScreen({
                                     </Text>
                                     <Text variant="caption" weight="medium" tone="muted">
                                         {plan.length === 0
-                                            ? 'Nothing yet'
-                                            : `${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+                                            ? t('Nothing yet')
+                                            : t(
+                                                  plan.length === 1
+                                                      ? '{count} procedure'
+                                                      : '{count} procedures',
+                                                  {
+                                                      count: plan.length,
+                                                  },
+                                              )}
                                     </Text>
                                 </View>
 
@@ -828,8 +845,9 @@ export function BookingScreen({
                 {branch === null ? (
                     <View style={styles.notice}>
                         <Callout tone="warning" title="No branch to book into">
-                            The clinic’s branches could not be loaded, so there is nowhere to put this
-                            booking.
+                            {t(
+                                'The clinic’s branches could not be loaded, so there is nowhere to put this booking.',
+                            )}
                         </Callout>
                     </View>
                 ) : null}

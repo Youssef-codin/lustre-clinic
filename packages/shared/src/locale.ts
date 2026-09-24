@@ -266,6 +266,30 @@ export const COPY_AR = {
     'The day is clear. Book someone in for later, or start a walk-in who is at the desk now.':
         'اليوم خالٍ. احجز موعدًا لوقت لاحق، أو ابدأ حضورًا مباشرًا لمن ينتظر عند الاستقبال الآن.',
     'Book someone in': 'احجز موعدًا',
+    'Nothing yet': 'لا شيء بعد',
+    '{name} · new record': '{name} · ملف جديد',
+    'No phone on file': 'لا يوجد رقم هاتف مسجل',
+    RESCHEDULE: 'تغيير الموعد',
+    'NEW BOOKING': 'حجز جديد',
+    'Walk-in · starting now': 'حضور مباشر · يبدأ الآن',
+    'Booked {when}': 'محجوز {when}',
+    '{day} · no time yet': '{day} · لم يُحدد الوقت بعد',
+    'Back a step': 'رجوع خطوة',
+    'Step {step} of {steps}': 'الخطوة {step} من {steps}',
+    'Start the visit': 'بدء الزيارة',
+    'Book it': 'احجز',
+    'Move it': 'انقل الموعد',
+    'Save changes': 'حفظ التغييرات',
+    'Add what the visit is for — a tooth, then the procedure. It can be left empty and decided in the chair.':
+        'أضف سبب الزيارة — السن أولًا ثم الإجراء. يمكن تركها فارغة وتحديدها على الكرسي.',
+    '{branch} is not working today, so there is no walk-in to take.':
+        'فرع {branch} لا يعمل اليوم، لذا لا يمكن استقبال حضور مباشر.',
+    'The clinic is not working today, so there is no walk-in to take.':
+        'العيادة لا تعمل اليوم، لذا لا يمكن استقبال حضور مباشر.',
+    'A walk-in starts now, so it lands on today — not the day on screen.':
+        'الحضور المباشر يبدأ الآن، لذا يُسجل اليوم — وليس في اليوم المعروض.',
+    'Booked and checked in at once, the same as anyone already in the waiting room.':
+        'يُحجز ويُسجل حضوره فورًا، مثل أي شخص موجود في غرفة الانتظار.',
     'Counting the month…': 'جارٍ حساب الشهر…',
     'That day has gone — pick one from today on.': 'هذا اليوم مضى — اختر يومًا من اليوم فصاعدًا.',
     'Closed that day.': 'مغلق في هذا اليوم.',

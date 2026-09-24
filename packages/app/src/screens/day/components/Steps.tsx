@@ -7,6 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { CheckIcon } from './icons';
 
@@ -22,9 +23,10 @@ export function Steps({
     steps: readonly StepItem[];
     testID?: string;
 }) {
+    const t = useT();
     return (
         <View
-            accessibilityLabel={`Step ${index + 1} of ${steps.length}`}
+            accessibilityLabel={t('Step {step} of {steps}', { step: index + 1, steps: steps.length })}
             style={styles.steps}
             testID={testID}
         >
@@ -62,7 +64,7 @@ export function Steps({
                                 numberOfLines={1}
                                 style={styles.grow}
                             >
-                                {step.label}
+                                {t(step.label)}
                             </Text>
                         </View>
                         <View style={[styles.stepBar, at <= index && styles.stepBarDone]} />
@@ -90,12 +92,13 @@ export function SummaryRow({
     icon?: ReactNode;
     lead?: boolean;
 }) {
+    const t = useT();
     return (
         <View style={styles.summaryLine}>
             <View style={[styles.summaryLabel, styles.grow]}>
                 {icon}
                 <Text variant="subhead" tone="muted" numberOfLines={1}>
-                    {label}
+                    {t(label)}
                 </Text>
             </View>
             <Text
