@@ -8,6 +8,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { color, space, Text } from '../../../theme';
 import type { PatientBalance } from '../data';
 import { outstandingAge } from '../format';
@@ -24,6 +25,7 @@ export type DebtorRowProps = {
 };
 
 export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
+    const t = useT();
     const entry = useRef(new Animated.Value(0)).current;
     const reducedMotion = useReducedMotion();
 
@@ -59,7 +61,7 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
                     </Text>
 
                     <Text variant="footnote" tone="muted">
-                        Outstanding{' '}
+                        {t('Outstanding for')}{' '}
                         <Text variant="footnote" weight="semibold" tone="due">
                             {outstandingAge(patient.oldestUnpaidAt)}
                         </Text>

@@ -490,6 +490,7 @@ export const COPY_AR = {
     'Order not saved': 'لم يُحفظ الترتيب',
     'Other payment method': 'طريقة دفع أخرى',
     Outstanding: 'المستحق',
+    'Outstanding for': 'مستحق منذ',
     Owed: 'المستحق',
     'Owed at the cutoff, in pounds': 'المستحق عند تاريخ الإقفال بالجنيه',
     'PAID BY': 'طريقة الدفع',
