@@ -117,10 +117,12 @@ export function AppointmentDetailSheet({
         api.setNeedsLab(input.id, input.needsLab),
     );
     const labReady = useLocalMutation(api.markLabReady);
-    // What this sheet last wrote, and what the snapshot said when it wrote it.
-    // It stands only while the snapshot still says that: once the day re-reads,
-    // whatever it brings back — this write or another phone's — wins.
-    const [labWrite, setLabWrite] = useState<{ from: LabStatus | null; to: LabStatus | null } | null>(null);
+    // What this sheet last wrote, stamped with the row's `updatedAt` from the
+    // write. It stands only while the snapshot is older than that: once the day
+    // re-reads, whatever it brings back — this write or a later one from
+    // another phone — wins. Comparing values instead would let a later revert
+    // to the old value bring the override back.
+    const [labWrite, setLabWrite] = useState<{ status: LabStatus | null; at: number } | null>(null);
 
     const status = appointment?.status;
     const hasVisit = status === 'checked_in' || status === 'awaiting_payment' || status === 'done';
@@ -155,11 +157,10 @@ export function AppointmentDetailSheet({
 
     const startMinutes = minutesOfDay(appointment.startsAt);
     const labStatus =
-        labWrite && labWrite.from === appointment.labStatus ? labWrite.to : appointment.labStatus;
+        labWrite && Date.parse(appointment.updatedAt) < labWrite.at ? labWrite.status : appointment.labStatus;
 
-    function labWritten(result: { labStatus: LabStatus | null }) {
-        if (!appointment) return;
-        setLabWrite({ from: appointment.labStatus, to: result.labStatus });
+    function labWritten(result: { labStatus: LabStatus | null; updatedAt: string }) {
+        setLabWrite({ status: result.labStatus, at: Date.parse(result.updatedAt) });
         onChanged();
     }
 

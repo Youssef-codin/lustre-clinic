@@ -56,6 +56,16 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
 
     const pending = (query.data ?? []).filter((row) => !settled.has(row.id));
 
+    // An optimistic Lab's back has done its job once the list stops saying
+    // `pending`. Kept past that, it would hide the warning if the lab were
+    // switched back on. Cleared during render, as `BookingScreen` settles its day.
+    const landed = [...labBack].filter(
+        (id) => query.data?.find((row) => row.id === id)?.labStatus !== 'pending',
+    );
+    if (landed.length > 0) {
+        setLabBack((current) => new Set([...current].filter((id) => !landed.includes(id))));
+    }
+
     function forget(id: string) {
         setSettled((current) => {
             const next = new Set(current);
