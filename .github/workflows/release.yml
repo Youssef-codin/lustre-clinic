@@ -1,0 +1,63 @@
+name: release
+
+# CHANGELOG.md is written in the repo, reviewed with the code it describes, and
+# only copied from here: a release tag gets its section as release notes, and the
+# wiki's Changelog pages are regenerated. Dev-track tags (`dev-v*`) don't match.
+on:
+  push:
+    tags: ['v*']
+  # Re-syncs the wiki after fixing a typo in an already released entry.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Fails when the tag's version has no section, which is the reminder to
+      # move [Unreleased] before tagging.
+      - name: Publish release notes
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          bun scripts/changelog.ts notes "$TAG" > "$RUNNER_TEMP/notes.md"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
+          fi
+
+      # The wiki repo only exists once its first page has been created in the
+      # GitHub UI; until then this clone fails.
+      - name: Sync wiki changelog
+        run: |
+          git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.wiki.git" "$RUNNER_TEMP/wiki"
+          bun scripts/changelog.ts wiki "$RUNNER_TEMP/wiki"
+          cd "$RUNNER_TEMP/wiki"
+          git add -A
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m "Changelog from ${GITHUB_REF_NAME} (${GITHUB_SHA::7})"
+          git push

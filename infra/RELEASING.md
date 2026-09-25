@@ -12,6 +12,10 @@ JS-only change: OTA update. Native change (native dep, app.json, config plugin):
 - `git push origin <tag>`: nothing else pushes the tag.
 - Dev track: `release:dev:apk`, `release:dev:update`, `ship:dev`. Stages dist/releases-dev, tags dev-vX.Y.Z.
 
+Before tagging, move `## [Unreleased]` in CHANGELOG.md under the new version and date, and add its compare link. Write entries for the clinic, not the code: what changed on the phone.
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it publishes that version's section as the GitHub release notes and regenerates the wiki's Changelog pages (one per major). Edit CHANGELOG.md, never the wiki. To re-sync the wiki after fixing an old entry, run the workflow by hand.
+
 New APK: `bun release:apk` → `git push origin <tag>` → `bun play releases`.
 
 Requires a clean tree, and `LUSTRE_UPDATES_URL` + `LUSTRE_GLITCHTIP_DSN` in .env. Signing keys: README.md#release-signing.
