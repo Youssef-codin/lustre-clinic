@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-26
+
 ### Added
 
 - Searching for a patient who isn't registered offers to register the typed name or number.
@@ -158,7 +160,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.4.0...v1.4.1
