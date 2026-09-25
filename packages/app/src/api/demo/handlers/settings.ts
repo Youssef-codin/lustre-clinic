@@ -31,6 +31,7 @@ function toSettings(row: SettingsRow): Settings {
         migrationCutoffDate: row.migrationCutoffDate,
         requireAge: row.requireAge,
         requireGender: row.requireGender,
+        askToEditOnFinish: row.askToEditOnFinish,
         updatedAt: row.updatedAt,
     };
 }

@@ -328,6 +328,8 @@ export const settings = pgTable(
         // already on file without it.
         requireAge: boolean('require_age').notNull().default(DEFAULT_REQUIRE_AGE),
         requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
+        // Whether the doctor's Finish asks first if the procedures need editing.
+        askToEditOnFinish: boolean('ask_to_edit_on_finish').notNull().default(true),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],

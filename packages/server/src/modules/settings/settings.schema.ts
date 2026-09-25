@@ -45,6 +45,7 @@ export const updateSettingsInput = z
         migrationCutoffDate: z.iso.date().nullable(),
         requireAge: z.boolean(),
         requireGender: z.boolean(),
+        askToEditOnFinish: z.boolean(),
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

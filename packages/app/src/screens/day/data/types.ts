@@ -184,4 +184,5 @@ export interface ClinicSettings {
     clinicName: string;
     durationOptions: number[];
     defaultDuration: number;
+    askToEditOnFinish: boolean;
 }

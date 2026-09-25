@@ -448,6 +448,7 @@ function emptyDb(): DemoDb {
             migrationCutoffDate: null,
             requireAge: DEFAULT_REQUIRE_AGE,
             requireGender: DEFAULT_REQUIRE_GENDER,
+            askToEditOnFinish: true,
             updatedAt: new Date(),
         },
     };

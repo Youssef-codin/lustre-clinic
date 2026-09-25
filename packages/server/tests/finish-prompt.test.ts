@@ -1,0 +1,37 @@
+import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { settingsService } from '../src/modules/settings/settings.service.ts';
+import { setupDatabase, truncateAll } from './helpers/db.ts';
+
+/**
+ * The doctor's Finish asks whether the procedures need editing first. The clinic
+ * expects to outgrow the question, so it is a setting: on until someone turns
+ * it off, and off stays off.
+ */
+
+beforeAll(async () => {
+    await setupDatabase();
+});
+
+beforeEach(async () => {
+    await truncateAll();
+});
+
+describe('askToEditOnFinish', () => {
+    test('is on for a clinic that has never set it', async () => {
+        expect((await settingsService.get()).askToEditOnFinish).toBe(true);
+    });
+
+    test('turned off, reads back off', async () => {
+        const updated = await settingsService.update({ askToEditOnFinish: false });
+
+        expect(updated.askToEditOnFinish).toBe(false);
+        expect((await settingsService.get()).askToEditOnFinish).toBe(false);
+    });
+
+    test('is left alone by a save that does not name it', async () => {
+        await settingsService.update({ askToEditOnFinish: false });
+        await settingsService.update({ clinicName: 'Renamed' });
+
+        expect((await settingsService.get()).askToEditOnFinish).toBe(false);
+    });
+});
