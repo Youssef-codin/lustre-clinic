@@ -664,6 +664,43 @@ describe('moving an appointment', () => {
         expect(reminder?.dueAt.getTime()).toBe(later.getTime() - reminderLeadHours * 3_600_000);
     });
 
+    // As the server: a quote is kept per line, a plan sent without it follows
+    // the catalogue again, and check-in bills whichever the line holds.
+    it('keeps a quoted price through a repricing and bills it at check-in', () => {
+        const { db, branch, patient, procedure } = fixtures();
+        const startsAt = new Date(Date.now() + 14 * 24 * 3_600_000);
+
+        const booked = appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: startsAt.toISOString(),
+            durationMinutes: 30,
+            procedures: [{ procedureId: procedure.id }],
+            offsetMinutes: 0,
+        });
+        const quoteOf = () =>
+            appointmentHandlers.byId({ id: booked.id }).procedures.map((line) => line.quotedPrice);
+        expect(quoteOf()).toEqual([null]);
+
+        appointmentHandlers.update({
+            id: booked.id,
+            procedures: [{ procedureId: procedure.id, quotedPrice: 12_300 }],
+        });
+        expect(quoteOf()).toEqual([12_300]);
+
+        appointmentHandlers.update({ id: booked.id, note: 'moved rooms' });
+        expect(quoteOf()).toEqual([12_300]);
+
+        // Brought to now by hand: check-in is refused off the appointment's day.
+        const row = db.appointments.find((candidate) => candidate.id === booked.id);
+        if (!row) throw new Error('the booking went missing');
+        row.startsAt = new Date();
+        const visit = visitHandlers.checkIn({ appointmentId: booked.id });
+        expect(visitHandlers.byId({ id: visit.id }).procedures.map((line) => line.unitPrice)).toEqual([
+            12_300,
+        ]);
+    });
+
     it('refuses a move onto another booking with SLOT_OVERLAP', () => {
         const { branch, patient } = fixtures();
         const startsAt = new Date(Date.now() + 13 * 24 * 3_600_000);

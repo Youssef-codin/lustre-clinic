@@ -25,7 +25,7 @@ import { duration } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import type { ProcedureCategory, RequestError } from '../data';
-import { groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
+import { groupByTooth, type PlannedProcedure, repriced, toothPosition, totalOf } from '../procedures';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
@@ -128,6 +128,8 @@ export function ProcedurePlan({
                 variant: picked.variant,
                 tooth,
                 price: picked.price,
+                defaultPrice: picked.price,
+                quoted: false,
             },
         ]);
         setAsking(null);
@@ -139,7 +141,7 @@ export function ProcedurePlan({
 
     function reprice(id: string, entry: string) {
         const price = poundsToPiastres(entry);
-        onChange(value.map((row) => (row.id === id ? { ...row, price } : row)));
+        onChange(value.map((row) => (row.id === id ? repriced(row, price) : row)));
     }
 
     function toggle(key: string) {

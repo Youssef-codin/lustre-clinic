@@ -34,6 +34,8 @@ export interface AppointmentProcedure {
     quantity: number;
     tooth: Tooth | null;
     note: string | null;
+    /** Null unless the desk quoted a price; check-in then bills the catalogue's. */
+    quotedPrice: number | null;
 }
 
 export interface Appointment {

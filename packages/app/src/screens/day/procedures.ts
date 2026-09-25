@@ -16,7 +16,7 @@
  */
 import { DECIDUOUS_TEETH, localizeCopy, PERMANENT_TEETH, type Tooth } from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
-import type { BookedProcedure, ProcedureCategory } from './data';
+import type { Appointment, BookedProcedure, ProcedureCategory } from './data';
 
 export interface PlannedProcedure {
     /** Local to the draft — the row does not exist server-side yet. */
@@ -28,6 +28,14 @@ export interface PlannedProcedure {
     variant: string | null;
     tooth: Tooth | null;
     price: number;
+    /** The catalogue's price, which `price` starts at. */
+    defaultPrice: number;
+    /**
+     * Whether `price` is a quote the booking holds. Not the same as differing
+     * from `defaultPrice`: the catalogue can move to meet a quote, and the
+     * quote must still hold if the catalogue moves on again.
+     */
+    quoted: boolean;
 }
 
 export interface ToothGroup {
@@ -117,11 +125,76 @@ export function totalOf(procedures: readonly PlannedProcedure[]): number {
  * The plan as the booking sends it (§7). One line out per line in, never merged
  * into a quantity: two fillings on two teeth are two lines with two teeth, and
  * two on the same tooth are still two things that were agreed to and will be
- * priced one by one at check-in. Price does not go — the visit snapshots the
- * catalogue's on the day.
+ * priced one by one at check-in. A price goes only when the desk quoted one —
+ * otherwise the visit snapshots the catalogue's on the day, so a price change
+ * in between reaches the bill.
  */
 export function bookedProcedures(plan: readonly PlannedProcedure[]): BookedProcedure[] {
-    return plan.map((procedure) => ({ procedureId: procedure.procedureId, tooth: procedure.tooth }));
+    return plan.map((procedure) => {
+        const quotedPrice = quoteOf(procedure);
+        return {
+            procedureId: procedure.procedureId,
+            tooth: procedure.tooth,
+            ...(quotedPrice === null ? {} : { quotedPrice }),
+        };
+    });
+}
+
+/** The price a line holds the booking to, or null to bill the catalogue's on the day. */
+function quoteOf(procedure: PlannedProcedure): number | null {
+    return procedure.quoted || procedure.price !== procedure.defaultPrice ? procedure.price : null;
+}
+
+/**
+ * A line with its price typed in by hand. Typing the catalogue price back is
+ * how the desk takes a quote away.
+ */
+export function repriced(procedure: PlannedProcedure, price: number): PlannedProcedure {
+    return { ...procedure, price, quoted: price !== procedure.defaultPrice };
+}
+
+/**
+ * What an appointment is booked for, as the plan editor holds it. The heading,
+ * the variant and the default price are read off the catalogue — the same place
+ * a fresh pick gets them from — and a price quoted at the desk replaces the
+ * default, as it did when it was typed.
+ */
+export function planFrom(
+    booked: Appointment['procedures'],
+    categories: readonly ProcedureCategory[],
+): PlannedProcedure[] {
+    return booked.map((line) => {
+        const base = { id: line.id, procedureId: line.procedureId, tooth: line.tooth };
+        const priced = (defaultPrice: number) => ({
+            price: line.quotedPrice ?? defaultPrice,
+            defaultPrice,
+            quoted: line.quotedPrice !== null,
+        });
+        for (const category of categories) {
+            if (category.id === line.procedureId) {
+                return { ...base, name: category.name, variant: null, ...priced(category.defaultPrice) };
+            }
+            const child = category.children.find((row) => row.id === line.procedureId);
+            if (child)
+                return { ...base, name: category.name, variant: child.name, ...priced(child.defaultPrice) };
+        }
+        return { ...base, name: line.name, variant: null, ...priced(0) };
+    });
+}
+
+/** Whether the plan still says what the appointment is booked for, at the price it was booked at. */
+export function samePlan(plan: readonly PlannedProcedure[], booked: Appointment['procedures']): boolean {
+    return (
+        plan.length === booked.length &&
+        plan.every((line, i) => {
+            const was = booked[i];
+            return (
+                line.procedureId === was?.procedureId &&
+                line.tooth === (was.tooth ?? null) &&
+                quoteOf(line) === was.quotedPrice
+            );
+        })
+    );
 }
 
 /** How a line reads in one string — the confirm step and the note both want it. */

@@ -112,6 +112,7 @@ function replaceProcedures(
             quantity: line.quantity,
             tooth: line.tooth,
             note: line.note,
+            quotedPrice: requested[index]?.quotedPrice ?? null,
             sortOrder: index,
         });
     }
@@ -129,6 +130,7 @@ function linesFor(appointmentId: string): AppointmentLine[] {
             quantity: line.quantity,
             tooth: line.tooth,
             note: line.note,
+            quotedPrice: line.quotedPrice,
         }));
 }
 

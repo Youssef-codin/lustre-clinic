@@ -11,7 +11,7 @@
  * again keeps a `ready` lab ready: the work is still back. `markLabReady` is
  * the one call that moves `pending` to `ready`.
  */
-import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@lustre/shared';
+import { MAX_AMOUNT_PIASTRES, MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@lustre/shared';
 import { z } from 'zod';
 
 const duration = z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MINUTES);
@@ -19,9 +19,10 @@ const duration = z.number().int().min(MIN_DURATION_MINUTES).max(MAX_DURATION_MIN
 const offsetMinutes = z.number().int().min(-840).max(840).default(0);
 
 /**
- * §7 — the work the secretary expects. No price: the visit snapshots that at
- * check-in. Validated against the same §5 rules as a visit line, so a bookable
- * list is exactly a recordable one.
+ * §7 — the work the secretary expects. Validated against the same §5 rules as a
+ * visit line, so a bookable list is exactly a recordable one. `quotedPrice` is
+ * a price promised at the desk, in piastres; omitted, check-in snapshots the
+ * catalogue price on the day.
  */
 const procedureLine = z.object({
     procedureId: z.uuid(),
@@ -29,6 +30,7 @@ const procedureLine = z.object({
     /** Palmer notation. Omitted when the procedure is not tooth-specific (§5). */
     tooth: toothSchema.nullish(),
     note: z.string().trim().max(500).nullish(),
+    quotedPrice: z.number().int().min(0).max(MAX_AMOUNT_PIASTRES).nullish(),
 });
 
 const procedures = z.array(procedureLine).max(100);

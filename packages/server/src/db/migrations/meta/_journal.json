@@ -134,6 +134,13 @@
       "when": 1791000000000,
       "tag": "0020_ask_to_edit_on_finish",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0016_appointment_quoted_price",
+      "breakpoints": true
     }
   ]
 }

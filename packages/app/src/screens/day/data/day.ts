@@ -37,9 +37,9 @@ import type {
 } from './types';
 
 /**
- * §7 — a procedure the booking plans. No price: the visit snapshots the
- * catalogue's at check-in, so what the client sends is what is to be done, not
- * what it costs. `tooth` is required by §5 for a tooth-specific procedure and
+ * §7 — a procedure the booking plans. `quotedPrice` is sent only for a price
+ * quoted at the desk; without one the visit snapshots the catalogue's at
+ * check-in. `tooth` is required by §5 for a tooth-specific procedure and
  * refused for the rest, which is why the picker asks the tooth first.
  */
 export interface BookedProcedure {
@@ -47,6 +47,7 @@ export interface BookedProcedure {
     quantity?: number;
     tooth?: Tooth | null;
     note?: string | null;
+    quotedPrice?: number | null;
 }
 
 /**

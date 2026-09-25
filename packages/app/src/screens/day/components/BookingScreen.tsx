@@ -54,21 +54,21 @@ import {
     withoutAppointment,
 } from '../booking';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from '../calendar';
-import {
-    type Appointment,
-    api,
-    type Branch,
-    type ClinicDay,
-    type ProcedureCategory,
-    useLocalMutation,
-    useLocalQuery,
-} from '../data';
+import { type Appointment, api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
 import { noteChanged, noteDraft, noteValue } from '../notes';
 import { type PatientDraft, patientNameOf, patientPhoneOf, patientRefOf } from '../patientDraft';
-import { bookedProcedures, groupByTooth, type PlannedProcedure, toothPosition, totalOf } from '../procedures';
+import {
+    bookedProcedures,
+    groupByTooth,
+    type PlannedProcedure,
+    planFrom,
+    samePlan,
+    toothPosition,
+    totalOf,
+} from '../procedures';
 import {
     addDays,
     dateKey as dayKeyOf,
@@ -136,40 +136,6 @@ const STEPS: { key: Step; label: string }[] = [
     { key: 'when', label: 'When' },
     { key: 'confirm', label: 'Confirm' },
 ];
-
-/**
- * What an appointment is booked for, as the plan editor holds it. The booking
- * stores the procedure and no price, so the heading, the variant and the price
- * are read off the catalogue — the same place a fresh pick gets them from.
- */
-function planFrom(
-    booked: Appointment['procedures'],
-    categories: readonly ProcedureCategory[],
-): PlannedProcedure[] {
-    return booked.map((line) => {
-        const base = { id: line.id, procedureId: line.procedureId, tooth: line.tooth };
-        for (const category of categories) {
-            if (category.id === line.procedureId) {
-                return { ...base, name: category.name, variant: null, price: category.defaultPrice };
-            }
-            const child = category.children.find((row) => row.id === line.procedureId);
-            if (child)
-                return { ...base, name: category.name, variant: child.name, price: child.defaultPrice };
-        }
-        return { ...base, name: line.name, variant: null, price: 0 };
-    });
-}
-
-/** Whether the plan still says what the appointment is booked for. */
-function samePlan(plan: readonly PlannedProcedure[], booked: Appointment['procedures']): boolean {
-    return (
-        plan.length === booked.length &&
-        plan.every(
-            (line, i) =>
-                line.procedureId === booked[i]?.procedureId && line.tooth === (booked[i]?.tooth ?? null),
-        )
-    );
-}
 
 export function BookingScreen({
     patient,
@@ -362,10 +328,9 @@ export function BookingScreen({
     const planChanged = rescheduling !== undefined && planSeeded && !samePlan(plan, rescheduling.procedures);
     const noteEdited = rescheduling !== undefined && noteChanged(rescheduling.note, note);
     const whenAnswered = !scheduled || (slotMinutes !== null && timeIsFree);
-    // Every question answered is enough. A move whose edits the booking cannot
-    // hold — a repriced line, which a plan does not store — or that changed
-    // nothing still saves and closes, rather than leaving Save changes dead with
-    // no word of why.
+    // Every question answered is enough. A move that changed nothing still
+    // saves and closes, rather than leaving Save changes dead with no word of
+    // why.
     const ready = ref !== null && branch !== null && whenAnswered;
 
     function reset() {
