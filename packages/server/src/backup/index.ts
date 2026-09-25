@@ -1,7 +1,8 @@
 /**
- * SPEC §16. One backup run is: dump → verify by restoring → copy off-site
- * encrypted → prune. Every step that can fail alerts (§17), and the run records
- * its success so the staleness check has something to look at.
+ * SPEC §16. One backup run is: dump → verify by restoring → give it its final
+ * name (atomic.ts) → copy off-site encrypted → prune. Every step that can fail
+ * alerts (§17), and the run records its success so the staleness check has
+ * something to look at.
  *
  * Verification restores the dump into a scratch database and compares row
  * counts — and that `appointments_no_overlap` survived, since losing it
@@ -17,6 +18,7 @@ import postgres from 'postgres';
 import { config } from '../config.ts';
 import { logger } from '../logger.ts';
 import { type Alert, alert } from '../monitoring/index.ts';
+import { commitDump } from './atomic.ts';
 import { encrypt, parseKey } from './crypto.ts';
 import { offsiteDestination } from './destination.ts';
 import { DRIVE_REAUTHORIZATION_CODE, isDriveReauthorizationRequired } from './drive.ts';
@@ -30,6 +32,7 @@ import {
     selectForDeletion,
 } from './retention.ts';
 
+export * from './atomic.ts';
 export * from './crypto.ts';
 export * from './destination.ts';
 export * from './retention.ts';
@@ -250,11 +253,14 @@ export async function runBackup(options: BackupOptions = {}): Promise<BackupResu
     try {
         await mkdir(directory, { recursive: true });
 
-        await pgDump(databaseUrl, path);
-        const { size } = await stat(path);
-        if (size === 0) throw new Error('pg_dump produced an empty file');
+        let size = 0;
+        await commitDump(path, async (partial) => {
+            await pgDump(databaseUrl, partial);
+            size = (await stat(partial)).size;
+            if (size === 0) throw new Error('pg_dump produced an empty file');
 
-        if (verify) await verifyDump(databaseUrl, path, now);
+            if (verify) await verifyDump(databaseUrl, partial, now);
+        });
 
         const offsiteKey = offsite ? await uploadOffsite(path, name) : null;
         // Only a real upload clears it. An unconfigured destination returns null

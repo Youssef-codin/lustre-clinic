@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Copies new dumps from a clinic server to this machine. Each one is encrypted
-# as it streams in, so plaintext patient data never touches this disk, and its
+# Copies new dumps from a clinic server to this machine. Only files named
+# lustre-<stamp>.dump are pulled, and the server gives a dump that name only
+# once it has passed the restore check and is on disk. Each one is encrypted as
+# it streams in, so plaintext patient data never touches this disk, and its
 # checksum is compared against the server's before it counts as pulled.
 #
 # Run hourly by lustre-backup-pull@<clinic>.timer:
@@ -84,12 +86,16 @@ for name in $remote_files; do
         rm -f "$part" "$part.sha256"
         fail backup_pull.corrupt "A backup changed in transit and was discarded. It will be retried next hour."
     fi
+    sync -- "$part"
     mv "$part" "$dest"
     rm -f "$part.sha256"
     pulled=$((pulled + 1))
     log "pulled $name"
 done
 
+# The renames above must be on disk before an older copy is deleted, or a crash
+# here can leave neither.
+sync -- "$LOCAL_BACKUP_DIR"
 keep=$(local_backups_newest_first | sed 's/\.age$//' | retained)
 while IFS= read -r name; do
     grep -qxF "${name%.age}" <<<"$keep" || { rm -f -- "${LOCAL_BACKUP_DIR:?}/$name" && log "pruned $name"; }
