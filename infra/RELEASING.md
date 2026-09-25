@@ -24,7 +24,7 @@ JS-only change: OTA update. Native change (native dep, app.json, config plugin, 
 
 ## Patch or minor
 
-- **Patch** (`release:update`): downloads in the background. It runs when the app is next opened after being away 5 minutes or more (from 1.6.1), or on a cold start. A quicker trip away, like the reminders' hop to WhatsApp, never reloads. Returning after 5 minutes also checks for new updates, since a phone that is never swiped away never cold-starts.
+- **Patch** (`release:update`): downloads in the background. It runs when the app is next opened after being away 5 minutes or more (from 1.6.1), or on a cold start. Swiping the app away is not a cold start (the notification listener keeps it alive); Force stop is. A quicker trip away, like the reminders' hop to WhatsApp, never reloads. Returning after 5 minutes also checks for new updates, since a phone that is never swiped away never cold-starts.
 - **Minor OTA** (`release:update --minor`): phones already on 1.6.0 or later show a full-screen download with progress and restart into it (`shell/UpdateScreen.tsx`).
 - **Minor APK** (`release:apk`): needed for native changes. Phones see the install banner on the home screen and in Settings.
 

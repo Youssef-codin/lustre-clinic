@@ -372,7 +372,10 @@ native changed, and it needs `release:apk` instead.
 
 Phones pick it up on launch, or when the app comes back after 5 minutes away.
 A patch runs the next time the app comes back after 5 minutes, or on a cold
-start (swipe the app away and open it twice). A minor shows the download screen and restarts by
+start. Swiping the app out of recents is **not** a cold start: the background
+listener service (check-in and finish notifications) keeps the process alive.
+A real cold start is Android Settings → Apps → Lustre Clinic → Force stop, then
+open. Phones before 1.6.1 have no other way to take an update. A minor shows the download screen and restarts by
 itself. Settings → App → Version shows the new number, and Update shows the
 update's short id.
 
