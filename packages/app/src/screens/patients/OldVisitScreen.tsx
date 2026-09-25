@@ -16,9 +16,9 @@
 // (`day/components/Steps`); nothing is written until the last step's button,
 // and a refusal lands above that button, not in a toast.
 //
-// ## It bills, and that is the whole difference from Previous procedures
+// ## It bills, and that is the whole difference from Old procedures
 //
-// The editor's Previous procedures list writes rows with **no visit** behind
+// Registration's Old procedures list writes rows with **no visit** behind
 // them: clinical history, never charged, excluded from every total. That is
 // right for work done years ago or somewhere else. It is wrong for work this
 // clinic did and forgot to enter, because it was charged for. So this writes

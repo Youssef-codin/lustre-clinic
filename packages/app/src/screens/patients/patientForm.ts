@@ -42,25 +42,9 @@
 // An old patient is never an *edit*: `old` is a registration block, and
 // `updateInputOf` never sends it.
 //
-// ## Historical procedures, which an edit *does* send
-//
-// Work a patient had done before this system recorded it does not only turn up
-// at registration: the paper file surfaces months later, or the patient
-// mentions an extraction in the chair. So the editor carries its own list of it
-// (`history`), and that list leaves by its own door — `procedure.addHistorical`
-// rather than `patient.update`, which takes no such thing.
-//
-// The registration block keeps the list it already had, inside `old` and behind
-// the switch, because there it is part of one write that either all happens or
-// none of it does. The two lists hold the same draft, are drawn by the same
-// component and reach the same server write, so a procedure typed at
-// registration and one typed a year later land as the same imported row: an
-// appointment with no visit behind it, which is what keeps both of them out of
-// checkout and out of every total.
-//
 // ## The ref
 //
-// `ref` is the other field here that does not go through `patient.update`. It
+// `ref` is the one field here that does not go through `patient.update`. It
 // has a procedure of its own on the server because correcting the number a
 // record is known by is a different act from correcting a phone number — it is
 // gated by role and it leaves an audit row — so the form holds it, `refEditOf`
@@ -84,7 +68,6 @@ import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import { isWholePounds } from './components/money';
 import type {
-    AddHistoricalProceduresInput,
     Answers,
     CreatePatientInput,
     CustomQuestion,
@@ -124,12 +107,6 @@ export type PatientForm = {
      */
     notes: string;
     old: OldPatientForm;
-    /**
-     * Work the patient had done before this system recorded it, added from the
-     * editor rather than at registration. Sent by `procedure.addHistorical`
-     * after the patch lands, and never part of `patient.update`.
-     */
-    history: HistoricalProcedureDraft[];
 };
 
 /** One row in a historical-procedures list, as the screen holds it before a save. */
@@ -201,7 +178,6 @@ export function emptyForm(questions: CustomQuestion[], prefill?: PatientPrefill)
         answers: blankAnswers(questions),
         notes: '',
         old: EMPTY_OLD,
-        history: [],
     };
 }
 
@@ -222,10 +198,6 @@ export function formOf(patient: Patient, questions: CustomQuestion[]): PatientFo
         // An existing record is never registered again, so the switch has
         // nothing to do on an edit and the screen does not draw it.
         old: EMPTY_OLD,
-        // Nothing is ever *read back* into this list. It is a list of things to
-        // add, so it starts empty on a record that already has a history, and
-        // what is already on file is the record screen's to draw.
-        history: [],
     };
 }
 
@@ -442,20 +414,6 @@ function lineOf(entry: HistoricalProcedureDraft) {
         ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
         ...(entry.performedOn === null ? {} : { performedOn: entry.performedOn }),
     };
-}
-
-/**
- * The editor's historical procedures, or null when there are none to add — an
- * editor closed without any should not spend a round trip, the same line
- * `isUnchanged` holds for the patch.
- *
- * It is its own call rather than part of the patch because `patient.update`
- * takes no procedures: these are appointment rows, and the server writes them
- * through the same path the registration block uses.
- */
-export function historicalInputOf(patientId: string, form: PatientForm): AddHistoricalProceduresInput | null {
-    if (form.history.length === 0) return null;
-    return { patientId, procedures: form.history.map(lineOf) };
 }
 
 /**

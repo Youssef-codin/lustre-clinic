@@ -25,21 +25,17 @@
 // white — the design keeps one ground from the status bar down and lets the
 // rule do the separating.
 //
-// Correcting a record also takes **previous procedures**: work the patient had
-// done before this system recorded it, which does not only turn up at
-// registration. That list is not part of the patch — `patient.update` takes no
-// procedures — so it goes by its own call.
-//
-// So does the ref. Correcting the number a record is known by is gated by role
-// and leaves an audit row, so the server gives it a procedure of its own. The
+// Correcting the number a record is known by goes by its own call. It is gated
+// by role and leaves an audit row, so the server gives it a procedure of its
+// own. The
 // row is drawn read-only for a role that may not edit, because the number is
 // worth reading whoever is holding the phone, and it is absent entirely on a
 // registration, where the counter hands it out. `canEditRef` is the same rule
 // the server enforces; the screen asking it first is a correct screen, not the
 // protection.
 //
-// An edit can therefore make three calls — ref, procedures, patch — and the
-// order is not arbitrary. See `onSave`.
+// An edit can therefore make two calls — ref, then patch — and the order is
+// not arbitrary. See `onSave`.
 //
 // The write crosses Tailscale, so Save spins, cancel is disabled under it, and
 // a failure keeps every field on screen with a `Callout` saying why.
@@ -68,7 +64,6 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
-import { HistoricalProcedures } from './components/HistoricalProcedures';
 import { CloseIcon } from './components/icons';
 import { OldPatientRows, OldProcedures } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
@@ -84,7 +79,6 @@ import {
     createInputOf,
     emptyForm,
     formOf,
-    historicalInputOf,
     isUnchanged,
     MAX_NOTES_LENGTH,
     malformedBasics,
@@ -149,15 +143,14 @@ export function PatientEditScreen({
 
     const create = useMutation(patientsApi.create);
     const update = useMutation(patientsApi.update);
-    const addHistorical = useMutation(patientsApi.addHistorical);
     const editRef = useMutation(patientsApi.updateRef);
     const save = creating ? create : update;
 
-    // Any of the three can be the one that failed, and the callout says so for
-    // each. They run in this order and each stops the save when it fails, and
-    // one that is not sent is reset (below), so at most one holds an error.
-    const saveError = editRef.error ?? addHistorical.error ?? save.error;
-    const saving = save.pending || addHistorical.pending || editRef.pending;
+    // Either can be the one that failed, and the callout says so for each. They
+    // run in this order and each stops the save when it fails, and one that is
+    // not sent is reset (below), so at most one holds an error.
+    const saveError = editRef.error ?? save.error;
+    const saving = save.pending || editRef.pending;
 
     // `hydrated` matters: the store falls back to secretary until storage
     // answers, and drawing an editable row for a beat and then taking it away
@@ -285,29 +278,23 @@ export function PatientEditScreen({
         const patch = updateInputOf(patientId, form, initial, editable, requires);
         if (patch === null) return;
 
-        const history = historicalInputOf(patientId, form);
-        // The drafts this save is sending, by their own ids. Not by
-        // `procedureId`: the same procedure on two different days is two real
-        // entries, which is exactly what the day grouping exists for.
-        const sent = new Set(form.history.map((row) => row.id));
-
         // The number, if it moved from the last one on file — the record's, or
         // the one an earlier partial save already wrote. Its own call:
         // `patient.update` cannot write a ref, and this one is refused for a
         // role that may not.
         const ref = refMode === 'editable' && refBaseline ? refEditOf(form, refBaseline) : null;
 
-        // Nothing moved and nothing to add. Closing beats spending a round trip
-        // to write the record back over itself.
-        if (isUnchanged(patch) && history === null && ref === null) {
+        // Nothing moved. Closing beats spending a round trip to write the record
+        // back over itself.
+        if (isUnchanged(patch) && ref === null) {
             onSaved(patientId);
             return;
         }
 
         onSavingChange?.(true);
 
-        // Ref, then procedures, then patch — each stopping the save when it
-        // fails, so a retry has only what is still owed left to send.
+        // Ref, then patch — each stopping the save when it fails, so a retry has
+        // only what is still owed left to send.
         //
         // The ref goes first because it is the one most likely to be refused —
         // a role, a number already taken, one not yet handed out — and the
@@ -329,32 +316,6 @@ export function PatientEditScreen({
                 return;
             }
             setSavedRef(moved.ref);
-        }
-
-        // The procedures, and the entries are dropped the moment they land.
-        // This call is not idempotent — a second send writes the lines a second
-        // time — so if the patch then fails, pressing Save again has only the
-        // patch left to send. A failure here keeps the entries and never reaches
-        // the patch.
-        if (history === null) {
-            addHistorical.reset();
-        } else {
-            const added = await addHistorical.mutate(history);
-            if (!added) {
-                onSavingChange?.(false);
-                return;
-            }
-            // Only the entries that were actually sent. Emptying the list would
-            // also throw away anything added while the request was in flight —
-            // never sent, and gone without a word when the save closes the
-            // editor. The list is untouchable during a save (below), so this is
-            // belt and braces; it is also one line, and the thing it protects
-            // is somebody's typing.
-            setForm((current) =>
-                current
-                    ? { ...current, history: current.history.filter((row) => !sent.has(row.id)) }
-                    : current,
-            );
         }
 
         if (!isUnchanged(patch)) {
@@ -450,27 +411,7 @@ export function PatientEditScreen({
                             }
                         />
 
-                        {creating ? (
-                            <OldProcedures form={form} onChange={change} />
-                        ) : (
-                            /* The editor's own list. It is not behind a switch:
-                               the switch is about which *patient* this is, and
-                               that question is settled once, at registration.
-                               What is already on file is the record's to draw —
-                               this list only ever adds. */
-                            /* Untouchable while a save is open, the same line
-                               the bar's cancel holds: a write is the one thing
-                               on screen, and an entry added halfway through one
-                               is an entry the save has already decided not to
-                               send. */
-                            <View pointerEvents={saving ? 'none' : 'auto'}>
-                                <HistoricalProcedures
-                                    title="PREVIOUS PROCEDURES"
-                                    entries={form.history}
-                                    onChange={(history) => change({ history })}
-                                />
-                            </View>
-                        )}
+                        {creating ? <OldProcedures form={form} onChange={change} /> : null}
 
                         <Questions
                             questions={editable}

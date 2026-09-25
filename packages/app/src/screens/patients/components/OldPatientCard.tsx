@@ -25,10 +25,9 @@
 //
 // ## The procedure list
 //
-// It is `HistoricalProcedures`, shared with the editor: the same work turns up
-// at registration and again a year later when the paper file does, and two
-// lists of it would be two things to keep in step. All this file adds is the
-// `Reveal` around it, because here the list belongs to the switch.
+// It is `HistoricalProcedures`. All this file adds is the `Reveal` around it,
+// because here the list belongs to the switch. Work that surfaces after
+// registration is recorded as an old visit from the patient record instead.
 // biome-ignore lint/style/noRestrictedImports: the Reveal tween is an animation driven by the switch
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';

@@ -192,23 +192,6 @@ export interface OldPatientInput {
     procedures: OldProcedureInput[];
 }
 
-/**
- * Work a patient had done before this system recorded it, added from the
- * editor. The same line the registration block sends, against a patient who
- * already exists: `procedure.addHistorical` writes it as an imported
- * appointment with no visit behind it, so it shows in the history and adds to
- * no total and no checkout.
- */
-export interface AddHistoricalProceduresInput {
-    patientId: string;
-    procedures: OldProcedureInput[];
-}
-
-/** The days the lines were grouped into — one per date on the file, not one per line. */
-export interface AddedHistoricalProcedures {
-    appointmentIds: string[];
-}
-
 /** One line of an old visit: what was done, and what it is charged at. */
 export interface OldVisitLineInput {
     procedureId: string;
@@ -221,9 +204,8 @@ export interface OldVisitLineInput {
 /**
  * A visit that happened on a day that has passed and was never entered.
  *
- * Unlike `AddHistoricalProceduresInput` this one **carries money**: it lands as
- * an ordinary completed visit, charged and paid on the day unless corrected. The
- * date is required and there is no time of day — the desk is recording which
+ * It **carries money**: it lands as an ordinary completed visit, charged and
+ * paid on the day unless corrected. The date is required and there is no time of day — the desk is recording which
  * day it was, not which slot.
  */
 export interface AddOldVisitInput {

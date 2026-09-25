@@ -900,12 +900,9 @@ export const COPY_AR = {
     'Could not load the procedures': 'تعذر تحميل الإجراءات',
     'The rest of the registration still saves — the old procedures are the only part that needs the catalogue.':
         'بقية التسجيل تُحفظ كالمعتاد — الإجراءات السابقة وحدها هي التي تحتاج إلى القائمة.',
-    // The editor's own historical procedures, and the sheet that dates one.
-    'PREVIOUS PROCEDURES': 'إجراءات سابقة',
+    // The historical procedures list, and the sheet that dates one.
     "Work done before this system recorded it. It shows in this patient's history, marked as imported, and never adds to what they owe.":
         'عمل تم قبل أن يسجله هذا النظام. يظهر في سجل هذا المريض بعلامة مستورد، ولا يُضاف أبدًا إلى ما عليه.',
-    'The rest of the form still saves — the previous procedures are the only part that needs the catalogue.':
-        'بقية النموذج تُحفظ كالمعتاد — الإجراءات السابقة وحدها هي التي تحتاج إلى القائمة.',
     'Date of {name}: not set': 'تاريخ {name}: غير محدد',
     'Date of {name}: {date}': 'تاريخ {name}: {date}',
     'When was it done?': 'متى تم؟',

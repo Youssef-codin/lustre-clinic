@@ -31,7 +31,6 @@ import {
     EMPTY_OLD,
     emptyForm,
     formOf,
-    historicalInputOf,
     isUnchanged,
     malformedBasics,
     malformedOld,
@@ -88,7 +87,6 @@ const sound = (over: Partial<PatientForm> = {}): PatientForm => ({
     answers: {},
     notes: '',
     old: EMPTY_OLD,
-    history: [],
     ...over,
 });
 
@@ -805,90 +803,6 @@ describe('old procedures', () => {
 
         expect(createInputOf(dated, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
         expect(createInputOf(undated, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
-    });
-});
-
-/**
- * Historical procedures added from the editor. They are not part of the patch —
- * `patient.update` takes no procedures — so they leave by their own call, and
- * the two are independent: a record whose only change is a procedure still
- * saves, and one whose only change is a phone number still sends no procedures.
- */
-describe('previous procedures on an edit', () => {
-    const ID = '11111111-1111-1111-1111-111111111111';
-
-    it('sends nothing when the list is empty', () => {
-        expect(historicalInputOf(ID, sound())).toBeNull();
-    });
-
-    it('names the patient and carries the picked day', () => {
-        const input = historicalInputOf(
-            ID,
-            sound({ history: [oldProcedure({ performedOn: '2024-03-14' })] }),
-        );
-
-        expect(input?.patientId).toBe(ID);
-        expect(input?.procedures).toEqual([
-            {
-                procedureId: '22222222-2222-2222-2222-222222222222',
-                quantity: 1,
-                performedOn: '2024-03-14',
-            },
-        ]);
-    });
-
-    // Undated is the honest answer and the common one, so it is sent as nothing
-    // at all rather than as a null — the record reads it as *before migration*.
-    it('leaves the date out entirely when none was picked', () => {
-        const input = historicalInputOf(ID, sound({ history: [oldProcedure()] }));
-
-        expect(input?.procedures[0]).not.toHaveProperty('performedOn');
-    });
-
-    it('carries the tooth when the procedure named one', () => {
-        const input = historicalInputOf(ID, sound({ history: [oldProcedure({ tooth: 'UL6' })] }));
-
-        expect(input?.procedures[0]?.tooth).toBe('UL6');
-    });
-
-    // The editor never reads a record's existing history back into the form:
-    // the list only ever adds, and seeding it would resend what is on file.
-    it('starts empty on a record that already exists', () => {
-        expect(formOf(patient(), []).history).toEqual([]);
-    });
-
-    // The same procedure on two different days is two real entries — the
-    // server groups imported lines by day and says so. So a draft is identified
-    // by its own id, and anything keyed on `procedureId` would treat the second
-    // day as a duplicate of the first.
-    it('keeps two days of the same procedure apart', () => {
-        const input = historicalInputOf(
-            ID,
-            sound({
-                history: [
-                    oldProcedure({ id: 'a', performedOn: '2024-03-14' }),
-                    oldProcedure({ id: 'b', performedOn: '2025-01-09' }),
-                ],
-            }),
-        );
-
-        expect(input?.procedures).toHaveLength(2);
-        expect(input?.procedures.map((line) => line.performedOn)).toEqual(['2024-03-14', '2025-01-09']);
-    });
-
-    it('is independent of the patch', () => {
-        const initial = formOf(patient(), []);
-        const withProcedure = { ...initial, history: [oldProcedure()] };
-
-        // Nothing about the record itself moved, so the patch stays empty.
-        expect(
-            isUnchanged(
-                updateInputOf(ID, withProcedure, initial, [], DEFAULT_PATIENT_REQUIREMENTS, TODAY) ?? {
-                    id: ID,
-                },
-            ),
-        ).toBe(true);
-        expect(historicalInputOf(ID, withProcedure)).not.toBeNull();
     });
 });
 

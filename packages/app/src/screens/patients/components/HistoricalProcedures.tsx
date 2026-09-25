@@ -2,12 +2,9 @@
 // two questions adding one asks: which procedure, and — through
 // `HistoricalDateSheet` — which day.
 //
-// It is one component because there are two places to add such a procedure and
-// they must not drift: the **Old patient** block on a registration
-// (`OldPatientCard`), and the editor on a record that already exists
-// (`PatientEditScreen`). What differs between them is where the list is sent,
-// which is `patientForm.ts`'s business and not this file's — here they differ
-// only by their eyebrow.
+// It is drawn by the **Old patient** block on a registration
+// (`OldPatientCard`). Where the list is sent is `patientForm.ts`'s business and
+// not this file's.
 //
 // Choosing the procedure is `ProcedurePicker`'s, shared with the old-visit
 // sheet so that the two ways of recording past work cannot drift on the one
