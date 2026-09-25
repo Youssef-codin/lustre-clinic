@@ -54,6 +54,7 @@ import {
     DEFAULT_REMINDER_REPEAT_MINUTES,
     DEFAULT_REQUIRE_AGE,
     DEFAULT_REQUIRE_GENDER,
+    LAB_STATUSES,
     PAYMENT_METHODS,
     QUESTION_KINDS,
     REMINDER_STATUSES,
@@ -158,6 +159,7 @@ export const appointments = pgTable(
         note: text('note'),
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
         channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
+        labStatus: text('lab_status', { enum: LAB_STATUSES }),
         isOpeningBalance: boolean('is_opening_balance').notNull().default(false),
         isImported: boolean('is_imported').notNull().default(false),
         dateUnknown: boolean('date_unknown').notNull().default(false),
@@ -171,6 +173,7 @@ export const appointments = pgTable(
         // `starts_at` is NOT NULL, so a row whose real date nobody knows still
         // carries one. The flag is what stops it being read as that date.
         check('appointments_date_unknown_imported', sql`NOT ${t.dateUnknown} OR ${t.isImported}`),
+        check('appointments_lab_status_valid', sql`${t.labStatus} IN ('pending', 'ready')`),
     ],
 );
 

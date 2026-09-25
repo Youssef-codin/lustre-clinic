@@ -5,6 +5,7 @@ import {
     byIdInput,
     cancelAppointmentInput,
     createAppointmentInput,
+    markLabReadyInput,
     missedInput,
     updateAppointmentInput,
     walkInInput,
@@ -27,6 +28,10 @@ export const appointmentRouter = router({
     update: publicProcedure
         .input(updateAppointmentInput)
         .mutation(({ input }) => appointmentService.update(input)),
+
+    markLabReady: publicProcedure
+        .input(markLabReadyInput)
+        .mutation(({ input }) => appointmentService.markLabReady(input.id)),
 
     cancel: publicProcedure
         .input(cancelAppointmentInput)

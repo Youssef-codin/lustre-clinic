@@ -11,7 +11,7 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { REMINDER_PLACEHOLDERS, type WhatsAppApp, WS_EVENT } from '@lustre/shared';
+import { type LabStatus, REMINDER_PLACEHOLDERS, type WhatsAppApp, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, branches, patients, reminders } from '../../db/schema.ts';
@@ -34,6 +34,8 @@ interface PendingReminder {
     /** The app the appointment's branch messages from. */
     whatsappApp: WhatsAppApp;
     message: string;
+    /** `pending` means the visit's lab work is not back yet: confirm it before the patient. */
+    labStatus: LabStatus | null;
 }
 
 export function renderTemplate(template: string, values: Record<string, string>): string {
@@ -110,6 +112,7 @@ export const reminderService = {
                 startsAt: appointments.startsAt,
                 ref: appointments.ref,
                 status: appointments.status,
+                labStatus: appointments.labStatus,
                 patientId: patients.id,
                 name: patients.name,
                 phone: patients.phone,
@@ -150,6 +153,7 @@ export const reminderService = {
                 whatsAppUrl: `https://wa.me/${toWhatsAppNumber(row.phone)}?text=${encodeURIComponent(message)}`,
                 whatsappApp: row.whatsappApp,
                 message,
+                labStatus: row.labStatus,
             };
         });
     },

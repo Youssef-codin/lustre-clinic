@@ -39,6 +39,7 @@ const EXPECTED = [
     'appointment.create',
     'appointment.walkIn',
     'appointment.update',
+    'appointment.markLabReady',
     'appointment.cancel',
     'visit.checkIn',
     'visit.byId',

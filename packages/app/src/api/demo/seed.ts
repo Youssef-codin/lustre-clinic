@@ -311,6 +311,7 @@ function writeClosedVisit(
         note: null,
         status: 'done',
         channel: 'desk',
+        labStatus: null,
         isOpeningBalance: false,
         isImported: false,
         dateUnknown: false,
@@ -391,6 +392,7 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
         note: 'Opening balance carried over from the old system',
         status: 'done',
         channel: 'desk',
+        labStatus: null,
         isOpeningBalance: true,
         isImported: false,
         dateUnknown: false,
@@ -648,7 +650,13 @@ export function seedDemoDb(): DemoDb {
 
     // --- the rest of today, and the days ahead ------------------------------
 
-    const ahead: { minutes: number; patientIndex: number; lines: PlannedLine[]; branch: BranchRow }[] = [
+    const ahead: {
+        minutes: number;
+        patientIndex: number;
+        lines: PlannedLine[];
+        branch: BranchRow;
+        needsLab?: boolean;
+    }[] = [
         // Clear of the last arrival's slot, which runs to +40. Slots are
         // half-open and the overlap rule is per branch, so only the three on
         // `main` have to keep out of each other's way.
@@ -661,6 +669,14 @@ export function seedDemoDb(): DemoDb {
         },
         { minutes: 125, patientIndex: 12, lines: [{ procedure: catalogue.cleaning }], branch: main },
         { minutes: 165, patientIndex: 14, lines: [{ procedure: catalogue.whitening }], branch: main },
+        // The crown is still at the lab, so the reminder asks before it is sent.
+        {
+            minutes: 205,
+            patientIndex: 9,
+            lines: [{ procedure: catalogue.crownZirconia, tooth: 'UR1' }],
+            branch: main,
+            needsLab: true,
+        },
     ];
 
     for (const booking of ahead) {
@@ -674,6 +690,7 @@ export function seedDemoDb(): DemoDb {
                 quantity: line.quantity ?? 1,
                 tooth: line.tooth ?? null,
             })),
+            needsLab: booking.needsLab,
             offsetMinutes: 0,
         });
     }

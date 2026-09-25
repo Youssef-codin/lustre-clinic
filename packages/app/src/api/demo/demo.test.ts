@@ -778,3 +778,61 @@ describe('changing the reminder lead time', () => {
         expect(reminderFor(booked.id).dueAt.getTime()).toBe(untouched);
     });
 });
+
+/** As `packages/server/tests/lab-status.test.ts`. */
+describe('lab work', () => {
+    let daysAway = 23;
+
+    function book(needsLab?: boolean) {
+        daysAway += 1;
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        return appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() + daysAway * 24 * 3_600_000).toISOString(),
+            durationMinutes: 30,
+            needsLab,
+            offsetMinutes: 0,
+        });
+    }
+
+    function reminderOf(appointmentId: string) {
+        return reminderHandlers
+            .pending({ dueOnly: false, limit: 200, offsetMinutes: 0 })
+            .find((row) => row.appointmentId === appointmentId);
+    }
+
+    it('books without a lab unless asked', () => {
+        expect(book().labStatus).toBeNull();
+        expect(book(true).labStatus).toBe('pending');
+    });
+
+    it('switches on and off, and keeps work that is already back', () => {
+        const booked = book();
+
+        expect(appointmentHandlers.update({ id: booked.id, needsLab: true }).labStatus).toBe('pending');
+        expect(appointmentHandlers.markLabReady({ id: booked.id }).labStatus).toBe('ready');
+        expect(appointmentHandlers.update({ id: booked.id, needsLab: true }).labStatus).toBe('ready');
+        expect(appointmentHandlers.update({ id: booked.id, needsLab: false }).labStatus).toBeNull();
+    });
+
+    it('marks ready only what is pending', () => {
+        expect(appointmentHandlers.markLabReady({ id: book().id }).labStatus).toBeNull();
+    });
+
+    it('puts the lab status on the reminder', () => {
+        const booked = book(true);
+        expect(reminderOf(booked.id)?.labStatus).toBe('pending');
+
+        appointmentHandlers.markLabReady({ id: booked.id });
+        expect(reminderOf(booked.id)?.labStatus).toBe('ready');
+    });
+
+    it('seeds a crown still at the lab', () => {
+        expect(getDb().appointments.some((row) => row.labStatus === 'pending')).toBe(true);
+    });
+});

@@ -763,7 +763,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
             <AppointmentDetailSheet
                 key={`detail:${selected.appointment?.id ?? 'none'}`}
                 visible={selected.open}
-                appointment={selected.appointment}
+                // The row as the day last read it, so a write from this sheet or
+                // another phone shows here without closing it. The snapshot is
+                // the fallback for a row the day no longer lists.
+                appointment={
+                    clinicDay.find((row) => row.id === selected.appointment?.id) ?? selected.appointment
+                }
                 // The queue's head, as `UpNext` reads it: off today there is no chair.
                 inChair={isToday && chair !== null && chair.id === selected.appointment?.id}
                 onClose={() => setSelected((current) => ({ ...current, open: false }))}
