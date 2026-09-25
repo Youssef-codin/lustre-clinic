@@ -8,14 +8,14 @@
  * re-render at that rate.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Button, Dot, IconButton } from '../../../components/ui';
+import { Button, Dot } from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
 import { formatDuration, minutesOfDay, time12 } from '../time';
 import { ChairProgress } from './ChairProgress';
-import { CheckIcon, ClockIcon, MoreIcon } from './icons';
+import { CheckIcon, ClockIcon } from './icons';
 
 export type NowCardProps = {
     active: Appointment | null;
@@ -31,12 +31,14 @@ export type NowCardProps = {
 };
 
 /**
- * The card is its own button, doing what the button at the foot of it does —
- * the whole thing is a target for the one action it offers. The name is the
- * exception and sits over it: a person's name is a way to that person, not a
- * second way to check them in. `accessible={false}` keeps the card out of the
- * screen reader's way, because the button inside already announces the action
- * and a card that announced itself would only read it twice.
+ * The card is its own button. For whoever is in the chair or at the desk it
+ * does what the button at its foot does; for whoever is next it opens the
+ * appointment instead — cancel, no-show, reschedule — because the day list
+ * leaves that row out and the card is the only way to it, while checking in
+ * already has its button. The name sits over it either way: a person's name is
+ * a way to that person. `accessible={false}` keeps the card out of the screen
+ * reader's way, because the controls inside already announce themselves — which
+ * leaves the next patient's appointment a touch target only.
  */
 function Card({ onPress, children }: { onPress?: () => void; children: React.ReactNode }) {
     if (!onPress) return <View style={styles.card}>{children}</View>;
@@ -71,26 +73,6 @@ function Name({
                 {appointment.patient.name}
             </Text>
         </Pressable>
-    );
-}
-
-/**
- * The way to everything that is not checking in — cancel, no-show, reschedule
- * — which the sheet already holds. It sits over the card like `Name` does, and
- * for the same reason: a tap meant for the sheet must not also check them in.
- * The negative margin keeps its 30pt box from pushing the eyebrow row taller.
- */
-function More({ appointment, onOpen }: { appointment: Appointment; onOpen: (a: Appointment) => void }) {
-    const t = useT();
-    return (
-        <IconButton
-            accessibilityLabel={t('More for {name}', { name: appointment.patient.name })}
-            icon={<MoreIcon size={18} stroke={color.muted} />}
-            variant="bare"
-            style={styles.more}
-            onPress={() => onOpen(appointment)}
-            testID="now-card-more"
-        />
     );
 }
 
@@ -162,14 +144,13 @@ export function NowCard({
         const { time, meridiem } = time12(next.startsAt, locale);
 
         return (
-            <Card onPress={() => onCheckIn(next)}>
+            <Card onPress={() => onOpen(next)}>
                 <View style={styles.eyebrowRow}>
                     <Dot tone="accent" size={7} />
                     <Text variant="eyebrow" tone="muted">
                         {t('NEXT UP')}
                     </Text>
                     <StartedAt appointment={next} />
-                    <More appointment={next} onOpen={onOpen} />
                 </View>
 
                 <Name appointment={next} onOpenRecord={onOpenRecord} />
@@ -231,7 +212,6 @@ const styles = StyleSheet.create({
     empty: { gap: space[1], padding: space[5] },
     eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     startedAt: { marginStart: 'auto' },
-    more: { marginVertical: -space[2], marginEnd: -space[1.5] },
     // `flex-start` so the target is the name's own width: stretched across the
     // card, the gap beside a short name would open the record instead of doing
     // what the rest of the card does.

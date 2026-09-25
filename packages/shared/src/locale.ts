@@ -482,7 +482,6 @@ export const COPY_AR = {
     'Lustre Dental': 'Lustre Dental',
     M: 'ذ',
     MIN: 'دقيقة',
-    'More for {name}': 'خيارات أخرى لـ {name}',
     'NEXT UP': 'التالي',
     NOTE: 'ملاحظة',
     'NOTE FROM THE DESK': 'ملاحظة من الاستقبال',
