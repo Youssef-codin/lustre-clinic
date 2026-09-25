@@ -1,7 +1,52 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/lustre-clinic-logo-dark.svg">
+    <img src="packages/app/assets/brand/lustre-clinic-logo.svg" alt="Lustre Clinic" width="320">
+  </picture>
+</p>
+
+<p align="center">
+  Appointments, records and payments for one dental practice.<br>
+  Two Android phones, a server in the clinic, and nothing in the cloud.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Youssef-codin/lustre-clinic/actions/workflows/ci.yml"><img src="https://github.com/Youssef-codin/lustre-clinic/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/Youssef-codin/lustre-clinic?filter=v*&label=release&color=14110F" alt="Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-source--available-55504A" alt="License: source-available"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Android-Expo_57-14110F?logo=expo&logoColor=white" alt="Android, Expo 57">
+  <img src="https://img.shields.io/badge/React_Native-0.86-14110F?logo=react&logoColor=61DAFB" alt="React Native 0.86">
+  <img src="https://img.shields.io/badge/Bun-tRPC_11-14110F?logo=bun&logoColor=white" alt="Bun and tRPC 11">
+  <img src="https://img.shields.io/badge/PostgreSQL-17-14110F?logo=postgresql&logoColor=white" alt="PostgreSQL 17">
+  <img src="https://img.shields.io/badge/network-Tailscale_only-14110F?logo=tailscale&logoColor=white" alt="Tailscale only">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Youssef-codin/lustre-clinic/wiki">Wiki</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="PRODUCT.md">Product</a> ·
+  <a href="infra/README.md">Server setup</a> ·
+  <a href="infra/RELEASING.md">Releasing</a>
+</p>
+
+---
+
 # Lustre
 
 Clinic management app for a dental practice. React Native client, on-prem server,
 Tailscale-only network.
+
+It replaces a paper appointment book and an unwatched WhatsApp number without
+adding steps to the day, so fewer bookings, reminders and payments get missed.
+
+- **No cloud.** The server and database run on a PC at the clinic, reachable only
+  over Tailscale. The only copy that leaves is an encrypted nightly backup in the
+  doctor's own Google Drive.
+- **No automated messaging.** The app never sends anything. It prepares the
+  WhatsApp message and the secretary sends it from her own phone.
+- **Overlap is impossible by construction.** A Postgres `EXCLUDE USING gist`
+  constraint refuses double-bookings, not application code.
 
 The PRD (what it does and why) and the technical spec (how it is built) live on
 [Notion](https://app.notion.com/p/3b7541c6b44181d8a6aee73ec9b34dcc).
