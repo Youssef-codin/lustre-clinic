@@ -36,6 +36,9 @@ import { type Clinic, expectAppError, clinic as fixtures } from './helpers/facto
  */
 
 const CUTOFF = '2026-08-01';
+/** Where the server now dates an old patient's balance and undated lines: the clinic's today. */
+const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+const TOMORROW = new Date(Date.parse(`${TODAY}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 const OWED = 80_000;
 
 /**
@@ -249,21 +252,24 @@ describe('what an old patient brings with them', () => {
         expect(history).toHaveLength(0);
     });
 
-    test('money or work with nowhere to be dated is refused, and nothing is written', async () => {
+    // Settings → Clinic no longer asks for a cutoff: what they owe is owed from
+    // the day it is entered.
+    test('a balance needs no cutoff, and is dated the day it is entered', async () => {
         await fixtures();
         await settingsService.update({ patientRefNext: NEXT_REF });
 
-        await expectAppError(ERROR_CODE.MIGRATION_NOT_CONFIGURED, () =>
-            patientService.create({
-                name: 'No Cutoff',
-                phone: '01011110001',
-                birthDate: '1990-01-01',
-                custom: {},
-                old: { ref: '410', openingBalance: OWED, procedures: [] },
-            }),
-        );
+        const entered = await patientService.create({
+            name: 'No Cutoff',
+            phone: '01011110001',
+            birthDate: '1990-01-01',
+            custom: {},
+            old: { ref: '410', openingBalance: OWED, procedures: [] },
+        });
 
-        expect(await patientService.byPhone({ phone: '01011110001' })).toHaveLength(0);
+        const [row] = (await patientService.byId(entered.id)).history;
+        expect(row?.isOpeningBalance).toBe(true);
+        expect(row?.startsAt.toISOString()).toBe(`${TODAY}T12:00:00.000Z`);
+        expect((await balanceService.outstanding()).total).toBe(OWED);
     });
 
     test('an opening balance is owed, but was never charged here', async () => {
@@ -282,11 +288,11 @@ describe('what an old patient brings with them', () => {
         expect(outstanding.total).toBe(OWED);
         expect(outstanding.patients.map((p) => p.patientId)).toContain(entered.id);
 
-        // Not charged: nothing was billed on the cutoff date.
-        const summary = await balanceService.summary({ from: CUTOFF, to: CUTOFF, offsetMinutes: 0 });
+        // Not charged: nothing was billed on the day it was entered.
+        const summary = await balanceService.summary({ from: TODAY, to: TODAY, offsetMinutes: 0 });
         expect(summary.charged).toBe(0);
 
-        const stats = await statsService.summary({ from: CUTOFF, to: CUTOFF, offsetMinutes: 0 });
+        const stats = await statsService.summary({ from: TODAY, to: TODAY, offsetMinutes: 0 });
         expect(stats.appointments.total).toBe(0);
         expect(stats.visits.charged).toBe(0);
         // The one figure that does count it — it is still owed today.
@@ -328,7 +334,7 @@ describe('what an old patient brings with them', () => {
         expect(history[0]?.procedures).toEqual([]);
     });
 
-    test('the cutoff date draws an empty schedule', async () => {
+    test('the day it was entered draws an empty schedule', async () => {
         const clinic = await migrating();
 
         await patientService.create({
@@ -343,7 +349,7 @@ describe('what an old patient brings with them', () => {
             },
         });
 
-        expect(await appointmentService.byDate({ date: CUTOFF, offsetMinutes: 0 })).toHaveLength(0);
+        expect(await appointmentService.byDate({ date: TODAY, offsetMinutes: 0 })).toHaveLength(0);
     });
 
     test('a whole session lands on one date without tripping the overlap constraint', async () => {
@@ -533,7 +539,7 @@ describe('imported procedures', () => {
         });
 
         expect(await appointmentService.byDate({ date: '2024-03-14', offsetMinutes: 0 })).toHaveLength(0);
-        expect(await appointmentService.byDate({ date: CUTOFF, offsetMinutes: 0 })).toHaveLength(0);
+        expect(await appointmentService.byDate({ date: TODAY, offsetMinutes: 0 })).toHaveLength(0);
     });
 
     test('raise no reminder', async () => {
@@ -579,7 +585,7 @@ describe('imported procedures', () => {
     // Work done after the cutoff was done here. Filing it as imported would
     // hide it from the day view, the money and the statistics — every view
     // that should be counting it.
-    test('refuse a date after the cutoff, before anything is written', async () => {
+    test('refuse a day that has not happened, before anything is written', async () => {
         const clinic = await migrating();
 
         await expectAppError(ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF, () =>
@@ -590,13 +596,13 @@ describe('imported procedures', () => {
                 custom: {},
                 old: {
                     ref: '211',
-                    procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2026-08-02' }],
+                    procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: TOMORROW }],
                 },
             }),
         );
         expect(await patientService.byPhone({ phone: '01044440011' })).toHaveLength(0);
 
-        // The cutoff day itself is the last day the old system was the truth.
+        // Today has happened.
         const onTheDay = await patientService.create({
             name: 'On The Day',
             phone: '01044440012',
@@ -604,7 +610,7 @@ describe('imported procedures', () => {
             custom: {},
             old: {
                 ref: '212',
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: CUTOFF }],
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: TODAY }],
             },
         });
         expect((await patientService.byId(onTheDay.id)).history).toHaveLength(1);

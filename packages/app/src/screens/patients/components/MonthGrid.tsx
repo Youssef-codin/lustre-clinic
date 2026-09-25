@@ -1,11 +1,10 @@
 /**
- * A month of days that have already happened, one of them picked. Lifted out of
- * `HistoricalDateSheet` so the record's Old visit page can ask its "which day"
- * inline, the way booking asks "when" on its own step, rather than behind a
- * sheet on top of a page.
+ * A month of days that have already happened, one of them picked: the record's
+ * Old visit page asks its "which day" with it inline, the way booking asks
+ * "when" on its own step, rather than behind a sheet on top of a page.
  *
  * Days after today are not offered, and paging forward stops at this month:
- * both callers are dating something that has happened. It fetches nothing —
+ * an old visit is something that has happened. It fetches nothing —
  * nothing was booked on these days that the answer depends on — and holds no
  * state; the month on show and the pick are the caller's.
  */

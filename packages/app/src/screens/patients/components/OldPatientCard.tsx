@@ -1,5 +1,5 @@
 // The **Old patient** part of the New patient screen: the switch, and the
-// three things a patient the clinic already had brings with them.
+// two things a patient the clinic already had brings with them.
 //
 // There is no mockup for it — the Open Design folder has fourteen screens and
 // none of them is this one — so it is built from the tokens and from the shapes
@@ -7,27 +7,18 @@
 // switch is the last row of the BASICS card (`OldPatientRows`, passed in as
 // its `trailing`), with the ref and the balance opening under it in the same
 // card — it is one more fact read off the paper file, next to the age and the
-// sex, not a section of its own. The procedures are a list under their own
-// eyebrow below the card (`OldProcedures`).
+// sex, not a section of its own.
 //
 // Off is the default and off sends nothing. The fields keep what is in them
 // while the switch is off rather than being wiped — a mis-tap that lost a typed
 // number would be worse than one that did not — and only the submit reads the
 // switch (`patientForm.createInputOf`).
 //
-// ## Three fields, and why only three
+// ## Two fields, and why only two
 //
-// The number on the paper file, what they owed on it, and what the file says
-// was done. Nothing about the *cutoff* is here: which branch and which date the
-// carried-over history hangs on is a fact about the clinic, answered once in
-// Settings → Clinic, not four hundred times at the desk. The old Data entry
-// screen asked for it per session and this is the thing that replaced it.
-//
-// ## The procedure list
-//
-// It is `HistoricalProcedures`. All this file adds is the `Reveal` around it,
-// because here the list belongs to the switch. Work that surfaces after
-// registration is recorded as an old visit from the patient record instead.
+// The number on the paper file and what they owed on it. The server dates the
+// balance on the day it is entered. What the file says was done is not asked
+// here: it is an old visit, added from the record whenever it surfaces.
 // biome-ignore lint/style/noRestrictedImports: the Reveal tween is an animation driven by the switch
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
@@ -44,7 +35,6 @@ import { useT } from '../../../i18n';
 import { space, Text } from '../../../theme';
 import type { OldField, OldPatientForm, PatientForm } from '../patientForm';
 import { owesInput } from '../patientForm';
-import { HistoricalProcedures } from './HistoricalProcedures';
 
 export type OldPatientProps = {
     form: PatientForm;
@@ -112,24 +102,8 @@ export function OldPatientRows({ form, onChange, blank, errors }: OldPatientProp
     );
 }
 
-/** The OLD PROCEDURES list under the card, shown while the switch is on. */
-export function OldProcedures({ form, onChange }: Pick<OldPatientProps, 'form' | 'onChange'>) {
-    const old = form.old;
-
-    return (
-        <Reveal open={old.on}>
-            <HistoricalProcedures
-                title="OLD PROCEDURES"
-                entries={old.procedures}
-                onChange={(procedures) => onChange({ old: { ...old, procedures } })}
-                enabled={old.on}
-            />
-        </Reveal>
-    );
-}
-
 /**
- * The switch's fields and list open and close rather than appearing: a short height
+ * The switch's fields open and close rather than appearing: a short height
  * tween with the content fading a touch ahead of it, the same shape as the
  * agenda's *Before this* fold. Closed content stays mounted so the fields keep
  * what was typed (see the file comment) and so there is a height to open to —

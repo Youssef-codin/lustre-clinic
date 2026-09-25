@@ -28,7 +28,11 @@ import { AppError } from '../../errors/AppError.ts';
 import { computeTotal } from '../../util/money.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
-import { planOldPatientHistory, writeOldPatientHistory } from '../migration/migration.service.ts';
+import {
+    defaultBranchId,
+    planOldPatientHistory,
+    writeOldPatientHistory,
+} from '../migration/migration.service.ts';
 import { patientService } from '../patient/patient.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import { resolveProcedureLines } from './procedure.rules.ts';
@@ -207,15 +211,3 @@ export const procedureHistoryService = {
         return { ...written, chargedTotal };
     },
 };
-
-/**
- * Where an old visit hangs when the caller does not name a branch. `branch_id`
- * is NOT NULL and a clinic with one branch should not be made to answer a
- * question it has only one answer to; the list is ordered by name, so the
- * fallback is stable rather than whichever row came back first.
- */
-async function defaultBranchId(): Promise<string> {
-    const [branch] = await branchService.list();
-    if (!branch) throw AppError.notFound('branch');
-    return branch.id;
-}

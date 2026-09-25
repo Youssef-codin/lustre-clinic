@@ -19,7 +19,7 @@
  * Both are `done` rather than `booked` — `done` holds no slot, so four hundred
  * of them at the same instant do not collide.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, todayKey } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentProcedureRow, getDb, type VisitRow } from '../db';
 import { assertAmount, DemoError, uuidv7 } from '../rules';
@@ -63,24 +63,17 @@ export function planOldPatientHistory(old: Pick<OldPatientInput, 'openingBalance
 
     if (old.openingBalance !== undefined) assertAmount(old.openingBalance, 'opening balance');
 
-    const { migrationBranchId, migrationCutoffDate } = getDb().settings;
-    if (migrationBranchId === null || migrationCutoffDate === null) {
-        throw new DemoError(
-            ERROR_CODE.MIGRATION_NOT_CONFIGURED,
-            'an old patient with money owed or work done needs a migration branch and cutoff date',
-            422,
-        );
-    }
-    branchHandlers.byId(migrationBranchId);
+    // Dated on the day it is entered, at the first active branch — the server's
+    // rule since the cutoff left Settings → Clinic.
+    const today = todayKey();
+    const branchId = branchHandlers.list({ includeInactive: false })[0]?.id;
+    if (!branchId) throw new DemoError(ERROR_CODE.NOT_FOUND, 'branch not found', 404);
 
-    // Done since the changeover is done here, and belongs in a visit.
-    const afterCutoff = procedures.find(
-        (line) => line.performedOn != null && line.performedOn > migrationCutoffDate,
-    );
-    if (afterCutoff) {
+    const future = procedures.find((line) => line.performedOn != null && line.performedOn > today);
+    if (future) {
         throw new DemoError(
             ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF,
-            `an old procedure is dated ${afterCutoff.performedOn}, after the cutoff (${migrationCutoffDate})`,
+            `an old procedure is dated ${future.performedOn}, which has not happened yet`,
             422,
         );
     }
@@ -94,8 +87,8 @@ export function planOldPatientHistory(old: Pick<OldPatientInput, 'openingBalance
     }
 
     return {
-        branchId: migrationBranchId,
-        cutoffDate: migrationCutoffDate,
+        branchId,
+        cutoffDate: today,
         ...(old.openingBalance === undefined ? {} : { openingBalance: old.openingBalance }),
         days: [...byDay].map(([performedOn, lines]) => ({ performedOn, lines })),
     };

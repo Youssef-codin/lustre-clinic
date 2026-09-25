@@ -5,8 +5,7 @@
 //
 // One screen for both jobs because the design draws one, and one screen for
 // both *kinds* of patient: an **Old patient** switch reveals the number on
-// somebody's paper file, what they owed on it and what the file records was
-// done. Off by default and off sends nothing. It replaced a separate Settings →
+// somebody's paper file and what they owed on it. Off by default and off sends nothing. It replaced a separate Settings →
 // Data entry screen, whose one job was to be a second way to register the same
 // person — and which numbered them a second time doing it.
 //
@@ -65,7 +64,7 @@ import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
 import { CloseIcon } from './components/icons';
-import { OldPatientRows, OldProcedures } from './components/OldPatientCard';
+import { OldPatientRows } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
@@ -410,8 +409,6 @@ export function PatientEditScreen({
                                 ) : null
                             }
                         />
-
-                        {creating ? <OldProcedures form={form} onChange={change} /> : null}
 
                         <Questions
                             questions={editable}

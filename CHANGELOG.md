@@ -15,9 +15,14 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 - Tapping the Next-up card opens the appointment, with cancel, no-show and reschedule.
 - The day warns when the phone is blocking the app's notifications, with a button to the app's Android settings.
 
+### Changed
+
+- What an old patient owes no longer needs a cutoff date and branch set first. It's dated on the day they're registered.
+
 ### Removed
 
-- Previous procedures can no longer be added from the patient editor. Past work is entered as an old visit from the patient record. Registering an old patient still takes their old procedures.
+- Previous procedures can no longer be added from the patient editor or when registering an old patient. Past work is entered as an old visit from the patient record, at any time.
+- The "Old patients" cutoff date and branch in Settings → Clinic.
 
 ### Fixed
 

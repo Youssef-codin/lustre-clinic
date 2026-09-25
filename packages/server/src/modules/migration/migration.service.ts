@@ -9,12 +9,14 @@
  *
  * ## Where it is dated
  *
- * `branch_id` is NOT NULL and a date has to be something, so both come from the
- * clinic's migration configuration (`settings.migration_branch_id`,
- * `settings.migration_cutoff_date`) rather than from the registration form. The
- * form asks for the patient; the cutoff is a fact about the clinic, answered
- * once. Without it nothing is written and the registration is refused, because
- * the alternative is inventing a branch and a day the clinic was open.
+ * `branch_id` is NOT NULL and a date has to be something. Both are the day of
+ * registration in the clinic's zone, at the clinic's first active branch — the
+ * same branch an old visit falls back to. They used to come from a migration
+ * cutoff set in Settings → Clinic, which refused an old patient with a balance
+ * until someone had set it. Past work is now an old visit, entered whenever it
+ * surfaces, so the only thing registration carries over is what they owe, and
+ * that is owed from the day it is entered. The settings columns are left in
+ * place and no longer read.
  *
  * ## Noon, and why these dates alone are not bounded by an offset
  *
@@ -75,14 +77,15 @@
  */
 import { ERROR_CODE } from '@lustre/shared';
 import { count, eq, sql } from 'drizzle-orm';
+import { config } from '../../config.ts';
 import { db, type Executor } from '../../db/index.ts';
 import { appointmentProcedures, appointments, patients, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { assertAmount } from '../../util/money.ts';
+import { branchService } from '../branch/branch.service.ts';
 import type { OldPatientInput } from '../patient/patient.schema.ts';
 import type { ResolvedLine } from '../procedure/procedure.rules.ts';
 import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
-import { settingsService } from '../settings/settings.service.ts';
 
 /** Nominal. Nobody attended and the day view never draws these, but the column is NOT NULL and checked positive. */
 const SYNTHETIC_DURATION_MINUTES = 5;
@@ -104,6 +107,7 @@ interface OldHistoryDay {
  */
 export interface OldPatientPlan {
     branchId: string;
+    /** The day undated lines and the opening balance are stamped on: registration day, the clinic's. */
     cutoffDate: string;
     openingBalance?: number;
     days: OldHistoryDay[];
@@ -130,10 +134,8 @@ export interface OldPatientWrite {
  * cannot be written — before the patient row exists, so there is nothing to
  * roll back.
  *
- * Nothing is needed when they arrive owing nothing and with an empty file: that
- * is a patient with an old number and no history, which is most of them, and
- * asking such a clinic to configure a cutoff first would be asking for a fact
- * nothing is about to use.
+ * Nothing is written when they arrive owing nothing and with an empty file: that
+ * is a patient with an old number and no history, which is most of them.
  */
 export async function planOldPatientHistory(
     old: Pick<OldPatientInput, 'openingBalance' | 'procedures'>,
@@ -142,36 +144,43 @@ export async function planOldPatientHistory(
 
     if (old.openingBalance !== undefined) assertAmount(old.openingBalance, 'opening balance');
 
-    const { migrationBranchId, migrationCutoffDate } = await settingsService.get();
-    if (migrationBranchId === null || migrationCutoffDate === null) {
-        throw new AppError(
-            ERROR_CODE.MIGRATION_NOT_CONFIGURED,
-            'an old patient with money owed or work done needs a migration branch and cutoff date',
-            422,
-        );
-    }
+    const today = clinicToday();
 
-    // A line dated after the cutoff was done here, not at the old clinic, and
-    // an imported row is one every operational view leaves out. Refused rather
-    // than quietly filed where nothing will count it. ISO dates compare as
-    // strings.
-    const afterCutoff = old.procedures.find(
-        (line) => line.performedOn != null && line.performedOn > migrationCutoffDate,
-    );
-    if (afterCutoff) {
+    // Work that has not happened yet is not a record of anything. Only a phone
+    // from before old procedures left registration still sends any; ISO dates
+    // compare as strings.
+    const future = old.procedures.find((line) => line.performedOn != null && line.performedOn > today);
+    if (future) {
         throw new AppError(
             ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF,
-            `an old procedure is dated ${afterCutoff.performedOn}, after the cutoff (${migrationCutoffDate})`,
+            `an old procedure is dated ${future.performedOn}, which has not happened yet`,
             422,
         );
     }
 
     return {
-        branchId: migrationBranchId,
-        cutoffDate: migrationCutoffDate,
+        branchId: await defaultBranchId(),
+        cutoffDate: today,
         ...(old.openingBalance === undefined ? {} : { openingBalance: old.openingBalance }),
         days: await resolveDays(old.procedures),
     };
+}
+
+/** Today in the clinic's zone, `YYYY-MM-DD`. The server runs on UTC; the clinic does not. */
+function clinicToday(): string {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: config.CLINIC_TIME_ZONE }).format(new Date());
+}
+
+/**
+ * Where a row the caller gave no branch for hangs. `branch_id` is NOT NULL and
+ * a clinic with one branch should not be made to answer a question it has only
+ * one answer to; the list is ordered by name, so the fallback is stable rather
+ * than whichever row came back first.
+ */
+export async function defaultBranchId(): Promise<string> {
+    const [branch] = await branchService.list();
+    if (!branch) throw AppError.notFound('branch');
+    return branch.id;
 }
 
 /**

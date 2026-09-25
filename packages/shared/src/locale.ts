@@ -49,7 +49,6 @@ export const COPY_AR = {
     Collected: 'المحصّل',
     Confirm: 'تأكيد',
     Continue: 'متابعة',
-    'Cutoff date': 'تاريخ الإقفال',
     'Data entry': 'إدخال البيانات',
     Day: 'اليوم',
     Deactivate: 'إيقاف',
@@ -264,7 +263,6 @@ export const COPY_AR = {
     'No procedures yet': 'لا توجد إجراءات بعد',
     'No questions yet': 'لا توجد أسئلة بعد',
     'No questions set up': 'لم تُضبط أسئلة بعد',
-    'No cutoff set': 'لم يُحدد تاريخ إقفال',
     'Nothing in the chair': 'لا يوجد مريض على الكرسي',
     'Nothing booked': 'لا توجد مواعيد',
     'Nothing booked yet.': 'لا توجد مواعيد بعد.',
@@ -459,7 +457,6 @@ export const COPY_AR = {
     'Called off': 'أُلغي',
     'Category name': 'اسم التصنيف',
     Change: 'تغيير',
-    'Change the branch and cutoff date': 'تغيير الفرع وتاريخ الإقفال',
     'Checked out · settled in full': 'تم إنهاء الزيارة · سُددت بالكامل',
     'Checked out · {balance} outstanding': 'تم إنهاء الزيارة · {balance} مستحق',
     'Clinic saved': 'تم حفظ بيانات العيادة',
@@ -578,7 +575,6 @@ export const COPY_AR = {
     Outstanding: 'المستحق',
     'Outstanding for': 'مستحق منذ',
     Owed: 'المستحق',
-    'Owed at the cutoff, in pounds': 'المستحق عند تاريخ الإقفال بالجنيه',
     'PAID BY': 'طريقة الدفع',
     PATIENT: 'المريض',
     PAYMENT: 'الدفع',
@@ -718,8 +714,6 @@ export const COPY_AR = {
     'Nothing was saved. Try again in a moment.': 'لم يتم حفظ شيء. حاول بعد قليل.',
     'Nothing was changed. Try again — if it keeps failing, the clinic PC may need a restart.':
         'لم يتغير شيء. حاول مرة أخرى — إذا استمر الفشل فقد يحتاج كمبيوتر العيادة إلى إعادة تشغيل.',
-    'A balance has to be dated. Set the branch and the cutoff date above, or leave the amount blank.':
-        'الرصيد يحتاج إلى تاريخ. اضبط الفرع وتاريخ الإقفال بالأعلى، أو اترك المبلغ فارغًا.',
     ACTIVE: 'نشط',
     'ALWAYS ON THE RECORD': 'دائمًا في الملف',
     'REQUIRED OR OPTIONAL': 'مطلوب أم اختياري',
@@ -893,25 +887,11 @@ export const COPY_AR = {
     Owes: 'عليه',
     'What they still owed the old system. Leave blank if nothing.':
         'ما تبقى عليه في النظام القديم. اتركه فارغًا إن لم يكن هناك شيء.',
-    'OLD PROCEDURES': 'إجراءات سابقة',
     Optional: 'اختياري',
-    '{count} entry': 'إدخال واحد',
-    '{count} entries': '{count} إدخالات',
-    "What the old system recorded. It shows in this patient's history, marked as imported, and never adds to what they owe.":
-        'ما سجله النظام القديم. يظهر في سجل هذا المريض بعلامة مستورد، ولا يُضاف أبدًا إلى ما عليه.',
-    'Could not load the procedures': 'تعذر تحميل الإجراءات',
-    'The rest of the registration still saves — the old procedures are the only part that needs the catalogue.':
-        'بقية التسجيل تُحفظ كالمعتاد — الإجراءات السابقة وحدها هي التي تحتاج إلى القائمة.',
     // The historical procedures list, and the sheet that dates one.
-    "Work done before this system recorded it. It shows in this patient's history, marked as imported, and never adds to what they owe.":
-        'عمل تم قبل أن يسجله هذا النظام. يظهر في سجل هذا المريض بعلامة مستورد، ولا يُضاف أبدًا إلى ما عليه.',
-    'Date of {name}: not set': 'تاريخ {name}: غير محدد',
-    'Date of {name}: {date}': 'تاريخ {name}: {date}',
-    'When was it done?': 'متى تم؟',
     'Previous year': 'السنة السابقة',
     'Next year': 'السنة التالية',
     'Use this day': 'استخدم هذا اليوم',
-    "The file doesn't say": 'الملف لا يذكر',
     'No date': 'بدون تاريخ',
     'Saved as prior history with no day on it — the record reads it as before migration.':
         'يُحفظ كسجل سابق بلا يوم — ويقرأه السجل على أنه قبل الانتقال.',
@@ -945,23 +925,12 @@ export const COPY_AR = {
     'Next patient number': 'رقم المريض التالي',
     'The next new patient registered gets this number, and the one after gets the number after it. A patient entered with an old number keeps that number instead, and does not use this one up.':
         'المريض الجديد التالي يحصل على هذا الرقم، والذي بعده على الرقم الذي يليه. المريض المسجل برقم قديم يحتفظ برقمه ولا يستهلك هذا الرقم.',
-    'OLD PATIENTS': 'المرضى القدامى',
     'Not set': 'غير محدد',
-    'The day the old system stopped being the truth. A patient registered with an old number who owes money or had work recorded has it dated here. Leave it unset if nothing is being carried over.':
-        'اليوم الذي توقف فيه النظام القديم عن كونه المرجع. المريض المسجل برقم قديم وعليه مبلغ أو له عمل مسجل يُؤرَّخ هنا. اتركه فارغًا إن لم يكن هناك شيء مرحّل.',
-    '{patients} carried over so far.': 'تم ترحيل {patients} حتى الآن.',
-    '{patients} carried over so far, {owing} of them still owing money.':
-        'تم ترحيل {patients} حتى الآن، {owing} منهم ما زال عليهم مبالغ.',
     'Type the number the next new patient should get.': 'اكتب الرقم الذي سيحصل عليه المريض الجديد التالي.',
     'The first patient number is 1.': 'أول رقم مريض هو 1.',
     'That number is larger than the system will hold.': 'هذا الرقم أكبر مما يستوعبه النظام.',
     'Day, month and year — 01 / 08 / 2026.': 'اليوم والشهر والسنة — 01 / 08 / 2026.',
-    'The cutoff has to be a day that has happened.': 'تاريخ الانتقال يجب أن يكون يومًا قد مضى.',
     'That has to be a day that has happened.': 'يجب أن يكون يومًا قد مضى.',
-    'Pick the branch the old patients belong to, or clear the cutoff date.':
-        'اختر الفرع الذي يتبعه المرضى القدامى، أو امسح تاريخ الانتقال.',
-    'Set the cutoff date, or set the branch back to Not set.':
-        'حدد تاريخ الانتقال، أو أعد الفرع إلى غير محدد.',
 
     // --- the patient form's own rules, drawn under the row they are about
     'As it is on the card': 'كما هو على البطاقة',

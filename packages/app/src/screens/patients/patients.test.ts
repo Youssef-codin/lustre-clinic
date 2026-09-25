@@ -19,7 +19,7 @@ import { clampToOutstanding, formatMoney, isWholePounds, paymentReceipt, toPound
 import { errorText } from './data/errors';
 import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion, Patient } from './data/types';
-import type { HistoricalProcedureDraft, PatientForm } from './patientForm';
+import type { PatientForm } from './patientForm';
 import {
     answeredCount,
     birthDateOf,
@@ -95,16 +95,6 @@ const oldOn = (over: Partial<PatientForm['old']> = {}): PatientForm['old'] => ({
     on: true,
     ref: '710',
     owes: '',
-    procedures: [],
-    ...over,
-});
-
-const oldProcedure = (over: Partial<HistoricalProcedureDraft> = {}): HistoricalProcedureDraft => ({
-    id: 'old-1',
-    procedureId: '22222222-2222-2222-2222-222222222222',
-    name: 'Checkup',
-    tooth: null,
-    performedOn: null,
     ...over,
 });
 
@@ -630,7 +620,7 @@ describe('the Old patient switch', () => {
 
     it('sends nothing from the block once the switch goes back off', () => {
         const filled = sound({
-            old: oldOn({ ref: '710', owes: '800', procedures: [oldProcedure()] }),
+            old: oldOn({ ref: '710', owes: '800' }),
         });
         const off = { ...filled, old: { ...filled.old, on: false } };
 
@@ -725,84 +715,17 @@ describe('what an old patient owes', () => {
     });
 });
 
+// Past work is an old visit now, added from the record; registration sends
+// only the number and what they owed.
 describe('old procedures', () => {
-    const questions: CustomQuestion[] = [];
-
-    it('sends zero, one, or several entries', () => {
-        const none = createInputOf(sound({ old: oldOn() }), questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY);
-        expect(none?.old?.procedures).toEqual([]);
-
-        const three = createInputOf(
-            sound({
-                old: oldOn({
-                    procedures: [
-                        oldProcedure({ id: 'a' }),
-                        oldProcedure({ id: 'b' }),
-                        oldProcedure({ id: 'c' }),
-                    ],
-                }),
-            }),
-            questions,
-            DEFAULT_PATIENT_REQUIREMENTS,
-            TODAY,
-        );
-        expect(three?.old?.procedures).toHaveLength(3);
-    });
-
-    it('sends the tooth when the entry carries one, and nothing when it does not', () => {
+    it('are never part of a registration', () => {
         const input = createInputOf(
-            sound({
-                old: oldOn({
-                    procedures: [
-                        oldProcedure({ id: 'a', tooth: 'UL6' }),
-                        oldProcedure({ id: 'b', tooth: null }),
-                    ],
-                }),
-            }),
-            questions,
+            sound({ old: oldOn({ owes: '800' }) }),
+            [],
             DEFAULT_PATIENT_REQUIREMENTS,
             TODAY,
         );
-
-        expect(input?.old?.procedures[0]?.tooth).toBe('UL6');
-        expect(input?.old?.procedures[1]?.tooth).toBeUndefined();
-    });
-
-    // Blank is the honest answer far more often than it looks: the paper file
-    // says what was done and not always when. It goes as nothing, and the
-    // record draws it as *before migration* rather than picking a day.
-    it('leaves the date out when the file did not say when', () => {
-        const input = createInputOf(
-            sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: null })] }) }),
-            questions,
-            DEFAULT_PATIENT_REQUIREMENTS,
-            TODAY,
-        );
-
-        expect(input?.old?.procedures[0]?.performedOn).toBeUndefined();
-    });
-
-    it('sends a picked date as the ISO day it is', () => {
-        const input = createInputOf(
-            sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: '2024-03-14' })] }) }),
-            questions,
-            DEFAULT_PATIENT_REQUIREMENTS,
-            TODAY,
-        );
-
-        expect(input?.old?.procedures[0]?.performedOn).toBe('2024-03-14');
-    });
-
-    // The date used to be `DDMMYYYY` on a number pad, so a half-typed date, a
-    // 31st of February and a day in the future all had to hold the save back.
-    // `HistoricalDateSheet` offers days rather than taking digits, so none of
-    // the three can be produced and an entry's date can never refuse a save.
-    it('never holds a save back over a date', () => {
-        const dated = sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: '2024-03-14' })] }) });
-        const undated = sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: null })] }) });
-
-        expect(createInputOf(dated, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
-        expect(createInputOf(undated, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
+        expect(input?.old).toEqual({ ref: '710', openingBalance: 80_000, procedures: [] });
     });
 });
 

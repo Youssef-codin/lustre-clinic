@@ -30,6 +30,9 @@ import {
  */
 
 const CUTOFF = '2026-08-01';
+/** Where the server now dates an old patient's balance and undated lines: the clinic's today. */
+const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
+const TOMORROW = new Date(Date.parse(`${TODAY}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
 async function migrating(): Promise<Clinic> {
     const clinic = await fixtures();
@@ -149,35 +152,36 @@ describe('adding historical procedures to a patient on file', () => {
     // the same reasons. Work dated since the changeover was done at this clinic
     // and belongs to a visit that charges for it; an imported row is one every
     // operational view leaves out.
-    test('refuses a date after the cutoff, and allows the cutoff day itself', async () => {
+    test('refuses a day that has not happened, and allows today', async () => {
         const clinic = await migrating();
         const patient = await register('01055550005');
 
         await expectAppError(ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF, () =>
             procedureHistoryService.add({
                 patientId: patient.id,
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2026-08-02' }],
+                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: TOMORROW }],
             }),
         );
         expect((await patientService.byId(patient.id)).history).toHaveLength(0);
 
         await procedureHistoryService.add({
             patientId: patient.id,
-            procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: CUTOFF }],
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: TODAY }],
         });
         expect((await patientService.byId(patient.id)).history).toHaveLength(1);
     });
 
-    test('refuses it at all while the clinic has no cutoff configured', async () => {
+    // Phones on 1.5.1 still send these from the editor, and there is no longer
+    // a cutoff for anyone to have set.
+    test('needs no cutoff configured', async () => {
         const clinic = await fixtures();
         const patient = await register('01055550006');
 
-        await expectAppError(ERROR_CODE.MIGRATION_NOT_CONFIGURED, () =>
-            procedureHistoryService.add({
-                patientId: patient.id,
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
-            }),
-        );
+        await procedureHistoryService.add({
+            patientId: patient.id,
+            procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
+        });
+        expect((await patientService.byId(patient.id)).history).toHaveLength(1);
     });
 
     // §5 is applied per day, the same as it is on a registration: a tooth-less
@@ -327,17 +331,9 @@ describe('recording a visit that already happened', () => {
         expect(history).toHaveLength(2);
     });
 
-    test('needs no migration cutoff, unlike a historical procedure', async () => {
+    test('needs no migration cutoff', async () => {
         const clinic = await fixtures();
         const patient = await register('01066660004');
-
-        // The same clinic refuses a historical procedure outright.
-        await expectAppError(ERROR_CODE.MIGRATION_NOT_CONFIGURED, () =>
-            procedureHistoryService.add({
-                patientId: patient.id,
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
-            }),
-        );
 
         const added = await procedureHistoryService.addOldVisit({
             patientId: patient.id,

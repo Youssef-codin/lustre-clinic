@@ -55,7 +55,7 @@
 // and the four-character code a patient registered before numbering carries —
 // that code is still the number written on their file.
 
-import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
+import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND } from '@lustre/shared';
 import {
     birthDateOf,
     blankNameAndPhone,
@@ -109,26 +109,6 @@ export type PatientForm = {
     old: OldPatientForm;
 };
 
-/** One row in a historical-procedures list, as the screen holds it before a save. */
-export type HistoricalProcedureDraft = {
-    /** Local to the draft — the row does not exist server-side yet. */
-    id: string;
-    procedureId: string;
-    /** As it is read out: "Composite filling — Class II". Display only; the id is what is sent. */
-    name: string;
-    tooth: Tooth | null;
-    /**
-     * `YYYY-MM-DD`, or null. Null is *the file does not say* — the honest
-     * answer far more often than it looks — and is sent as nothing at all, which
-     * the record draws as *before migration* rather than as a guessed day.
-     *
-     * It only ever comes from `HistoricalDateSheet`, which does not offer a day
-     * that has not happened or a date that is not one. That is why there is no
-     * validation over it here and nothing it can add to what a save owes.
-     */
-    performedOn: string | null;
-};
-
 export type OldPatientForm = {
     /** Off by default. Off means nothing below is sent, whatever is in it. */
     on: boolean;
@@ -136,10 +116,9 @@ export type OldPatientForm = {
     ref: string;
     /** Whole pounds as digits, or `''` for a patient who owed nothing. */
     owes: string;
-    procedures: HistoricalProcedureDraft[];
 };
 
-export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '', procedures: [] };
+export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '' };
 
 /**
  * What the desk had already typed into the list's search when it came up empty,
@@ -368,29 +347,14 @@ export function malformedOld(form: PatientForm): Partial<Record<OldField, string
     return {};
 }
 
-// There is no check over an entry's date. There used to be one — the date was
-// `DDMMYYYY` on a number pad, and half a date, a 31st of February or a day that
-// had not happened all had to hold the save back, because the alternative was
-// silent: the entry went without a date and the record read "Before migration"
-// for a procedure the desk had just dated. `HistoricalDateSheet` offers days
-// instead of taking digits, so none of those three can be picked and the rule
-// has nothing left to refuse.
-
 function oldIsSound(form: PatientForm): boolean {
     return blankOld(form).length === 0 && Object.keys(malformedOld(form)).length === 0;
 }
 
 /**
- * The block to send, or null when the switch is off. `performedOn` is left out
- * for an undated entry rather than sent as null: the record labels it *before
- * migration* and a blank date is the honest answer, not a missing one.
- *
- * No `offsetMinutes` rides with these dates, which every other date this app
- * sends does carry. They are a day being named rather than a day being bounded,
- * and the server stamps them at noon UTC so they read back as that day from any
- * offset this clinic can be in — see `migration.service`. It is also the only thing that *could*
- * work here: the opening balance is dated at a cutoff this form never sees, so
- * the offset in force on it is not something the form can know.
+ * The block to send: the old number, and what they owed, which the server dates
+ * on the day it is entered. Past work is not part of it — that is an old visit,
+ * added from the record whenever it surfaces.
  */
 function oldInputOf(form: PatientForm): OldPatientInput {
     const owes = owesPiastres(form.old.owes);
@@ -398,21 +362,7 @@ function oldInputOf(form: PatientForm): OldPatientInput {
     return {
         ref: form.old.ref.trim(),
         ...(owes === null ? {} : { openingBalance: owes }),
-        procedures: form.old.procedures.map(lineOf),
-    };
-}
-
-/**
- * One draft as the server takes it. `performedOn` is left out for an undated
- * entry rather than sent as null: the record labels it *before migration*, and
- * a blank date is an answer rather than a missing field.
- */
-function lineOf(entry: HistoricalProcedureDraft) {
-    return {
-        procedureId: entry.procedureId,
-        quantity: 1,
-        ...(entry.tooth === null ? {} : { tooth: entry.tooth }),
-        ...(entry.performedOn === null ? {} : { performedOn: entry.performedOn }),
+        procedures: [],
     };
 }
 

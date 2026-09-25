@@ -46,7 +46,7 @@ const TEXT: Record<string, string> = {
     REF_EDIT_FORBIDDEN:
         'Only the doctor can change a patient number. Switch roles in Settings to make this change.',
     MIGRATION_NOT_CONFIGURED:
-        'Set the cutoff date and branch in Settings → Clinic before entering what an old patient owes or had done.',
+        'The clinic server needs updating before it can take what an old patient owes. Register them without it for now.',
     IMPORTED_DATE_AFTER_CUTOFF:
         'One of the old procedures is dated after the cutoff. Work done since then belongs in a visit, not here.',
     INVALID_PHONE: 'That phone number was not accepted. Check it and try again.',
