@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Changed
+
+- The app switches to a downloaded update by itself when it's opened again after being away for 5 minutes or more, and looks for new updates then too. Closing and reopening it is no longer needed.
+
 ## [1.6.0] - 2026-09-26
 
 ### Added

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { isMinorUpdate, manifestVersion } from './updateGate';
+import { isMinorUpdate, manifestVersion, RELOAD_AFTER_AWAY_MS, reloadOnReturn } from './updateGate';
 
 describe('isMinorUpdate', () => {
     it('stops the phone for a new minor or major', () => {
@@ -34,5 +34,23 @@ describe('manifestVersion', () => {
         expect(manifestVersion({ id: 'x', metadata: {} })).toBeNull();
         expect(manifestVersion({ id: 'x' })).toBeNull();
         expect(manifestVersion(undefined)).toBeNull();
+    });
+});
+
+describe('reloadOnReturn', () => {
+    it('restarts into a downloaded update once the app was away long enough', () => {
+        expect(reloadOnReturn(true, RELOAD_AFTER_AWAY_MS)).toBe(true);
+        expect(reloadOnReturn(true, 60 * 60_000)).toBe(true);
+    });
+
+    // A hop to WhatsApp from the reminders and straight back.
+    it('never restarts after a short trip away', () => {
+        expect(reloadOnReturn(true, 30_000)).toBe(false);
+        expect(reloadOnReturn(true, RELOAD_AFTER_AWAY_MS - 1)).toBe(false);
+    });
+
+    it('does nothing without a downloaded update, or without having been away', () => {
+        expect(reloadOnReturn(false, 60 * 60_000)).toBe(false);
+        expect(reloadOnReturn(true, null)).toBe(false);
     });
 });

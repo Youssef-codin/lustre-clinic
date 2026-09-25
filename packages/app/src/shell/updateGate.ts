@@ -38,3 +38,27 @@ export function isMinorUpdate(
     if (!from || !to) return false;
     return to[0] > from[0] || (to[0] === from[0] && to[1] > from[1]);
 }
+
+/**
+ * How long the app has to have been away before coming back reloads it into a
+ * downloaded update. Long enough that a hop to WhatsApp from the reminders and
+ * straight back never costs anyone their place; short enough that a phone
+ * picked up after a patient leaves is on the new version without anybody
+ * closing it.
+ */
+export const RELOAD_AFTER_AWAY_MS = 5 * 60_000;
+
+/** Whether a return to the app counts: away at least `RELOAD_AFTER_AWAY_MS`. `null` is never having left. */
+export function awayLongEnough(awayMs: number | null): boolean {
+    return awayMs !== null && awayMs >= RELOAD_AFTER_AWAY_MS;
+}
+
+/**
+ * Whether coming back to the app should restart it into an update that has
+ * already downloaded. Any update, patch or minor: the patch no longer waits for
+ * a cold start nobody makes, because Android keeps the app alive in the
+ * background and "reopening" it is not one.
+ */
+export function reloadOnReturn(updatePending: boolean, awayMs: number | null): boolean {
+    return updatePending && awayLongEnough(awayMs);
+}

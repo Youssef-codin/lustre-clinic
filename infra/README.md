@@ -226,7 +226,10 @@ Tailscale, with nothing hosted anywhere else:
   release build asks the server on every launch and downloads in the
   background. It never waits on the network at launch, so a power cut starts the
   app on the last bundle it had. What happens next depends on the number:
-  - a **patch** runs on the next cold start and never reloads mid-screen;
+  - a **patch** runs when the app is brought back after being away 5 minutes
+    or more (from 1.6.1), or on a cold start, and never reloads mid-screen.
+    Coming back after 5 minutes also checks for new updates: Android keeps the
+    app alive for days, and expo-updates otherwise only checks on a cold start;
   - a **minor** covers the screen with its download progress and restarts into
     the update as soon as it lands (`packages/app/src/shell/UpdateScreen.tsx`,
     rule in `updateGate.ts`). Only phones already running 1.6.0 or later have
@@ -367,8 +370,9 @@ only offered to APKs with the same runtime version, a fingerprint of everything
 native. The script refuses when the staged APK's runtime differs: something
 native changed, and it needs `release:apk` instead.
 
-Phones pick it up on launch. A patch runs on the next cold start: swipe the app
-away and open it twice. A minor shows the download screen and restarts by
+Phones pick it up on launch, or when the app comes back after 5 minutes away.
+A patch runs the next time the app comes back after 5 minutes, or on a cold
+start (swipe the app away and open it twice). A minor shows the download screen and restarts by
 itself. Settings → App → Version shows the new number, and Update shows the
 update's short id.
 
