@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { WS_EVENT, WS_PROTOCOL_VERSION, type WsEvent } from '@lustre/shared';
+import { noteServerClock, serverNow } from '../api/serverClock';
 import type { ServerEvent } from '../api/serverEvents';
+import { clockSkew } from '../shell/clockCheck';
 import {
     arrivalIdentifier,
     arrivalToAnnounce,
@@ -84,5 +86,43 @@ describe('the arrival notice', () => {
 
     it('does not share an identifier with the completion notice', () => {
         expect(arrivalIdentifier('appt-1')).not.toBe(noticeIdentifier('appt-1'));
+    });
+});
+
+// The report: the desk checked a patient in and the doctor's phone showed
+// nothing. Its clock ran an hour fast — Cairo is +3 in September, the phone was
+// on +2 and wound forward so the status bar read right — so every check-in
+// looked an hour old the moment it arrived.
+describe('a phone whose clock is wrong', () => {
+    const HOUR = 60 * 60_000;
+    const arrival = frame(WS_EVENT.APPOINTMENT_CHECKED_IN, NOW);
+    // Both of the phone's clocks moving together: nobody has set its time.
+    const at = (wall: number) => ({ wall, mono: wall });
+
+    afterEach(() => noteServerClock(0));
+
+    it('ages a live check-in by the server clock, once the clock check has measured it', () => {
+        const phoneNow = NOW + HOUR + 150;
+        expect(arrivalToAnnounce(arrival, 'doctor', serverNow(at(phoneNow)))).toBeNull();
+
+        const skew = clockSkew(NOW, at(phoneNow - 300), at(phoneNow - 100));
+        if (skew === null) throw new Error('the clock check should have measured the skew');
+        noteServerClock(skew, at(phoneNow - 100));
+        expect(arrivalToAnnounce(arrival, 'doctor', serverNow(at(phoneNow)))).toBe('appt-1');
+    });
+
+    it('still withholds a check-in replayed long after, on a slow clock too', () => {
+        const phoneNow = NOW - HOUR;
+        noteServerClock(HOUR, at(phoneNow));
+        expect(
+            arrivalToAnnounce(arrival, 'doctor', serverNow(at(phoneNow + NOTICE_MAX_AGE_MS + 1))),
+        ).toBeNull();
+        expect(arrivalToAnnounce(arrival, 'doctor', serverNow(at(phoneNow + 1000)))).toBe('appt-1');
+    });
+
+    it('does the same for the desk phone and the completion notice', () => {
+        const completion = frame(WS_EVENT.VISIT_COMPLETED, NOW);
+        noteServerClock(-HOUR, at(NOW + HOUR));
+        expect(completionToAnnounce(completion, 'secretary', serverNow(at(NOW + HOUR + 150)))).toBe('appt-1');
     });
 });

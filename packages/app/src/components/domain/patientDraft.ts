@@ -33,7 +33,8 @@
  * validates the same fields and would refuse a bad one anyway. They exist so a
  * typo is caught while the patient is still on the phone.
  */
-import { DEFAULT_REQUIRE_AGE, DEFAULT_REQUIRE_GENDER, daysInMonth, todayKey } from '@lustre/shared';
+import { DEFAULT_REQUIRE_AGE, DEFAULT_REQUIRE_GENDER, daysInMonth } from '@lustre/shared';
+import { serverNow, serverToday as todayKey } from '../../api/serverClock';
 
 /** Stored lowercase, the way every record already on file spells it. */
 export const FEMALE = 'female';
@@ -155,7 +156,7 @@ export function ageDigits(text: string): string {
 }
 
 /** 1 January of the year that makes the patient this old today. See the note above. */
-export function birthDateOf(age: string, today: Date = new Date()): string | null {
+export function birthDateOf(age: string, today: Date = new Date(serverNow())): string | null {
     const years = Number(age);
     if (age.trim() === '' || !Number.isInteger(years) || years < 0 || years > OLDEST_AGE) return null;
     return `${today.getFullYear() - years}-01-01`;
