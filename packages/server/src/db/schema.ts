@@ -52,6 +52,9 @@ import {
     DEFAULT_REMINDER_LEAD_HOURS,
     DEFAULT_REMINDER_NOTIFY_AT,
     DEFAULT_REMINDER_REPEAT_MINUTES,
+    DEFAULT_REQUIRE_AGE,
+    DEFAULT_REQUIRE_GENDER,
+    LAB_STATUSES,
     PAYMENT_METHODS,
     QUESTION_KINDS,
     REMINDER_STATUSES,
@@ -114,7 +117,7 @@ export const patients = pgTable(
         name: text('name').notNull(),
         phone: text('phone').notNull(),
         email: text('email'),
-        birthDate: date('birth_date').notNull(),
+        birthDate: date('birth_date'),
         gender: text('gender'),
         custom: jsonb('custom').notNull().default(sql`'{}'::jsonb`),
         notes: text('notes'),
@@ -156,6 +159,7 @@ export const appointments = pgTable(
         note: text('note'),
         status: text('status', { enum: APPOINTMENT_STATUSES }).notNull().default('booked'),
         channel: text('channel', { enum: APPOINTMENT_CHANNELS }).notNull().default('desk'),
+        labStatus: text('lab_status', { enum: LAB_STATUSES }),
         isOpeningBalance: boolean('is_opening_balance').notNull().default(false),
         isImported: boolean('is_imported').notNull().default(false),
         dateUnknown: boolean('date_unknown').notNull().default(false),
@@ -169,6 +173,7 @@ export const appointments = pgTable(
         // `starts_at` is NOT NULL, so a row whose real date nobody knows still
         // carries one. The flag is what stops it being read as that date.
         check('appointments_date_unknown_imported', sql`NOT ${t.dateUnknown} OR ${t.isImported}`),
+        check('appointments_lab_status_valid', sql`${t.labStatus} IN ('pending', 'ready')`),
     ],
 );
 
@@ -317,6 +322,12 @@ export const settings = pgTable(
         // registration that needs them is refused rather than inventing either.
         migrationBranchId: uuid('migration_branch_id').references(() => branches.id),
         migrationCutoffDate: date('migration_cutoff_date'),
+        // Whether a registration needs an age, and a sex. Checked by the
+        // patient service, not by a constraint on `patients`: turning one off
+        // has to be possible, and turning one on must not break the records
+        // already on file without it.
+        requireAge: boolean('require_age').notNull().default(DEFAULT_REQUIRE_AGE),
+        requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],

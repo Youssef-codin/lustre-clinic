@@ -102,6 +102,18 @@ function englishError(error: RequestError, context: ErrorContext): ErrorMessage 
         case ERROR_CODE.VALIDATION:
             return { title: 'Something in that was not accepted', body: 'Check the details and try again.' };
 
+        case ERROR_CODE.AGE_REQUIRED:
+            return {
+                title: 'This clinic needs the patient’s age',
+                body: 'Add it to their record, or change that in Settings → Patient fields.',
+            };
+
+        case ERROR_CODE.GENDER_REQUIRED:
+            return {
+                title: 'This clinic needs the patient’s sex',
+                body: 'Add it to their record, or change that in Settings → Patient fields.',
+            };
+
         case ERROR_CODE.INVALID_AMOUNT:
             return { title: 'That amount is not allowed', body: 'Enter the amount in whole pounds.' };
 

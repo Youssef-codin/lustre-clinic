@@ -56,6 +56,15 @@ export const appointmentChannelSchema = z.enum(APPOINTMENT_CHANNELS);
 export type AppointmentChannel = z.infer<typeof appointmentChannelSchema>;
 
 /**
+ * Lab work (a crown, bridge or denture) a visit waits on. Null on the
+ * appointment means the visit needs no lab, which is every booking unless the
+ * desk says otherwise. `pending` is sent off; `ready` is back at the clinic.
+ */
+export const LAB_STATUSES = ['pending', 'ready'] as const;
+export const labStatusSchema = z.enum(LAB_STATUSES);
+export type LabStatus = z.infer<typeof labStatusSchema>;
+
+/**
  * Which WhatsApp app a branch's reminders open in, when a phone has both. There
  * is no "ask each time": `wa.me` is a verified link WhatsApp claims, so Android
  * never shows its chooser for it.

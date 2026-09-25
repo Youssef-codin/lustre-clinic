@@ -39,6 +39,7 @@ import { PlusIcon, SearchIcon } from './components/icons';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useQuery } from './data/hooks';
+import { type PatientPrefill, prefillOf } from './patientForm';
 
 export type PatientListScreenProps = {
     onOpen: (patientId: string) => void;
@@ -48,8 +49,11 @@ export type PatientListScreenProps = {
      * (a gallery, a test); without a handler the button says where the flow
      * lives rather than going missing, which is the rule the record's openers
      * already follow.
+     *
+     * `prefill` is a search that found nobody, offered as the patient to
+     * register — the heading's button passes nothing.
      */
-    onNewPatient?: () => void;
+    onNewPatient?: (prefill?: PatientPrefill) => void;
     /**
      * Bumped when the Patients tab is tapped while this screen is already up.
      * The stack is already home, so what is left is the search field, which is
@@ -125,6 +129,15 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         onOpen(patientId);
     }
 
+    const register = onNewPatient ?? (() => setToast('Registering a patient is not wired up here yet.'));
+
+    // The term the empty answer was for — `query`, not `term`, so the button
+    // never names something typed since that has not been searched yet. Offered
+    // only here: the empty register and the error state have nothing typed to
+    // carry over.
+    const unmatched = searching ? query.trim() : '';
+    const prefill = prefillOf(unmatched);
+
     return (
         <View style={styles.screen}>
             {/* The search field is at the top of this scroll, so it is never
@@ -139,12 +152,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                 refreshControl={pull.refreshControl}
                 {...pull.scrollProps}
             >
-                <ListHeader
-                    total={recent.data?.total}
-                    onNewPatient={
-                        onNewPatient ?? (() => setToast('Registering a patient is not wired up here yet.'))
-                    }
-                />
+                <ListHeader total={recent.data?.total} onNewPatient={() => register()} />
 
                 <View style={styles.search}>
                     <SearchField
@@ -183,6 +191,10 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                                 ? t('Nothing matches that name or number.')
                                 : t('Patients appear here as they are registered.')
                         }
+                        actionLabel={
+                            prefill ? t('Add “{term}” as a new patient', { term: unmatched }) : undefined
+                        }
+                        onAction={() => prefill && register(prefill)}
                         weight="panel"
                     />
                 ) : (

@@ -72,7 +72,14 @@
 // that code is still the number written on their file.
 
 import { PATIENT_REF_PATTERN, PIASTRES_PER_POUND, type Tooth } from '@lustre/shared';
-import { birthDateOf, blankNameAndPhone, malformedDraft, orNull } from '../../components/domain/patientDraft';
+import {
+    birthDateOf,
+    blankNameAndPhone,
+    blankRequired,
+    malformedDraft,
+    orNull,
+    type PatientRequirements,
+} from '../../components/domain/patientDraft';
 import type { Draft } from './components/customFields';
 import { fromDraft, isAnswered, isEditable, toDraft } from './components/customFields';
 import { isWholePounds } from './components/money';
@@ -86,7 +93,14 @@ import type {
     UpdatePatientInput,
 } from './data/types';
 
-export { ageDigits, birthDateOf, FEMALE, MALE } from '../../components/domain/patientDraft';
+export {
+    ageDigits,
+    birthDateOf,
+    DEFAULT_PATIENT_REQUIREMENTS,
+    FEMALE,
+    MALE,
+    type PatientRequirements,
+} from '../../components/domain/patientDraft';
 
 export type PatientForm = {
     name: string;
@@ -150,10 +164,34 @@ export type OldPatientForm = {
 
 export const EMPTY_OLD: OldPatientForm = { on: false, ref: '', owes: '', procedures: [] };
 
-export function emptyForm(questions: CustomQuestion[]): PatientForm {
+/**
+ * What the desk had already typed into the list's search when it came up empty,
+ * carried into a registration so it is not typed twice. One field or the other,
+ * never both: a search term is a name or a number, and guessing it is both
+ * would put the same text in two places.
+ */
+export type PatientPrefill = { name: string } | { phone: string };
+
+/** Digits and the separators a number is written with — nothing that could be a name. */
+const PHONE_LIKE = /^[\d\s+-]+$/;
+
+/**
+ * Which field a search term belongs in, or null for a blank one. A term with a
+ * digit in it and nothing but separators around it is a number; anything else,
+ * a name with a digit typed by mistake included, is a name. Both are trimmed
+ * and nothing more — the phone is sent as typed (`createInputOf` trims it and
+ * no further), so the prefill holds it the same way.
+ */
+export function prefillOf(term: string): PatientPrefill | null {
+    const text = term.trim();
+    if (text === '') return null;
+    return PHONE_LIKE.test(text) && /\d/.test(text) ? { phone: text } : { name: text };
+}
+
+export function emptyForm(questions: CustomQuestion[], prefill?: PatientPrefill): PatientForm {
     return {
-        name: '',
-        phone: '',
+        name: prefill && 'name' in prefill ? prefill.name : '',
+        phone: prefill && 'phone' in prefill ? prefill.phone : '',
         email: '',
         // A registration is numbered by the counter, so there is nothing to
         // hold and nothing this screen could put here.
@@ -197,18 +235,20 @@ function blankAnswers(questions: CustomQuestion[]): Draft {
     return answers;
 }
 
-export type BasicsField = 'name' | 'phone' | 'email' | 'age';
+export type BasicsField = 'name' | 'phone' | 'email' | 'age' | 'gender';
 
 /**
  * Required and still empty. These get the treatment the design gives an
  * unanswered required question — the label turns `due` and the footer counts it
  * — and never a message: "A patient needs a name" under an empty name field the
  * desk has not reached yet is telling them off for not having typed yet.
+ *
+ * The age and the sex are owed only when the clinic requires them, and then on
+ * an edit too: a record from before the rule was turned on is asked for the
+ * field the next time someone opens it, and is not refused anywhere else.
  */
-export function blankBasics(form: PatientForm): BasicsField[] {
-    const blank: BasicsField[] = blankNameAndPhone(form);
-    if (form.age.trim().length === 0) blank.push('age');
-    return blank;
+export function blankBasics(form: PatientForm, requires: PatientRequirements): BasicsField[] {
+    return [...blankNameAndPhone(form), ...blankRequired(form, requires)];
 }
 
 /**
@@ -220,8 +260,13 @@ export function malformedBasics(form: PatientForm): Partial<Record<BasicsField, 
     return malformedDraft(form);
 }
 
-function basicsAreSound(form: PatientForm): boolean {
-    return blankBasics(form).length === 0 && Object.keys(malformedBasics(form)).length === 0;
+function basicsAreSound(form: PatientForm, requires: PatientRequirements): boolean {
+    return blankBasics(form, requires).length === 0 && Object.keys(malformedBasics(form)).length === 0;
+}
+
+/** Blank is no age, which `basicsAreSound` has already allowed or refused. */
+function birthDateInputOf(age: string, today: Date): string | null {
+    return age.trim() === '' ? null : birthDateOf(age, today);
 }
 
 /** Which required questions have nothing in them — the design colours their labels and counts them on the button. */
@@ -424,19 +469,18 @@ export function historicalInputOf(patientId: string, form: PatientForm): AddHist
 export function createInputOf(
     form: PatientForm,
     questions: CustomQuestion[],
+    requires: PatientRequirements,
     today: Date = new Date(),
 ): CreatePatientInput | null {
-    if (!basicsAreSound(form)) return null;
+    if (!basicsAreSound(form, requires)) return null;
     if (missingRequired(form, questions).length > 0) return null;
     if (!oldIsSound(form)) return null;
-    const birthDate = birthDateOf(form.age, today);
-    if (birthDate === null) return null;
 
     return {
         name: form.name.trim(),
         phone: form.phone.trim(),
         email: orNull(form.email),
-        birthDate,
+        birthDate: birthDateInputOf(form.age, today),
         gender: orNull(form.gender),
         custom: answersOf(form, questions, (key) => isAnswered(form.answers[key] ?? '')),
         notes: orNull(form.notes),
@@ -457,16 +501,18 @@ export function createInputOf(
  *
  * The one exception is a required answer the desk has *emptied*: that blank is
  * in the patch, and the server throws on it rather than deleting it. See
- * `clearedRequired`.
+ * `clearedRequired`. A required age or sex is a basic, not a question, and does
+ * hold the edit back, the way a name does (`blankBasics`).
  */
 export function updateInputOf(
     id: string,
     form: PatientForm,
     initial: PatientForm,
     questions: CustomQuestion[],
+    requires: PatientRequirements,
     today: Date = new Date(),
 ): UpdatePatientInput | null {
-    if (!basicsAreSound(form)) return null;
+    if (!basicsAreSound(form, requires)) return null;
     if (clearedRequired(form, initial, questions).length > 0) return null;
 
     const patch: UpdatePatientInput = { id };
@@ -476,11 +522,7 @@ export function updateInputOf(
     if (form.email.trim() !== initial.email.trim()) patch.email = orNull(form.email);
     if (form.gender !== initial.gender) patch.gender = orNull(form.gender);
     if (form.notes.trim() !== initial.notes.trim()) patch.notes = orNull(form.notes);
-    if (form.age.trim() !== initial.age.trim()) {
-        const birthDate = birthDateOf(form.age, today);
-        if (birthDate === null) return null;
-        patch.birthDate = birthDate;
-    }
+    if (form.age.trim() !== initial.age.trim()) patch.birthDate = birthDateInputOf(form.age, today);
 
     const custom = answersOf(
         form,

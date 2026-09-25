@@ -17,6 +17,7 @@
 import type {
     AppointmentChannel,
     AppointmentStatus,
+    LabStatus,
     PaymentMethod,
     QuestionKind,
     ReminderStatus,
@@ -46,7 +47,7 @@ export interface PatientRow {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string;
+    birthDate: string | null;
     gender: string | null;
     custom: Record<string, unknown>;
     notes: string | null;
@@ -76,6 +77,7 @@ export interface AppointmentRow {
     note: string | null;
     status: AppointmentStatus;
     channel: AppointmentChannel;
+    labStatus: LabStatus | null;
     isOpeningBalance: boolean;
     isImported: boolean;
     dateUnknown: boolean;
@@ -168,6 +170,8 @@ export interface SettingsRow {
     patientRefNext: number;
     migrationBranchId: string | null;
     migrationCutoffDate: string | null;
+    requireAge: boolean;
+    requireGender: boolean;
     updatedAt: Date;
 }
 
@@ -207,8 +211,11 @@ const STORE_KEY = 'lustre.demo.db';
  * 6: `refEdits` — a stored database from 5 has no such array, and every read of
  *    it would be of `undefined`.
  * 7: branches carry `whatsappApp`.
+ * 8: appointments carry `labStatus`.
+ * 9: settings carry `requireAge` and `requireGender`, and one seeded patient
+ *    has no age again.
  */
-const STORE_VERSION = 7;
+const STORE_VERSION = 9;
 
 let db: DemoDb | null = null;
 

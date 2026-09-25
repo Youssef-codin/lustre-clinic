@@ -31,12 +31,14 @@ export type NowCardProps = {
 };
 
 /**
- * The card is its own button, doing what the button at the foot of it does —
- * the whole thing is a target for the one action it offers. The name is the
- * exception and sits over it: a person's name is a way to that person, not a
- * second way to check them in. `accessible={false}` keeps the card out of the
- * screen reader's way, because the button inside already announces the action
- * and a card that announced itself would only read it twice.
+ * The card is its own button. For whoever is in the chair or at the desk it
+ * does what the button at its foot does; for whoever is next it opens the
+ * appointment instead — cancel, no-show, reschedule — because the day list
+ * leaves that row out and the card is the only way to it, while checking in
+ * already has its button. The name sits over it either way: a person's name is
+ * a way to that person. `accessible={false}` keeps the card out of the screen
+ * reader's way, because the controls inside already announce themselves — which
+ * leaves the next patient's appointment a touch target only.
  */
 function Card({ onPress, children }: { onPress?: () => void; children: React.ReactNode }) {
     if (!onPress) return <View style={styles.card}>{children}</View>;
@@ -142,7 +144,7 @@ export function NowCard({
         const { time, meridiem } = time12(next.startsAt, locale);
 
         return (
-            <Card onPress={() => onCheckIn(next)}>
+            <Card onPress={() => onOpen(next)}>
                 <View style={styles.eyebrowRow}>
                     <Dot tone="accent" size={7} />
                     <Text variant="eyebrow" tone="muted">

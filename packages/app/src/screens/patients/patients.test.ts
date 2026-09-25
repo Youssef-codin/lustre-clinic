@@ -27,6 +27,7 @@ import {
     blankOld,
     clearedRequired,
     createInputOf,
+    DEFAULT_PATIENT_REQUIREMENTS,
     EMPTY_OLD,
     emptyForm,
     formOf,
@@ -37,6 +38,7 @@ import {
     missingRequired,
     owesInput,
     owesPiastres,
+    prefillOf,
     refBaselineOf,
     refEditError,
     refEditOf,
@@ -329,7 +331,14 @@ describe('the patient form — age is a date of birth (BLOCKED.md)', () => {
     // a phone number must not flatten it to 1 January.
     it('never rewrites a real date of birth when the age was not touched', () => {
         const initial = formOf(patient({ age: 34, birthDate: '1992-03-14' }), []);
-        const patch = updateInputOf('id', { ...initial, phone: '0100 000 0000' }, initial, [], TODAY);
+        const patch = updateInputOf(
+            'id',
+            { ...initial, phone: '0100 000 0000' },
+            initial,
+            [],
+            DEFAULT_PATIENT_REQUIREMENTS,
+            TODAY,
+        );
 
         expect(patch?.phone).toBe('0100 000 0000');
         expect(patch && 'birthDate' in patch).toBe(false);
@@ -338,10 +347,105 @@ describe('the patient form — age is a date of birth (BLOCKED.md)', () => {
     it('does send one when the age was corrected, and refuses to save it emptied', () => {
         const initial = formOf(patient({ age: 34 }), []);
 
-        expect(updateInputOf('id', { ...initial, age: '35' }, initial, [], TODAY)?.birthDate).toBe(
-            '1991-01-01',
-        );
-        expect(updateInputOf('id', { ...initial, age: '' }, initial, [], TODAY)).toBeNull();
+        expect(
+            updateInputOf('id', { ...initial, age: '35' }, initial, [], DEFAULT_PATIENT_REQUIREMENTS, TODAY)
+                ?.birthDate,
+        ).toBe('1991-01-01');
+        expect(
+            updateInputOf('id', { ...initial, age: '' }, initial, [], DEFAULT_PATIENT_REQUIREMENTS, TODAY),
+        ).toBeNull();
+    });
+});
+
+describe('the patient form — what the clinic requires (Settings → Patient fields)', () => {
+    const AGE_OFF = { requireAge: false, requireGender: false };
+    const BOTH_ON = { requireAge: true, requireGender: true };
+
+    it('by default owes an age and not a sex', () => {
+        const form = sound({ age: '', gender: '' });
+        expect(blankBasics(form, DEFAULT_PATIENT_REQUIREMENTS)).toEqual(['age']);
+        expect(createInputOf(form, [], DEFAULT_PATIENT_REQUIREMENTS, TODAY)).toBeNull();
+        expect(
+            createInputOf({ ...form, age: '34' }, [], DEFAULT_PATIENT_REQUIREMENTS, TODAY)?.gender,
+        ).toBeNull();
+    });
+
+    it('with age off, registers someone with no age as no date of birth', () => {
+        const form = sound({ age: '' });
+        expect(blankBasics(form, AGE_OFF)).toEqual([]);
+        expect(createInputOf(form, [], AGE_OFF, TODAY)?.birthDate).toBeNull();
+    });
+
+    it('with age off, still refuses an age that is typed and wrong', () => {
+        expect(createInputOf(sound({ age: '340' }), [], AGE_OFF, TODAY)).toBeNull();
+    });
+
+    it('with age off, lets an edit clear the age, and sends it as none', () => {
+        const initial = formOf(patient({ age: 34 }), []);
+        expect(
+            updateInputOf('id', { ...initial, age: '' }, initial, [], AGE_OFF, TODAY)?.birthDate,
+        ).toBeNull();
+    });
+
+    it('with sex on, owes a sex until one is chosen', () => {
+        const form = sound({ gender: '' });
+        expect(blankBasics(form, BOTH_ON)).toEqual(['gender']);
+        expect(createInputOf(form, [], BOTH_ON, TODAY)).toBeNull();
+        expect(createInputOf({ ...form, gender: 'male' }, [], BOTH_ON, TODAY)?.gender).toBe('male');
+    });
+
+    it('with sex on, will not let an edit clear it', () => {
+        const initial = formOf(patient({ gender: 'female' }), []);
+        expect(updateInputOf('id', { ...initial, gender: '' }, initial, [], BOTH_ON, TODAY)).toBeNull();
+    });
+
+    // A record from before the rule was turned on: it reads fine and is only
+    // asked for the field when someone edits it.
+    it('asks a record already without an age or a sex for them the next time it is edited', () => {
+        const initial = formOf(patient({ age: null, birthDate: null, gender: null }), []);
+        expect(initial.age).toBe('');
+
+        const fixingPhone = { ...initial, phone: '0100 000 0000' };
+        expect(blankBasics(fixingPhone, BOTH_ON)).toEqual(['age', 'gender']);
+        expect(updateInputOf('id', fixingPhone, initial, [], BOTH_ON, TODAY)).toBeNull();
+
+        const completed = { ...fixingPhone, age: '40', gender: 'male' };
+        expect(updateInputOf('id', completed, initial, [], BOTH_ON, TODAY)).toMatchObject({
+            birthDate: '1986-01-01',
+            gender: 'male',
+        });
+
+        expect(updateInputOf('id', fixingPhone, initial, [], AGE_OFF, TODAY)?.phone).toBe('0100 000 0000');
+    });
+});
+
+describe('registering from a search that found nobody', () => {
+    it('reads digits and the separators a number is written with as a phone', () => {
+        expect(prefillOf('01002248891')).toEqual({ phone: '01002248891' });
+        expect(prefillOf('  +20 100 224-8891 ')).toEqual({ phone: '+20 100 224-8891' });
+    });
+
+    it('reads anything else as a name, trimmed', () => {
+        expect(prefillOf('  Nour Hassan ')).toEqual({ name: 'Nour Hassan' });
+        expect(prefillOf('نور')).toEqual({ name: 'نور' });
+        expect(prefillOf('Nour 2')).toEqual({ name: 'Nour 2' });
+    });
+
+    it('does not call separators with no digit in them a number', () => {
+        expect(prefillOf('+ -')).toEqual({ name: '+ -' });
+    });
+
+    it('offers nothing for a blank term', () => {
+        expect(prefillOf('')).toBeNull();
+        expect(prefillOf('   ')).toBeNull();
+    });
+
+    it('fills only the field the term belongs in', () => {
+        const byName = emptyForm([], { name: 'Nour' });
+        expect([byName.name, byName.phone]).toEqual(['Nour', '']);
+        const byPhone = emptyForm([], { phone: '0100' });
+        expect([byPhone.name, byPhone.phone]).toEqual(['', '0100']);
+        expect(emptyForm([])).toEqual({ ...byName, name: '' });
     });
 });
 
@@ -353,7 +457,7 @@ describe('the patient form — what a save sends', () => {
 
     it('counts a blank name, number and age as owed, and says nothing about them', () => {
         const form = emptyForm(questions);
-        expect(blankBasics(form)).toEqual(['name', 'phone', 'age']);
+        expect(blankBasics(form, DEFAULT_PATIENT_REQUIREMENTS)).toEqual(['name', 'phone', 'age']);
         expect(malformedBasics(form)).toEqual({});
     });
 
@@ -366,15 +470,15 @@ describe('the patient form — what a save sends', () => {
     it('refuses to register anyone until every required question is answered', () => {
         const form = sound({ answers: { blood: '', diabetic: '', allergies: '' } });
         expect(missingRequired(form, questions)).toEqual(['blood']);
-        expect(createInputOf(form, questions, TODAY)).toBeNull();
+        expect(createInputOf(form, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).toBeNull();
 
         const answered = { ...form, answers: { ...form.answers, blood: 'O+' } };
-        expect(createInputOf(answered, questions, TODAY)).not.toBeNull();
+        expect(createInputOf(answered, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
     });
 
     it('leaves blank answers out of an intake rather than sending them as empty', () => {
         const form = sound({ answers: { blood: 'O+', diabetic: '', allergies: '' } });
-        const input = createInputOf(form, questions, TODAY);
+        const input = createInputOf(form, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY);
 
         expect(input?.custom).toEqual({ blood: 'O+' });
         expect(input?.email).toBeNull();
@@ -389,7 +493,7 @@ describe('the patient form — what a save sends', () => {
         );
         const form = { ...initial, answers: { ...initial.answers, allergies: 'None known' } };
 
-        const patch = updateInputOf('id', form, initial, questions, TODAY);
+        const patch = updateInputOf('id', form, initial, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY);
         expect(patch?.custom).toEqual({ allergies: 'None known' });
     });
 
@@ -401,7 +505,9 @@ describe('the patient form — what a save sends', () => {
         const form = { ...initial, phone: '0100 000 0000' };
 
         expect(missingRequired(form, questions)).toEqual(['blood']);
-        expect(updateInputOf('id', form, initial, questions, TODAY)).not.toBeNull();
+        expect(
+            updateInputOf('id', form, initial, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY),
+        ).not.toBeNull();
     });
 
     // `validateIntake` wants every *active required* question answered, not just
@@ -429,7 +535,7 @@ describe('the patient form — what a save sends', () => {
         const form = { ...initial, answers: { ...initial.answers, blood: '' } };
 
         expect(clearedRequired(form, initial, questions)).toEqual(['blood']);
-        expect(updateInputOf('id', form, initial, questions, TODAY)).toBeNull();
+        expect(updateInputOf('id', form, initial, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).toBeNull();
     });
 
     it('does not count a required question that was never answered as emptied', () => {
@@ -437,7 +543,9 @@ describe('the patient form — what a save sends', () => {
         const form = { ...initial, phone: '0100 000 0000' };
 
         expect(clearedRequired(form, initial, questions)).toEqual([]);
-        expect(updateInputOf('id', form, initial, questions, TODAY)).not.toBeNull();
+        expect(
+            updateInputOf('id', form, initial, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY),
+        ).not.toBeNull();
     });
 
     it('lets a required answer be changed, which is not the same as emptied', () => {
@@ -445,7 +553,9 @@ describe('the patient form — what a save sends', () => {
         const form = { ...initial, answers: { ...initial.answers, blood: 'A+' } };
 
         expect(clearedRequired(form, initial, questions)).toEqual([]);
-        expect(updateInputOf('id', form, initial, questions, TODAY)?.custom).toEqual({ blood: 'A+' });
+        expect(
+            updateInputOf('id', form, initial, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)?.custom,
+        ).toEqual({ blood: 'A+' });
     });
 
     it('sends a cleared answer, and spends no round trip when nothing moved', () => {
@@ -456,11 +566,19 @@ describe('the patient form — what a save sends', () => {
             { ...initial, answers: { ...initial.answers, allergies: '' } },
             initial,
             questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
             TODAY,
         );
         expect(cleared?.custom).toEqual({ allergies: '' });
 
-        const untouched = updateInputOf('id', initial, initial, questions, TODAY);
+        const untouched = updateInputOf(
+            'id',
+            initial,
+            initial,
+            questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
+            TODAY,
+        );
         expect(untouched).not.toBeNull();
         expect(untouched && isUnchanged(untouched)).toBe(true);
     });
@@ -484,11 +602,16 @@ describe('the Old patient switch', () => {
         const form = emptyForm(questions);
 
         expect(form.old.on).toBe(false);
-        expect(createInputOf(form, questions, TODAY)?.old).toBeUndefined();
+        expect(createInputOf(form, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)?.old).toBeUndefined();
     });
 
     it('sends the number on the file as the old ref when it is on', () => {
-        const input = createInputOf(sound({ old: oldOn({ ref: '710' }) }), questions, TODAY);
+        const input = createInputOf(
+            sound({ old: oldOn({ ref: '710' }) }),
+            questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
+            TODAY,
+        );
 
         expect(input?.old?.ref).toBe('710');
     });
@@ -497,7 +620,12 @@ describe('the Old patient switch', () => {
     // ref 710 has to be 710 and nothing else. The server keeps it as the
     // patient's ref, so a blank or a trimmed-away value here is the bug.
     it('sends 710 for a file marked 710', () => {
-        const input = createInputOf(sound({ old: oldOn({ ref: ' 710 ' }) }), questions, TODAY);
+        const input = createInputOf(
+            sound({ old: oldOn({ ref: ' 710 ' }) }),
+            questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
+            TODAY,
+        );
 
         expect(input?.old?.ref).toBe('710');
     });
@@ -511,14 +639,14 @@ describe('the Old patient switch', () => {
         // The values are still on screen — a mis-tap that wiped them would be
         // worse — and none of them is in the payload.
         expect(off.old.ref).toBe('710');
-        expect(createInputOf(off, questions, TODAY)?.old).toBeUndefined();
+        expect(createInputOf(off, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)?.old).toBeUndefined();
     });
 
     it('refuses a save while the switch is on and the number is blank', () => {
         const form = sound({ old: oldOn({ ref: '' }) });
 
         expect(blankOld(form)).toEqual(['ref']);
-        expect(createInputOf(form, questions, TODAY)).toBeNull();
+        expect(createInputOf(form, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).toBeNull();
     });
 
     it('does not count the number as owed while the switch is off', () => {
@@ -526,7 +654,12 @@ describe('the Old patient switch', () => {
     });
 
     it('takes a number that is not a number — that format is the old system’s', () => {
-        const input = createInputOf(sound({ old: oldOn({ ref: 'A/1991-07' }) }), questions, TODAY);
+        const input = createInputOf(
+            sound({ old: oldOn({ ref: 'A/1991-07' }) }),
+            questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
+            TODAY,
+        );
 
         expect(input?.old?.ref).toBe('A/1991-07');
     });
@@ -538,7 +671,12 @@ describe('what an old patient owes', () => {
     it('takes whole pounds and sends integer piastres', () => {
         expect(owesPiastres('800')).toBe(80_000);
         expect(
-            createInputOf(sound({ old: oldOn({ owes: '800' }) }), questions, TODAY)?.old?.openingBalance,
+            createInputOf(
+                sound({ old: oldOn({ owes: '800' }) }),
+                questions,
+                DEFAULT_PATIENT_REQUIREMENTS,
+                TODAY,
+            )?.old?.openingBalance,
         ).toBe(80_000);
     });
 
@@ -546,7 +684,12 @@ describe('what an old patient owes', () => {
         expect(owesPiastres('')).toBeNull();
         expect(owesPiastres('0')).toBeNull();
 
-        const blank = createInputOf(sound({ old: oldOn({ owes: '' }) }), questions, TODAY);
+        const blank = createInputOf(
+            sound({ old: oldOn({ owes: '' }) }),
+            questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
+            TODAY,
+        );
         expect(blank?.old).toBeDefined();
         expect(blank?.old?.openingBalance).toBeUndefined();
     });
@@ -563,13 +706,20 @@ describe('what an old patient owes', () => {
 
         const pasted = sound({ old: oldOn({ owes: '12.50' }) });
         expect(malformedOld(pasted).owes).toBeDefined();
-        expect(createInputOf(pasted, questions, TODAY)).toBeNull();
+        expect(createInputOf(pasted, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).toBeNull();
     });
 
     it('refuses a figure that is a mis-key rather than a balance', () => {
         expect(owesPiastres('100001')).toBeNull();
         expect(malformedOld(sound({ old: oldOn({ owes: '100001' }) })).owes).toBeDefined();
-        expect(createInputOf(sound({ old: oldOn({ owes: '100001' }) }), questions, TODAY)).toBeNull();
+        expect(
+            createInputOf(
+                sound({ old: oldOn({ owes: '100001' }) }),
+                questions,
+                DEFAULT_PATIENT_REQUIREMENTS,
+                TODAY,
+            ),
+        ).toBeNull();
     });
 
     it('says nothing about an amount typed while the switch is off', () => {
@@ -581,7 +731,7 @@ describe('old procedures', () => {
     const questions: CustomQuestion[] = [];
 
     it('sends zero, one, or several entries', () => {
-        const none = createInputOf(sound({ old: oldOn() }), questions, TODAY);
+        const none = createInputOf(sound({ old: oldOn() }), questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY);
         expect(none?.old?.procedures).toEqual([]);
 
         const three = createInputOf(
@@ -595,6 +745,7 @@ describe('old procedures', () => {
                 }),
             }),
             questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
             TODAY,
         );
         expect(three?.old?.procedures).toHaveLength(3);
@@ -611,6 +762,7 @@ describe('old procedures', () => {
                 }),
             }),
             questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
             TODAY,
         );
 
@@ -625,6 +777,7 @@ describe('old procedures', () => {
         const input = createInputOf(
             sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: null })] }) }),
             questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
             TODAY,
         );
 
@@ -635,6 +788,7 @@ describe('old procedures', () => {
         const input = createInputOf(
             sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: '2024-03-14' })] }) }),
             questions,
+            DEFAULT_PATIENT_REQUIREMENTS,
             TODAY,
         );
 
@@ -649,8 +803,8 @@ describe('old procedures', () => {
         const dated = sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: '2024-03-14' })] }) });
         const undated = sound({ old: oldOn({ procedures: [oldProcedure({ performedOn: null })] }) });
 
-        expect(createInputOf(dated, questions, TODAY)).not.toBeNull();
-        expect(createInputOf(undated, questions, TODAY)).not.toBeNull();
+        expect(createInputOf(dated, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
+        expect(createInputOf(undated, questions, DEFAULT_PATIENT_REQUIREMENTS, TODAY)).not.toBeNull();
     });
 });
 
@@ -727,7 +881,13 @@ describe('previous procedures on an edit', () => {
         const withProcedure = { ...initial, history: [oldProcedure()] };
 
         // Nothing about the record itself moved, so the patch stays empty.
-        expect(isUnchanged(updateInputOf(ID, withProcedure, initial, [], TODAY) ?? { id: ID })).toBe(true);
+        expect(
+            isUnchanged(
+                updateInputOf(ID, withProcedure, initial, [], DEFAULT_PATIENT_REQUIREMENTS, TODAY) ?? {
+                    id: ID,
+                },
+            ),
+        ).toBe(true);
         expect(historicalInputOf(ID, withProcedure)).not.toBeNull();
     });
 });
@@ -932,7 +1092,15 @@ describe('patient notes', () => {
 
     it('an edit sends the notes, trimmed, only when they moved', () => {
         const initial = formOf(patient({ notes: null }), []);
-        expect(updateInputOf(id, { ...initial, notes: '  Prefers mornings \n' }, initial, [])).toEqual({
+        expect(
+            updateInputOf(
+                id,
+                { ...initial, notes: '  Prefers mornings \n' },
+                initial,
+                [],
+                DEFAULT_PATIENT_REQUIREMENTS,
+            ),
+        ).toEqual({
             id,
             notes: 'Prefers mornings',
         });
@@ -940,7 +1108,9 @@ describe('patient notes', () => {
 
     it('notes emptied go as null, not an empty string', () => {
         const initial = formOf(patient({ notes: 'Prefers mornings' }), []);
-        expect(updateInputOf(id, { ...initial, notes: '   ' }, initial, [])).toEqual({ id, notes: null });
+        expect(
+            updateInputOf(id, { ...initial, notes: '   ' }, initial, [], DEFAULT_PATIENT_REQUIREMENTS),
+        ).toEqual({ id, notes: null });
     });
 
     it('an edit that does not touch the notes does not send them', () => {
@@ -950,13 +1120,16 @@ describe('patient notes', () => {
             { ...initial, name: 'Nour Hassan', notes: 'Prefers mornings ' },
             initial,
             [],
+            DEFAULT_PATIENT_REQUIREMENTS,
         );
         expect(patch).toEqual({ id, name: 'Nour Hassan' });
     });
 
     it('a registration carries the notes typed, or null', () => {
         const form = { ...emptyForm([]), name: 'Nour', phone: '01002248891', age: '34' };
-        expect(createInputOf({ ...form, notes: ' Brother of 4121 ' }, [])?.notes).toBe('Brother of 4121');
-        expect(createInputOf(form, [])?.notes).toBeNull();
+        expect(
+            createInputOf({ ...form, notes: ' Brother of 4121 ' }, [], DEFAULT_PATIENT_REQUIREMENTS)?.notes,
+        ).toBe('Brother of 4121');
+        expect(createInputOf(form, [], DEFAULT_PATIENT_REQUIREMENTS)?.notes).toBeNull();
     });
 });

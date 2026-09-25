@@ -43,6 +43,8 @@ export const updateSettingsInput = z
         // clearing them is how it says so.
         migrationBranchId: z.uuid().nullable(),
         migrationCutoffDate: z.iso.date().nullable(),
+        requireAge: z.boolean(),
+        requireGender: z.boolean(),
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

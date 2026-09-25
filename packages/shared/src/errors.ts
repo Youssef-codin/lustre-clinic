@@ -74,6 +74,13 @@ export const ERROR_CODE = {
     INVALID_PHONE: 'INVALID_PHONE',
     /** A required custom question was left unanswered. */
     CUSTOM_QUESTION_REQUIRED: 'CUSTOM_QUESTION_REQUIRED',
+    /**
+     * The clinic requires an age (`settings.require_age`) and the patient was
+     * registered or booked without one, or an edit tried to clear it.
+     */
+    AGE_REQUIRED: 'AGE_REQUIRED',
+    /** The same for a sex, under `settings.require_gender`. */
+    GENDER_REQUIRED: 'GENDER_REQUIRED',
     /** A custom question `key` is already in use. */
     DUPLICATE_KEY: 'DUPLICATE_KEY',
     /** The next patient number was set at or below a ref a patient already has. */

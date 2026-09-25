@@ -75,7 +75,7 @@ import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useMutation, useQuery } from './data/hooks';
 import type { CustomQuestion, PatientDetail } from './data/types';
-import type { PatientForm } from './patientForm';
+import type { PatientForm, PatientPrefill, PatientRequirements } from './patientForm';
 import {
     answeredCount,
     blankBasics,
@@ -101,6 +101,12 @@ import {
 export type PatientEditScreenProps = {
     /** Absent = registering someone new. Present = correcting the record it names. */
     patientId?: string;
+    /**
+     * What the list's search held when it came up empty, for a registration.
+     * Read once, into the draft the screen starts from; ignored on an edit,
+     * where the record is what the form starts from.
+     */
+    prefill?: PatientPrefill;
     onCancel: () => void;
     /**
      * A save is open. Cancel goes missing while one is, and the cluster above
@@ -120,11 +126,20 @@ export type PatientEditScreenProps = {
     onSaved: (patientId: string, basics?: { name: string; phone: string }) => void;
 };
 
-export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved }: PatientEditScreenProps) {
+export function PatientEditScreen({
+    patientId,
+    prefill,
+    onCancel,
+    onSavingChange,
+    onSaved,
+}: PatientEditScreenProps) {
     const t = useT();
     const creating = patientId === undefined;
 
     const questions = useQuery(['questions'], () => patientsApi.listQuestions());
+    // Whether the clinic requires an age and a sex. The form is not drawn until
+    // it is known, so a field is never marked due and then not.
+    const requirements = useQuery(['requirements'], () => patientsApi.requirements());
     const record = useQuery(
         ['byId', patientId],
         (): Promise<PatientDetail | undefined> =>
@@ -161,10 +176,10 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     );
 
     const initial = useMemo<PatientForm | null>(() => {
-        if (!questions.data) return null;
-        if (creating) return emptyForm(editable);
+        if (!questions.data || !requirements.data) return null;
+        if (creating) return emptyForm(editable, prefill);
         return record.data ? formOf(record.data.patient, editable) : null;
-    }, [creating, questions.data, record.data, editable]);
+    }, [creating, prefill, questions.data, requirements.data, record.data, editable]);
 
     // Seeded once and then left alone: this is a draft the desk is typing into,
     // and a re-read landing underneath it would take back what they wrote. The
@@ -193,10 +208,11 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     const [savedRef, setSavedRef] = useState<string | null>(null);
     const refBaseline = refBaselineOf(initial, seededRef, savedRef);
 
-    const loading = questions.loading || record.loading;
-    const failed = questions.error ?? record.error;
+    const loading = questions.loading || requirements.loading || record.loading;
+    const failed = questions.error ?? requirements.error ?? record.error;
 
-    const blank = form ? blankBasics(form) : [];
+    const requires: PatientRequirements | undefined = requirements.data;
+    const blank = form && requires ? blankBasics(form, requires) : [];
     const malformed = form ? malformedBasics(form) : {};
     // Only on a registration: the switch is not drawn on an edit, so its fields
     // can never be owed there.
@@ -253,10 +269,10 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
     // each thing still owed and the count on the button — so this only has to
     // not fire, never to explain itself after the fact.
     const onSave = async () => {
-        if (!form || !initial || owed > 0 || unaskable.length > 0) return;
+        if (!form || !initial || !requires || owed > 0 || unaskable.length > 0) return;
 
         if (creating) {
-            const input = createInputOf(form, editable);
+            const input = createInputOf(form, editable, requires);
             if (input === null) return;
             onSavingChange?.(true);
             const saved = await create.mutate(input);
@@ -266,7 +282,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
             return;
         }
 
-        const patch = updateInputOf(patientId, form, initial, editable);
+        const patch = updateInputOf(patientId, form, initial, editable, requires);
         if (patch === null) return;
 
         const history = historicalInputOf(patientId, form);
@@ -369,6 +385,7 @@ export function PatientEditScreen({ patientId, onCancel, onSavingChange, onSaved
                     actionLabel="Try again"
                     onAction={() => {
                         questions.refetch();
+                        requirements.refetch();
                         record.refetch();
                     }}
                     weight="panel"

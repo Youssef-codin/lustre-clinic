@@ -233,6 +233,9 @@ export const COPY_AR = {
     RECENT: 'الأحدث',
     RESULTS: 'النتائج',
     'New patient': 'مريض جديد',
+    // Isolated: a typed phone number is weak text in an RTL line, and without it
+    // `+20 109 555-0199` is drawn as `0199-555 109 20+`.
+    'Add “{term}” as a new patient': 'إضافة «\u2068{term}\u2069» كمريض جديد',
     Finances: 'الحسابات',
     'Older visits': 'زيارات سابقة',
     'No outstanding patients': 'لا توجد أرصدة مستحقة',
@@ -346,6 +349,21 @@ export const COPY_AR = {
     'Send the reminder on WhatsApp': 'إرسال التذكير على واتساب',
     'Skip this reminder': 'تخطي هذا التذكير',
     "Skip {name}'s reminder": 'تخطي تذكير {name}',
+    'Lab not back yet': 'الشغل لم يرجع من المعمل بعد',
+    "Lab's back": 'رجع من المعمل',
+    'Send anyway': 'إرسال على أي حال',
+    'Mark the lab work as back': 'تسجيل رجوع الشغل من المعمل',
+    "{name}'s lab work could not be marked — try again.":
+        'تعذر تسجيل رجوع شغل المعمل لـ {name} — حاول مرة أخرى.',
+    'Needs lab': 'يحتاج معمل',
+    'A crown, bridge or denture that has to be back before the visit.':
+        'تاج أو جسر أو طقم يجب أن يرجع من المعمل قبل الزيارة.',
+    'LAB PENDING': 'بانتظار المعمل',
+    'Back from the lab': 'رجع من المعمل',
+    'Not back from the lab yet': 'لم يرجع من المعمل بعد',
+    'Lab arrived': 'وصل من المعمل',
+    'Lab work': 'شغل المعمل',
+    Needed: 'مطلوب',
     Tomorrow: 'غدًا',
     Yesterday: 'أمس',
     'Opening hours could not be loaded — showing the usual hours.':
@@ -364,6 +382,14 @@ export const COPY_AR = {
     'One of the answers was not accepted. Check it and try again.':
         'لم يتم قبول إحدى الإجابات. راجعها وحاول مرة أخرى.',
     'A required question was left blank.': 'تُرك سؤال مطلوب دون إجابة.',
+    'This clinic needs an age on every patient. Type one, or change that in Settings → Patient fields.':
+        'تحتاج هذه العيادة إلى عمر كل مريض. اكتبه، أو غيّر ذلك من الإعدادات ← حقول المريض.',
+    'This clinic needs a sex on every patient. Choose one, or change that in Settings → Patient fields.':
+        'تحتاج هذه العيادة إلى نوع كل مريض. اختره، أو غيّر ذلك من الإعدادات ← حقول المريض.',
+    'This clinic needs the patient’s age': 'تحتاج العيادة إلى عمر المريض',
+    'This clinic needs the patient’s sex': 'تحتاج العيادة إلى نوع المريض',
+    'Add it to their record, or change that in Settings → Patient fields.':
+        'أضفه إلى ملف المريض، أو غيّر ذلك من الإعدادات ← حقول المريض.',
     'Someone else changed this record. Reopen it and try again.':
         'غيّر شخص آخر هذا الملف. افتحه من جديد وحاول مرة أخرى.',
     'The clinic server could not answer. Try again in a moment.':
@@ -689,6 +715,11 @@ export const COPY_AR = {
         'الرصيد يحتاج إلى تاريخ. اضبط الفرع وتاريخ الإقفال بالأعلى، أو اترك المبلغ فارغًا.',
     ACTIVE: 'نشط',
     'ALWAYS ON THE RECORD': 'دائمًا في الملف',
+    'REQUIRED OR OPTIONAL': 'مطلوب أم اختياري',
+    'Require an age': 'اشتراط العمر',
+    'Require a sex': 'اشتراط النوع',
+    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.':
+        'الاسم والهاتف مطلوبان دائمًا. عند اشتراط العمر أو النوع، يُطلب الحقل الناقص في ملف أي مريض مسجَّل عند تعديل الملف في المرة القادمة.',
     'ANSWER TYPE': 'نوع الإجابة',
     'ASK AGAIN': 'اسأل مرة أخرى',
     'BALANCES AS OF': 'الأرصدة حتى',

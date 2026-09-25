@@ -51,7 +51,8 @@ export interface BookedProcedure {
 
 /**
  * §7/§13: book for someone on file, or create them with the appointment. A new
- * patient needs a name and a number and nothing else; the rest of the record is
+ * patient needs a name and a number, and an age or a sex when the clinic
+ * requires one (`settings.requireAge`, `requireGender`); the rest of the record is
  * sent when the secretary already has it, and is `null` — not absent — when she
  * does not, so the field reads as asked-and-unknown rather than never-asked.
  */
@@ -62,7 +63,7 @@ export type PatientRef =
           name: string;
           phone: string;
           email?: string | null;
-          birthDate: string;
+          birthDate?: string | null;
           gender?: string | null;
           notes?: string | null;
       };
@@ -156,6 +157,7 @@ export const api = {
         durationMinutes?: number;
         procedures?: BookedProcedure[];
         note?: string | null;
+        needsLab?: boolean;
         offsetMinutes: number;
     }): Promise<WalkInResult> => wrap(() => trpcClient.appointment.walkIn.mutate(input)),
 
@@ -166,6 +168,7 @@ export const api = {
         durationMinutes?: number;
         procedures?: BookedProcedure[];
         note?: string | null;
+        needsLab?: boolean;
         offsetMinutes: number;
     }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.create.mutate(input)),
 
@@ -191,6 +194,13 @@ export const api = {
         procedures?: BookedProcedure[];
         note?: string | null;
     }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.update.mutate(input)),
+
+    /** Off clears the requirement; on again keeps work that is already back. */
+    setNeedsLab: (id: string, needsLab: boolean): Promise<AppointmentRow> =>
+        wrap(() => trpcClient.appointment.update.mutate({ id, needsLab })),
+
+    markLabReady: (id: string): Promise<AppointmentRow> =>
+        wrap(() => trpcClient.appointment.markLabReady.mutate({ id })),
 
     awaitPayment: (id: string): Promise<AppointmentRow> =>
         wrap(() => trpcClient.appointment.awaitPayment.mutate({ id, offsetMinutes: localOffsetMinutes() })),

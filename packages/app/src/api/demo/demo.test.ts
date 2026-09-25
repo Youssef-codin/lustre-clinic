@@ -545,6 +545,79 @@ describe('the refusals a demo runs into', () => {
     });
 });
 
+describe('what the clinic requires on a patient', () => {
+    function codeOf(run: () => unknown): string | null {
+        try {
+            run();
+            return null;
+        } catch (error) {
+            return (error as InstanceType<typeof DemoError>).code;
+        }
+    }
+
+    const register = (details: { birthDate?: string | null; gender?: string | null }) =>
+        patientHandlers.create({
+            name: 'Nadia Hassan',
+            phone: '01012345678',
+            // The seed's one required question, so the questionnaire is not what refuses.
+            custom: { diabetic: false },
+            ...details,
+        });
+
+    const book = (details: { birthDate?: string | null; gender?: string | null }) => {
+        const branch = getDb().branches[0];
+        if (!branch) throw new Error('the seed is missing its fixtures');
+        return appointmentHandlers.create({
+            patient: { kind: 'new', name: 'Walk-up Wael', phone: '01099999999', ...details },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() + 12 * 24 * 3_600_000).toISOString(),
+            durationMinutes: 30,
+            offsetMinutes: 0,
+        });
+    };
+
+    it('by default refuses a patient without an age, and takes one without a sex', () => {
+        expect(settingsHandlers.get()).toMatchObject({ requireAge: true, requireGender: false });
+        expect(codeOf(() => register({}))).toBe('AGE_REQUIRED');
+        expect(codeOf(() => book({ birthDate: null }))).toBe('AGE_REQUIRED');
+        expect(register({ birthDate: '1990-01-01' }).gender).toBeNull();
+    });
+
+    it('with age off, registers, books and clears an age', () => {
+        settingsHandlers.update({ requireAge: false });
+
+        const created = register({});
+        expect(created.age).toBeNull();
+        expect(codeOf(() => book({}))).toBeNull();
+
+        const aged = patientHandlers.update({ id: created.id, birthDate: '1990-01-01' });
+        expect(aged.age).not.toBeNull();
+        expect(patientHandlers.update({ id: created.id, birthDate: null }).birthDate).toBeNull();
+    });
+
+    it('with sex on, refuses to register, book or clear without one', () => {
+        settingsHandlers.update({ requireGender: true });
+
+        expect(codeOf(() => register({ birthDate: '1990-01-01' }))).toBe('GENDER_REQUIRED');
+        expect(codeOf(() => book({ birthDate: '1990-01-01', gender: ' ' }))).toBe('GENDER_REQUIRED');
+
+        const created = register({ birthDate: '1990-01-01', gender: 'female' });
+        expect(codeOf(() => patientHandlers.update({ id: created.id, gender: null }))).toBe(
+            'GENDER_REQUIRED',
+        );
+        expect(codeOf(() => patientHandlers.update({ id: created.id, birthDate: null }))).toBe(
+            'AGE_REQUIRED',
+        );
+    });
+
+    it('turned on, still edits a seeded patient who has no age', () => {
+        const ageless = getDb().patients.find((row) => row.birthDate === null);
+        if (!ageless) throw new Error('the seed has nobody without an age');
+
+        expect(patientHandlers.update({ id: ageless.id, notes: 'Prefers mornings' }).age).toBeNull();
+    });
+});
+
 describe('moving an appointment', () => {
     function fixtures() {
         const db = getDb();
@@ -703,5 +776,63 @@ describe('changing the reminder lead time', () => {
         settingsHandlers.update({ reminderTemplate: 'See you {{date}}.' });
 
         expect(reminderFor(booked.id).dueAt.getTime()).toBe(untouched);
+    });
+});
+
+/** As `packages/server/tests/lab-status.test.ts`. */
+describe('lab work', () => {
+    let daysAway = 23;
+
+    function book(needsLab?: boolean) {
+        daysAway += 1;
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        return appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: new Date(Date.now() + daysAway * 24 * 3_600_000).toISOString(),
+            durationMinutes: 30,
+            needsLab,
+            offsetMinutes: 0,
+        });
+    }
+
+    function reminderOf(appointmentId: string) {
+        return reminderHandlers
+            .pending({ dueOnly: false, limit: 200, offsetMinutes: 0 })
+            .find((row) => row.appointmentId === appointmentId);
+    }
+
+    it('books without a lab unless asked', () => {
+        expect(book().labStatus).toBeNull();
+        expect(book(true).labStatus).toBe('pending');
+    });
+
+    it('switches on and off, and keeps work that is already back', () => {
+        const booked = book();
+
+        expect(appointmentHandlers.update({ id: booked.id, needsLab: true }).labStatus).toBe('pending');
+        expect(appointmentHandlers.markLabReady({ id: booked.id }).labStatus).toBe('ready');
+        expect(appointmentHandlers.update({ id: booked.id, needsLab: true }).labStatus).toBe('ready');
+        expect(appointmentHandlers.update({ id: booked.id, needsLab: false }).labStatus).toBeNull();
+    });
+
+    it('marks ready only what is pending', () => {
+        expect(appointmentHandlers.markLabReady({ id: book().id }).labStatus).toBeNull();
+    });
+
+    it('puts the lab status on the reminder', () => {
+        const booked = book(true);
+        expect(reminderOf(booked.id)?.labStatus).toBe('pending');
+
+        appointmentHandlers.markLabReady({ id: booked.id });
+        expect(reminderOf(booked.id)?.labStatus).toBe('ready');
+    });
+
+    it('seeds a crown still at the lab', () => {
+        expect(getDb().appointments.some((row) => row.labStatus === 'pending')).toBe(true);
     });
 });

@@ -84,7 +84,8 @@ import {
     todayKey,
 } from '../time';
 import { CalendarSheet } from './CalendarSheet';
-import { CalendarIcon, DurationIcon, PatientIcon, PinIcon } from './icons';
+import { CalendarIcon, DurationIcon, LabIcon, PatientIcon, PinIcon } from './icons';
+import { LabSwitch } from './LabWork';
 import { ProcedurePlan } from './ProcedurePlan';
 import { SlotPicker } from './SlotPicker';
 import { Steps, SummaryRow } from './Steps';
@@ -220,6 +221,9 @@ export function BookingScreen({
     );
     const [duration, setDuration] = useState(defaultDuration);
     const [note, setNote] = useState(() => noteDraft(rescheduling?.note));
+    // A new booking only: a move keeps the lab state it has, and the detail
+    // sheet is where that is changed.
+    const [needsLab, setNeedsLab] = useState(false);
     const [branch, setBranch] = useState<string | null>(branchId);
     // The dock floats over the scroll, so the body reserves its height — and that
     // height is not a constant. A warning above the bar wraps to as many lines as
@@ -416,6 +420,7 @@ export function BookingScreen({
                     durationMinutes: duration,
                     procedures,
                     note: body,
+                    needsLab,
                     offsetMinutes: localOffsetMinutes(),
                 },
                 {
@@ -459,6 +464,7 @@ export function BookingScreen({
                 durationMinutes: duration,
                 procedures,
                 note: body,
+                needsLab,
                 offsetMinutes: offsetForDate(date),
             },
             { onSuccess: () => onBooked(`${name} — ${dayLabel(date)} at ${timeLabel(slotMinutes)}`) },
@@ -588,6 +594,16 @@ export function BookingScreen({
                                 error={catalogue.status === 'error' ? catalogue.error : null}
                                 onRetry={catalogue.refetch}
                             />
+
+                            {rescheduling ? null : (
+                                <View style={styles.labCard}>
+                                    <LabSwitch
+                                        value={needsLab}
+                                        onValueChange={setNeedsLab}
+                                        testID="booking-needs-lab"
+                                    />
+                                </View>
+                            )}
 
                             <Textarea
                                 label="Note"
@@ -739,6 +755,9 @@ export function BookingScreen({
                                     value={patient.mode === 'new' ? t('{name} · new record', { name }) : name}
                                     icon={<PatientIcon />}
                                 />
+                                {needsLab ? (
+                                    <SummaryRow label="Lab work" value={t('Needed')} icon={<LabIcon />} />
+                                ) : null}
                             </View>
 
                             <View style={styles.section}>
@@ -1023,6 +1042,14 @@ const styles = StyleSheet.create({
         padding: space[3.5],
         borderRadius: radius.lg,
         backgroundColor: color.surface2,
+    },
+    labCard: {
+        paddingHorizontal: space[3.5],
+        paddingVertical: space[3],
+        borderRadius: radius.xl,
+        borderWidth: border.hair,
+        borderColor: color.line,
+        backgroundColor: color.surface,
     },
     noteCard: {
         padding: space[3.5],

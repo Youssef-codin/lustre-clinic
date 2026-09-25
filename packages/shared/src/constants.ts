@@ -73,6 +73,15 @@ export const DEFAULT_REMINDER_LEAD_HOURS = 24;
 export const DEFAULT_REMINDER_NOTIFY_AT = '19:00';
 export const DEFAULT_REMINDER_REPEAT_MINUTES = 30;
 
+/**
+ * Whether a registration is refused without an age, or without a sex. The
+ * clinic turns either on or off in Settings → Patient fields; these are what a
+ * clinic that has not touched them gets, which is how it worked before it could
+ * choose.
+ */
+export const DEFAULT_REQUIRE_AGE = true;
+export const DEFAULT_REQUIRE_GENDER = false;
+
 /** Seeded on first boot. The clinic renames itself in-app (§12). */
 export const DEFAULT_CLINIC_NAME = 'Clinic';
 

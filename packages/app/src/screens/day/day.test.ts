@@ -23,7 +23,7 @@ import {
 } from './booking';
 import { slotProgress, splitDeskDay, splitDoctorDay, standingFor } from './chair';
 import { RequestError } from './data/client';
-import type { Appointment, ProcedureCategory } from './data/types';
+import type { Appointment, Patient, ProcedureCategory } from './data/types';
 import { dayDelay, delayLabel, isProjected, ON_TIME, projectedStart } from './delay';
 import { emptyDay } from './empty';
 import { describeError } from './errors';
@@ -43,6 +43,7 @@ import {
     birthDateDisplay,
     birthDateError,
     birthDateIso,
+    draftFor,
     EMPTY_PATIENT_DRAFT,
     emailError,
     patientRefOf,
@@ -872,6 +873,38 @@ describe('a patient who is new here', () => {
         };
         expect(patientRefOf({ ...half, birthDate: '0511' })).toBeNull();
         expect(patientRefOf({ ...half, email: 'nadia@' })).toBeNull();
+    });
+
+    describe('under the clinic’s settings', () => {
+        const draft = { ...EMPTY_PATIENT_DRAFT, mode: 'new' as const, name: 'Nadia', phone: '01012345678' };
+
+        it('books with no date of birth once age is not required', () => {
+            const ref = patientRefOf(draft, { requireAge: false, requireGender: false });
+            expect(ref).toMatchObject({ kind: 'new', birthDate: null });
+        });
+
+        it('still holds a half-typed date of birth when age is not required', () => {
+            expect(
+                patientRefOf({ ...draft, birthDate: '0511' }, { requireAge: false, requireGender: false }),
+            ).toBeNull();
+        });
+
+        it('holds the booking for a sex when the clinic requires one', () => {
+            const requires = { requireAge: true, requireGender: true };
+            const dated = { ...draft, birthDate: '05111990' };
+            expect(patientRefOf(dated, requires)).toBeNull();
+            expect(patientRefOf({ ...dated, gender: 'female' }, requires)).toMatchObject({
+                gender: 'female',
+            });
+        });
+
+        it('does not judge a patient already on file', () => {
+            const picked = draftFor({ id: 'p1', name: 'Nadia', phone: '+201012345678' } as Patient);
+            expect(patientRefOf(picked, { requireAge: true, requireGender: true })).toEqual({
+                kind: 'existing',
+                patientId: 'p1',
+            });
+        });
     });
 });
 
