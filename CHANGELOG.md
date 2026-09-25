@@ -13,15 +13,19 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 - The clinic chooses in Settings whether a patient's age and gender are required.
 - When the doctor finishes a visit, the app asks whether to edit its procedures before sending the patient to the desk.
 - Tapping the Next-up card opens the appointment, with cancel, no-show and reschedule.
+- The day warns when the phone is blocking the app's notifications, with a button to the app's Android settings.
+
+### Removed
+
+- Previous procedures can no longer be added from the patient editor. Past work is entered as an old visit from the patient record. Registering an old patient still takes their old procedures.
 
 ### Fixed
 
 - A price changed while booking or rescheduling is kept, and billed at check-in, instead of going back to the catalogue price.
 - Patients saved with an age of 0 now have no age.
-
-### Fixed
-
 - Each "Report a problem" now reaches the operator as its own alert, not only the first one.
+- A phone whose clock is wrong still gets check-in and "coming to the desk" notifications, and its timers, wait counters and today's date follow the clinic's clock.
+- A backup that is cut off or fails its check is never kept as a good copy.
 
 ## [1.5.1] - 2026-09-24
 
