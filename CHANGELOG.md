@@ -9,6 +9,15 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 ### Added
 
 - Searching for a patient who isn't registered offers to register the typed name or number.
+- A booking can be marked as needing lab work. The day shows "Lab pending" until it's marked back, and its reminder warns while the lab work isn't back.
+- The clinic chooses in Settings whether a patient's age and gender are required.
+- When the doctor finishes a visit, the app asks whether to edit its procedures before sending the patient to the desk.
+- A ⋯ button on the Next-up card opens cancel, no-show and reschedule.
+
+### Fixed
+
+- A price changed while booking or rescheduling is kept, and billed at check-in, instead of going back to the catalogue price.
+- Patients saved with an age of 0 now have no age.
 
 ## [1.5.1] - 2026-09-24
 
