@@ -28,8 +28,14 @@ export interface PlannedProcedure {
     variant: string | null;
     tooth: Tooth | null;
     price: number;
-    /** The catalogue's price, which `price` starts at; a line whose differs was quoted. */
+    /** The catalogue's price, which `price` starts at. */
     defaultPrice: number;
+    /**
+     * Whether `price` is a quote the booking holds. Not the same as differing
+     * from `defaultPrice`: the catalogue can move to meet a quote, and the
+     * quote must still hold if the catalogue moves on again.
+     */
+    quoted: boolean;
 }
 
 export interface ToothGroup {
@@ -124,11 +130,27 @@ export function totalOf(procedures: readonly PlannedProcedure[]): number {
  * in between reaches the bill.
  */
 export function bookedProcedures(plan: readonly PlannedProcedure[]): BookedProcedure[] {
-    return plan.map((procedure) => ({
-        procedureId: procedure.procedureId,
-        tooth: procedure.tooth,
-        ...(procedure.price !== procedure.defaultPrice ? { quotedPrice: procedure.price } : {}),
-    }));
+    return plan.map((procedure) => {
+        const quotedPrice = quoteOf(procedure);
+        return {
+            procedureId: procedure.procedureId,
+            tooth: procedure.tooth,
+            ...(quotedPrice === null ? {} : { quotedPrice }),
+        };
+    });
+}
+
+/** The price a line holds the booking to, or null to bill the catalogue's on the day. */
+function quoteOf(procedure: PlannedProcedure): number | null {
+    return procedure.quoted || procedure.price !== procedure.defaultPrice ? procedure.price : null;
+}
+
+/**
+ * A line with its price typed in by hand. Typing the catalogue price back is
+ * how the desk takes a quote away.
+ */
+export function repriced(procedure: PlannedProcedure, price: number): PlannedProcedure {
+    return { ...procedure, price, quoted: price !== procedure.defaultPrice };
 }
 
 /**
@@ -143,7 +165,11 @@ export function planFrom(
 ): PlannedProcedure[] {
     return booked.map((line) => {
         const base = { id: line.id, procedureId: line.procedureId, tooth: line.tooth };
-        const priced = (defaultPrice: number) => ({ price: line.quotedPrice ?? defaultPrice, defaultPrice });
+        const priced = (defaultPrice: number) => ({
+            price: line.quotedPrice ?? defaultPrice,
+            defaultPrice,
+            quoted: line.quotedPrice !== null,
+        });
         for (const category of categories) {
             if (category.id === line.procedureId) {
                 return { ...base, name: category.name, variant: null, ...priced(category.defaultPrice) };
@@ -165,7 +191,7 @@ export function samePlan(plan: readonly PlannedProcedure[], booked: Appointment[
             return (
                 line.procedureId === was?.procedureId &&
                 line.tooth === (was.tooth ?? null) &&
-                line.price === (was.quotedPrice ?? line.defaultPrice)
+                quoteOf(line) === was.quotedPrice
             );
         })
     );
