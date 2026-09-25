@@ -3,7 +3,7 @@ import * as Updates from 'expo-updates';
 // biome-ignore lint/style/noRestrictedImports: the `AppState` subscription that re-checks when the phone comes back from its settings
 import { useEffect } from 'react';
 import { AppState, DevSettings, Linking } from 'react-native';
-import { noteServerClock, trpcClient } from '../api';
+import { clockSample, noteServerClock, trpcClient } from '../api';
 import { formatDuration } from '../components/domain/clock';
 import { Banner, Button } from '../components/ui';
 import { useT } from '../i18n';
@@ -76,14 +76,14 @@ function useClockProblem(): ClockProblem | null {
     const check = useQuery({
         queryKey: ['clock-check'],
         queryFn: async () => {
-            const sentAt = Date.now();
+            const sent = clockSample();
             const server = await trpcClient.health.clock.query();
-            const receivedAt = Date.now();
+            const received = clockSample();
             // Kept even when it is within tolerance: the notices age `/ws`
             // frames by it, and a wound-forward clock is exactly when they need it.
-            const skew = clockSkew(server.now, sentAt, receivedAt);
-            if (skew !== null) noteServerClock(skew);
-            return clockProblem(server, sentAt, receivedAt, -new Date().getTimezoneOffset());
+            const skew = clockSkew(server.now, sent, received);
+            if (skew !== null) noteServerClock(skew, received);
+            return clockProblem(server, sent, received, -new Date().getTimezoneOffset());
         },
         refetchInterval: RECHECK_MS,
     });
