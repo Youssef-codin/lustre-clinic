@@ -57,9 +57,9 @@ describe('migration 0016', () => {
         expect(column).toEqual({ nullable: 'YES', type: 'integer' });
     });
 
-    // 0017 and 0018 merged before this one, and drizzle skips a migration
-    // older than the last one a database applied. A clinic already on 0018
-    // must still get the column.
+    // 0017, 0018 and 0020 merged before this one, and drizzle skips a
+    // migration older than the last one a database applied. A clinic already
+    // on 0020 must still get the column.
     test('applies to a database already migrated past it', async () => {
         const migrationsFolder = new URL('../src/db/migrations', import.meta.url).pathname;
         const before = await mkdtemp(join(tmpdir(), 'lustre-before-0016-'));
