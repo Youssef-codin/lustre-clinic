@@ -15,15 +15,40 @@
  *   the procedure path, the status and the duration are kept.
  * - Console breadcrumbs, and any category not listed here.
  *
+ * A fingerprint is kept only in the one shape `captureProblemReport` gives it,
+ * which names the event itself, so each report is its own GlitchTip issue.
+ *
  * `allowBreadcrumb` runs twice: as `beforeBreadcrumb`, and again over the
  * event's breadcrumbs in `allowEvent`. Its output passes its own check, which
  * is what lets it run on its own output.
  */
 import { isErrorCode, WS_EVENT } from '@lustre/shared';
-import type { Breadcrumb, ErrorEvent, Exception, StackFrame } from '@sentry/react-native';
+import type { Breadcrumb, ErrorEvent, Exception, Scope, StackFrame } from '@sentry/react-native';
 
 /** The one message a report may carry: "Report a problem" in Settings. */
 export const PROBLEM_REPORT = 'Report a problem';
+
+const PROBLEM_FINGERPRINT = 'problem-report';
+
+/** A Sentry event id: 32 lowercase hex digits. Unique is all it has to be. */
+function newEventId(): string {
+    return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+}
+
+/**
+ * Sends "Report a problem" and returns its event id. The id is chosen here,
+ * before the send, because the fingerprint has to name it: every report has
+ * the same message, and GlitchTip would otherwise group them into one issue
+ * and alert only on the first.
+ */
+export function captureProblemReport(scope: Scope): string {
+    const eventId = newEventId();
+    scope.captureMessage(PROBLEM_REPORT, 'warning', {
+        event_id: eventId,
+        captureContext: { tags: { report: 'problem' }, fingerprint: [PROBLEM_FINGERPRINT, eventId] },
+    });
+    return eventId;
+}
 
 export const BOUNDARIES = ['root', 'day', 'patients', 'money', 'settings'] as const;
 export type Boundary = (typeof BOUNDARIES)[number];
@@ -318,6 +343,16 @@ function withoutNativeCopies(crumbs: Breadcrumb[]): Breadcrumb[] {
     return kept;
 }
 
+function fingerprint(value: unknown, eventId: string | undefined): string[] | undefined {
+    return Array.isArray(value) &&
+        value.length === 2 &&
+        value[0] === PROBLEM_FINGERPRINT &&
+        eventId !== undefined &&
+        value[1] === eventId
+        ? [PROBLEM_FINGERPRINT, eventId]
+        : undefined;
+}
+
 /**
  * A new event with only the allowed fields. Null when nothing reportable is
  * left: no exception and no "Report a problem" message.
@@ -332,10 +367,11 @@ export function allowEvent(event: ErrorEvent): ErrorEvent | null {
     );
 
     const sdk = event.sdk;
+    const eventId = text(event.event_id, HEX_ID, 32);
 
     return {
         ...compact({
-            event_id: text(event.event_id, HEX_ID, 32),
+            event_id: eventId,
             timestamp: finite(event.timestamp),
             level: oneOf(event.level, LEVELS) as ErrorEvent['level'],
             platform: text(event.platform, WORD, 40),
@@ -347,6 +383,7 @@ export function allowEvent(event: ErrorEvent): ErrorEvent | null {
                     ? { name: sdk.name, version: sdk.version }
                     : undefined,
             message,
+            fingerprint: fingerprint(event.fingerprint, eventId),
             exception: values.length > 0 ? { values } : undefined,
             breadcrumbs: breadcrumbs.length > 0 ? breadcrumbs : undefined,
             tags: tags(event.tags),

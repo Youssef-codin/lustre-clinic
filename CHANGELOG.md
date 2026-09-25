@@ -19,6 +19,10 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 - A price changed while booking or rescheduling is kept, and billed at check-in, instead of going back to the catalogue price.
 - Patients saved with an age of 0 now have no age.
 
+### Fixed
+
+- Each "Report a problem" now reaches the operator as its own alert, not only the first one.
+
 ## [1.5.1] - 2026-09-24
 
 ### Added
