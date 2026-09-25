@@ -349,6 +349,21 @@ export const COPY_AR = {
     'Send the reminder on WhatsApp': 'إرسال التذكير على واتساب',
     'Skip this reminder': 'تخطي هذا التذكير',
     "Skip {name}'s reminder": 'تخطي تذكير {name}',
+    'Lab not back yet': 'الشغل لم يرجع من المعمل بعد',
+    "Lab's back": 'رجع من المعمل',
+    'Send anyway': 'إرسال على أي حال',
+    'Mark the lab work as back': 'تسجيل رجوع الشغل من المعمل',
+    "{name}'s lab work could not be marked — try again.":
+        'تعذر تسجيل رجوع شغل المعمل لـ {name} — حاول مرة أخرى.',
+    'Needs lab': 'يحتاج معمل',
+    'A crown, bridge or denture that has to be back before the visit.':
+        'تاج أو جسر أو طقم يجب أن يرجع من المعمل قبل الزيارة.',
+    'LAB PENDING': 'بانتظار المعمل',
+    'Back from the lab': 'رجع من المعمل',
+    'Not back from the lab yet': 'لم يرجع من المعمل بعد',
+    'Lab arrived': 'وصل من المعمل',
+    'Lab work': 'شغل المعمل',
+    Needed: 'مطلوب',
     Tomorrow: 'غدًا',
     Yesterday: 'أمس',
     'Opening hours could not be loaded — showing the usual hours.':

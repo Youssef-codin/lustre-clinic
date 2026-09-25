@@ -262,6 +262,7 @@ export const appointmentHandlers = {
                 note: input.note ?? null,
                 status: 'booked',
                 channel: 'desk',
+                labStatus: input.needsLab ? 'pending' : null,
                 isOpeningBalance: false,
                 isImported: false,
                 dateUnknown: false,
@@ -299,6 +300,7 @@ export const appointmentHandlers = {
                 note: input.note ?? null,
                 status: 'booked',
                 channel: 'walk_in',
+                labStatus: input.needsLab ? 'pending' : null,
                 isOpeningBalance: false,
                 isImported: false,
                 dateUnknown: false,
@@ -320,7 +322,7 @@ export const appointmentHandlers = {
     },
 
     update(input: RouterInput['appointment']['update']): AppointmentRow {
-        const { id, startsAt: requestedStart, procedures, ...patch } = input;
+        const { id, startsAt: requestedStart, procedures, needsLab, ...patch } = input;
         const current = requireRow(id);
 
         if (patch.status && !canTransition(current.status, patch.status)) {
@@ -364,10 +366,25 @@ export const appointmentHandlers = {
             ...(durationMinutes ? { durationMinutes } : {}),
             updatedAt: new Date(),
         });
+        // As the server: switching it on again keeps work that is already back.
+        if (needsLab !== undefined) current.labStatus = needsLab ? (current.labStatus ?? 'pending') : null;
 
         if (procedures !== undefined) replaceProcedures(id, procedures);
         if (startsAt) rescheduleReminder(id, startsAt);
         if (patch.status === 'no_show') skipReminderFor(id);
+
+        save();
+        broadcast(WS_EVENT.APPOINTMENT_UPDATED);
+        return current;
+    },
+
+    /** As the server: a no-op, and no broadcast, when nothing is pending. */
+    markLabReady(input: RouterInput['appointment']['markLabReady']): AppointmentRow {
+        const current = requireRow(input.id);
+        if (current.labStatus !== 'pending') return current;
+
+        current.labStatus = 'ready';
+        current.updatedAt = new Date();
 
         save();
         broadcast(WS_EVENT.APPOINTMENT_UPDATED);

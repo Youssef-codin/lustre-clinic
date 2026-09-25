@@ -16,6 +16,7 @@ import {
     Coins,
     CreditCard,
     Ellipsis,
+    FlaskConical,
     Hourglass,
     MapPin,
     MessageCircle,
@@ -69,6 +70,9 @@ export const WaitingIcon = icon(Hourglass, 2.2);
 export const DurationIcon = icon(Timer);
 
 export const PatientIcon = icon(User);
+
+/** Work out at the lab — a crown, bridge or denture the visit waits on. */
+export const LabIcon = icon(FlaskConical, 2);
 
 export const ChairIcon = icon(Stethoscope, 2);
 

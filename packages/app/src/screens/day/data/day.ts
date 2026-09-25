@@ -156,6 +156,7 @@ export const api = {
         durationMinutes?: number;
         procedures?: BookedProcedure[];
         note?: string | null;
+        needsLab?: boolean;
         offsetMinutes: number;
     }): Promise<WalkInResult> => wrap(() => trpcClient.appointment.walkIn.mutate(input)),
 
@@ -166,6 +167,7 @@ export const api = {
         durationMinutes?: number;
         procedures?: BookedProcedure[];
         note?: string | null;
+        needsLab?: boolean;
         offsetMinutes: number;
     }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.create.mutate(input)),
 
@@ -191,6 +193,13 @@ export const api = {
         procedures?: BookedProcedure[];
         note?: string | null;
     }): Promise<AppointmentRow> => wrap(() => trpcClient.appointment.update.mutate(input)),
+
+    /** Off clears the requirement; on again keeps work that is already back. */
+    setNeedsLab: (id: string, needsLab: boolean): Promise<AppointmentRow> =>
+        wrap(() => trpcClient.appointment.update.mutate({ id, needsLab })),
+
+    markLabReady: (id: string): Promise<AppointmentRow> =>
+        wrap(() => trpcClient.appointment.markLabReady.mutate({ id })),
 
     awaitPayment: (id: string): Promise<AppointmentRow> =>
         wrap(() => trpcClient.appointment.awaitPayment.mutate({ id, offsetMinutes: localOffsetMinutes() })),

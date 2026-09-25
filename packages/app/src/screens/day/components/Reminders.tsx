@@ -10,6 +10,13 @@
  * message was actually typed, and a row left pending gets sent twice by the
  * next person. The list spans days — a reminder falls due a lead time before
  * its appointment — so each row names its day.
+ *
+ * A row whose appointment waits on lab work that is not back says so, because
+ * this is where the visit is confirmed with the patient. Its main action is
+ * Lab's back, after which it is an ordinary reminder again. Sending is never
+ * blocked — the lab often promises the work by phone — so WhatsApp stays, as
+ * Send anyway. Lab's back is optimistic like the rest, and a failure puts the
+ * warning back.
  */
 import { FontAwesome } from '@expo/vector-icons';
 import { useState } from 'react';
@@ -23,7 +30,7 @@ import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
 import { dateKey, relativeDayLabel, time12 } from '../time';
 import { DaySkeleton } from './DayStates';
-import { CloseIcon } from './icons';
+import { CloseIcon, LabIcon } from './icons';
 
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
@@ -39,7 +46,8 @@ export type RemindersProps = {
 
 export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
-    const [failed, setFailed] = useState<string | null>(null);
+    const [failed, setFailed] = useState<{ name: string; what: 'reminder' | 'lab' } | null>(null);
+    const [labBack, setLabBack] = useState<ReadonlySet<string>>(new Set());
     const t = useT();
 
     // Every action here moves what the daily nudge should be armed against, and
@@ -47,6 +55,16 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     const rearm = useRearmReminderNudges();
 
     const pending = (query.data ?? []).filter((row) => !settled.has(row.id));
+
+    // An optimistic Lab's back has done its job once the list stops saying
+    // `pending`. Kept past that, it would hide the warning if the lab were
+    // switched back on. Cleared during render, as `BookingScreen` settles its day.
+    const landed = [...labBack].filter(
+        (id) => query.data?.find((row) => row.id === id)?.labStatus !== 'pending',
+    );
+    if (landed.length > 0) {
+        setLabBack((current) => new Set([...current].filter((id) => !landed.includes(id))));
+    }
 
     function forget(id: string) {
         setSettled((current) => {
@@ -69,14 +87,30 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
             rearm();
         } catch {
             forget(reminder.id);
-            setFailed(reminder.patient.name);
+            setFailed({ name: reminder.patient.name, what: 'reminder' });
+        }
+    }
+
+    async function markLabBack(reminder: PendingReminder) {
+        setLabBack((current) => new Set(current).add(reminder.id));
+        setFailed(null);
+
+        try {
+            await api.markLabReady(reminder.appointmentId);
+        } catch {
+            setLabBack((current) => {
+                const next = new Set(current);
+                next.delete(reminder.id);
+                return next;
+            });
+            setFailed({ name: reminder.patient.name, what: 'lab' });
         }
     }
 
     async function open(reminder: PendingReminder) {
         await openWhatsApp(reminder.whatsAppUrl, reminder.whatsappApp).then(
             () => settle(reminder, 'sent'),
-            () => setFailed(reminder.patient.name),
+            () => setFailed({ name: reminder.patient.name, what: 'reminder' }),
         );
     }
 
@@ -109,7 +143,11 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
             {failed ? (
                 <Banner
                     tone="warning"
-                    message={t("{name}'s reminder could not be marked — try again.", { name: failed })}
+                    message={
+                        failed.what === 'lab'
+                            ? t("{name}'s lab work could not be marked — try again.", { name: failed.name })
+                            : t("{name}'s reminder could not be marked — try again.", { name: failed.name })
+                    }
                 />
             ) : null}
 
@@ -129,6 +167,8 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
                     <ReminderRow
                         key={reminder.id}
                         reminder={reminder}
+                        labPending={reminder.labStatus === 'pending' && !labBack.has(reminder.id)}
+                        onLabBack={() => void markLabBack(reminder)}
                         onSend={() => void open(reminder)}
                         onSkip={() => void settle(reminder, 'skipped')}
                         onOpenRecord={onOpenRecord && (() => onOpenRecord(reminder.patient.id))}
@@ -161,11 +201,15 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
  */
 function ReminderRow({
     reminder,
+    labPending,
+    onLabBack,
     onSend,
     onSkip,
     onOpenRecord,
 }: {
     reminder: PendingReminder;
+    labPending: boolean;
+    onLabBack: () => void;
     onSend: () => void;
     onSkip: () => void;
     onOpenRecord?: (() => void) | undefined;
@@ -183,54 +227,96 @@ function ReminderRow({
             <Text variant="subhead" tone="muted" numberOfLines={1}>
                 {when}
             </Text>
+            {labPending ? (
+                <View style={styles.lab}>
+                    <LabIcon size={13} stroke={color.due} />
+                    <Text variant="subhead" weight="semibold" tone="due" numberOfLines={1}>
+                        {t('Lab not back yet')}
+                    </Text>
+                </View>
+            ) : null}
         </>
     );
 
+    const whatsapp = <FontAwesome name="whatsapp" size={15} color={labPending ? color.ink : color.inverse} />;
+
     return (
-        <View style={styles.row}>
-            {onOpenRecord ? (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${reminder.patient.name}, ${when}`}
-                    accessibilityHint={t("Opens the patient's record")}
-                    accessibilityActions={[
-                        { name: 'send', label: t('Send the reminder on WhatsApp') },
-                        { name: 'skip', label: t('Skip this reminder') },
-                    ]}
-                    onAccessibilityAction={(event) => {
-                        if (event.nativeEvent.actionName === 'send') onSend();
-                        else onSkip();
-                    }}
-                    onPress={onOpenRecord}
-                    hitSlop={space[1]}
-                    style={({ pressed }) => [styles.body, pressed && styles.pressed]}
-                >
-                    {who}
-                </Pressable>
-            ) : (
-                <View style={styles.body}>{who}</View>
-            )}
+        <View style={styles.item}>
+            <View style={styles.row}>
+                {onOpenRecord ? (
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={[
+                            reminder.patient.name,
+                            when,
+                            ...(labPending ? [t('Lab not back yet')] : []),
+                        ].join(', ')}
+                        accessibilityHint={t("Opens the patient's record")}
+                        accessibilityActions={[
+                            ...(labPending
+                                ? [{ name: 'labBack', label: t('Mark the lab work as back') }]
+                                : []),
+                            { name: 'send', label: t('Send the reminder on WhatsApp') },
+                            { name: 'skip', label: t('Skip this reminder') },
+                        ]}
+                        onAccessibilityAction={(event) => {
+                            const action = event.nativeEvent.actionName;
+                            if (action === 'labBack') onLabBack();
+                            else if (action === 'send') onSend();
+                            else onSkip();
+                        }}
+                        onPress={onOpenRecord}
+                        hitSlop={space[1]}
+                        style={({ pressed }) => [styles.body, pressed && styles.pressed]}
+                    >
+                        {who}
+                    </Pressable>
+                ) : (
+                    <View style={styles.body}>{who}</View>
+                )}
 
-            <View style={styles.controls}>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t("Skip {name}'s reminder", { name: reminder.patient.name })}
-                    onPress={onSkip}
-                    hitSlop={space[2]}
-                    style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
-                >
-                    <CloseIcon size={16} />
-                </Pressable>
+                <View style={styles.controls}>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t("Skip {name}'s reminder", { name: reminder.patient.name })}
+                        onPress={onSkip}
+                        hitSlop={space[2]}
+                        style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
+                    >
+                        <CloseIcon size={16} />
+                    </Pressable>
 
-                <Button
-                    label="WhatsApp"
-                    variant="whatsapp"
-                    size="md"
-                    icon={<FontAwesome name="whatsapp" size={15} color={color.inverse} />}
-                    style={styles.send}
-                    onPress={onSend}
-                />
+                    {labPending ? null : (
+                        <Button
+                            label="WhatsApp"
+                            variant="whatsapp"
+                            size="md"
+                            icon={whatsapp}
+                            style={styles.send}
+                            onPress={onSend}
+                        />
+                    )}
+                </View>
             </View>
+            {labPending ? (
+                <View style={styles.labActions}>
+                    <Button
+                        label="Send anyway"
+                        variant="secondary"
+                        size="md"
+                        icon={whatsapp}
+                        style={styles.labAction}
+                        onPress={onSend}
+                    />
+                    <Button
+                        label="Lab's back"
+                        size="md"
+                        icon={<LabIcon size={15} stroke={color.inverse} />}
+                        style={styles.labAction}
+                        onPress={onLabBack}
+                    />
+                </View>
+            ) : null}
         </View>
     );
 }
@@ -239,15 +325,18 @@ const styles = StyleSheet.create({
     pane: { flex: 1 },
     list: { paddingHorizontal: size.gutter, paddingBottom: size.nav },
     lede: { marginBottom: space[3.5] },
-    row: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    item: {
+        justifyContent: 'center',
         gap: space[3],
         paddingVertical: space[3.5],
         minHeight: size.row,
         borderBottomWidth: border.hair,
         borderBottomColor: color.line,
     },
+    row: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+    lab: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+    labActions: { flexDirection: 'row', gap: space[2] },
+    labAction: { flex: 1 },
     body: { flex: 1, gap: space[0.5] },
     /** Skip and Send, grouped so one prop hides both from the screen reader. */
     controls: { flexDirection: 'row', alignItems: 'center', gap: space[3] },

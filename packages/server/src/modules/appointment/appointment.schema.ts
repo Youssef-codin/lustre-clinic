@@ -6,6 +6,10 @@
  * the clinic's day. `updateAppointmentInput.status` sets only `no_show` —
  * cancel and check-in have their own calls. `awaitPaymentInput` marks that the
  * doctor is finished and the patient pays at the desk (§7).
+ *
+ * `needsLab` turns the lab requirement on (`pending`) or off. Switching it on
+ * again keeps a `ready` lab ready: the work is still back. `markLabReady` is
+ * the one call that moves `pending` to `ready`.
  */
 import { MAX_DURATION_MINUTES, MIN_DURATION_MINUTES, toothSchema } from '@lustre/shared';
 import { z } from 'zod';
@@ -28,6 +32,8 @@ const procedureLine = z.object({
 });
 
 const procedures = z.array(procedureLine).max(100);
+
+const needsLab = z.boolean().optional();
 
 /**
  * Everything past `phone` is optional and mirrors `createPatientInput` field for
@@ -57,6 +63,7 @@ export const createAppointmentInput = z.object({
     durationMinutes: duration.optional(),
     procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
+    needsLab,
     offsetMinutes,
 });
 
@@ -66,6 +73,7 @@ export const walkInInput = z.object({
     durationMinutes: duration.optional(),
     procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
+    needsLab,
     offsetMinutes,
 });
 
@@ -86,7 +94,10 @@ export const updateAppointmentInput = z.object({
     procedures: procedures.optional(),
     note: z.string().trim().max(2000).nullish(),
     status: z.literal('no_show').optional(),
+    needsLab,
 });
+
+export const markLabReadyInput = z.object({ id: z.uuid() });
 
 export const cancelAppointmentInput = z.object({ id: z.uuid() });
 

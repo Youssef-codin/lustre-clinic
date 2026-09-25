@@ -11,6 +11,7 @@ import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { Appointment } from '../data';
 import { formatClock12, minutesOfDay } from '../time';
+import { LabTag } from './LabWork';
 
 export type AppointmentRowProps = {
     appointment: Appointment;
@@ -43,7 +44,11 @@ export function AppointmentRow({
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${formatClock12(booked)}, ${appointment.patient.name}`}
+            accessibilityLabel={[
+                formatClock12(booked),
+                appointment.patient.name,
+                ...(appointment.labStatus === 'pending' ? [t('Lab not back yet')] : []),
+            ].join(', ')}
             onPress={onPress}
             style={({ pressed }) => [styles.row, past && styles.past, pressed && styles.pressed]}
         >
@@ -60,6 +65,7 @@ export function AppointmentRow({
                         {t('{minutes} min', { minutes: appointment.durationMinutes })}
                     </Text>
                     <StatusPill status={appointment.status} inChair={inChair} />
+                    <LabTag status={appointment.labStatus} />
                 </View>
             </View>
 

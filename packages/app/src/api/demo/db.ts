@@ -17,6 +17,7 @@
 import type {
     AppointmentChannel,
     AppointmentStatus,
+    LabStatus,
     PaymentMethod,
     QuestionKind,
     ReminderStatus,
@@ -76,6 +77,7 @@ export interface AppointmentRow {
     note: string | null;
     status: AppointmentStatus;
     channel: AppointmentChannel;
+    labStatus: LabStatus | null;
     isOpeningBalance: boolean;
     isImported: boolean;
     dateUnknown: boolean;
@@ -207,8 +209,9 @@ const STORE_KEY = 'lustre.demo.db';
  * 6: `refEdits` — a stored database from 5 has no such array, and every read of
  *    it would be of `undefined`.
  * 7: branches carry `whatsappApp`.
+ * 8: appointments carry `labStatus`.
  */
-const STORE_VERSION = 7;
+const STORE_VERSION = 8;
 
 let db: DemoDb | null = null;
 
