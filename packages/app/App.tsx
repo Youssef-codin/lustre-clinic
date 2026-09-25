@@ -7,7 +7,7 @@ import { ApiProvider } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
 import { LocaleProvider, useT } from './src/i18n';
 import { renderErrorReporter } from './src/reporting';
-import { AppShell, DevBanner, SetupScreen, useServerSetup } from './src/shell';
+import { AppShell, DevBanner, SetupScreen, UpdateScreen, useServerSetup } from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
 // The entry point mounts the shell (F3): the bottom tab bar and four clusters,
@@ -81,6 +81,9 @@ function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
                     lands in. */}
                 <DevBanner />
                 {showSetup ? <SetupScreen /> : <AppShell />}
+                {/* Over both, last so it draws on top: a minor update takes the
+                    whole screen until it has downloaded and restarted. */}
+                <UpdateScreen />
                 <StatusBar style="dark" />
             </SafeAreaView>
         </ErrorBoundary>

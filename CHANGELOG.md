@@ -1,8 +1,10 @@
 # Changelog
 
 What changed for the clinic in each release. Versions match the release tags
-(`vX.Y.Z`). A minor version is a new APK. A patch is an over-the-air update to
-the APK before it. Dev-track tags (`dev-v*`) are not listed.
+(`vX.Y.Z`). A patch is an over-the-air update that applies the next time the
+app opens. A minor version is a new APK, or an over-the-air update the phones
+download and restart into straight away. Dev-track tags (`dev-v*`) are not
+listed.
 
 ## [Unreleased]
 
@@ -14,6 +16,7 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 - When the doctor finishes a visit, the app asks whether to edit its procedures before sending the patient to the desk.
 - Tapping the Next-up card opens the appointment, with cancel, no-show and reschedule.
 - The day warns when the phone is blocking the app's notifications, with a button to the app's Android settings.
+- A bigger update shows a download screen and restarts the app by itself, instead of waiting for the app to be closed and opened again.
 
 ### Changed
 

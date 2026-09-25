@@ -23,6 +23,10 @@ export const COPY_AR = {
     'Another field': 'حقل آخر',
     'Another time': 'وقت آخر',
     App: 'التطبيق',
+    'Updating the app': 'جارٍ تحديث التطبيق',
+    'Downloading version {version}. The app restarts by itself when it is done.':
+        'جارٍ تنزيل الإصدار {version}. سيُعاد تشغيل التطبيق تلقائيًا عند الانتهاء.',
+    'Version {version} is ready. Restarting…': 'الإصدار {version} جاهز. جارٍ إعادة التشغيل…',
     Appointment: 'الموعد',
     Appointments: 'المواعيد',
     'Arabic label': 'الاسم بالعربية',

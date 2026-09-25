@@ -2,14 +2,17 @@
  * Stages a release for the clinic server (§15, infra/README.md "Releases").
  *
  *   bun release:apk [--major]   prebuild, build and sign the release APK
- *   bun release:update          export the JavaScript and sign it as an OTA update, and
- *                               rebuild the APK with it so a fresh install starts on it
+ *   bun release:update [--minor] export the JavaScript and sign it as an OTA update, and
+ *                               rebuild the APK with it so a fresh install starts on it.
+ *                               A patch applies quietly on the next launch; --minor
+ *                               makes phones stop, download it and restart now.
  *
  * Both write into `dist/releases` (or LUSTRE_RELEASES_DIR) in the layout
  * `server/src/modules/release` serves. Neither touches a server: the ansible
  * `releases` tag copies the directory to the clinic.
  *
- * Both need LUSTRE_UPDATES_URL, the clinic server's tailnet address. The APK
+ * Both need LUSTRE_UPDATES_URL, the clinic server's tailnet address; the dev
+ * track needs LUSTRE_DEV_UPDATES_URL, the dev stack's, and uses it in its place. The APK
  * bakes it in and an update's asset URLs point at it. Build and publish with the
  * same value from the same app.json, or the runtime versions differ and no phone
  * takes the update.
@@ -44,6 +47,25 @@ if (TRACK !== 'production' && TRACK !== 'development') {
     throw new Error('LUSTRE_RELEASE_TRACK must be production or development');
 }
 const DEV = TRACK === 'development';
+// A dev build bakes this address in twice: where it asks for OTA updates, and
+// the server it opens on (`app.config.ts`). It is the dev stack's, never the
+// clinic's — a dev phone on the clinic server writes to real patients' records
+// from half-finished code. Everything below and every build it runs reads
+// LUSTRE_UPDATES_URL, so the dev track swaps its own value in here, once.
+if (DEV) {
+    const devUrl = process.env.LUSTRE_DEV_UPDATES_URL?.trim().replace(/\/+$/, '');
+    if (!devUrl) {
+        fail(
+            'set LUSTRE_DEV_UPDATES_URL to the dev stack, scheme and port included, e.g. http://smilemakers.tailad17f9.ts.net:3001. A dev build never takes the clinic server.',
+        );
+    }
+    if (devUrl === process.env.LUSTRE_UPDATES_URL?.trim().replace(/\/+$/, '')) {
+        fail(
+            `LUSTRE_DEV_UPDATES_URL is ${devUrl}, the clinic server. Point it at the dev stack (port 3001).`,
+        );
+    }
+    process.env.LUSTRE_UPDATES_URL = devUrl;
+}
 const OUT_DIR = resolve(
     process.env.LUSTRE_RELEASES_DIR ?? join(APP_DIR, DEV ? '../../dist/releases-dev' : '../../dist/releases'),
 );
@@ -356,7 +378,7 @@ async function releaseApk(major: boolean): Promise<void> {
     await tagRelease(next, `Lustre ${built.version}, APK build ${built.versionCode}`);
 }
 
-async function publishUpdate(): Promise<void> {
+async function publishUpdate(minor: boolean): Promise<void> {
     const url = updatesUrl();
     // Not used here, but checked: the DSN is hashed into the runtime fingerprint, so
     // an update published without the one the APK was built with resolves a runtime
@@ -384,10 +406,11 @@ async function publishUpdate(): Promise<void> {
             `this code is runtime ${runtimeVersion}, but the staged APK (${apk.version}, build ${apk.versionCode}) is runtime ${apk.runtimeVersion}. No phone would take the update: something native changed, so ship an APK with \`bun release:apk\`.`,
         );
     }
-    const next = nextUpdateVersion(apkVersion, [
-        ...(await taggedVersions()),
-        ...(await publishedUpdateVersions(runtimeVersion)),
-    ]);
+    const next = nextUpdateVersion(
+        apkVersion,
+        [...(await taggedVersions()), ...(await publishedUpdateVersions(runtimeVersion))],
+        minor,
+    );
     const version = formatVersion(next);
     // What `Constants.expoConfig.version` reads on a phone running this update.
     const env = { ...process.env, LUSTRE_VERSION: version };
@@ -450,5 +473,5 @@ async function publishUpdate(): Promise<void> {
 
 const command = process.argv[2];
 if (command === 'apk') await releaseApk(process.argv.includes('--major'));
-else if (command === 'update') await publishUpdate();
-else fail('usage: bun packages/app/scripts/release.ts apk|update');
+else if (command === 'update') await publishUpdate(process.argv.includes('--minor'));
+else fail('usage: bun packages/app/scripts/release.ts apk [--major] | update [--minor]');

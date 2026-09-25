@@ -4,8 +4,10 @@
  * without a git repository or a build.
  *
  *   MAJOR  a change the server and the app have to ship together. By hand: `release:apk --major`.
- *   MINOR  a new APK. PATCH goes back to 0.
- *   PATCH  an OTA update on that APK: 1.4.1, 1.4.2, …
+ *   MINOR  a new APK, or an OTA update big enough that the phone should stop and
+ *          take it now (`release:update --minor`: the app shows a download
+ *          screen and restarts itself, `shell/UpdateScreen.tsx`). PATCH goes back to 0.
+ *   PATCH  a quiet OTA update: 1.4.1, 1.4.2, … It applies on the next launch.
  *
  * The APK's own version, `X.Y.0` (or the patch an update restaged it with), is
  * what Android reports and what an update cannot change; the running version is
@@ -62,16 +64,24 @@ export function nextApkVersion(released: readonly (string | null | undefined)[],
 
 /**
  * The next update for phones on the APK numbered `apk`: one patch above the
- * highest release on that APK's line. An update published before versioning
- * carries no number and does not count.
+ * highest release since that APK, or one minor above it with `minor`. Since, and
+ * not on the APK's own minor: an update can move the minor itself, and the
+ * patch after an OTA 1.6.0 is 1.6.1, not 1.5.x again. An update published
+ * before versioning carries no number and does not count.
  */
-export function nextUpdateVersion(apk: Version, released: readonly (string | null | undefined)[]): Version {
-    const sameLine = released.filter((text) => {
+export function nextUpdateVersion(
+    apk: Version,
+    released: readonly (string | null | undefined)[],
+    minor = false,
+): Version {
+    const since = released.filter((text) => {
         const version = text ? parseVersion(text) : null;
-        return version?.major === apk.major && version.minor === apk.minor;
+        return version !== null && version.major === apk.major && compareVersions(version, apk) >= 0;
     });
-    const last = highest([formatVersion(apk), ...sameLine]) ?? apk;
-    return { ...last, patch: last.patch + 1 };
+    const last = highest([formatVersion(apk), ...since]) ?? apk;
+    return minor
+        ? { major: last.major, minor: last.minor + 1, patch: 0 }
+        : { ...last, patch: last.patch + 1 };
 }
 
 /** `v1.4.2`, the tag a release leaves on the commit it was built from. */

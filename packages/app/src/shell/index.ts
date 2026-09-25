@@ -4,3 +4,4 @@ export { AppShell } from './AppShell';
 export { DevBanner } from './DevBanner';
 export { SetupScreen } from './SetupScreen';
 export { useServerSetup } from './serverStore';
+export { UpdateScreen } from './UpdateScreen';

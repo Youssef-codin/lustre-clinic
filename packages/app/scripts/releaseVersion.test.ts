@@ -72,8 +72,19 @@ describe('nextUpdateVersion', () => {
         expect(formatVersion(nextUpdateVersion(v('1.4.0'), ['v1.4.1', '1.4.3', 'v1.4.2']))).toBe('1.4.4');
     });
 
-    test('ignores other lines, including newer APKs', () => {
-        expect(formatVersion(nextUpdateVersion(v('1.4.0'), ['v1.3.9', 'v1.5.0', 'v2.4.7']))).toBe('1.4.1');
+    test('ignores what came before the APK, and other majors', () => {
+        expect(formatVersion(nextUpdateVersion(v('1.4.0'), ['v1.3.9', 'v2.4.7']))).toBe('1.4.1');
+    });
+
+    // An OTA update can move the minor, and the patch after it counts on from
+    // there rather than going back to the APK's own minor.
+    test('counts on from an update that moved the minor', () => {
+        expect(formatVersion(nextUpdateVersion(v('1.5.0'), ['v1.5.1', 'v1.6.0']))).toBe('1.6.1');
+    });
+
+    test('a minor update is one minor above everything since the APK, at patch 0', () => {
+        expect(formatVersion(nextUpdateVersion(v('1.5.0'), ['v1.5.1', 'v1.5.2'], true))).toBe('1.6.0');
+        expect(formatVersion(nextUpdateVersion(v('1.5.0'), ['v1.6.0', 'v1.6.3'], true))).toBe('1.7.0');
     });
 
     test('an update published before versioning does not count', () => {
