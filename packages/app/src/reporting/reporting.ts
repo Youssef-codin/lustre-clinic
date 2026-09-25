@@ -16,7 +16,7 @@ import { AppState } from 'react-native';
 import { BUILD_VARIANT } from '../api/config';
 import { isDemoMode } from '../api/demo';
 import { dsnOf, sdkOptions } from './options';
-import { allowBreadcrumb, allowEvent, type Boundary, PROBLEM_REPORT } from './privacy';
+import { allowBreadcrumb, allowEvent, type Boundary, captureProblemReport } from './privacy';
 import { lifecycleCrumb, setTrailSink } from './trail';
 
 const options = sdkOptions(dsnOf(Constants.expoConfig?.extra), BUILD_VARIANT);
@@ -94,7 +94,7 @@ export type ProblemReport = { queued: true; ref: string } | { queued: false };
  */
 export function reportProblem(): ProblemReport {
     if (!CRASH_REPORTS_ON || isDemoMode()) return { queued: false };
-    const id = Sentry.captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
+    const id = captureProblemReport(Sentry.getCurrentScope());
     return { queued: true, ref: id.slice(0, 8) };
 }
 

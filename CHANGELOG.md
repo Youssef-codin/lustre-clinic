@@ -10,6 +10,10 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 
 - Searching for a patient who isn't registered offers to register the typed name or number.
 
+### Fixed
+
+- Each "Report a problem" now reaches the operator as its own alert, not only the first one.
+
 ## [1.5.1] - 2026-09-24
 
 ### Added

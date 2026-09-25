@@ -31,10 +31,11 @@ import {
     nodeStackLineParser,
     parseEnvelope,
     resolvedSyncPromise,
+    type SeverityLevel,
     setCurrentClient,
 } from '@sentry/core';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import { allowBreadcrumb, allowEvent, PROBLEM_REPORT } from './privacy';
+import { allowBreadcrumb, allowEvent, captureProblemReport, PROBLEM_REPORT } from './privacy';
 import { apiCrumb, connectionCrumb, lifecycleCrumb, liveCrumb, screenCrumb, screenName } from './trail';
 
 const PATIENT = {
@@ -81,8 +82,8 @@ class TestClient extends Client<ClientOptions> {
         return resolvedSyncPromise({ exception: { values: [exceptionFromError(stackParser, error)] } });
     }
 
-    eventFromMessage(message: unknown): PromiseLike<Event> {
-        return resolvedSyncPromise({ message: String(message), level: 'info' });
+    eventFromMessage(message: unknown, level: SeverityLevel = 'info'): PromiseLike<Event> {
+        return resolvedSyncPromise({ message: String(message), level });
     }
 }
 
@@ -312,7 +313,7 @@ describe('"Report a problem"', () => {
     it('sends the trail without a crash', async () => {
         addBreadcrumb(screenCrumb('settings'));
         addBreadcrumb(touch([{ name: 'Pressable', label: 'settings-report-problem' }]));
-        captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
+        captureProblemReport(getCurrentScope());
 
         const [json = ''] = await eventsSent();
         const event = JSON.parse(json) as Event;
@@ -321,12 +322,24 @@ describe('"Report a problem"', () => {
         expect(event.breadcrumbs?.map((crumb) => crumb.category)).toEqual(['navigation', 'ui.tap']);
     });
 
+    it('is its own issue at warning level, under the id the toast reads out', async () => {
+        const first = captureProblemReport(getCurrentScope());
+        const second = captureProblemReport(getCurrentScope());
+
+        const events = (await eventsSent()).map((json) => JSON.parse(json) as Event);
+        expect(first).not.toBe(second);
+        expect(events.map((event) => [event.event_id, event.level, event.fingerprint])).toEqual([
+            [first, 'warning', ['problem-report', first]],
+            [second, 'warning', ['problem-report', second]],
+        ]);
+    });
+
     it('names the OTA update and runtime it ran on, and nothing posing as them', async () => {
         getCurrentScope().setTags({
             update: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
             runtime: '3f8a2b1c9d0e4f5a6b7c8d9e0f1a2b3c4d5e6f7a',
         });
-        captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
+        captureProblemReport(getCurrentScope());
 
         const [json = ''] = await eventsSent();
         expect((JSON.parse(json) as Event).tags).toEqual({
@@ -336,7 +349,7 @@ describe('"Report a problem"', () => {
         });
 
         getCurrentScope().setTags({ update: PATIENT.name, runtime: PATIENT.note });
-        captureMessage(PROBLEM_REPORT, { level: 'info', tags: { report: 'problem' } });
+        captureProblemReport(getCurrentScope());
         const [, second = ''] = await eventsSent();
         expectNoPatientData(second);
         expect((JSON.parse(second) as Event).tags).toEqual({ report: 'problem' });
@@ -346,6 +359,22 @@ describe('"Report a problem"', () => {
         addBreadcrumb(screenCrumb('patients'));
         captureMessage(`${PATIENT.name} could not be found`);
         expect(await eventsSent()).toEqual([]);
+    });
+});
+
+describe('a fingerprint', () => {
+    it('is dropped from a crash unless it is the report shape naming that event', async () => {
+        getCurrentScope().setFingerprint(['patient', PATIENT.name]);
+        captureException(new TypeError('x is undefined'));
+        getCurrentScope().setFingerprint(['problem-report', '0123456789abcdef0123456789abcdef']);
+        captureException(new TypeError('x is undefined'));
+
+        const sent = await eventsSent();
+        expect(sent).toHaveLength(2);
+        for (const json of sent) {
+            expectNoPatientData(json);
+            expect((JSON.parse(json) as Event).fingerprint).toBeUndefined();
+        }
     });
 });
 
