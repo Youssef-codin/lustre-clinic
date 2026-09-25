@@ -1,5 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { MAX_AMOUNT_PIASTRES } from '@lustre/shared';
+import postgres from 'postgres';
+import { withScratchDatabase } from '../src/backup/pg.ts';
+import { config } from '../src/config.ts';
 import { createAppointmentInput } from '../src/modules/appointment/appointment.schema.ts';
 import { appointmentService } from '../src/modules/appointment/appointment.service.ts';
 import { procedureService } from '../src/modules/procedure/procedure.service.ts';
@@ -50,6 +56,54 @@ describe('migration 0016', () => {
         `;
         expect(column).toEqual({ nullable: 'YES', type: 'integer' });
     });
+
+    // 0017 and 0018 merged before this one, and drizzle skips a migration
+    // older than the last one a database applied. A clinic already on 0018
+    // must still get the column.
+    test('applies to a database already migrated past it', async () => {
+        const migrationsFolder = new URL('../src/db/migrations', import.meta.url).pathname;
+        const before = await mkdtemp(join(tmpdir(), 'lustre-before-0016-'));
+
+        try {
+            await cp(migrationsFolder, before, { recursive: true });
+            const journalPath = join(before, 'meta', '_journal.json');
+            const journal = JSON.parse(await readFile(journalPath, 'utf8')) as { entries: { tag: string }[] };
+            journal.entries = journal.entries.filter(
+                (entry) => entry.tag !== '0016_appointment_quoted_price',
+            );
+            await writeFile(journalPath, JSON.stringify(journal));
+
+            await withScratchDatabase(
+                config.DATABASE_URL,
+                `lustre_before_0016_${Date.now()}_test`,
+                async (url) => {
+                    const client = postgres(url, { max: 1, onnotice: () => {} });
+                    try {
+                        const { drizzle } = await import('drizzle-orm/postgres-js');
+                        const { migrate } = await import('drizzle-orm/postgres-js/migrator');
+                        const scratch = drizzle(client);
+                        const hasColumn = async () =>
+                            (
+                                await client`
+                                SELECT 1 FROM information_schema.columns
+                                WHERE table_name = 'appointment_procedures' AND column_name = 'quoted_price'
+                            `
+                            ).length === 1;
+
+                        await migrate(scratch, { migrationsFolder: before });
+                        expect(await hasColumn()).toBe(false);
+
+                        await migrate(scratch, { migrationsFolder });
+                        expect(await hasColumn()).toBe(true);
+                    } finally {
+                        await client.end();
+                    }
+                },
+            );
+        } finally {
+            await rm(before, { recursive: true, force: true });
+        }
+    }, 60_000);
 
     test('refuses a negative quote', async () => {
         const { appointment, rootCanal } = await book();
