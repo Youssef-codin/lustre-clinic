@@ -50,10 +50,15 @@ phone (`packages/app/scripts/device.sh`), for anything native.
 bun lint
 bun typecheck
 bun test
+bun format
 ```
 
-All three must pass before a task is considered complete. CI runs the same three
-on every push (`.github/workflows/ci.yml`).
+All four must pass before a task is considered complete. CI runs lint,
+typecheck and test on every push (`.github/workflows/ci.yml`). `bun fallow`
+reports dead code and duplication; it never passes clean, so read what it says
+about the files you touched.
+
+Every script, and what it touches: [infra/README.md#scripts](infra/README.md#scripts).
 
 ### The test database
 
@@ -139,7 +144,11 @@ and a file whose name does not parse as a dump is never touched.
 
 ## Deployment
 
-`docker compose up -d` on the clinic machine brings up Postgres and the server.
+The clinic machine runs two stacks, prod on `:3000` and dev on `:3001`,
+deployed with `bun play app` (`--stack=dev` for dev only). Releases go out with
+`bun release:*` and `bun play`. See [infra/README.md](infra/README.md) and
+[infra/RELEASING.md](infra/RELEASING.md). Under the play, it is
+`docker compose up -d` per stack.
 The published port binds to the Tailscale interface only — there is no public
 ingress, no TLS termination, and no authentication. Reachability on the tailnet
 is the authorization model (SPEC §1).

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# `bun play [tag ...] [ansible flags]` — the clinic play from anywhere in the
-# repo. Tags are bare words (`bun play app releases`); anything starting with
-# `-` goes to ansible-playbook as is (`bun play releases --check`). No tags
-# runs the whole play.
+# `bun play [tag ...] [--stack=prod|dev] [ansible flags]` — the clinic play from
+# anywhere in the repo. Tags are bare words (`bun play app releases`); anything
+# starting with `-` goes to ansible-playbook as is (`bun play releases --check`).
+# No tags runs the whole play.
+#
+# `app` and `releases` act on both stacks, prod then dev. `--stack=dev` (or
+# `prod`) limits them to one: `bun play app --stack=dev` deploys the dev server
+# and its releases and leaves the clinic's alone.
 #
 # The sudo password is asked for each run (`-K`). To stop typing it, put it in a
 # file outside the repo with mode 0600 and point LUSTRE_SUDO_PASSWORD_FILE at
@@ -15,6 +19,11 @@ tags=()
 flags=()
 for arg in "$@"; do
     case "$arg" in
+        --stack=prod | --stack=dev) flags+=(--extra-vars "lustre_stack=${arg#--stack=}") ;;
+        --stack=*)
+            echo "play: --stack takes prod or dev, got '${arg#--stack=}'" >&2
+            exit 2
+            ;;
         -*) flags+=("$arg") ;;
         *) tags+=("$arg") ;;
     esac

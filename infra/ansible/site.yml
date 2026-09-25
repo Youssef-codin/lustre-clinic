@@ -84,7 +84,7 @@
         file: tasks/app.yml
         apply:
           tags: [app]
-      loop: "{{ lustre_stacks }}"
+      loop: "{{ lustre_stacks | selectattr('name', 'in', (lustre_stack | default('prod,dev')).split(',')) | list }}"
       loop_control:
         loop_var: stack
         label: "{{ stack.name }}"
@@ -95,7 +95,7 @@
         file: tasks/releases.yml
         apply:
           tags: [app, releases]
-      loop: "{{ lustre_stacks }}"
+      loop: "{{ lustre_stacks | selectattr('name', 'in', (lustre_stack | default('prod,dev')).split(',')) | list }}"
       loop_control:
         loop_var: stack
         label: "{{ stack.name }}"
