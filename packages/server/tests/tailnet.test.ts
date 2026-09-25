@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { type Config, resolveTailnetAddress } from '../src/config.ts';
+import { type Config, resolveServerEnvironment, resolveTailnetAddress } from '../src/config.ts';
 
 /**
  * `health.check` reports this and every phone stores it (§14), so a wrong
@@ -46,5 +46,29 @@ describe('resolveTailnetAddress', () => {
     test('reports nothing when the clinic has not said, rather than guessing', () => {
         expect(resolveTailnetAddress(env({}))).toBeNull();
         expect(resolveTailnetAddress(env({ TAILSCALE_HOSTNAME: '   ' }))).toBeNull();
+    });
+});
+
+/**
+ * A dev build refuses any server that does not say development, so a built
+ * server that was never told which stack it is must say production.
+ */
+describe('resolveServerEnvironment', () => {
+    test('a built server is production unless the stack says otherwise', () => {
+        expect(resolveServerEnvironment(env({ NODE_ENV: 'production' }))).toBe('production');
+        expect(
+            resolveServerEnvironment(env({ NODE_ENV: 'production', SERVER_ENVIRONMENT: 'development' })),
+        ).toBe('development');
+    });
+
+    test('a server run from source is development', () => {
+        expect(resolveServerEnvironment(env({ NODE_ENV: 'development' }))).toBe('development');
+        expect(resolveServerEnvironment(env({ NODE_ENV: 'test' }))).toBe('development');
+    });
+
+    test('the stack saying production wins over a source run', () => {
+        expect(
+            resolveServerEnvironment(env({ NODE_ENV: 'development', SERVER_ENVIRONMENT: 'production' })),
+        ).toBe('production');
     });
 });

@@ -98,6 +98,9 @@ services:
             # The APK and OTA updates, copied in by the ansible `releases` tag (§15).
             RELEASES_DIR: /app/releases
             UPDATES_CHANNEL: ${LUSTRE_ENVIRONMENT:-development}
+            # Reported by health.check; a dev build refuses anything but
+            # development. Production unless the stack says otherwise.
+            SERVER_ENVIRONMENT: ${LUSTRE_ENVIRONMENT:-production}
         volumes:
             - ./backups:/app/backups
             - ./releases:/app/releases:ro

@@ -9,7 +9,7 @@ import type { Dated } from '../wire';
 
 export const healthHandlers = {
     check(): Dated<RouterOutput['health']['check']> {
-        return { ok: true, db: true, migration: null, tailscale: null };
+        return { ok: true, db: true, migration: null, tailscale: null, environment: 'development' };
     },
 
     // The phone is the server, so its clock always agrees with itself.

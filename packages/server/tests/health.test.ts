@@ -60,6 +60,12 @@ describe('health.check', () => {
         expect(client().health.check.query()).resolves.toHaveProperty('tailscale', null);
     });
 
+    // A dev build connects only to a server that says development, so the
+    // field is always there and the test server (NODE_ENV=test) is one.
+    test('says which stack answered', async () => {
+        expect((await client().health.check.query()).environment).toBe('development');
+    });
+
     test('is reachable over plain HTTP GET, as the connection probe expects', async () => {
         const res = await fetch(`${baseUrl}${TRPC_ENDPOINT}/health.check`);
         expect(res.status).toBe(200);

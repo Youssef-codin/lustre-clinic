@@ -62,6 +62,11 @@ const envSchema = z.object({
     // `releases` tag. Read on every request, so a new release needs no restart.
     RELEASES_DIR: z.string().default('./releases'),
     UPDATES_CHANNEL: z.enum(['production', 'development']).default('production'),
+    // Which stack this is, reported by `health.check` so a dev build can refuse
+    // the clinic's server (`app/src/api/variant.ts`). Unset, a built server
+    // (NODE_ENV=production, as every image is) says production: a stack that
+    // forgot to say which it is must not be one a dev phone will write to.
+    SERVER_ENVIRONMENT: z.enum(['production', 'development']).optional(),
 
     BACKUP_DRIVE_FOLDER_ID: z.string().optional(),
     BACKUP_DRIVE_OAUTH_CLIENT_ID: z.string().optional(),
@@ -131,3 +136,9 @@ export function resolveTailnetAddress(env: Config): string | null {
 }
 
 export const tailnetAddress = resolveTailnetAddress(config);
+
+export function resolveServerEnvironment(env: Config): 'production' | 'development' {
+    return env.SERVER_ENVIRONMENT ?? (env.NODE_ENV === 'production' ? 'production' : 'development');
+}
+
+export const serverEnvironment = resolveServerEnvironment(config);

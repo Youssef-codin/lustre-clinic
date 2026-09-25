@@ -8,6 +8,7 @@ import {
     enableDemoMode,
     getConnectionState,
     isTailnetAddress,
+    lastProbeRefused,
     reprobe,
     serverAddresses,
 } from '../api';
@@ -15,7 +16,7 @@ import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
 import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
-import { NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
+import { NOT_DEV_SERVER, NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
 // First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
@@ -78,7 +79,7 @@ export function SetupScreen() {
 
         if (!reached) {
             applyAddresses(previous);
-            setAttempt({ ok: false, message: noAnswer(candidate) });
+            setAttempt({ ok: false, message: lastProbeRefused() ? NOT_DEV_SERVER : noAnswer(candidate) });
             return;
         }
 

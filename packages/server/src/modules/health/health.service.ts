@@ -4,7 +4,7 @@
  * unreachable database is a reportable state, not an error.
  */
 import { sql as raw } from 'drizzle-orm';
-import { config, tailnetAddress } from '../../config.ts';
+import { config, serverEnvironment, tailnetAddress } from '../../config.ts';
 import { db, sql } from '../../db/index.ts';
 
 interface HealthReport {
@@ -19,6 +19,11 @@ interface HealthReport {
      * themselves.
      */
     tailscale: string | null;
+    /**
+     * Which stack answered. A dev build connects only to `development`, so a
+     * dev phone can never read or write the clinic's own records.
+     */
+    environment: 'production' | 'development';
 }
 
 interface ClockReport {
@@ -81,6 +86,6 @@ export const healthService = {
             migration = rows[0]?.hash ?? null;
         } catch {}
 
-        return { ok: dbOk, db: dbOk, migration, tailscale: tailnetAddress };
+        return { ok: dbOk, db: dbOk, migration, tailscale: tailnetAddress, environment: serverEnvironment };
     },
 };

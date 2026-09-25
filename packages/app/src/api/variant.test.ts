@@ -3,6 +3,7 @@
 // the fake register or the half-second lost on every reconnect.
 import { describe, expect, it } from 'bun:test';
 import {
+    acceptsServer,
     allowsDemo,
     allowsLan,
     bootAddresses,
@@ -75,6 +76,26 @@ describe('showsDevBanner', () => {
     it('follows the build rather than a flag anyone maintains', () => {
         expect(showsDevBanner(variantOf({ dev: true, shippedDemo: true }))).toBe(true);
         expect(showsDevBanner(variantOf({ dev: false, shippedDemo: false }))).toBe(false);
+    });
+});
+
+describe('acceptsServer', () => {
+    it('keeps a dev build off any server but the dev one', () => {
+        expect(acceptsServer('dev', 'development')).toBe(true);
+        expect(acceptsServer('dev', 'production')).toBe(false);
+    });
+
+    // The clinic's server from before `environment` existed says nothing, and
+    // it is the one this exists to refuse.
+    it('refuses a server that does not say which it is', () => {
+        expect(acceptsServer('dev', undefined)).toBe(false);
+        expect(acceptsServer('dev', null)).toBe(false);
+    });
+
+    it('leaves the clinic and demo builds to the server they were given', () => {
+        expect(acceptsServer('prod', 'production')).toBe(true);
+        expect(acceptsServer('prod', undefined)).toBe(true);
+        expect(acceptsServer('demo', 'development')).toBe(true);
     });
 });
 

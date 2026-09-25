@@ -33,6 +33,11 @@ export function nothingEntered(lanAllowed: boolean): string {
     return lanAllowed ? 'Enter at least one address.' : 'Enter the Tailscale address.';
 }
 
+// A dev build reached a server and refused it: the clinic's own, or one too
+// old to say which it is (`api/variant.ts`, `acceptsServer`).
+export const NOT_DEV_SERVER =
+    "That is the clinic's own server. A dev build connects only to the dev server, on port 3001.";
+
 /** Two English sentences rather than one assembled from three fragments, so
  * each is a whole key the catalogue can translate as a sentence. */
 export function noAnswer(candidate: ServerCandidate): string {

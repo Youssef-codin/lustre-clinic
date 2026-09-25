@@ -1,7 +1,8 @@
 import { AppState, type NativeEventSubscription } from 'react-native';
 import { noteConnection } from '../reporting/trail';
-import { serverAddresses, timing, trpcUrl } from './config';
+import { BUILD_VARIANT, serverAddresses, timing, trpcUrl } from './config';
 import { isDemoMode } from './demo';
+import { acceptsServer } from './variant';
 
 // Connection state is a record of real traffic, not a poller: every request
 // reports its outcome back here through the tRPC link (markOnline/markOffline).
@@ -13,7 +14,10 @@ import { isDemoMode } from './demo';
 // tailnet with no network-change listener. Probes run sequentially, LAN first
 // (§14), and a prod build has no LAN address to probe (`config.ts`), so there
 // it is the tailnet alone. A bare GET on `health.check` counts as "online"
-// without reading the body. Staleness is scheduled rather than computed on read because
+// without reading the body, except on a dev build, which reads the server's
+// `environment` and treats anything but development as no answer at all
+// (`acceptsServer`). Every request and the `/ws` socket take their address from
+// here, so a refused server is never sent a single call. Staleness is scheduled rather than computed on read because
 // `getSnapshot` must return the same object until something changes.
 export type ConnectionStatus = 'unknown' | 'probing' | 'online' | 'offline';
 
@@ -117,10 +121,24 @@ async function fetchWithTimeout(url: string, timeoutMs: number, init?: RequestIn
     }
 }
 
+/** Whether the last probe reached a server this build refuses, for the setup screen to say so. */
+let refused = false;
+
+export function lastProbeRefused(): boolean {
+    return refused;
+}
+
 async function probe(base: string, timeoutMs: number): Promise<boolean> {
     try {
         const response = await fetchWithTimeout(`${trpcUrl(base)}/health.check`, timeoutMs);
-        return response.ok;
+        if (!response.ok) return false;
+        if (BUILD_VARIANT !== 'dev') return true;
+        const body = (await response.json().catch(() => null)) as {
+            result?: { data?: { environment?: unknown } };
+        } | null;
+        if (acceptsServer(BUILD_VARIANT, body?.result?.data?.environment)) return true;
+        refused = true;
+        return false;
     } catch {
         return false;
     }
@@ -130,6 +148,7 @@ let inFlight: Promise<string> | null = null;
 
 async function probeBoth(): Promise<string> {
     const { lan, tailscale } = serverAddresses();
+    refused = false;
     emit({ status: 'probing' });
 
     if (lan && (await probe(lan, timing.lanProbeMs))) {

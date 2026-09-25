@@ -32,6 +32,15 @@ export function allowsDemo(variant: BuildVariant): boolean {
     return variant !== 'prod';
 }
 
+// A dev build never talks to the clinic's own server: its records are real
+// patients, and a dev phone is where half-finished code runs. It connects only
+// to a server whose `health.check` says development, and a server that says
+// nothing (one from before the field existed) is refused with the rest. Other
+// builds take any server; the clinic's phones are pointed at it on purpose.
+export function acceptsServer(variant: BuildVariant, environment: unknown): boolean {
+    return variant !== 'dev' || environment === 'development';
+}
+
 // The DEV strip (`shell/DevBanner.tsx`). A demo build does not get one: it is
 // handed to someone across a table and its own screens say what it is, while
 // this says "you are looking at a server", which a demo has none of.

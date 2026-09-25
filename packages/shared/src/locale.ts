@@ -880,6 +880,8 @@ export const COPY_AR = {
         'لم يستجب هذا العنوان. تأكد أن كمبيوتر العيادة يعمل، وأنك متصل بشبكة العيادة أو مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
     'That address did not answer. Check the clinic computer is on, that you are signed in to Tailscale, and that the address ends in the port (:3000).':
         'لم يستجب هذا العنوان. تأكد أن كمبيوتر العيادة يعمل، وأنك مسجل الدخول إلى تايل سكيل، وأن العنوان ينتهي بالمنفذ (:3000).',
+    "That is the clinic's own server. A dev build connects only to the dev server, on port 3001.":
+        'هذا خادم العيادة نفسه. نسخة التطوير تتصل بخادم التطوير فقط، على المنفذ 3001.',
 
     // --- old patients: the New patient switch, the record, and Settings → Clinic
     'Already a patient here': 'مريض سابق في العيادة',
