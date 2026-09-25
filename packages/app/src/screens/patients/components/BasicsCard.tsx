@@ -192,7 +192,7 @@ export function BasicsCard({
                 {/* The design puts both on one line, and they belong together:
                     age and sex are the two things read off the card in one
                     breath, and neither is worth a row of its own. */}
-                <Row label="Age · sex" error={shown('age')} owed={due('age')} align="center">
+                <Row label="Age · sex" error={shown('age')} owed={due('age') || due('gender')} align="center">
                     <View style={styles.ageSex}>
                         <View style={styles.age}>
                             <TextInput

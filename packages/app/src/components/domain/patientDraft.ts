@@ -33,7 +33,7 @@
  * validates the same fields and would refuse a bad one anyway. They exist so a
  * typo is caught while the patient is still on the phone.
  */
-import { daysInMonth, todayKey } from '@lustre/shared';
+import { DEFAULT_REQUIRE_AGE, DEFAULT_REQUIRE_GENDER, daysInMonth, todayKey } from '@lustre/shared';
 
 /** Stored lowercase, the way every record already on file spells it. */
 export const FEMALE = 'female';
@@ -97,6 +97,34 @@ export function blankNameAndPhone(form: { name: string; phone: string }): ('name
     const blank: ('name' | 'phone')[] = [];
     if (form.name.trim().length === 0) blank.push('name');
     if (form.phone.trim().length === 0) blank.push('phone');
+    return blank;
+}
+
+/**
+ * Whether the clinic requires an age and a sex (Settings → Patient fields). The
+ * server enforces the same two rules; these only let a form mark the field due
+ * before the round trip.
+ */
+export type PatientRequirements = { requireAge: boolean; requireGender: boolean };
+
+/** What a clinic that has not touched the settings gets. */
+export const DEFAULT_PATIENT_REQUIREMENTS: PatientRequirements = {
+    requireAge: DEFAULT_REQUIRE_AGE,
+    requireGender: DEFAULT_REQUIRE_GENDER,
+};
+
+/**
+ * The age and the sex, when the clinic requires them and they are still empty.
+ * `age` is whatever the form holds the age as — whole years on the record, a
+ * typed date of birth on the booking — and is blank the same way either way.
+ */
+export function blankRequired(
+    form: { age: string; gender: string },
+    requires: PatientRequirements,
+): ('age' | 'gender')[] {
+    const blank: ('age' | 'gender')[] = [];
+    if (requires.requireAge && form.age.trim().length === 0) blank.push('age');
+    if (requires.requireGender && form.gender.trim().length === 0) blank.push('gender');
     return blank;
 }
 

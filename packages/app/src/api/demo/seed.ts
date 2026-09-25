@@ -26,6 +26,8 @@ import {
     DEFAULT_REMINDER_NOTIFY_AT,
     DEFAULT_REMINDER_REPEAT_MINUTES,
     DEFAULT_REMINDER_TEMPLATE,
+    DEFAULT_REQUIRE_AGE,
+    DEFAULT_REQUIRE_GENDER,
     type PaymentMethod,
     type Tooth,
 } from '@lustre/shared';
@@ -186,7 +188,7 @@ function buildCatalogue(): Catalogue {
     };
 }
 
-const NAMES: readonly [name: string, phone: string, birthDate: string][] = [
+const NAMES: readonly [name: string, phone: string, birthDate: string | null][] = [
     ['Nour Hassan', '01001234567', '1991-04-12'],
     ['Mariam Adel', '01009876543', '1988-11-03'],
     ['Omar Khaled', '01112223344', '1979-06-21'],
@@ -202,7 +204,7 @@ const NAMES: readonly [name: string, phone: string, birthDate: string][] = [
     ['Rana Gamal', '01288990011', '1986-01-29'],
     ['Sherif Amin', '01022334455', '1971-11-16'],
     ['Yara Fouad', '01199001122', '2004-04-04'],
-    ['Amr Hesham', '01255443322', '1980-01-01'],
+    ['Amr Hesham', '01255443322', null],
 ];
 
 function buildPatients(createdFrom: number): PatientRow[] {
@@ -444,6 +446,8 @@ function emptyDb(): DemoDb {
             patientRefNext: 1001,
             migrationBranchId: null,
             migrationCutoffDate: null,
+            requireAge: DEFAULT_REQUIRE_AGE,
+            requireGender: DEFAULT_REQUIRE_GENDER,
             updatedAt: new Date(),
         },
     };

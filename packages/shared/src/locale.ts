@@ -382,6 +382,14 @@ export const COPY_AR = {
     'One of the answers was not accepted. Check it and try again.':
         'لم يتم قبول إحدى الإجابات. راجعها وحاول مرة أخرى.',
     'A required question was left blank.': 'تُرك سؤال مطلوب دون إجابة.',
+    'This clinic needs an age on every patient. Type one, or change that in Settings → Patient fields.':
+        'تحتاج هذه العيادة إلى عمر كل مريض. اكتبه، أو غيّر ذلك من الإعدادات ← حقول المريض.',
+    'This clinic needs a sex on every patient. Choose one, or change that in Settings → Patient fields.':
+        'تحتاج هذه العيادة إلى نوع كل مريض. اختره، أو غيّر ذلك من الإعدادات ← حقول المريض.',
+    'This clinic needs the patient’s age': 'تحتاج العيادة إلى عمر المريض',
+    'This clinic needs the patient’s sex': 'تحتاج العيادة إلى نوع المريض',
+    'Add it to their record, or change that in Settings → Patient fields.':
+        'أضفه إلى ملف المريض، أو غيّر ذلك من الإعدادات ← حقول المريض.',
     'Someone else changed this record. Reopen it and try again.':
         'غيّر شخص آخر هذا الملف. افتحه من جديد وحاول مرة أخرى.',
     'The clinic server could not answer. Try again in a moment.':
@@ -707,6 +715,11 @@ export const COPY_AR = {
         'الرصيد يحتاج إلى تاريخ. اضبط الفرع وتاريخ الإقفال بالأعلى، أو اترك المبلغ فارغًا.',
     ACTIVE: 'نشط',
     'ALWAYS ON THE RECORD': 'دائمًا في الملف',
+    'REQUIRED OR OPTIONAL': 'مطلوب أم اختياري',
+    'Require an age': 'اشتراط العمر',
+    'Require a sex': 'اشتراط النوع',
+    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.':
+        'الاسم والهاتف مطلوبان دائمًا. عند اشتراط العمر أو النوع، يُطلب الحقل الناقص في ملف أي مريض مسجَّل عند تعديل الملف في المرة القادمة.',
     'ANSWER TYPE': 'نوع الإجابة',
     'ASK AGAIN': 'اسأل مرة أخرى',
     'BALANCES AS OF': 'الأرصدة حتى',

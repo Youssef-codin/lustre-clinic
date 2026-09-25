@@ -14,6 +14,12 @@ const TEXT: Record<string, string> = {
     NOT_FOUND: 'This patient is no longer on file.',
     VALIDATION: 'One of the answers was not accepted. Check it and try again.',
     CUSTOM_QUESTION_REQUIRED: 'A required question was left blank.',
+    // Only if the clinic changed the rule on another phone while this form was
+    // open: the form marks a required age or sex due before Save.
+    AGE_REQUIRED:
+        'This clinic needs an age on every patient. Type one, or change that in Settings → Patient fields.',
+    GENDER_REQUIRED:
+        'This clinic needs a sex on every patient. Choose one, or change that in Settings → Patient fields.',
     CONFLICT: 'Someone else changed this record. Reopen it and try again.',
     INTERNAL: 'The clinic server could not answer. Try again in a moment.',
     // The payment codes. `PAYMENT_EXCEEDS_BALANCE` is deliberately vague about

@@ -35,6 +35,34 @@ export class DemoError extends Error {
     }
 }
 
+/** A sex typed as spaces is not one. */
+function isBlank(value: string | null | undefined): boolean {
+    return value === null || value === undefined || value.trim() === '';
+}
+
+type PatientRequirements = { requireAge: boolean; requireGender: boolean };
+type RequiredDetails = { birthDate?: string | null; gender?: string | null };
+
+function ageRequired(): DemoError {
+    return new DemoError(ERROR_CODE.AGE_REQUIRED, 'this clinic requires an age on every patient', 422);
+}
+
+function genderRequired(): DemoError {
+    return new DemoError(ERROR_CODE.GENDER_REQUIRED, 'this clinic requires a sex on every patient', 422);
+}
+
+/** `assertRegistrable` in `server/src/modules/patient/patient.service.ts`. */
+export function assertRegistrable(details: RequiredDetails, requires: PatientRequirements): void {
+    if (requires.requireAge && isBlank(details.birthDate)) throw ageRequired();
+    if (requires.requireGender && isBlank(details.gender)) throw genderRequired();
+}
+
+/** `assertNotCleared` in the same file. A field the patch leaves out is not judged. */
+export function assertNotCleared(patch: RequiredDetails, requires: PatientRequirements): void {
+    if (requires.requireAge && patch.birthDate !== undefined && isBlank(patch.birthDate)) throw ageRequired();
+    if (requires.requireGender && patch.gender !== undefined && isBlank(patch.gender)) throw genderRequired();
+}
+
 /**
  * `Bun.randomUUIDv7()` on the server. Hermes has neither that nor
  * `crypto.randomUUID`, and the property that matters here is the one v7 is

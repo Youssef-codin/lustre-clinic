@@ -641,7 +641,7 @@ describe('error mapping', () => {
         expect(body.error.data.appCode).toBe(ERROR_CODE.VALIDATION);
     });
 
-    test('a patient cannot be registered without an age, or have it cleared', async () => {
+    test('by default a patient cannot be registered without an age, or have it cleared', async () => {
         const { client } = api;
         const { patient } = await clinicViaApi();
         const appCodeOf = async (run: () => Promise<unknown>) => {
@@ -653,21 +653,13 @@ describe('error mapping', () => {
             }
         };
 
-        const noAge = { name: 'No Age', phone: '01055550000', custom: {} };
         expect(
-            await appCodeOf(() =>
-                client.patient.create.mutate(noAge as Parameters<typeof client.patient.create.mutate>[0]),
-            ),
-        ).toBe(ERROR_CODE.VALIDATION);
+            await appCodeOf(() => client.patient.create.mutate({ name: 'No Age', phone: '01055550000' })),
+        ).toBe(ERROR_CODE.AGE_REQUIRED);
 
-        const cleared = { id: patient.id, birthDate: null };
-        expect(
-            await appCodeOf(() =>
-                client.patient.update.mutate(
-                    cleared as unknown as Parameters<typeof client.patient.update.mutate>[0],
-                ),
-            ),
-        ).toBe(ERROR_CODE.VALIDATION);
+        expect(await appCodeOf(() => client.patient.update.mutate({ id: patient.id, birthDate: null }))).toBe(
+            ERROR_CODE.AGE_REQUIRED,
+        );
     });
 });
 

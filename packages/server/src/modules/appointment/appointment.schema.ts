@@ -36,10 +36,11 @@ const procedures = z.array(procedureLine).max(100);
 const needsLab = z.boolean().optional();
 
 /**
- * Everything past `phone` is optional and mirrors `createPatientInput` field for
- * field: the desk only needs a name and a number to book, but a secretary who
- * has the rest of the details in front of her should not have to open the record
- * afterwards to enter them. `custom` is deliberately absent — the questionnaire
+ * Everything past `phone` mirrors `createPatientInput` field for field, and is
+ * optional to the schema: the desk needs a name and a number to book, plus an
+ * age or a sex when the clinic requires one, which the patient service checks
+ * against the settings. A secretary who has the rest of the details in front
+ * of her should not have to open the record afterwards to enter them. `custom` is deliberately absent — the questionnaire
  * is answered at the desk against the live question list (§7.8), not on the
  * phone.
  */
@@ -50,7 +51,7 @@ const patientRefInput = z.discriminatedUnion('kind', [
         name: z.string().trim().min(1).max(160),
         phone: z.string().trim().min(5).max(32),
         email: z.email().max(200).nullish(),
-        birthDate: z.iso.date(),
+        birthDate: z.iso.date().nullish(),
         gender: z.string().trim().max(40).nullish(),
         notes: z.string().trim().max(4000).nullish(),
     }),

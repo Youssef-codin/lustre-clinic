@@ -47,7 +47,7 @@ export interface PatientRow {
     name: string;
     phone: string;
     email: string | null;
-    birthDate: string;
+    birthDate: string | null;
     gender: string | null;
     custom: Record<string, unknown>;
     notes: string | null;
@@ -170,6 +170,8 @@ export interface SettingsRow {
     patientRefNext: number;
     migrationBranchId: string | null;
     migrationCutoffDate: string | null;
+    requireAge: boolean;
+    requireGender: boolean;
     updatedAt: Date;
 }
 
@@ -210,8 +212,10 @@ const STORE_KEY = 'lustre.demo.db';
  *    it would be of `undefined`.
  * 7: branches carry `whatsappApp`.
  * 8: appointments carry `labStatus`.
+ * 9: settings carry `requireAge` and `requireGender`, and one seeded patient
+ *    has no age again.
  */
-const STORE_VERSION = 8;
+const STORE_VERSION = 9;
 
 let db: DemoDb | null = null;
 

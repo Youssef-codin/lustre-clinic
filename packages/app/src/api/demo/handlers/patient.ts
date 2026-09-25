@@ -14,6 +14,8 @@ import { getDb, type PatientRow, save } from '../db';
 import { broadcast } from '../events';
 import {
     ageFromBirthDate,
+    assertNotCleared,
+    assertRegistrable,
     assignDefined,
     buildPatientRef,
     DemoError,
@@ -49,8 +51,7 @@ function answersOf(row: PatientRow): Answers {
 type MinimalPatientInput = Omit<RouterInput['patient']['create'], 'custom'>;
 
 export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
-    // The server's schema refuses a patient without one; the demo has no schema in front of it.
-    if (!input.birthDate) throw new DemoError(ERROR_CODE.VALIDATION, 'a patient needs an age', 422);
+    assertRegistrable(input, getDb().settings);
 
     const row: PatientRow = {
         id: uuidv7(),
@@ -58,7 +59,7 @@ export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
         name: input.name,
         phone: normalizePhone(input.phone),
         email: input.email ?? null,
-        birthDate: input.birthDate,
+        birthDate: input.birthDate ?? null,
         gender: input.gender ?? null,
         custom: {},
         notes: input.notes ?? null,
@@ -194,6 +195,8 @@ export const patientHandlers = {
      * and a plain number the new-patient sequence has still to reach.
      */
     create(input: RouterInput['patient']['create']): Patient {
+        // Before the questionnaire, the order the server refuses them in.
+        assertRegistrable(input, getDb().settings);
         const custom = customQuestionHandlers.validateIntake(input.custom ?? {});
 
         if (input.old === undefined) {
@@ -233,6 +236,7 @@ export const patientHandlers = {
     update(input: RouterInput['patient']['update']): Patient {
         const { id, ...patch } = input;
         const current = requirePatient(id);
+        assertNotCleared(patch, getDb().settings);
 
         const custom = patch.custom
             ? customQuestionHandlers.validatePatch(answersOf(current), patch.custom)

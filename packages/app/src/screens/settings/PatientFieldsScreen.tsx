@@ -1,6 +1,8 @@
 /**
  * Settings → Patient fields. Five details are built in — they are columns on
- * `patients`, not questions, so renaming one is a migration. Everything else is
+ * `patients`, not questions, so renaming one is a migration. Whether two of them,
+ * the age and the sex, must be filled in is the clinic's choice, and is two
+ * columns of `settings` rather than a question's `required`. Everything else is
  * a `custom_questions` row the clinic writes, answered under a stable `key`.
  * The verb is deactivate, never delete: deleting orphans every answer on a typo,
  * while deactivating keeps the row so the key still points at the answers and
@@ -122,8 +124,11 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     }
 
     // Not while reordering — the same reason as `ProceduresScreen`.
+    // The requirements card reads `settings.get` itself; a pull refreshes it too.
     const pull = usePullToRefresh(() => {
-        if (!reordering) void questions.refetch();
+        if (reordering) return;
+        void questions.refetch();
+        void queryClient.invalidateQueries(trpc.settings.pathFilter());
     }, questions.isFetching);
 
     return (
@@ -152,6 +157,8 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                 </Text>
 
                 <FixedDetailsCard />
+
+                <RequirementsCard />
 
                 {questions.isLoading ? <SkeletonRows count={3} /> : null}
 
@@ -284,6 +291,116 @@ function FixedDetailsCard() {
                     {t("Built in — these five can't be renamed, reordered or removed.")}
                 </Text>
             </Card>
+        </View>
+    );
+}
+
+/**
+ * Name and phone are never optional, so they are not offered. A rule turned on
+ * leaves the records already on file alone: each is asked for the field the
+ * next time it is edited, and nothing else about it is refused.
+ */
+function RequirementsCard() {
+    const t = useT();
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    const settings = useQuery(trpc.settings.get.queryOptions());
+    const save = useMutation(
+        trpc.settings.update.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
+        }),
+    );
+    // A Switch has no press lock of its own, and two flips in a frame would
+    // both be read against the value before either landed.
+    const write = usePendingAction((patch: { requireAge: boolean } | { requireGender: boolean }) =>
+        save.mutateAsync(patch),
+    );
+
+    if (settings.error) {
+        return (
+            <ErrorState
+                message={errorText(settings.error)}
+                onRetry={settings.refetch}
+                retrying={settings.isFetching}
+            />
+        );
+    }
+    if (!settings.data) return null;
+    const { requireAge, requireGender } = settings.data;
+
+    return (
+        <View style={styles.section}>
+            <SectionLabel inset={false}>REQUIRED OR OPTIONAL</SectionLabel>
+
+            {save.error ? (
+                <Callout tone="warning" title="Not saved">
+                    {errorText(save.error)}
+                </Callout>
+            ) : null}
+
+            <Card>
+                <RequirementRow
+                    label="Age"
+                    accessibilityLabel="Require an age"
+                    value={requireAge}
+                    disabled={write.pending}
+                    onChange={(value) => write.run({ requireAge: value })}
+                    testID="settings-require-age"
+                />
+                <CardDivider />
+                <RequirementRow
+                    label="Sex"
+                    accessibilityLabel="Require a sex"
+                    value={requireGender}
+                    disabled={write.pending}
+                    onChange={(value) => write.run({ requireGender: value })}
+                    testID="settings-require-gender"
+                />
+            </Card>
+
+            <Text variant="footnote" tone="muted" style={styles.note}>
+                {t(
+                    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.',
+                )}
+            </Text>
+        </View>
+    );
+}
+
+function RequirementRow({
+    label,
+    accessibilityLabel,
+    value,
+    disabled,
+    onChange,
+    testID,
+}: {
+    label: string;
+    accessibilityLabel: string;
+    value: boolean;
+    disabled: boolean;
+    onChange: (value: boolean) => void;
+    testID: string;
+}) {
+    const t = useT();
+    return (
+        <View style={styles.flagRow}>
+            <View style={styles.rowText}>
+                <Text variant="body" weight="medium">
+                    {t(label)}
+                </Text>
+                <Text variant="subhead" tone="muted">
+                    {t(value ? 'Required' : 'Optional')}
+                </Text>
+            </View>
+            <Switch
+                value={value}
+                onValueChange={onChange}
+                disabled={disabled}
+                accessibilityLabel={accessibilityLabel}
+                testID={testID}
+            />
         </View>
     );
 }
