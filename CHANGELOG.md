@@ -12,7 +12,7 @@ the APK before it. Dev-track tags (`dev-v*`) are not listed.
 - A booking can be marked as needing lab work. The day shows "Lab pending" until it's marked back, and its reminder warns while the lab work isn't back.
 - The clinic chooses in Settings whether a patient's age and gender are required.
 - When the doctor finishes a visit, the app asks whether to edit its procedures before sending the patient to the desk.
-- A ⋯ button on the Next-up card opens cancel, no-show and reschedule.
+- Tapping the Next-up card opens the appointment, with cancel, no-show and reschedule.
 
 ### Fixed
 
