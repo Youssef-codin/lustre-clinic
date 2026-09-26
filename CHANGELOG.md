@@ -8,12 +8,17 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- Reminder messages can name the appointment's branch (`{{branch}}`) and quote its reference (`{{ref}}`).
+
 ### Fixed
 
 - In Arabic, the screens, sheets, toasts and messages that still showed English are now in Arabic, and so is the daily reminders notification.
 - In Arabic, phone numbers keep the + in front, lines that start with a patient's name or a procedure read right to left, and "before this" and "after this" point the right way.
 - Counts in Arabic read correctly: "4 أيام", not "4 يوم".
 - The language setting's note says what it changes. It no longer mentions printed receipts or a per-patient language.
+- Reminder messages built from the Settings chips reached patients with `{name}`, `{time}` and the like still in them. The chips now insert tokens the reminder fills in, messages already saved the old way are filled in too, and the preview shows exactly what the patient will get.
 
 ## [1.6.1] - 2026-09-26
 

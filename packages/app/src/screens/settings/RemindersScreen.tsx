@@ -9,7 +9,11 @@
  *
  * The preview is not decoration either: the template is the only place in the
  * app where a typo reaches every patient, so the pane renders the message as it
- * will actually be sent, with sample values substituted for the tokens.
+ * will actually be sent, with sample values substituted for the tokens. It does
+ * that through the senders' own `renderReminderTemplate`, and the chips offer
+ * the senders' own `REMINDER_TOKENS`: a pane holding a second opinion about
+ * either is how `{name}` came to be offered while only `{{name}}` was ever
+ * substituted, and patients were messaged the placeholder.
  *
  * That is also why the two halves commit differently. A stepper tap is a whole
  * decision and writes immediately. The template is composed rather than picked,
@@ -24,6 +28,7 @@
  * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
  * the server accepts.
  */
+import { REMINDER_TOKENS } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -50,24 +55,11 @@ import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
 import {
     minutesFromTime,
-    REMINDER_TOKENS,
+    previewMessage,
     TEMPLATE_MAX,
     templateDraft,
     timeFromMinutes,
 } from './data/reminders';
-
-/**
- * The values the preview substitutes. Deliberately one fixed patient rather
- * than a real one off the list: a preview that names a real patient reads as a
- * message that has already been sent.
- */
-const SAMPLE: Record<string, string> = {
-    '{name}': 'Nour El-Sayed',
-    '{date}': 'Thu 12 Jun',
-    '{time}': '11:35 AM',
-    '{branch}': 'Heliopolis',
-    '{clinic}': 'Lustre Dental',
-};
 
 export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const t = useT();
@@ -291,7 +283,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             </View>
 
                             <View style={styles.bubble}>
-                                <Text variant="callout">{fill(text)}</Text>
+                                <Text variant="callout">{previewMessage(text)}</Text>
                             </View>
 
                             <Text variant="caption" tone="inverse" script="mono" style={styles.sampleNote}>
@@ -303,10 +295,6 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
             ) : null}
         </Pane>
     );
-}
-
-function fill(template: string): string {
-    return REMINDER_TOKENS.reduce((text, token) => text.split(token).join(SAMPLE[token] ?? token), template);
 }
 
 type TimingRowProps = {
