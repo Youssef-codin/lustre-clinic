@@ -8,6 +8,13 @@ listed.
 
 ## [Unreleased]
 
+### Fixed
+
+- In Arabic, the screens, sheets, toasts and messages that still showed English are now in Arabic, and so is the daily reminders notification.
+- In Arabic, phone numbers keep the + in front, lines that start with a patient's name or a procedure read right to left, and "before this" and "after this" point the right way.
+- Counts in Arabic read correctly: "4 أيام", not "4 يوم".
+- The language setting's note says what it changes. It no longer mentions printed receipts or a per-patient language.
+
 ## [1.6.1] - 2026-09-26
 
 ### Changed
