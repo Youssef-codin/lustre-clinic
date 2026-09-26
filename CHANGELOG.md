@@ -12,6 +12,10 @@ listed.
 
 - Swiping left or right on the calendar moves to the next or previous month, the same way the arrows do, in Arabic as well as English.
 
+### Fixed
+
+- The Lustre logo in the Settings header no longer reads backwards in Arabic.
+
 ## [1.6.1] - 2026-09-26
 
 ### Changed

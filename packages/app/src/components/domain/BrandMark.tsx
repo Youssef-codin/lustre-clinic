@@ -73,7 +73,9 @@ export function BrandMark({ variant = 'mark', size = 16, tone = 'ink' }: BrandMa
 }
 
 const styles = StyleSheet.create({
-    lockup: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
+    // A logo, not a line of copy: the L leads the word in Arabic too, or the
+    // row flips and reads USTRE-L.
+    lockup: { flexDirection: 'row', alignItems: 'center', gap: space[1], direction: 'ltr' },
     // The wordmark's tracking is part of the mark, not a type choice.
     word: { letterSpacing: 3 },
 });
