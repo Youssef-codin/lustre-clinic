@@ -8,6 +8,14 @@ listed.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reminder messages built from the Settings chips reached patients with `{name}`, `{time}` and the like still in them. The chips now insert tokens the reminder fills in, messages already saved the old way are filled in too, and the preview shows exactly what the patient will get.
+
+### Added
+
+- Reminder messages can name the appointment's branch (`{{branch}}`) and quote its reference (`{{ref}}`).
+
 ## [1.6.1] - 2026-09-26
 
 ### Changed
