@@ -25,6 +25,8 @@ export {
     minutesOfDay,
     time12,
 } from './clock';
+export type { Glyph, IconProps } from './icons';
+export { GLYPH, icon, MethodIcon } from './icons';
 export type { MoneyValueProps } from './MoneyValue';
 export { formatMoney, MoneyValue } from './MoneyValue';
 export type { PatientRowProps, PatientSummary } from './PatientRow';

@@ -1,69 +1,17 @@
 /**
- * This cluster's icons — `lucide-react-native`, wrapped the same way the day
- * view and the patients cluster wrap theirs: named after the job rather than
- * the shape, with `stroke`/`width` as props so the library stays swappable from
- * one file.
- *
- * `settings.html` ships its own `IC` table of hand-drawn monoline glyphs and
- * every one of these was traced from it. That was wrong — CLAUDE.MD is explicit
- * that icons come from the library, "not to match a mockup" — so each is now
- * the nearest Lucide equivalent.
+ * This cluster's icons, built from the shared set in `components/domain/icons`
+ * and named after the job each does here.
  *
  * WhatsApp is the documented exception: Lucide carries no brand marks, so it
  * comes from `@expo/vector-icons`, as it already does in
  * `screens/day/components/Reminders.tsx`.
  */
 import { FontAwesome } from '@expo/vector-icons';
-import {
-    AppWindow,
-    ArrowLeft,
-    ArrowRight,
-    Bell,
-    CalendarDays,
-    Check,
-    ChevronLeft,
-    ChevronRight,
-    Clock,
-    CloudAlert,
-    DatabaseBackup,
-    EyeOff,
-    Folder,
-    Hospital,
-    Info,
-    ListPlus,
-    LogIn,
-    LogOut,
-    MapPin,
-    MessageSquareWarning,
-    Pencil,
-    Plus,
-    Power,
-    RefreshCw,
-    Repeat,
-    RotateCcw,
-    Tags,
-    X,
-} from 'lucide-react-native';
+import { GLYPH, type IconProps, icon } from '../../../components/domain';
 import { useIsRTL } from '../../../i18n';
 import { color } from '../../../theme';
 
-export type IconProps = {
-    size?: number;
-    stroke?: string;
-    width?: number;
-};
-
-type Glyph = typeof Clock;
-
-function icon(Glyph: Glyph, defaults: Required<IconProps>) {
-    return function Wrapped({
-        size = defaults.size,
-        stroke = defaults.stroke,
-        width = defaults.width,
-    }: IconProps) {
-        return <Glyph size={size} color={stroke} strokeWidth={width} />;
-    };
-}
+export type { IconProps };
 
 const ROW: Required<IconProps> = { size: 16, stroke: color.ink, width: 1.8 };
 
@@ -72,16 +20,16 @@ const ROW: Required<IconProps> = { size: 16, stroke: color.ink, width: 1.8 };
  * one set, which is the whole reason they are all from the same library.
  */
 const ROW_ICON = {
-    app: icon(AppWindow, ROW),
-    appointments: icon(CalendarDays, ROW),
-    reminders: icon(Bell, ROW),
-    clinic: icon(Hospital, ROW),
-    branches: icon(MapPin, ROW),
-    procedures: icon(Tags, ROW),
-    fields: icon(ListPlus, ROW),
-    about: icon(Info, ROW),
-    hours: icon(Clock, ROW),
-    backups: icon(DatabaseBackup, ROW),
+    app: icon(GLYPH.app, ROW),
+    appointments: icon(GLYPH.appointments, ROW),
+    reminders: icon(GLYPH.reminders, ROW),
+    clinic: icon(GLYPH.clinic, ROW),
+    branches: icon(GLYPH.branch, ROW),
+    procedures: icon(GLYPH.procedures, ROW),
+    fields: icon(GLYPH.fields, ROW),
+    about: icon(GLYPH.info, ROW),
+    hours: icon(GLYPH.time, ROW),
+    backups: icon(GLYPH.backups, ROW),
 } as const;
 
 export type SettingsGlyph = keyof typeof ROW_ICON;
@@ -99,45 +47,45 @@ export function SettingsIcon({ glyph, ...rest }: SettingsIconProps) {
  * The off-site backup warning. A cloud rather than a database or a key: what
  * stopped is the copy leaving the building, and the local dumps are fine.
  */
-export const DriveAlertIcon = icon(CloudAlert, { size: 18, stroke: color.dueText, width: 2 });
+export const DriveAlertIcon = icon(GLYPH.driveAlert, { size: 18, stroke: color.dueText, width: 2 });
 
 /** The identity card's "Switch role" — two arrows doubling back on each other. */
-export const SwitchRoleIcon = icon(Repeat, { size: 16, stroke: color.inverse, width: 2 });
+export const SwitchRoleIcon = icon(GLYPH.switchRole, { size: 16, stroke: color.inverse, width: 2 });
 
 /** Re-probe, on the dark card and in the App pane's server card. */
-export const ReprobeIcon = icon(RefreshCw, { size: 14, stroke: color.ink, width: 2.2 });
+export const ReprobeIcon = icon(GLYPH.reprobe, { size: 14, stroke: color.ink, width: 2.2 });
 
-export const PlusIcon = icon(Plus, { size: 14, stroke: color.inverse, width: 2.6 });
+export const PlusIcon = icon(GLYPH.add, { size: 14, stroke: color.inverse, width: 2.6 });
 
-export const CloseIcon = icon(X, { size: 15, stroke: color.muted, width: 2.2 });
+export const CloseIcon = icon(GLYPH.close, { size: 15, stroke: color.muted, width: 2.2 });
 
-export const CheckIcon = icon(Check, { size: 15, stroke: color.muted, width: 2.4 });
+export const CheckIcon = icon(GLYPH.check, { size: 15, stroke: color.muted, width: 2.4 });
 
-export const InfoIcon = icon(Info, { size: 16, stroke: color.muted, width: 2 });
+export const InfoIcon = icon(GLYPH.info, { size: 16, stroke: color.muted, width: 2 });
 
 /** Deactivating or reactivating a branch, tinted by its caller. */
-export const PowerIcon = icon(Power, { size: 15, stroke: color.ink, width: 2.2 });
+export const PowerIcon = icon(GLYPH.deactivate, { size: 15, stroke: color.ink, width: 2.2 });
 
 /** Putting the demo's clinic back the way it opens. No mockup counterpart either. */
-export const ResetDemoIcon = icon(RotateCcw, ROW);
+export const ResetDemoIcon = icon(GLYPH.resetDemo, ROW);
 
 /** Leaving the demo for the clinic server. No mockup counterpart. */
-export const LeaveDemoIcon = icon(LogOut, ROW);
+export const LeaveDemoIcon = icon(GLYPH.leaveDemo, ROW);
 
 /** Entering the demo from a connected dev build. No mockup counterpart. */
-export const EnterDemoIcon = icon(LogIn, ROW);
+export const EnterDemoIcon = icon(GLYPH.enterDemo, ROW);
 
 /** "Report a problem". No mockup counterpart. */
-export const ReportProblemIcon = icon(MessageSquareWarning, ROW);
+export const ReportProblemIcon = icon(GLYPH.reportProblem, ROW);
 
 /** Taking a procedure out of the catalogue. */
-export const HideIcon = icon(EyeOff, { size: 15, stroke: color.ink, width: 2.2 });
+export const HideIcon = icon(GLYPH.hide, { size: 15, stroke: color.ink, width: 2.2 });
 
 /** Renaming a category, from its section heading. */
-export const EditIcon = icon(Pencil, { size: 15, stroke: color.muted, width: 2 });
+export const EditIcon = icon(GLYPH.edit, { size: 15, stroke: color.muted, width: 2 });
 
 /** The ghost "Category" button beside "Add a procedure", as the mockup draws it. */
-export const CategoryIcon = icon(Folder, { size: 15, stroke: color.muted, width: 2 });
+export const CategoryIcon = icon(GLYPH.category, { size: 15, stroke: color.muted, width: 2 });
 
 /**
  * The reminder preview's channel mark. A brand glyph, so `@expo/vector-icons`
@@ -151,16 +99,16 @@ export function WhatsAppIcon({ size = 15, stroke = color.wa }: Omit<IconProps, '
  * Both of these mirror in Arabic as a glyph swap rather than a rotation:
  * rotating a round-capped stroke moves the caps.
  */
-const ArrowForward = icon(ArrowRight, { size: 18, stroke: color.muted, width: 2.2 });
-const ArrowBack = icon(ArrowLeft, { size: 18, stroke: color.muted, width: 2.2 });
+const ArrowForward = icon(GLYPH.forward, { size: 18, stroke: color.muted, width: 2.2 });
+const ArrowBack = icon(GLYPH.back, { size: 18, stroke: color.muted, width: 2.2 });
 
 /** The role sheet's from → to arrow. */
 export function ArrowRightIcon(props: IconProps) {
     return useIsRTL() ? <ArrowBack {...props} /> : <ArrowForward {...props} />;
 }
 
-const ChevronBack = icon(ChevronLeft, { size: 15, stroke: color.ink, width: 2.4 });
-const ChevronForward = icon(ChevronRight, { size: 15, stroke: color.ink, width: 2.4 });
+const ChevronBack = icon(GLYPH.chevronBack, { size: 15, stroke: color.ink, width: 2.4 });
+const ChevronForward = icon(GLYPH.chevronForward, { size: 15, stroke: color.ink, width: 2.4 });
 
 /** The pane header's back button. */
 export function BackIcon(props: IconProps) {

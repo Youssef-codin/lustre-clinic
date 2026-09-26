@@ -11,6 +11,7 @@
 // biome-ignore lint/style/noRestrictedImports: animates the method bar's width to its new share, and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { MethodIcon } from '../../../components/domain';
 import { duration, easing, useReducedMotion } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
@@ -18,7 +19,7 @@ import type { MethodTaking, TakingsReport } from '../data';
 import { methodLabel } from '../format';
 import { MoneyValue } from '../MoneyValue';
 import { hasShareBase, methodShare } from '../money';
-import { BankIcon, MethodIcon } from './icons';
+import { BankIcon } from './icons';
 
 const BAR_HEIGHT = 6;
 const TILE = 32;
