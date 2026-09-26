@@ -107,7 +107,7 @@ export const reminderHandlers = {
                 const message = renderReminderTemplate(settings.reminderTemplate, {
                     name,
                     clinic: settings.clinicName,
-                    branch: db.branches.find((row) => row.id === appointment.branchId)?.name ?? '',
+                    branch: branch?.name ?? '',
                     date: local.toISOString().slice(0, 10),
                     time: local.toISOString().slice(11, 16),
                     ref: appointment.ref,
