@@ -10,7 +10,7 @@ listed.
 
 ### Changed
 
-- Working hours' opening and closing times are picked on a wheel inside the app, in the app's language, instead of the phone's clock dialog. AM and PM now match the rest of the screen in Arabic.
+- Working hours' opening and closing times are picked on a wheel inside the app, in the app's language, instead of the phone's clock dialog. AM and PM now match the rest of the screen in Arabic. The hours and minutes go round, so 12 runs on to 1, and each step gives a light tick.
 
 ## [1.6.1] - 2026-09-26
 
