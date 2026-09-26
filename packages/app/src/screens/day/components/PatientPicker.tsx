@@ -41,7 +41,6 @@ export type PatientPickerProps = {
 };
 
 export function PatientPicker({ value, onChange, active, onRegisterNew }: PatientPickerProps) {
-    const t = useT();
     const query = useDebounced(value.term.trim(), 250);
 
     const search = useLocalQuery<Patient[]>(
@@ -74,9 +73,6 @@ export function PatientPicker({ value, onChange, active, onRegisterNew }: Patien
             </View>
 
             <View style={styles.register}>
-                <Text variant="subhead" tone="muted">
-                    {t('Not been here before?')}
-                </Text>
                 <Button
                     label="Register a new patient"
                     variant="text"
@@ -107,13 +103,7 @@ function PatientResults({
     onRetry: () => void;
 }) {
     const t = useT();
-    if (term.trim().length < 2) {
-        return (
-            <Text variant="subhead" tone="muted">
-                {t('Type two letters of a name, or part of a phone number.')}
-            </Text>
-        );
-    }
+    if (term.trim().length < 2) return null;
 
     if (loading) {
         return (
@@ -174,7 +164,6 @@ const styles = StyleSheet.create({
     // Sits under the results rather than beside the search, so it reads as what
     // to do when the search has failed to find them — which is when it is wanted.
     register: {
-        gap: space[1],
         paddingTop: space[2],
         borderTopWidth: border.hair,
         borderTopColor: color.line,

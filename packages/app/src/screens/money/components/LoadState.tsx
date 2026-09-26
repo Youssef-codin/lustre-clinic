@@ -115,7 +115,7 @@ export function LoadState({ isLoading, error, onRetry, skeleton, children }: Loa
                 <Text variant="subhead" tone="muted" style={styles.failureBody}>
                     {t('Nothing is shown rather than a figure that may have moved since.')}
                 </Text>
-                <Button label="Retry" onPress={onRetry} variant="secondary" size="md" />
+                <Button label="Try again" onPress={onRetry} variant="secondary" size="md" />
             </Card>
         );
     }

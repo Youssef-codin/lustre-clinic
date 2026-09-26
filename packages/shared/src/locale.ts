@@ -291,8 +291,7 @@ export const COPY_AR = {
     'Book it': 'احجز',
     'Move it': 'انقل الموعد',
     'Save changes': 'حفظ التغييرات',
-    'Add what the visit is for — a tooth, then the procedure. It can be left empty and decided in the chair.':
-        'أضف سبب الزيارة — السن أولًا ثم الإجراء. يمكن تركها فارغة وتحديدها على الكرسي.',
+    'Add what the visit is for — a tooth, then the procedure.': 'أضف سبب الزيارة — السن أولًا ثم الإجراء.',
     '{branch} is not working today, so there is no walk-in to take.':
         'فرع {branch} لا يعمل اليوم، لذا لا يمكن استقبال حضور مباشر.',
     'The clinic is not working today, so there is no walk-in to take.':
@@ -350,8 +349,6 @@ export const COPY_AR = {
     'Notifications are off for this app': 'إشعارات التطبيق متوقفة',
     'Everyone has been messaged': 'تم إرسال رسالة للجميع',
     'No reminder is waiting to go out.': 'لا توجد تذكيرات بانتظار الإرسال.',
-    "1 patient hasn't been messaged yet.": 'مريض واحد لم تصله رسالة بعد.',
-    "{count} patients haven't been messaged yet.": '{count} مرضى لم تصلهم رسالة بعد.',
     "{name}'s reminder could not be marked — try again.": 'تعذر تسجيل تذكير {name} — حاول مرة أخرى.',
     "Opens the patient's record": 'يفتح ملف المريض',
     'Send the reminder on WhatsApp': 'إرسال التذكير على واتساب',
@@ -439,8 +436,6 @@ export const COPY_AR = {
     'Add procedure': 'إضافة إجراء',
     "Answers are filed under this. It can't change later.":
         'تُحفظ الإجابات تحت هذا المفتاح. لا يمكن تغييره بعد ذلك.',
-    'Answers follow the question set in Settings — deactivated questions keep their answers but stop showing.':
-        'تتبع الإجابات مجموعة الأسئلة في الإعدادات — الأسئلة الموقوفة تحتفظ بإجاباتها لكنها تتوقف عن الظهور.',
     'Anything the doctor should know.': 'أي شيء يجب أن يعرفه الطبيب.',
     'Appears on receipts and in reminder messages.': 'يظهر في الإيصالات وفي رسائل التذكير.',
     'Appointments and visits appear here as soon as this patient is booked in.':
@@ -536,7 +531,6 @@ export const COPY_AR = {
         'لا يوجد من يطابق البحث. إذا كان جديدًا هنا، سجّله بالأسفل.',
     'Nobody waiting': 'لا أحد في الانتظار',
     'Not answered': 'بدون إجابة',
-    'Not been here before?': 'أول مرة هنا؟',
     'Usually {amount}': 'عادةً {amount}',
     'Running total': 'الإجمالي الجاري',
     'WHAT THEY ARE HERE FOR': 'سبب الزيارة',
@@ -586,8 +580,6 @@ export const COPY_AR = {
     Paid: 'المدفوع',
     'Paid in full': 'مدفوع بالكامل',
     'Previous month': 'الشهر السابق',
-    'Procedures are never deleted — past visits still reference them.':
-        'لا تُحذف الإجراءات — الزيارات السابقة ما زالت مرتبطة بها.',
     'Question in Arabic': 'السؤال بالعربية',
     'Question in English': 'السؤال بالإنجليزية',
     'Questions the clinic adds in settings appear here for every patient.':
@@ -604,7 +596,6 @@ export const COPY_AR = {
         'مريض تجريبي — تُملأ القيم الحقيقية مع كل موعد.',
     'Save & close visit': 'حفظ وإنهاء الزيارة',
     'Save — {balance} still owed': 'حفظ — {balance} مستحق',
-    'Search the patients on file, or register someone new.': 'ابحث في ملفات المرضى أو سجّل مريضًا جديدًا.',
     'Save and send to desk': 'حفظ وإرسال إلى الاستقبال',
     'Send to desk': 'إرسال إلى الاستقبال',
     'Send to the desk': 'إرسال إلى الاستقبال',
@@ -620,6 +611,7 @@ export const COPY_AR = {
     'TOTAL CHARGED': 'إجمالي المطلوب',
     'TOTAL PAID': 'إجمالي المدفوع',
     'Tap a circle to set the default': 'اضغط على دائرة لتحديد الافتراضي',
+    'Pick another option first to remove it.': 'اختر خيارًا آخر أولًا لحذفه.',
     'That is more than they owe. They owe {amount}.': 'هذا أكثر مما عليه. المستحق عليه {amount}.',
     'That visit ends after the clinic closes.': 'هذه الزيارة تنتهي بعد إغلاق العيادة.',
     'The day is done. Anyone new comes through the desk.': 'انتهى اليوم. أي مريض جديد يمر عبر الاستقبال.',
@@ -637,7 +629,6 @@ export const COPY_AR = {
     'Time into the slot': 'الوقت داخل الموعد',
     'Total cost': 'إجمالي التكلفة',
     'Treatment or payment': 'علاج أو دفع',
-    'Type two letters of a name, or part of a phone number.': 'اكتب حرفين من الاسم أو جزءًا من رقم الهاتف.',
     'Unchanged — no money moves either way.': 'دون تغيير — لا ينتقل أي مبلغ في أي اتجاه.',
     VISIT: 'الزيارة',
     'Visit closed': 'تم إنهاء الزيارة',
@@ -660,7 +651,6 @@ export const COPY_AR = {
     'WhatsApp could not be opened.': 'تعذر فتح واتساب.',
     'Which branch': 'أي فرع',
     'Whole pounds only — piastres are not recorded.': 'بالجنيهات الكاملة فقط — لا تُسجل القروش.',
-    'Whole pounds. More than they owe is not accepted.': 'بالجنيهات الكاملة. لا يُقبل أكثر من المستحق عليه.',
     'Zirconia crown': 'تاج زيركون',
     'booked load': 'نسبة الحجز',
     'clinic-pc.tailnet.ts.net:3000': 'clinic-pc.tailnet.ts.net:3000',
@@ -766,7 +756,7 @@ export const COPY_AR = {
     'At desk': 'عند المكتب',
     'Take payment': 'تحصيل الدفع',
     '{time} · {duration} late': '{time} · متأخر {duration}',
-    'The clinic does not open on {day}s. Change that in Settings → Opening hours.':
+    'The clinic does not open on {day}s. Change that in Settings → Working hours.':
         'العيادة لا تفتح يوم {day}. غيّر ذلك من الإعدادات ← ساعات العمل.',
     '{count} patient': 'مريض واحد',
     '{count} patients': '{count} مرضى',

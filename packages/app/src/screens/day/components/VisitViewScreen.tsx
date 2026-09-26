@@ -187,22 +187,6 @@ export function VisitViewScreen({
                 </View>
             </View>
 
-            <View style={styles.strip}>
-                <View style={[styles.stripDot, settled ? styles.dotSettled : styles.dotDue]} />
-                <Text variant="subhead" tone="muted">
-                    {settled ? 'Paid in full' : 'Remaining balance'}
-                </Text>
-                <Text
-                    variant="headline"
-                    script="mono"
-                    weight="bold"
-                    tone={settled ? 'success' : 'due'}
-                    style={styles.stripAmount}
-                >
-                    {formatMoney(settled ? visit.chargedTotal : visit.balance)}
-                </Text>
-            </View>
-
             <View style={styles.tabs}>
                 <SegmentedControl<Panel>
                     accessibilityLabel="Treatment or payment"
@@ -389,16 +373,19 @@ export function VisitViewScreen({
                         )}
 
                         <View style={styles.total}>
-                            <Text variant="subhead" tone="muted">
-                                {t('Remaining balance')}
-                            </Text>
+                            <View style={styles.totalLabel}>
+                                <View style={[styles.dot, settled ? styles.dotSettled : styles.dotDue]} />
+                                <Text variant="subhead" tone="muted">
+                                    {t(settled ? 'Paid in full' : 'Remaining balance')}
+                                </Text>
+                            </View>
                             <Text
                                 variant="headline"
                                 script="mono"
                                 weight="bold"
-                                tone={settled ? 'ink' : 'due'}
+                                tone={settled ? 'success' : 'due'}
                             >
-                                {formatMoney(Math.max(visit.balance, 0))}
+                                {formatMoney(settled ? visit.chargedTotal : visit.balance)}
                             </Text>
                         </View>
                     </>
@@ -414,14 +401,6 @@ export function VisitViewScreen({
                 onClose={() => setMenuOpen(false)}
                 anchor={{ top: menuTop, end: space[4] }}
                 items={[
-                    {
-                        key: 'edit',
-                        label: t('Edit visit'),
-                        onPress: () => {
-                            setMenuOpen(false);
-                            onEdit(visit);
-                        },
-                    },
                     {
                         key: 'delete',
                         label: t('Delete visit'),
@@ -528,21 +507,10 @@ const styles = StyleSheet.create({
     // The chip sizes itself; the row is only what holds it off the line above.
     chipRow: { flexDirection: 'row', marginTop: space[1] },
 
-    strip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        marginHorizontal: size.gutter,
-        paddingVertical: space[3],
-        borderTopWidth: border.hair,
-        borderTopColor: color.hair,
-        borderBottomWidth: border.hair,
-        borderBottomColor: color.hair,
-    },
-    stripDot: { width: 7, height: 7, borderRadius: radius.full },
+    totalLabel: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
+    dot: { width: 7, height: 7, borderRadius: radius.full },
     dotSettled: { backgroundColor: color.success },
     dotDue: { backgroundColor: color.due },
-    stripAmount: { marginStart: 'auto' },
 
     tabs: { paddingHorizontal: size.gutter, paddingTop: space[4], paddingBottom: space[1] },
 

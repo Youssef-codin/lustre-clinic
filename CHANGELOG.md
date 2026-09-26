@@ -12,8 +12,14 @@ listed.
 
 - Swiping left or right on the calendar moves to the next or previous month, the same way the arrows do, in Arabic as well as English.
 
+### Changed
+
+- Less repeated text across the app: the reminder count above the list, the booking and payment hints, the patient record's settings footnote and a few settings notes are gone, and the visit screens show their total once, at the bottom.
+- Record payment shows an icon beside each payment method, and Deactivate question has the same power icon as Deactivate branch.
+
 ### Fixed
 
+- The closed-day message points to Settings → Working hours, the screen's real name.
 - The Lustre logo in the Settings header no longer reads backwards in Arabic.
 
 ## [1.6.1] - 2026-09-26

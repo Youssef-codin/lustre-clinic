@@ -21,10 +21,10 @@
 import { PAYMENT_METHODS, type PaymentMethod } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { formatMoney, MoneyValue } from '../../../components/domain';
+import { formatMoney, MethodIcon, MoneyValue } from '../../../components/domain';
 import { Button, Callout, Chip, NumericField, Sheet, TextField } from '../../../components/ui';
 import { useT } from '../../../i18n';
-import { space, Text } from '../../../theme';
+import { color, space, Text } from '../../../theme';
 import type { SettleInput } from '../data/types';
 import { clampToOutstanding, isWholePounds, methodLabel, toPounds } from './money';
 
@@ -144,7 +144,6 @@ export function RecordPaymentSheet({
                 keyboardType="number-pad"
                 value={amount}
                 onChangeText={changeAmount}
-                hint="Whole pounds. More than they owe is not accepted."
                 editable={!isPending}
                 testID="record-payment-amount"
             />
@@ -183,6 +182,13 @@ export function RecordPaymentSheet({
                     <Chip
                         key={option}
                         label={methodLabel(option)}
+                        icon={
+                            <MethodIcon
+                                method={option}
+                                size={16}
+                                stroke={option === method ? color.inverse : color.ink2}
+                            />
+                        }
                         selected={option === method}
                         onPress={() => setMethod(option)}
                         disabled={isPending}

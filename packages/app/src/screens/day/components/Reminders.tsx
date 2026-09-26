@@ -157,12 +157,6 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
                 refreshControl={pull?.refreshControl}
                 {...pull?.scrollProps}
             >
-                <Text variant="body" tone="ink2" style={styles.lede}>
-                    {pending.length === 1
-                        ? t("1 patient hasn't been messaged yet.")
-                        : t("{count} patients haven't been messaged yet.", { count: pending.length })}
-                </Text>
-
                 {pending.map((reminder) => (
                     <ReminderRow
                         key={reminder.id}
@@ -324,7 +318,6 @@ function ReminderRow({
 const styles = StyleSheet.create({
     pane: { flex: 1 },
     list: { paddingHorizontal: size.gutter, paddingBottom: size.nav },
-    lede: { marginBottom: space[3.5] },
     item: {
         justifyContent: 'center',
         gap: space[3],

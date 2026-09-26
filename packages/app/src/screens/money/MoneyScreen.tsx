@@ -155,9 +155,6 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                     <Text variant="eyebrow" script="sans" weight="bold" tone="muted">
                         {statsPeriodLabel()}
                     </Text>
-                    <Text variant="caption" weight="semibold" tone="muted">
-                        {t(periodLabel)}
-                    </Text>
                 </View>
 
                 <View style={styles.bleed} onLayout={hero.onLayout}>
@@ -336,11 +333,13 @@ function DebtorList({
                 ))}
             </View>
 
-            <Text variant="footnote" tone="muted" style={styles.foot}>
-                {locale === 'ar'
-                    ? `عرض ${debtors.length} من ${shownOf}${sort === 'balance' ? ' · أعلى الأرصدة' : ''}`
-                    : `Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
-            </Text>
+            {debtors.length < shownOf ? (
+                <Text variant="footnote" tone="muted" style={styles.foot}>
+                    {locale === 'ar'
+                        ? `عرض ${debtors.length} من ${shownOf}${sort === 'balance' ? ' · أعلى الأرصدة' : ''}`
+                        : `Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
+                </Text>
+            ) : null}
         </View>
     );
 }

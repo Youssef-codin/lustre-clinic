@@ -45,6 +45,7 @@ import { useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
+import { PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
@@ -701,6 +702,13 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 <Button
                     label={question.active ? 'Deactivate question' : 'Reactivate question'}
                     variant={question.active ? 'danger' : 'secondary'}
+                    icon={
+                        <PowerIcon
+                            size={15}
+                            stroke={question.active ? color.danger : color.ink}
+                            width={2.2}
+                        />
+                    }
                     onPress={() => setConfirming(true)}
                     loading={write.pending && confirming}
                     block

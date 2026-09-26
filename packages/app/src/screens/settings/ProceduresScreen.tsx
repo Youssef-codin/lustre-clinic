@@ -329,13 +329,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     </View>
                 ) : null}
 
-                {tree.data && !empty ? (
-                    <Text variant="footnote" tone="muted" style={styles.note}>
-                        A procedure with subtypes is a heading — only the subtypes under it can go on a visit,
-                        and each has its own price.
-                    </Text>
-                ) : null}
-
                 {namingCategory ? (
                     <CategorySheet
                         onClose={() => setNamingCategory(false)}
@@ -742,9 +735,6 @@ function ProcedureEditor({
                         loading={write.pending && confirming}
                         block
                     />
-                    <Text variant="caption" tone="muted" style={styles.dangerHint}>
-                        {t('Procedures are never deleted — past visits still reference them.')}
-                    </Text>
                 </Card>
             ) : null}
 
@@ -817,8 +807,6 @@ const styles = StyleSheet.create({
     pressed: { backgroundColor: color.surface2 },
     rowText: { flex: 1, gap: space[1] },
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
-    note: { paddingHorizontal: space[1] },
-    dangerHint: { textAlign: 'center' },
     form: { gap: space[4] },
     sheetActions: { flexDirection: 'row', gap: space[2] },
     sheetCancel: { flex: 1 },

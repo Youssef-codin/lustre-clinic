@@ -710,12 +710,6 @@ function Details({ notes, answers, gaps, questions, onEdit }: DetailsProps) {
                 </View>
             )}
 
-            <Text variant="caption" tone="muted" style={styles.footnote}>
-                {t(
-                    'Answers follow the question set in Settings — deactivated questions keep their answers but stop showing.',
-                )}
-            </Text>
-
             {hidden > 0 && (
                 <View style={styles.gap}>
                     <Callout tone="note">
@@ -836,5 +830,4 @@ const styles = StyleSheet.create({
         borderBottomWidth: border.hair,
         borderBottomColor: color.line,
     },
-    footnote: { paddingHorizontal: size.gutter, paddingTop: space[3] },
 });
