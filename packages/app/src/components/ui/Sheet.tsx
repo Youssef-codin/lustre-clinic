@@ -205,7 +205,7 @@ export function Sheet({
      *
      * `visible` is what the parent wants; this is what actually happened. A
      * caller whose `onClose` swaps the sheet's *contents* rather than closing it
-     * — the working-hours editor stepping back from the time wheel to its form —
+     * — as the first working-hours wheel did, stepping back to its form —
      * leaves `visible` true through a drag or a backdrop tap. Without this the
      * effect is keyed on `visible` alone, never re-runs, and nothing calls
      * `present()` again: the sheet is off the screen while React still believes
