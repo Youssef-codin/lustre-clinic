@@ -29,6 +29,7 @@ import {
     X,
     Zap,
 } from 'lucide-react-native';
+import { useIsRTL } from '../../../i18n';
 import { color } from '../../../theme';
 
 type IconProps = {
@@ -53,9 +54,18 @@ export const ClockIcon = icon(Clock);
 
 export const ProcedureIcon = icon(Stethoscope, 1.8);
 
-export const ArrowBackIcon = icon(ArrowLeft, 2.2);
+const ArrowLeftIcon = icon(ArrowLeft, 2.2);
 
-export const ArrowForwardIcon = icon(ArrowRight, 2.2);
+const ArrowRightIcon = icon(ArrowRight, 2.2);
+
+/** Earlier and later, which swap sides in Arabic — not left and right. */
+export function ArrowBackIcon(props: IconProps) {
+    return useIsRTL() ? <ArrowRightIcon {...props} /> : <ArrowLeftIcon {...props} />;
+}
+
+export function ArrowForwardIcon(props: IconProps) {
+    return useIsRTL() ? <ArrowLeftIcon {...props} /> : <ArrowRightIcon {...props} />;
+}
 
 export const ChatIcon = icon(MessageCircle);
 
