@@ -35,8 +35,9 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Button, Chevron, IconButton, Sheet } from '../../../components/ui';
-import { useT } from '../../../i18n';
+import { useIsRTL, useT } from '../../../i18n';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import { api, type Branch, type ClinicDay, useLocalQuery } from '../data';
 import { describeError } from '../errors';
@@ -68,6 +69,9 @@ const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const;
 const FULL_AT = 0.9;
 /** Two slots' worth — a track, not a reading, and never wider than a real bar. */
 const PENDING_LOAD_WIDTH = 8;
+/** A third of a cell dragged, or a flick — either reads as meaning to page. */
+const SWIPE_DISTANCE = 48;
+const SWIPE_VELOCITY = 600;
 
 /**
  * The scope outlives the sheet: `DayScreen` remounts it by `seq` on every
@@ -87,6 +91,7 @@ export function CalendarSheet({
     onClose,
 }: CalendarSheetProps) {
     const t = useT();
+    const isRTL = useIsRTL();
     const [month, setMonth] = useState(selected);
     const [pending, setPending] = useState(selected);
     const [scope, setScope] = useState(lastScope);
@@ -151,6 +156,22 @@ export function CalendarSheet({
         setPending(nextDays.includes(today) ? today : (nextDays[0] ?? next));
     }
 
+    // A swipe pages the way the arrows point: the next month comes in from the
+    // forward edge, which is the right in English and the left in Arabic. The
+    // offsets keep it out of the sheet's own vertical drag and off a tap on a
+    // cell, and it only activates once the drag is plainly sideways.
+    const swipe = Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetX([-16, 16])
+        .failOffsetY([-16, 16])
+        .onEnd(({ translationX, velocityX }) => {
+            const flung = Math.abs(velocityX) >= SWIPE_VELOCITY ? velocityX : 0;
+            const toward = Math.abs(translationX) >= SWIPE_DISTANCE ? translationX : flung;
+            if (toward === 0) return;
+            const forward = isRTL ? toward > 0 : toward < 0;
+            goToMonth(addMonths(month, forward ? 1 : -1));
+        });
+
     return (
         <Sheet
             visible={visible}
@@ -177,87 +198,89 @@ export function CalendarSheet({
                 />
             }
         >
-            <View style={styles.monthBar}>
-                <Text variant="title3" weight="semibold">
-                    {formatMonth(month)}
-                </Text>
-                {/* `pressLockMs={0}` because paging is the one thing here meant to
+            <GestureDetector gesture={swipe}>
+                <View collapsable={false}>
+                    <View style={styles.monthBar}>
+                        <Text variant="title3" weight="semibold">
+                            {formatMonth(month)}
+                        </Text>
+                        {/* `pressLockMs={0}` because paging is the one thing here meant to
                     be pressed repeatedly. The default lock exists to stop a
                     control answering twice; six months out is six deliberate
                     taps, and at any normal tapping speed the lock eats half. */}
-                <View style={styles.monthNav}>
-                    <IconButton
-                        accessibilityLabel="Previous month"
-                        icon={<Chevron direction="back" tone="ink" size={9} />}
-                        variant="square"
-                        pressLockMs={0}
-                        onPress={() => goToMonth(addMonths(month, -1))}
-                    />
-                    <IconButton
-                        accessibilityLabel="Next month"
-                        icon={<Chevron direction="forward" tone="ink" size={9} />}
-                        variant="square"
-                        pressLockMs={0}
-                        onPress={() => goToMonth(addMonths(month, 1))}
-                    />
-                </View>
-            </View>
+                        <View style={styles.monthNav}>
+                            <IconButton
+                                accessibilityLabel="Previous month"
+                                icon={<Chevron direction="back" tone="ink" size={9} />}
+                                variant="square"
+                                pressLockMs={0}
+                                onPress={() => goToMonth(addMonths(month, -1))}
+                            />
+                            <IconButton
+                                accessibilityLabel="Next month"
+                                icon={<Chevron direction="forward" tone="ink" size={9} />}
+                                variant="square"
+                                pressLockMs={0}
+                                onPress={() => goToMonth(addMonths(month, 1))}
+                            />
+                        </View>
+                    </View>
 
-            <View style={styles.weekdays}>
-                {WEEKDAY_INITIALS.map((initial, index) => (
-                    <Text
-                        // biome-ignore lint/suspicious/noArrayIndexKey: two Ts and two Ss
-                        key={index}
-                        variant="caption"
-                        script="sans"
-                        weight="bold"
-                        tone="muted"
-                        style={styles.weekday}
-                    >
-                        {initial}
-                    </Text>
-                ))}
-            </View>
+                    <View style={styles.weekdays}>
+                        {WEEKDAY_INITIALS.map((initial, index) => (
+                            <Text
+                                // biome-ignore lint/suspicious/noArrayIndexKey: two Ts and two Ss
+                                key={index}
+                                variant="caption"
+                                script="sans"
+                                weight="bold"
+                                tone="muted"
+                                style={styles.weekday}
+                            >
+                                {initial}
+                            </Text>
+                        ))}
+                    </View>
 
-            <View style={styles.grid}>
-                {cells.map((day, index) => {
-                    if (!day) {
-                        // biome-ignore lint/suspicious/noArrayIndexKey: blank leading cell
-                        return <View key={`blank-${index}`} style={styles.cell} />;
-                    }
+                    <View style={styles.grid}>
+                        {cells.map((day, index) => {
+                            if (!day) {
+                                // biome-ignore lint/suspicious/noArrayIndexKey: blank leading cell
+                                return <View key={`blank-${index}`} style={styles.cell} />;
+                            }
 
-                    const load = loads.get(day);
-                    // Booking asks about the branch on the form: a day that branch
-                    // is closed must look and read closed, not only refuse the tap.
-                    // The day view counts every branch.
-                    const closed = isClosed(day, schedule, mode === 'book' ? branchId : undefined);
-                    const past = day < today;
-                    const picked = day === pending;
-                    const full = (load?.fill ?? 0) >= FULL_AT;
-                    const fillTone = fillOf({ picked, full, closed });
-                    // On the booking page a day the branch cannot take is not a
-                    // pick at all: `daysOffered` would drop it and the booking
-                    // would land on some other day without a word. The day view
-                    // can look at any day, so it keeps every cell.
-                    const unbookable = mode === 'book' && (past || isClosed(day, schedule, branchId));
+                            const load = loads.get(day);
+                            // Booking asks about the branch on the form: a day that branch
+                            // is closed must look and read closed, not only refuse the tap.
+                            // The day view counts every branch.
+                            const closed = isClosed(day, schedule, mode === 'book' ? branchId : undefined);
+                            const past = day < today;
+                            const picked = day === pending;
+                            const full = (load?.fill ?? 0) >= FULL_AT;
+                            const fillTone = fillOf({ picked, full, closed });
+                            // On the booking page a day the branch cannot take is not a
+                            // pick at all: `daysOffered` would drop it and the booking
+                            // would land on some other day without a word. The day view
+                            // can look at any day, so it keeps every cell.
+                            const unbookable = mode === 'book' && (past || isClosed(day, schedule, branchId));
 
-                    return (
-                        <Pressable
-                            key={day}
-                            disabled={unbookable}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: picked, disabled: unbookable }}
-                            accessibilityLabel={`${day}${closed ? ', closed' : ''}${
-                                counting ? ', still counting' : load ? `, ${load.count} booked` : ''
-                            }${
-                                load?.busiest && load.busiest !== branchId
-                                    ? `, mostly in ${branchOf(load.busiest) ?? 'another branch'}`
-                                    : ''
-                            }`}
-                            onPress={() => setPending(day)}
-                            style={styles.cell}
-                        >
-                            {/* Closed is a fact about the day, not an alternative
+                            return (
+                                <Pressable
+                                    key={day}
+                                    disabled={unbookable}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: picked, disabled: unbookable }}
+                                    accessibilityLabel={`${day}${closed ? ', closed' : ''}${
+                                        counting ? ', still counting' : load ? `, ${load.count} booked` : ''
+                                    }${
+                                        load?.busiest && load.busiest !== branchId
+                                            ? `, mostly in ${branchOf(load.busiest) ?? 'another branch'}`
+                                            : ''
+                                    }`}
+                                    onPress={() => setPending(day)}
+                                    style={styles.cell}
+                                >
+                                    {/* Closed is a fact about the day, not an alternative
                                 to selection: the dark fill says "picked" while
                                 this dashed edge still says "closed".
 
@@ -268,56 +291,66 @@ export function CalendarSheet({
                                 and selection only changes the fill beneath it,
                                 so moving the pick cannot make the treatment
                                 disappear or depend on a repaint. */}
-                            <View style={styles.cellBox}>
-                                <View style={[styles.fill, { backgroundColor: fillTone }]} />
-                                {closed ? <View pointerEvents="none" style={styles.closedEdge} /> : null}
-                                {/* Not on a closed day either: the ring would hide
+                                    <View style={styles.cellBox}>
+                                        <View style={[styles.fill, { backgroundColor: fillTone }]} />
+                                        {closed ? (
+                                            <View pointerEvents="none" style={styles.closedEdge} />
+                                        ) : null}
+                                        {/* Not on a closed day either: the ring would hide
                                     the dashed closed edge, and in booking mode
                                     dress a day that cannot be picked as live. */}
-                                {!picked && !closed && day === today ? (
-                                    <View pointerEvents="none" style={styles.todayRing} />
-                                ) : null}
+                                        {!picked && !closed && day === today ? (
+                                            <View pointerEvents="none" style={styles.todayRing} />
+                                        ) : null}
 
-                                <Text
-                                    variant="callout"
-                                    // Instrument Sans, not the mono the rest of the
-                                    // cluster gives numbers: DM Mono stops at 500, and
-                                    // the grid is read at a glance, so it wants 700.
-                                    script="sans"
-                                    weight="bold"
-                                    tone={picked ? 'inverse' : closed || past || unbookable ? 'muted' : 'ink'}
-                                >
-                                    {parseKey(day).getDate()}
-                                </Text>
+                                        <Text
+                                            variant="callout"
+                                            // Instrument Sans, not the mono the rest of the
+                                            // cluster gives numbers: DM Mono stops at 500, and
+                                            // the grid is read at a glance, so it wants 700.
+                                            script="sans"
+                                            weight="bold"
+                                            tone={
+                                                picked
+                                                    ? 'inverse'
+                                                    : closed || past || unbookable
+                                                      ? 'muted'
+                                                      : 'ink'
+                                            }
+                                        >
+                                            {parseKey(day).getDate()}
+                                        </Text>
 
-                                {/* A track where the bar will be, so a month
+                                        {/* A track where the bar will be, so a month
                                     mid-count reads as unknown rather than as
                                     empty. Closed days never carry a bar, so
                                     they stay blank and do not promise one. */}
-                                <View
-                                    style={[
-                                        styles.load,
-                                        counting
-                                            ? {
-                                                  width: closed ? 0 : PENDING_LOAD_WIDTH,
-                                                  backgroundColor: color.line,
-                                              }
-                                            : {
-                                                  width: Math.min(load?.count ?? 0, 4) * 4,
-                                                  backgroundColor:
-                                                      !load || closed || load.count === 0
-                                                          ? 'transparent'
-                                                          : full
-                                                            ? color.due
-                                                            : color.accent,
-                                              },
-                                    ]}
-                                />
-                            </View>
-                        </Pressable>
-                    );
-                })}
-            </View>
+                                        <View
+                                            style={[
+                                                styles.load,
+                                                counting
+                                                    ? {
+                                                          width: closed ? 0 : PENDING_LOAD_WIDTH,
+                                                          backgroundColor: color.line,
+                                                      }
+                                                    : {
+                                                          width: Math.min(load?.count ?? 0, 4) * 4,
+                                                          backgroundColor:
+                                                              !load || closed || load.count === 0
+                                                                  ? 'transparent'
+                                                                  : full
+                                                                    ? color.due
+                                                                    : color.accent,
+                                                      },
+                                            ]}
+                                        />
+                                    </View>
+                                </Pressable>
+                            );
+                        })}
+                    </View>
+                </View>
+            </GestureDetector>
 
             <View style={styles.legend}>
                 <Legend tone={color.accent} label="booked load" />
