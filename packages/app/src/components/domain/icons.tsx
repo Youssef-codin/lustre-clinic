@@ -111,6 +111,7 @@ export const GLYPH = {
     more: Ellipsis,
     noShow: UserX,
     oldVisit: History,
+    pay: Coins,
     patient: User,
     patients: Users,
     procedure: Stethoscope,

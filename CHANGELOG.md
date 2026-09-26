@@ -16,6 +16,11 @@ listed.
 
 - Less repeated text across the app: the reminder count above the list, the booking and payment hints, the patient record's settings footnote and a few settings notes are gone, and the visit screens show their total once, at the bottom.
 - Record payment shows an icon beside each payment method, and Deactivate question has the same power icon as Deactivate branch.
+- Lab work still out shows as a small flask on the day list instead of "LAB PENDING", so names aren't cut short. The procedure line on the day list and the Now card uses the stethoscope rather than a clock.
+- The appointment sheet's Reschedule, Mark no-show and Cancel, the patient record's Book appointment, Old visit and Record payment, and the Edit / Delete menu items now carry icons.
+- The patients list shows age as "22 y" and a coin beside what's owed, and a screen reader now hears the phone, age and balance too. Finances shows how long a balance has been owed next to an hourglass instead of "Outstanding for" on every row.
+- Shorter settings hints for reminder timing, WhatsApp app, patient fields and procedure switches. A question's switch now reads "Required", and its two inputs are labelled In English and In Arabic.
+- The role switch sheet and the setup screen are shorter.
 
 ### Fixed
 

@@ -115,7 +115,6 @@ export function SetupScreen() {
                             value={lan}
                             onChangeText={setLan}
                             placeholder="192.168.1.20:3000"
-                            hint={t("The clinic computer's address on the local network.")}
                             autoCapitalize="none"
                             autoCorrect={false}
                             keyboardType="url"
@@ -178,9 +177,6 @@ export function SetupScreen() {
                     sit two taps from a real day's work. */}
                 {DEMO_ALLOWED ? (
                     <View style={styles.demo}>
-                        <Text variant="footnote" tone="muted">
-                            {t('No clinic server to hand?')}
-                        </Text>
                         <Button
                             label="Run in demo mode"
                             onPress={() => void enableDemoMode()}
@@ -191,7 +187,7 @@ export function SetupScreen() {
                         />
                         <Text variant="caption" tone="muted" style={styles.demoNote}>
                             {t(
-                                'Sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.',
+                                'No clinic server to hand? The demo is sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.',
                             )}
                         </Text>
                     </View>

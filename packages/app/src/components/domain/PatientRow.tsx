@@ -11,13 +11,15 @@
  *
  * The name sets no face — `<Text>` detects the script per string (§6), so one
  * row works for Arabic and Latin names; the meta line is mono because it is
- * digits. Age and sex share one segment (`34 F`) as the design draws them: they
- * are one fact about the person, and a third `·` reads as a third field.
+ * digits. Age and sex share one segment (`34 y F`) as the design draws them:
+ * they are one fact about the person, and a third `·` reads as a third field.
+ * The `y` is what stops a bare age reading as the tail of the phone number.
  *
- * `balance` is piastres and renders bare, no `EGP`. It is a flag that something
- * is owed, not a statement of the balance — that is read in full on the record,
- * under a heading that says it is money. It is not a failure state either:
- * partial payment is normal (PRD), and nothing here presents it as an error.
+ * `balance` is piastres and renders bare, no `EGP`, behind a coin that says it
+ * is money. It is a flag that something is owed, not a statement of the
+ * balance — that is read in full on the record. It is not a failure state
+ * either: partial payment is normal (PRD), and nothing here presents it as an
+ * error. The row's label reads it out in full, with the phone and the age.
  *
  * The shape is the server's: `patient.search` returns it, and `Partial` on the
  * derived fields is what lets a balance row, which only knows a name and a
@@ -28,7 +30,8 @@ import type { RouterOutput } from '../../api';
 import { useT } from '../../i18n';
 import { border, color, containsArabic, size, space, Text } from '../../theme';
 import { Chevron } from '../ui';
-import { MoneyValue } from './MoneyValue';
+import { GLYPH } from './icons';
+import { formatMoney, MoneyValue } from './MoneyValue';
 
 type SearchedPatient = RouterOutput['patient']['search'][number];
 
@@ -49,20 +52,28 @@ export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRow
     // `gender` is free text on the server; the two spellings the app itself
     // writes are the two the catalogue knows, anything else shows as typed.
     const person = [
-        age === null || age === undefined ? null : `${age}`,
+        age === null || age === undefined ? null : t('{age} y', { age }),
         gender && t(gender.charAt(0).toUpperCase() + gender.slice(1)),
     ]
         .filter((part): part is string => Boolean(part))
         .join(' ');
 
     const meta = [phone, person].filter(Boolean).join(' · ');
+    const spoken = [
+        name,
+        phone,
+        age === null || age === undefined ? null : t(age === 1 ? '1 year' : '{count} years', { count: age }),
+        balance > 0 ? t('Owes {amount}', { amount: formatMoney(balance) }) : null,
+    ]
+        .filter(Boolean)
+        .join(', ');
 
     return (
         <Pressable
             onPress={onPress}
             disabled={!onPress}
             accessibilityRole={onPress ? 'button' : undefined}
-            accessibilityLabel={name}
+            accessibilityLabel={spoken}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
             testID={testID ?? (id ? `patient-row-${id}` : undefined)}
         >
@@ -84,7 +95,7 @@ export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRow
 
             {balance > 0 ? (
                 <View style={styles.due}>
-                    <View style={styles.dueDot} />
+                    <GLYPH.pay size={13} color={color.due} strokeWidth={2.2} />
                     <MoneyValue
                         piastres={balance}
                         variant="caption"
@@ -116,8 +127,5 @@ const styles = StyleSheet.create({
     // by its own script, so in Arabic it sat against the chevron instead of the
     // row's start edge. Shrunk to its content, the line goes where the row starts.
     text: { flex: 1, minWidth: 0, gap: space[0.5], alignItems: 'flex-start' },
-    due: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-    // Not `ui/Dot`: that one animates and this one never pulses, so the row does
-    // not carry an `Animated.Value` per patient down a list.
-    dueDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: color.due },
+    due: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
 });

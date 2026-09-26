@@ -23,3 +23,11 @@ export const CloseIcon = icon(GLYPH.close, { width: 2.4 });
 
 // The record bar's menu — Edit, and Delete under the divider.
 export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
+
+// The record's actions: its two openers, the balance's Record payment, and the
+// menu's Edit and Delete.
+export const BookIcon = icon(GLYPH.book, { width: 2 });
+export const OldVisitIcon = icon(GLYPH.oldVisit, { width: 2 });
+export const PayIcon = icon(GLYPH.pay, { width: 2 });
+export const EditIcon = icon(GLYPH.edit, { width: 2 });
+export const DeleteIcon = icon(GLYPH.delete, { width: 2 });

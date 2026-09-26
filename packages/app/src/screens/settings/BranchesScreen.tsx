@@ -316,7 +316,7 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                     />
                     <Select
                         label="Open WhatsApp in"
-                        hint="Used when a phone has both WhatsApp apps. A phone with only one opens that one."
+                        hint="Used when a phone has both WhatsApp apps."
                         options={[
                             { value: 'business', label: t('WhatsApp Business') },
                             { value: 'regular', label: t('WhatsApp') },

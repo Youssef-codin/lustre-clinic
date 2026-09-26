@@ -49,6 +49,7 @@ import {
 } from '../data';
 import { describeError } from '../errors';
 import { dateKey, formatSpan, minutesOfDay, todayKey } from '../time';
+import { CancelAppointmentIcon, NoShowIcon, RescheduleIcon } from './icons';
 import { LabState, LabSwitch } from './LabWork';
 import { PlanSummary } from './PlanSummary';
 
@@ -410,6 +411,7 @@ function SecondaryActions({
                 and cancelling and booking again loses the ref and the plan. */}
             <Button
                 label="Reschedule"
+                icon={<RescheduleIcon size={16} stroke={color.ink} />}
                 variant="secondary"
                 size="md"
                 block
@@ -418,6 +420,7 @@ function SecondaryActions({
             />
             <Button
                 label="Mark no-show"
+                icon={<NoShowIcon size={16} stroke={color.ink2} />}
                 variant="ghost"
                 size="md"
                 block
@@ -426,6 +429,7 @@ function SecondaryActions({
             />
             <Button
                 label="Cancel appointment"
+                icon={<CancelAppointmentIcon size={16} stroke={color.danger} />}
                 variant="dangerText"
                 size="md"
                 block

@@ -152,11 +152,6 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
             >
-                <Text variant="subhead" tone="muted" style={styles.intro}>
-                    These questions appear on every patient record, under the details the app always asks for.
-                    Changing them here changes the form for the whole clinic.
-                </Text>
-
                 <FixedDetailsCard />
 
                 <RequirementsCard />
@@ -361,9 +356,7 @@ function RequirementsCard() {
             </Card>
 
             <Text variant="footnote" tone="muted" style={styles.note}>
-                {t(
-                    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.',
-                )}
+                {t('A patient already on file is asked the next time their record is edited.')}
             </Text>
         </View>
     );
@@ -614,15 +607,15 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                     <TextField
                         value={label}
                         onChangeText={onChangeLabel}
+                        label="In English"
                         placeholder="Diabetic?"
-                        accessibilityLabel="Question in English"
                         error={labelError}
                     />
                     <TextField
                         value={labelAr}
                         onChangeText={setLabelAr}
+                        label="In Arabic"
                         placeholder="هل تعاني من السكري؟"
-                        accessibilityLabel="Question in Arabic"
                     />
                 </View>
             </View>
@@ -688,7 +681,7 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 <Card>
                     <View style={styles.flagRow}>
                         <Text variant="body" style={styles.rowText}>
-                            {required ? 'Must be answered' : 'Can be left blank'}
+                            {t('Required')}
                         </Text>
                         <Switch value={required} onValueChange={setRequired} accessibilityLabel="Required" />
                     </View>
@@ -756,7 +749,6 @@ const styles = StyleSheet.create({
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
     dimmed: { opacity: 0.5 },
     note: { paddingHorizontal: space[1] },
-    intro: { paddingHorizontal: space[0.5] },
     labelPair: { gap: space[2] },
     fixed: { gap: space[3] },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },

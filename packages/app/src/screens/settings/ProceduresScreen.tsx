@@ -509,7 +509,6 @@ function ProcedureEditor({
     onClose,
     onSaved,
 }: ProcedureEditorProps) {
-    const t = useT();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
     const onProcedureWritten = () => queryClient.invalidateQueries(trpc.procedure.pathFilter());
@@ -690,14 +689,14 @@ function ProcedureEditor({
                 <Card>
                     <FlagRow
                         label="Needs a tooth"
-                        sub="The visit asks which tooth before this can be added."
+                        sub="Asked before it is added."
                         value={toothSpecific}
                         onChange={setToothSpecific}
                     />
                     <CardDivider />
                     <FlagRow
                         label="Can have a quantity"
-                        sub="Off means it can appear once per visit, per tooth."
+                        sub="Off: once per visit, per tooth."
                         value={hasQuantity}
                         onChange={setHasQuantity}
                     />
@@ -762,14 +761,15 @@ type FlagRowProps = {
 };
 
 function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
+    const t = useT();
     return (
         <View style={styles.flagRow}>
             <View style={styles.rowText}>
                 <Text variant="body" weight="medium">
-                    {label}
+                    {t(label)}
                 </Text>
                 <Text variant="subhead" tone="muted">
-                    {sub}
+                    {t(sub)}
                 </Text>
             </View>
             <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />

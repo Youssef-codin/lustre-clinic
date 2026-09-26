@@ -45,3 +45,11 @@ export const XIcon = icon(GLYPH.close, { width: 2.2 });
 export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
 
 export const TrashIcon = icon(GLYPH.delete, { width: 2 });
+
+// The appointment sheet's three actions. Cancel's calendar-with-a-cross is the
+// destructive one; the no-show is the patient who did not come.
+export const RescheduleIcon = icon(GLYPH.reschedule, { width: 2 });
+
+export const NoShowIcon = icon(GLYPH.noShow, { width: 2 });
+
+export const CancelAppointmentIcon = icon(GLYPH.cancelAppointment, { width: 2 });

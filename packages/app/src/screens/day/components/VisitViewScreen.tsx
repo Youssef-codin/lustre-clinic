@@ -404,6 +404,7 @@ export function VisitViewScreen({
                     {
                         key: 'delete',
                         label: t('Delete visit'),
+                        icon: <TrashIcon size={16} stroke={color.danger} />,
                         danger: true,
                         onPress: () => {
                             setMenuOpen(false);

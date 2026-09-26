@@ -1,18 +1,20 @@
 // One debtor row on the money dashboard. The amount is the standing balance
 // across every visit, as `balance.outstanding` derived it — the row never adds
 // anything up. How long it has been owed is the only part of the line the
-// design colours: "Outstanding" is context, the age is the thing that is
-// getting worse. Entry animates only on mount; re-running on a filter change
+// design colours, under an hourglass rather than "Outstanding for" on every
+// row; the full phrase stays in the row's label for a screen reader. Entry animates only on mount; re-running on a filter change
 // would restage the whole list on every search keystroke.
 // biome-ignore lint/style/noRestrictedImports: runs the staggered entry `Animated.timing` on mount and stops it on cleanup
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { formatMoney } from '../../../components/domain';
 import { Chevron, duration, easing, useReducedMotion } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, space, Text } from '../../../theme';
 import type { PatientBalance } from '../data';
 import { outstandingAge } from '../format';
 import { MoneyValue } from '../MoneyValue';
+import { OwedForIcon } from './icons';
 
 const MAX_STAGGER_STEPS = 8;
 const STAGGER_MS = 32;
@@ -28,6 +30,7 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
     const t = useT();
     const entry = useRef(new Animated.Value(0)).current;
     const reducedMotion = useReducedMotion();
+    const age = outstandingAge(patient.oldestUnpaidAt);
 
     useEffect(() => {
         const animation = Animated.timing(entry, {
@@ -52,6 +55,7 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
             <Pressable
                 onPress={onPress}
                 accessibilityRole="button"
+                accessibilityLabel={`${patient.name}, ${t('Outstanding for')} ${age}, ${formatMoney(patient.balance)}`}
                 style={({ pressed }) => [styles.row, index > 0 && styles.divided, pressed && styles.pressed]}
                 testID={`money-debtor-${patient.patientId}`}
             >
@@ -60,12 +64,12 @@ export function DebtorRow({ patient, index, onPress }: DebtorRowProps) {
                         {patient.name}
                     </Text>
 
-                    <Text variant="footnote" tone="muted">
-                        {t('Outstanding for')}{' '}
+                    <View style={styles.age}>
+                        <OwedForIcon />
                         <Text variant="footnote" weight="semibold" tone="due">
-                            {outstandingAge(patient.oldestUnpaidAt)}
+                            {age}
                         </Text>
-                    </Text>
+                    </View>
                 </View>
 
                 <MoneyValue amount={patient.balance} variant="body" weight="bold" tone="due" />
@@ -89,5 +93,6 @@ const styles = StyleSheet.create({
     // `flex-start` for the reason `domain/PatientRow` gives: a stretched line
     // aligns a Latin name by its own script, off the row's start edge in Arabic.
     text: { flex: 1, minWidth: 0, gap: space[0.5], alignItems: 'flex-start' },
+    age: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
     pressed: { backgroundColor: color.canvas },
 });

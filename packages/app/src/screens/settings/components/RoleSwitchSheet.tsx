@@ -70,9 +70,6 @@ export function RoleSwitchSheet({
             onClose={onCancel}
             onClosed={onClosed}
             title={locale === 'ar' ? `التبديل إلى ${t(toName)}؟` : `Switch to ${word}?`}
-            subtitle={t(
-                'Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do.',
-            )}
             testID="settings-role-sheet"
             footer={
                 <>

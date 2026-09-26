@@ -111,6 +111,10 @@ export const COPY_AR = {
     Money: 'الحسابات',
     Name: 'الاسم',
     'Needs a tooth': 'يتطلب تحديد سن',
+    'Asked before it is added.': 'يُسأل عنه قبل الإضافة.',
+    'Off: once per visit, per tooth.': 'عند الإيقاف: مرة واحدة لكل زيارة، لكل سن.',
+    'Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it.':
+        'يُضاف إلى كل زيارة عند تسجيل الحضور، ويُعفى منه عند عمل أي إجراء آخر. إجراء واحد فقط يمكن أن يحمله.',
     Next: 'التالي',
     No: 'لا',
     'No category': 'بدون تصنيف',
@@ -174,12 +178,9 @@ export const COPY_AR = {
     'Off on this build': 'متوقف في هذا الإصدار',
     'Problem reports are off on this build': 'تقارير المشاكل متوقفة في هذا الإصدار',
     'Check the server connection again': 'افحص الاتصال بالخادم مرة أخرى',
-    'Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do.':
-        'كل من يستخدم هذا الجهاز يشترك في تسجيل دخول واحد. يغيّر تبديل الدور ما يعرضه التطبيق وما يسمح بفعله.',
     FROM: 'من',
     TO: 'إلى',
-    'Used when a phone has both WhatsApp apps. A phone with only one opens that one.':
-        'يُستخدم عندما يكون على الهاتف تطبيقا واتساب. الهاتف الذي عليه تطبيق واحد يفتحه.',
+    'Used when a phone has both WhatsApp apps.': 'يُستخدم عندما يكون على الهاتف تطبيقا واتساب.',
     'WhatsApp Business': 'واتساب للأعمال',
     "You'll see the doctor's day view and clinic settings": 'سترى يوم الطبيب وإعدادات العيادة',
     'Prices, procedures and patient fields become editable': 'يمكن تعديل الأسعار والإجراءات وحقول المرضى',
@@ -325,14 +326,14 @@ export const COPY_AR = {
     'Connect to the clinic': 'الاتصال بالعيادة',
     "The branches haven't loaded yet. Try again in a moment.":
         'لم يتم تحميل الفروع بعد. حاول مرة أخرى بعد قليل.',
-    "The clinic computer's address on the local network.": 'عنوان كمبيوتر العيادة على الشبكة المحلية.',
     'Usually filled in by the clinic computer once connected. Leave blank.':
         'يُملأ عادةً من كمبيوتر العيادة بعد الاتصال. اتركه فارغًا.',
     "The clinic computer's Tailscale name, with the port. This phone must be signed in to Tailscale.":
         'اسم كمبيوتر العيادة على تايل سكيل مع المنفذ. يجب تسجيل دخول هذا الهاتف إلى تايل سكيل.',
     'No clinic server to hand?': 'لا يوجد خادم عيادة الآن؟',
-    'Sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.':
-        'مرضى ويوم تجريبي محفوظون على هذا الهاتف. لا يُحفظ شيء في العيادة.',
+    'No clinic server to hand? The demo is sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.':
+        'لا يوجد خادم للعيادة؟ الوضع التجريبي مرضى ويوم تجريبي محفوظون على هذا الهاتف. لا يُحفظ شيء في العيادة.',
+    'It is charged like any other visit.': 'تُحتسب مثل أي زيارة أخرى.',
     'Enter at least one address.': 'أدخل عنوانًا واحدًا على الأقل.',
     'Enter the Tailscale address.': 'أدخل عنوان تايل سكيل.',
     "That is not a Tailscale address. Use the clinic computer's name ending in .ts.net, or its 100.x address.":
@@ -363,7 +364,7 @@ export const COPY_AR = {
     'Needs lab': 'يحتاج معمل',
     'A crown, bridge or denture that has to be back before the visit.':
         'تاج أو جسر أو طقم يجب أن يرجع من المعمل قبل الزيارة.',
-    'LAB PENDING': 'بانتظار المعمل',
+    'Lab pending': 'بانتظار المعمل',
     'Back from the lab': 'رجع من المعمل',
     'Not back from the lab yet': 'لم يرجع من المعمل بعد',
     'Lab arrived': 'وصل من المعمل',
@@ -470,8 +471,6 @@ export const COPY_AR = {
     "Couldn't load this": 'تعذر تحميل البيانات',
     Crowns: 'التيجان',
     'DD / MM / YYYY': 'يوم / شهر / سنة',
-    'Daily notification time, if any reminders are pending':
-        'موعد الإشعار اليومي إذا كانت هناك تذكيرات معلّقة',
     'Day or reminders': 'اليوم أو التذكيرات',
     Decrease: 'إنقاص',
     'Diabetic?': 'مريض سكر؟',
@@ -495,10 +494,6 @@ export const COPY_AR = {
     'Hide procedure': 'إخفاء الإجراء',
     'Hide this procedure?': 'إخفاء هذا الإجراء؟',
     'How long': 'المدة',
-    'How long before the appointment a reminder becomes due. Changing it moves the reminders still waiting to be sent, for appointments still to come.':
-        'قبل الموعد بكم يصبح التذكير مستحقًا. تغييره ينقل التذكيرات التي لم تُرسل بعد، للمواعيد القادمة.',
-    'How often the notification repeats while reminders are still pending. Stops when the list is cleared or dismissed for the day, and never runs overnight.':
-        'كل كم يتكرر الإشعار ما دامت هناك تذكيرات معلّقة. يتوقف عند إنهاء القائمة أو إخفائها لليوم، ولا يعمل ليلًا.',
     'How was it paid?': 'كيف تم الدفع؟',
     'IN FOR': 'الزيارة من أجل',
     'IN THE CHAIR': 'على الكرسي',
@@ -580,8 +575,10 @@ export const COPY_AR = {
     Paid: 'المدفوع',
     'Paid in full': 'مدفوع بالكامل',
     'Previous month': 'الشهر السابق',
-    'Question in Arabic': 'السؤال بالعربية',
-    'Question in English': 'السؤال بالإنجليزية',
+    'In English': 'بالإنجليزية',
+    'In Arabic': 'بالعربية',
+    'A patient already on file is asked the next time their record is edited.':
+        'يُسأل المريض المسجّل بالفعل عند تعديل ملفه في المرة القادمة.',
     'Questions the clinic adds in settings appear here for every patient.':
         'تظهر هنا الأسئلة التي تضيفها العيادة في الإعدادات، لكل مريض.',
     'Read-only for now': 'للقراءة فقط حاليًا',
@@ -592,6 +589,8 @@ export const COPY_AR = {
     'Remaining balance': 'المتبقي',
     'Reminder message template': 'قالب رسالة التذكير',
     'Repeat every': 'التكرار كل',
+    'Moves reminders not yet sent.': 'ينقل التذكيرات التي لم تُرسل بعد.',
+    'Stops when cleared, never overnight.': 'يتوقف عند مسح القائمة، ولا يعمل ليلًا.',
     'Sample patient — real values are filled per appointment.':
         'مريض تجريبي — تُملأ القيم الحقيقية مع كل موعد.',
     'Save & close visit': 'حفظ وإنهاء الزيارة',
@@ -713,8 +712,6 @@ export const COPY_AR = {
     'REQUIRED OR OPTIONAL': 'مطلوب أم اختياري',
     'Require an age': 'اشتراط العمر',
     'Require a sex': 'اشتراط النوع',
-    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.':
-        'الاسم والهاتف مطلوبان دائمًا. عند اشتراط العمر أو النوع، يُطلب الحقل الناقص في ملف أي مريض مسجَّل عند تعديل الملف في المرة القادمة.',
     'ANSWER TYPE': 'نوع الإجابة',
     'ASK AGAIN': 'اسأل مرة أخرى',
     'BALANCES AS OF': 'الأرصدة حتى',
@@ -773,6 +770,8 @@ export const COPY_AR = {
     '{count} months': '{count} شهر',
     '1 year': 'سنة واحدة',
     '{count} years': '{count} سنة',
+    '{age} y': '{age} سنة',
+    'Owes {amount}': 'عليه {amount}',
     'Stats · {month} {year}': 'إحصائيات · {month} {year}',
     'Total collected {period}': 'إجمالي المحصّل {period}',
     'Due {period}': 'المستحق {period}',
@@ -899,8 +898,6 @@ export const COPY_AR = {
         'تُسجل مدفوعة نقدًا. إن كان عليهم جزء منها، افتح الزيارة من السجل وصحّح المدفوع.',
     'At least one': 'واحد على الأقل',
     'Nothing added yet': 'لم يُضف شيء بعد',
-    'Add what was done that day — a tooth, then the procedure. It is charged like any other visit.':
-        'أضف ما تم عمله ذلك اليوم — السن ثم الإجراء. يُحسب كأي زيارة أخرى.',
     'Pick the day it happened.': 'اختر اليوم الذي حدث فيه.',
     'Record this visit': 'سجل هذه الزيارة',
     Total: 'الإجمالي',
