@@ -55,6 +55,10 @@ beforeEach(() => {
 });
 
 describe('the seeded day', () => {
+    afterEach(() => {
+        setSystemTime();
+    });
+
     it('opens on a clinic that is open right now', () => {
         const schedule = settingsHandlers.schedule();
         expect(schedule).toHaveLength(7);
@@ -113,10 +117,15 @@ describe('the seeded day', () => {
 
     // The picker steps from opening, so an open on a :45 puts every slot it
     // offers back on a five however tidy the seeded rows are.
+    //
+    // `23:59` is the one close allowed off the grid: between 23:50 and midnight
+    // the next ten is 24:00, which `HH:MM` cannot say, and the seed keeps the
+    // clinic open past now over keeping the close tidy. CI runs in UTC, so
+    // that window is 02:50 in Cairo and it did come up.
     it('opens and closes the clinic on the same boundary', () => {
         for (const day of settingsHandlers.schedule()) {
             expect(Number(day.opensAt.slice(3)) % 10).toBe(0);
-            expect(Number(day.closesAt.slice(3)) % 10).toBe(0);
+            if (day.closesAt !== '23:59') expect(Number(day.closesAt.slice(3)) % 10).toBe(0);
         }
     });
 
@@ -180,7 +189,13 @@ describe('the seeded day', () => {
         }
     });
 
+    // At midday, because the rest of today is placed after now: seeded at 23:50,
+    // most of it lands on tomorrow and today holds three rows, which is right
+    // for that hour and not what this checks.
     it('draws a day, a register, a catalogue and money', () => {
+        setSystemTime(new Date(2030, 0, 15, 12, 0));
+        setDb(seedDemoDb());
+
         expect(
             appointmentHandlers.byDate({ date: today(), offsetMinutes: offsetMinutes() }).length,
         ).toBeGreaterThan(3);
