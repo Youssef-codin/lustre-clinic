@@ -1,41 +1,33 @@
 /**
- * Opening and closing time, on the platform's own picker.
+ * Opening and closing time: a row that shows the time, and a wheel in a sheet
+ * of its own to change it.
  *
- * The control it replaces was a `ui/Select` of hardcoded half-hour slots in a
- * full-height sheet — no selected state, no confirm, and a clinic opening at
- * 14:15 could not say so. The native dialog answers all of that for free: it
- * opens on the current value, marks it, has explicit OK and Cancel, sizes
- * itself, and counts in minutes rather than in whatever granularity someone
- * once hardcoded. Settings is the lowest-traffic screen in the app and these
- * hours change roughly never, which is the whole argument against building a
- * wheel by hand for it.
+ * The platform dialog this replaces drew its AM/PM from the OS locale, so an
+ * English phone showing the Arabic layout said PM where the row behind it said
+ * م, and nothing could override it. It was also the app's only native module of
+ * its kind. The wheel (`TimeWheel`) is plain JS, and its meridiem comes from
+ * the same `clock12` as the row.
  *
- * **`is24Hour: false` is the point.** The native picker otherwise follows the
- * *device's* 12/24-hour setting, which would put a 24-hour clock inside the one
- * control that edits a time while every other surface in the app shows 12-hour.
- * Android takes the override, so the app's decision wins and the device's is
- * ignored. That is what makes the native picker compatible with "no 24-hour
- * anywhere" rather than an exception to it.
+ * The wheel's sheet is mounted per pick and stacks on the day editor's
+ * (`Sheet`'s `stackBehavior="push"`), so the form stays up and dimmed behind it
+ * and Cancel, the backdrop or Back reveal it untouched. It is not a second face
+ * of the editor's sheet swapped in place — that is what the first wheel did,
+ * and a drag down then dismissed the sheet while `visible` stayed true, so the
+ * form bounced straight back in. `dragFromBody={false}` because a column scroll
+ * and a sheet dismiss are the same downward drag and the sheet otherwise wins
+ * it; the handle and the backdrop still close it.
  *
- * Android only, deliberately: `DateTimePickerAndroid.open` is the dialog form,
- * and the app has no iOS build (`scripts/` is adb and gradle throughout). iOS
- * would need the element form, and its spinner cannot be forced off the
- * device's 24-hour setting — if iOS is ever built, that conflict has to be
- * settled before this component is reused there.
- *
- * It lives in the cluster rather than in `ui/` because `ui/boundaries.test.ts`
- * allows a primitive to import only react, react-native, the theme and its own
- * siblings, and this needs a native module outside that list. Promoting it to
- * a `ui/TimeField` means widening that allowlist, which
- * is a bigger call than one screen's picker.
+ * All sixty minutes: a clinic opening at 09:45 can say so. That was the
+ * complaint against the half-hour `Select` before the platform dialog, and
+ * rounding the wheel to quarters would bring it back.
  */
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { useRef } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import { formatClock12 } from '../../../components/domain';
-import { Chevron, Field } from '../../../components/ui';
-import { useLocale } from '../../../i18n';
+import { Button, Chevron, Field, Sheet } from '../../../components/ui';
+import { useLocale, useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
+import { TimeWheel } from './TimeWheel';
 
 export type TimePickerFieldProps = {
     label: string;
@@ -48,12 +40,6 @@ export type TimePickerFieldProps = {
     testID?: string;
 };
 
-function dateAt(minutes: number): Date {
-    const date = new Date();
-    date.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
-    return date;
-}
-
 export function TimePickerField({
     label,
     value,
@@ -63,57 +49,63 @@ export function TimePickerField({
     disabled = false,
     testID,
 }: TimePickerFieldProps) {
-    const shown = formatClock12(value, useLocale());
+    const locale = useLocale();
+    const t = useT();
+    const shown = formatClock12(value, locale);
 
-    /**
-     * Whether the dialog is already up. The control has no state to bail out
-     * of — the picker is opened imperatively — and the row stays under the
-     * finger until the native dialog has been raised, so a double tap asks for
-     * two of them and Cancel then dismisses one and leaves the other.
-     */
-    const asked = useRef(false);
+    /** What the wheel reads now; `null` while no wheel is up. */
+    const [draft, setDraft] = useState<number | null>(null);
 
-    function open() {
-        if (asked.current) return;
-        asked.current = true;
-
-        DateTimePickerAndroid.open({
-            value: dateAt(value),
-            mode: 'time',
-            is24Hour: false,
-            onChange: (event, picked) => {
-                asked.current = false;
-                // 'dismissed' is Cancel and the back gesture both; only 'set'
-                // is the user saying yes.
-                if (event.type !== 'set' || !picked) return;
-                onChange(picked.getHours() * 60 + picked.getMinutes());
-            },
-        });
+    function set() {
+        if (draft !== null) onChange(draft);
+        setDraft(null);
     }
 
     return (
-        <Field label={label} hint={hint} error={error}>
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                accessibilityValue={{ text: shown }}
-                accessibilityState={{ disabled }}
-                disabled={disabled}
-                onPress={open}
-                testID={testID}
-                style={({ pressed }) => [
-                    styles.control,
-                    error ? styles.errored : null,
-                    pressed && styles.pressed,
-                    disabled && styles.disabled,
-                ]}
-            >
-                <Text variant="body" numberOfLines={1} style={styles.value}>
-                    {shown}
-                </Text>
-                <Chevron direction="down" />
-            </Pressable>
-        </Field>
+        <>
+            <Field label={label} hint={hint} error={error}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t(label)}
+                    accessibilityValue={{ text: shown }}
+                    accessibilityState={{ disabled }}
+                    disabled={disabled}
+                    onPress={() => setDraft(value)}
+                    testID={testID}
+                    style={({ pressed }) => [
+                        styles.control,
+                        error ? styles.errored : null,
+                        pressed && styles.pressed,
+                        disabled && styles.disabled,
+                    ]}
+                >
+                    <Text variant="body" numberOfLines={1} style={styles.value}>
+                        {shown}
+                    </Text>
+                    <Chevron direction="down" />
+                </Pressable>
+            </Field>
+
+            {draft !== null ? (
+                <Sheet
+                    visible
+                    onClose={() => setDraft(null)}
+                    dragFromBody={false}
+                    scrollBody={false}
+                    title={label}
+                    subtitle={formatClock12(draft, locale)}
+                    testID="time-wheel-sheet"
+                    footer={
+                        <>
+                            <Button label="Set" block onPress={set} testID="time-wheel-set" />
+                            <Button label="Cancel" variant="ghost" block onPress={() => setDraft(null)} />
+                        </>
+                    }
+                >
+                    <TimeWheel value={draft} onChange={setDraft} />
+                </Sheet>
+            ) : null}
+        </>
     );
 }
 

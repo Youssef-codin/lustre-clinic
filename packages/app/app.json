@@ -31,7 +31,6 @@
             "./plugins/withNavigationBarContrast",
             "./plugins/withReleaseSigning",
             "./plugins/withReleaseVersionCode",
-            "@react-native-community/datetimepicker",
             [
                 "expo-notifications",
                 {

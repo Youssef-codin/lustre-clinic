@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Changed
+
+- Working hours' opening and closing times are picked on a wheel inside the app, in the app's language, instead of the phone's clock dialog. AM and PM now match the rest of the screen in Arabic.
+
 ## [1.6.1] - 2026-09-26
 
 ### Changed
