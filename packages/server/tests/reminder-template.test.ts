@@ -117,6 +117,42 @@ describe('the sender, against what the pane can build', () => {
         expect(reminder.whatsAppUrl).not.toContain('%7B');
     });
 
+    // `&`, `#` and `+` would each cut the text short or turn into a space if
+    // the message were put in the query unencoded, and the Arabic text and the
+    // line break are what a clinic here actually writes.
+    test('the WhatsApp link carries the whole message, whatever it is written in', async () => {
+        await settingsService.update({
+            clinicName: 'Smile & Co #1 + Kids',
+            reminderTemplate: `موعدك الساعة ${reminderToken('time')}\n${reminderToken('clinic')} 100% ${reminderToken('date')}?`,
+        });
+
+        const reminder = await bookedReminder();
+        const url = new URL(reminder.whatsAppUrl);
+        const time = reminder.startsAt.toISOString().slice(11, 16);
+
+        expect(url.origin + url.pathname).toMatch(/^https:\/\/wa\.me\/\d+$/);
+        expect([...url.searchParams.keys()]).toEqual(['text']);
+        expect(url.hash).toBe('');
+        expect(url.searchParams.get('text')).toBe(reminder.message);
+        expect(reminder.message).toStartWith(`موعدك الساعة ${time}\nSmile & Co #1 + Kids 100% `);
+    });
+
+    test('the time is the appointment time in the clinic day, not UTC', async () => {
+        await settingsService.update({ reminderTemplate: reminderToken('time') });
+        const { branch, patient } = await fixtures();
+        await appointmentService.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: slot(),
+            offsetMinutes: 180,
+        });
+
+        const [reminder] = await reminderService.pending({ dueOnly: false, limit: 100, offsetMinutes: 180 });
+
+        expect(reminder?.message).toBe('12:00');
+        expect(new URL(reminder?.whatsAppUrl ?? '').searchParams.get('text')).toBe('12:00');
+    });
+
     test('a template built from every chip leaves nothing unsubstituted', async () => {
         await settingsService.update({ reminderTemplate: REMINDER_TOKENS.join(' ') });
 
