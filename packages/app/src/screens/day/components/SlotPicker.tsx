@@ -99,7 +99,7 @@ export function SlotPicker({
                 </Text>
                 {daysLoading ? (
                     <Text variant="subhead" tone="muted">
-                        Reading the fortnight…
+                        {t('Reading the fortnight…')}
                     </Text>
                 ) : (
                     <>
@@ -137,8 +137,14 @@ export function SlotPicker({
 
                         {days.length === 0 ? (
                             <Text variant="subhead" tone="muted">
-                                {branchName ?? 'This branch'} has no day in the next fortnight with room for a
-                                visit this long. Try a shorter one, another branch, or a date further out.
+                                {branchName
+                                    ? t(
+                                          '{branch} has no day in the next fortnight with room for a visit this long. Try a shorter one, another branch, or a date further out.',
+                                          { branch: branchName },
+                                      )
+                                    : t(
+                                          'This branch has no day in the next fortnight with room for a visit this long. Try a shorter one, another branch, or a date further out.',
+                                      )}
                             </Text>
                         ) : null}
                     </>
@@ -159,7 +165,7 @@ export function SlotPicker({
 
                 {loading ? (
                     <Text variant="subhead" tone="muted">
-                        Reading that day…
+                        {t('Reading that day…')}
                     </Text>
                 ) : error ? (
                     <View style={styles.failure}>
@@ -171,8 +177,8 @@ export function SlotPicker({
                 ) : free.length === 0 ? (
                     <Text variant="subhead" tone="muted">
                         {slots.length === 0
-                            ? 'No times that day.'
-                            : 'Every time that day has gone — pick another day above.'}
+                            ? t('No times that day.')
+                            : t('Every time that day has gone — pick another day above.')}
                     </Text>
                 ) : (
                     <>

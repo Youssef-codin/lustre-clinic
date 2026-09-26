@@ -32,7 +32,7 @@ import {
     type MenuAnchor,
     useReducedMotion,
 } from '../../../components/ui';
-import { useIsRTL } from '../../../i18n';
+import { useIsRTL, useT } from '../../../i18n';
 import { border, color, radius, shadow, size, space, Text } from '../../../theme';
 import type { Branch } from '../data';
 import { formatDate, formatDatePill, relativeDayLabel } from '../time';
@@ -50,6 +50,7 @@ export type DayHeaderProps = {
 };
 
 export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCalendar }: DayHeaderProps) {
+    const t = useT();
     const isRTL = useIsRTL();
     const [menu, setMenu] = useState(false);
     const [anchor, setAnchor] = useState<MenuAnchor | undefined>(undefined);
@@ -119,7 +120,9 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
                     <Pressable
                         accessibilityRole={switchable ? 'button' : 'text'}
                         accessibilityLabel={
-                            switchable ? `Branch: ${branch?.name ?? 'none'}. Change branch` : branch?.name
+                            switchable
+                                ? t('Branch: {branch}. Change branch', { branch: branch?.name ?? t('none') })
+                                : branch?.name
                         }
                         disabled={!switchable}
                         onPress={openBranches}
@@ -132,7 +135,7 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
                         <View style={styles.branchClip}>
                             <Animated.View style={entering}>
                                 <Text variant="callout" weight="semibold" numberOfLines={1}>
-                                    {branch?.name ?? 'Clinic'}
+                                    {branch?.name ?? t('Clinic')}
                                 </Text>
                             </Animated.View>
                             {leaving ? (
@@ -149,7 +152,10 @@ export function DayHeader({ dateKey, branches, branchId, onPickBranch, onOpenCal
 
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${relativeDayLabel(dateKey)}, ${formatDate(dateKey)}. Open the calendar`}
+                    accessibilityLabel={t('{relative}, {date}. Open the calendar', {
+                        relative: relativeDayLabel(dateKey),
+                        date: formatDate(dateKey),
+                    })}
                     onPress={onOpenCalendar}
                     style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
                     testID="day-date-pill"

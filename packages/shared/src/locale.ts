@@ -425,8 +425,8 @@ export const COPY_AR = {
     'Say how they paid': 'اذكر طريقة الدفع',
     'Something in that was not accepted': 'بعض البيانات غير مقبولة',
     '01xx xxx xxxx': '01xx xxx xxxx',
-    '+1 more': '+إجراء آخر',
-    '+{count} more': '+{count} إجراءات أخرى',
+    '+1 more': 'وإجراء آخر',
+    '+{count} more': 'و{count} أخرى',
     "A category groups procedures. It has no price of its own and can't be picked on a visit.":
         'التصنيف يجمع الإجراءات. ليس له سعر خاص ولا يمكن اختياره في زيارة.',
     'A procedure inside a category is one of its subtypes, priced on its own.':
@@ -766,7 +766,7 @@ export const COPY_AR = {
     'At desk': 'عند المكتب',
     'Take payment': 'تحصيل الدفع',
     '{time} · {duration} late': '{time} · متأخر {duration}',
-    'The clinic does not open on {day}s. Change that in Settings → Opening hours.':
+    'The clinic does not open on {day}s. Change that in Settings → Working hours.':
         'العيادة لا تفتح يوم {day}. غيّر ذلك من الإعدادات ← ساعات العمل.',
     '{count} patient': 'مريض واحد',
     '{count} patients': '{count} مرضى',
@@ -1021,6 +1021,238 @@ export const COPY_AR = {
     NOTES: 'ملاحظات',
     'Patient notes': 'ملاحظات المريض',
     'Anything the clinic should know': 'أي شيء يجب أن تعرفه العيادة',
+    'A branch is where an appointment happens. Add the clinic itself first.':
+        'الفرع هو المكان الذي يتم فيه الموعد. أضف العيادة نفسها أولًا.',
+    'A branch needs a name.': 'الفرع يحتاج إلى اسم.',
+    'Add at least one procedure before continuing': 'أضف إجراءً واحدًا على الأقل قبل المتابعة',
+    'A dropdown needs at least two options.': 'القائمة المنسدلة تحتاج إلى خيارين على الأقل.',
+    'Another patient already has that number. Check the old ref and try again.':
+        'هذا الرقم لمريض آخر. راجع الرقم القديم وحاول مرة أخرى.',
+    'A patient already has that number, or a higher one. Numbering has to carry on above it.':
+        'هناك مريض يحمل هذا الرقم أو رقمًا أعلى منه. يجب أن يستمر الترقيم بعده.',
+    'A procedure needs a name.': 'الإجراء يحتاج إلى اسم.',
+    'A question needs to say something.': 'السؤال لا يمكن أن يكون فارغًا.',
+    'Ask what you need on top of the built-in details — medical history, how they found you, anything.':
+        'اسأل عمّا تحتاجه إضافةً إلى البيانات الأساسية — التاريخ المرضي، كيف عرف المريض بالعيادة، أي شيء.',
+    'Back to the record': 'العودة إلى الملف',
+    'Branch added': 'تمت إضافة الفرع',
+    'Branch saved': 'تم حفظ الفرع',
+    'Could not open the form': 'تعذّر فتح النموذج',
+    'Create branch': 'إنشاء الفرع',
+    'Deactivate branch': 'إيقاف الفرع',
+    'Deactivate question': 'إيقاف السؤال',
+    'Deactivate this branch?': 'إيقاف هذا الفرع؟',
+    'Deactivate this question?': 'إيقاف هذا السؤال؟',
+    'Edit branch': 'تعديل الفرع',
+    'Edit procedure': 'تعديل الإجراء',
+    'Edit question': 'تعديل السؤال',
+    'Edit what was done': 'تعديل ما تم',
+    'Go to this day': 'الذهاب إلى هذا اليوم',
+    'It appears when booking again.': 'سيظهر عند الحجز مرة أخرى.',
+    'It is asked again, and the answers already given show up again.':
+        'سيُطرح السؤال مرة أخرى، وستظهر الإجابات السابقة من جديد.',
+    "It stops appearing when adding work to a visit, and comes off this screen for good — you won't be able to bring it back from here. Nothing is deleted: past visits keep it and keep what they charged.":
+        'لن يظهر عند إضافة عمل إلى زيارة، وسيختفي من هذه الشاشة نهائيًا — لن تتمكن من إعادته من هنا. لا يُحذف شيء: تحتفظ الزيارات السابقة به وبما دُفع مقابله.',
+    'It stops appearing when booking. Nothing is deleted — every appointment already at this branch keeps it.':
+        'لن يظهر عند الحجز. لا يُحذف شيء — كل موعد في هذا الفرع يبقى كما هو.',
+    'It stops being asked on new and existing records. Nothing is erased — every answer stays where it is, and comes back if you turn it on again.':
+        'لن يُطرح في الملفات الجديدة ولا الحالية. لا يُمسح شيء — تبقى كل إجابة في مكانها، وتعود إذا شغّلته مرة أخرى.',
+    'Lowercase letters, numbers and underscores. It has to start with a letter.':
+        'حروف إنجليزية صغيرة وأرقام وشرطة سفلية. يجب أن يبدأ بحرف.',
+    'New branch': 'فرع جديد',
+    'New procedure': 'إجراء جديد',
+    'New question': 'سؤال جديد',
+    'Old visit is not wired up from here yet.': 'الزيارة القديمة غير متاحة من هنا بعد.',
+    'One of the old procedures is dated after the cutoff. Work done since then belongs in a visit, not here.':
+        'أحد الإجراءات القديمة بتاريخ بعد تاريخ البدء. العمل الذي تم بعده مكانه في زيارة، لا هنا.',
+    'One of the old procedures is done to a tooth and has none. Remove it and add it again.':
+        'أحد الإجراءات القديمة يُجرى على سن ولم تُحدَّد له سن. احذفه وأضفه مرة أخرى.',
+    'One of the old procedures is not done to a tooth. Remove it and add it again.':
+        'أحد الإجراءات القديمة لا يُجرى على سن. احذفه وأضفه مرة أخرى.',
+    'Pick the tooth first, or skip if it does not apply.': 'اختر السن أولًا، أو تخطَّ إن لم يكن ذلك مناسبًا.',
+    'Procedure added': 'تمت إضافة الإجراء',
+    'Procedure hidden': 'تم إخفاء الإجراء',
+    'Procedure saved': 'تم حفظ الإجراء',
+    'Question added': 'تمت إضافة السؤال',
+    'Question saved': 'تم حفظ السؤال',
+    Reactivate: 'إعادة التفعيل',
+    'Reactivate branch': 'إعادة تفعيل الفرع',
+    'Reactivate question': 'إعادة تفعيل السؤال',
+    'Reactivate this branch?': 'إعادة تفعيل هذا الفرع؟',
+    'Reactivate this question?': 'إعادة تفعيل هذا السؤال؟',
+    'Record what was done': 'تسجيل ما تم',
+    'Registering a patient is not wired up here yet.': 'تسجيل مريض غير متاح من هنا بعد.',
+    'Save branch': 'حفظ الفرع',
+    'Save patient': 'حفظ المريض',
+    Saving: 'جارٍ الحفظ',
+    'Saving…': 'جارٍ الحفظ…',
+    'Tap a category to choose a variant. Anything done to a tooth will ask which one.':
+        'اضغط على تصنيف لاختيار نوعه. أي إجراء على سن سيسألك عن السن.',
+    'Tap a category to choose a variant — most are picked directly.':
+        'اضغط على تصنيف لاختيار نوعه — معظمها يُختار مباشرة.',
+    'That number has not been given out yet. Check the old ref, or raise the next patient number in Settings → Clinic.':
+        'هذا الرقم لم يُستخدم بعد. راجع الرقم القديم، أو ارفع رقم المريض التالي من الإعدادات ← العيادة.',
+    'That phone number was not accepted. Check it and try again.':
+        'لم يُقبل رقم الهاتف هذا. راجعه وحاول مرة أخرى.',
+    'That time has gone by': 'هذا الوقت قد فات',
+    'That time is already booked': 'هذا الوقت محجوز بالفعل',
+    'The clinic needs a name.': 'العيادة تحتاج إلى اسم.',
+    'The clinic needs a phone number.': 'العيادة تحتاج إلى رقم هاتف.',
+    'The clinic server needs updating before it can take what an old patient owes. Register them without it for now.':
+        'خادم العيادة يحتاج إلى تحديث قبل أن يقبل المبلغ المستحق على مريض قديم. سجّله بدونه الآن.',
+    'The same procedure is listed twice on one day. Remove one of them.':
+        'الإجراء نفسه مُسجَّل مرتين في يوم واحد. احذف أحدهما.',
+    'These are what a visit is charged for. Add the checkup first — it is the line every visit starts with.':
+        'هذه هي ما تُحاسَب عليه الزيارة. أضف الكشف أولًا — فهو البند الذي تبدأ به كل زيارة.',
+    'This visit could not be found': 'تعذّر العثور على هذه الزيارة',
+    'Add to {name}': 'إضافة إلى {name}',
+    'all branches': 'كل الفروع',
+    'another branch': 'فرع آخر',
+    '{answered} of {total} questions answered': 'الأسئلة المُجاب عنها: {answered} من {total}',
+    'Answers are kept on the record. Nothing here is ever deleted — a question the clinic stops asking keeps its answer and stops showing.':
+        'تُحفظ الإجابات في الملف. لا يُحذف شيء هنا أبدًا — السؤال الذي تتوقف العيادة عن طرحه يحتفظ بإجابته ويختفي فقط.',
+    'Appears in the branch picker and can take new bookings.': 'يظهر في اختيار الفرع ويقبل حجوزات جديدة.',
+    'A procedure with subtypes is a heading — only the subtypes under it can go on a visit, and each has its own price.':
+        'الإجراء الذي له أنواع فرعية هو عنوان — الأنواع الفرعية وحدها تُضاف إلى الزيارة، ولكل منها سعره.',
+    'a tooth': 'سن',
+    'Before this, {count} appointments': 'قبل هذا، المواعيد: {count}',
+    'Branch: {branch}. Change branch': 'الفرع: {branch}. تغيير الفرع',
+    'Branches are never deleted — their visits, invoices and patients stay attached to them. Deactivating just hides a branch from new bookings.':
+        'لا تُحذف الفروع أبدًا — تبقى زياراتها وفواتيرها ومرضاها مرتبطة بها. الإيقاف يُخفي الفرع عن الحجوزات الجديدة فقط.',
+    '{branch} has no day in the next fortnight with room for a visit this long. Try a shorter one, another branch, or a date further out.':
+        'لا يوجد في {branch} يوم خلال الأسبوعين القادمين يتسع لزيارة بهذه المدة. جرّب مدة أقصر، أو فرعًا آخر، أو تاريخًا أبعد.',
+    'Call {name}': 'الاتصال بـ {name}',
+    'Can be left blank': 'يمكن تركه فارغًا',
+    'Cancel this appointment?': 'إلغاء هذا الموعد؟',
+    '{count} booked': '{count} محجوز',
+    'Counting {scope}, next branch': 'العدّ: {scope}، الفرع التالي',
+    '{count} required left': 'المطلوب المتبقي: {count}',
+    'Development build, {server}': 'نسخة تطوير، {server}',
+    'Every time that day has gone — pick another day above.':
+        'فاتت كل الأوقات في ذلك اليوم — اختر يومًا آخر بالأعلى.',
+    'Go to this day in {branch}': 'الذهاب إلى هذا اليوم في {branch}',
+    'Hidden from the branch picker. Past visits and invoices are untouched and still searchable.':
+        'مخفي من اختيار الفرع. الزيارات والفواتير السابقة كما هي ويمكن البحث فيها.',
+    'Hiding takes it out of the catalogue and off this screen. Visits that already charged for it keep it, at the price they were charged.':
+        'الإخفاء يُخرجه من القائمة ومن هذه الشاشة. الزيارات التي حُوسبت عليه تحتفظ به بالسعر الذي دُفع.',
+    'In the chair: {name}': 'على الكرسي: {name}',
+    'Loading the visit…': 'جارٍ تحميل الزيارة…',
+    'Make {minutes} minutes the default': 'جعل {minutes} دقيقة المدة الافتراضية',
+    'Marked as a no-show. The slot is free.': 'سُجّل عدم الحضور. الموعد متاح الآن.',
+    'Mark this a no-show?': 'تسجيل عدم الحضور؟',
+    '{method} share of takings': 'نصيب {method} من الإيراد',
+    'mostly in {branch}': 'معظمه في {branch}',
+    'Move down': 'نقل لأسفل',
+    'Move down {item}': 'نقل {item} لأسفل',
+    'Move up': 'نقل لأعلى',
+    'Move up {item}': 'نقل {item} لأعلى',
+    'Must be answered': 'إجابته مطلوبة',
+    'New version ready · Lustre {version}': 'يتوفر إصدار جديد · لستر {version}',
+    none: 'لا يوجد',
+    'Nothing in the catalogue is done to a single tooth, so there is nothing to add to {tooth}.':
+        'لا يوجد في القائمة إجراء يُجرى على سن واحدة، فلا شيء يُضاف إلى {tooth}.',
+    'Nothing in this category yet. Settings → Procedures.':
+        'لا شيء في هذا التصنيف بعد. الإعدادات ← الإجراءات.',
+    'No times that day.': 'لا أوقات في ذلك اليوم.',
+    'Patient number {ref}': 'رقم المريض {ref}',
+    'Patient reference {ref}': 'رقم المريض {ref}',
+    'Pre-filled when booking a new appointment. It must be one of the options above — pick another option first if you want to remove it.':
+        'تُملأ تلقائيًا عند حجز موعد جديد. يجب أن تكون أحد الخيارات أعلاه — اختر خيارًا آخر أولًا إن أردت حذفها.',
+    'Price for {name}': 'سعر {name}',
+    '{problem} — showing the day as it was.': '{problem} — يُعرض اليوم كما كان.',
+    '{problem} — the visit could not be opened.': '{problem} — تعذّر فتح الزيارة.',
+    '{procedure} is done to a tooth. Pick the one it is for.': '{procedure} يُجرى على سن. اختر السن المقصودة.',
+    'Reading that day…': 'جارٍ قراءة ذلك اليوم…',
+    'Reading the catalogue…': 'جارٍ قراءة القائمة…',
+    'Reading the fortnight…': 'جارٍ قراءة الأسبوعين…',
+    'Reading the visit…': 'جارٍ قراءة الزيارة…',
+    '{relative}, {date}. Open the calendar': '{relative}، {date}. فتح التقويم',
+    'Remove {minutes} minutes': 'حذف {minutes} دقيقة',
+    'Rename {name}': 'إعادة تسمية {name}',
+    'Searching…': 'جارٍ البحث…',
+    'Showing {count} of {total}': 'عرض {count} من {total}',
+    'Showing {count} of {total} · largest balances': 'عرض {count} من {total} · أعلى الأرصدة',
+    'still counting': 'ما زال العدّ جاريًا',
+    'The clinic has no procedures set up yet. Settings → Procedures.':
+        'لم تُضف العيادة أي إجراءات بعد. الإعدادات ← الإجراءات.',
+    'These questions appear on every patient record, under the details the app always asks for. Changing them here changes the form for the whole clinic.':
+        'تظهر هذه الأسئلة في ملف كل مريض، تحت البيانات التي يسألها التطبيق دائمًا. تغييرها هنا يغيّر النموذج للعيادة كلها.',
+    'These stop being asked. The answers patients already gave are kept, and come back if the question does.':
+        'لن تُطرح هذه الأسئلة. تُحفظ إجابات المرضى السابقة، وتعود إذا عاد السؤال.',
+    'The slot goes back on the day and the patient keeps their record. Nothing is deleted.':
+        'يعود الموعد متاحًا في اليوم ويبقى ملف المريض كما هو. لا يُحذف شيء.',
+    'They did not come. The slot goes back on the day and the visit is left unbooked.':
+        'لم يحضر المريض. يعود الموعد متاحًا في اليوم ولا تُسجَّل زيارة.',
+    'This appointment was cancelled. The slot is free.': 'أُلغي هذا الموعد. الموعد متاح الآن.',
+    'this branch': 'هذا الفرع',
+    'This branch has no day in the next fortnight with room for a visit this long. Try a shorter one, another branch, or a date further out.':
+        'لا يوجد في هذا الفرع يوم خلال الأسبوعين القادمين يتسع لزيارة بهذه المدة. جرّب مدة أقصر، أو فرعًا آخر، أو تاريخًا أبعد.',
+    'This is the order the questions appear on the patient record. Move them with the arrows.':
+        'هذا هو ترتيب ظهور الأسئلة في ملف المريض. حرّكها بالأسهم.',
+    'This patient was checked in before the app was opened, so the visit is not to hand. Open it from the visit screen to check them out.':
+        'سُجّل وصول هذا المريض قبل فتح التطبيق، لذا الزيارة غير متاحة هنا. افتحها من شاشة الزيارة لإنهاء الحساب.',
+    'This visit is finished.': 'انتهت هذه الزيارة.',
+    'Under {parent}': 'تحت {parent}',
+    'WhatsApp {name}': 'واتساب {name}',
+    'Switch to the doctor?': 'التبديل إلى الطبيب؟',
+    'Switch to the secretary?': 'التبديل إلى السكرتارية؟',
+    'Switch to the doctor': 'التبديل إلى الطبيب',
+    'Switch to the secretary': 'التبديل إلى السكرتارية',
+    'A category needs a name.': 'التصنيف يحتاج إلى اسم.',
+    'Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it.':
+        'يُضاف إلى كل زيارة عند تسجيل الوصول، ويُلغى إذا أُجري أي عمل آخر. يمكن أن يحمل هذا الإعداد إجراء واحد فقط.',
+    'Appointment reminders': 'تذكيرات المواعيد',
+    'The daily nudge that reminders are still waiting to be sent.':
+        'تنبيه يومي بأن هناك تذكيرات لم تُرسل بعد.',
+    'Reminders pending': 'تذكيرات معلّقة',
+    'Reminders are waiting to be sent.': 'هناك تذكيرات في انتظار الإرسال.',
+    'Branch deactivated': 'تم إيقاف الفرع',
+    'Branch reactivated': 'تمت إعادة تفعيل الفرع',
+    'Question deactivated': 'تم إيقاف السؤال',
+    'Question reactivated': 'تمت إعادة تفعيل السؤال',
+    'Built in': 'مدمج',
+    'Off in this build': 'غير متاح في هذه النسخة',
+    '{version} · build {build}': '{version} · البنية {build}',
+    'Lustre {version} (build {build})': 'لستر {version} (البنية {build})',
+    'Lustre {version}': 'لستر {version}',
+    'Dropdown · {count} options': 'قائمة منسدلة · الخيارات: {count}',
+    'Off means it can appear once per visit, per tooth.': 'عند الإيقاف يظهر مرة واحدة لكل زيارة ولكل سن.',
+    'The visit asks which tooth before this can be added.': 'تسأل الزيارة عن السن قبل إضافة هذا الإجراء.',
+    'Yes / no': 'نعم / لا',
+    Dropdown: 'قائمة منسدلة',
+    'Short text': 'نص قصير',
+    Number: 'رقم',
+    Close: 'إغلاق',
+    'That one is already offered.': 'هذه المدة موجودة بالفعل.',
+    'Whole minutes only.': 'دقائق كاملة فقط.',
+    'The message cannot be empty.': 'لا يمكن أن تكون الرسالة فارغة.',
+    'Durations · default {minutes} min': 'المدد · الافتراضية: {minutes} دقيقة',
+    'Due {hours}h before · notify {time}': 'قبل الموعد بـ {hours} س · التنبيه {time}',
+    '{active} active · {inactive} inactive': 'النشطة: {active} · غير النشطة: {inactive}',
+    '{count} days open': 'أيام العمل: {count}',
+    '{count} procedures · {active} active': 'الإجراءات: {count} · النشطة: {active}',
+    '{count} questions · {required} required': 'الأسئلة: {count} · المطلوبة: {required}',
+    'Report queued · ref {ref}': 'تم وضع التقرير في قائمة الإرسال · المرجع {ref}',
+    'Lustre {version} (build {build}). Download it, then tap Install.':
+        'لستر {version} (البنية {build}). نزّله ثم اضغط تثبيت.',
+    '1 procedure': 'إجراء واحد',
+    '{answered} of {total} answered': 'تمت الإجابة: {answered} من {total}',
+    'BEFORE THIS · {count}': 'قبل ذلك · {count}',
+    'checked in {time}': 'وصل {time}',
+    'waiting {duration}': 'ينتظر منذ {duration}',
+    '{paid} of {charged}': '{paid} من {charged}',
+    'Saving this makes “{category}” a category with this as its first subtype. A category has no price of its own.':
+        'الحفظ يجعل «{category}» تصنيفًا، وهذا أول نوع فرعي فيه. التصنيف ليس له سعر خاص به.',
+    '{questions} is required, and cannot be answered here yet. Make it optional in Settings to register someone.':
+        'السؤال «{questions}» مطلوب، ولا يمكن الإجابة عنه هنا بعد. اجعله اختياريًا من الإعدادات لتسجيل مريض.',
+    '{questions} are required, and cannot be answered here yet. Make them optional in Settings to register someone.':
+        'الأسئلة «{questions}» مطلوبة، ولا يمكن الإجابة عنها هنا بعد. اجعلها اختيارية من الإعدادات لتسجيل مريض.',
+    '{procedure} · {minutes} min': '{procedure} · {minutes} دقيقة',
+    'just now': 'الآن',
+    '{minutes} min ago': 'منذ {minutes} دقيقة',
+    '1 hour ago': 'منذ ساعة',
+    '{hours} hours ago': 'منذ {hours} ساعة',
+    'Last connected {when}': 'آخر اتصال {when}',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

@@ -29,6 +29,7 @@
 import type { Tooth } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { border, color, radius, space, Text } from '../../theme';
 import { Chevron } from '../ui';
 
@@ -70,6 +71,7 @@ export function ToothGroupCard({
     footer,
     testID,
 }: ToothGroupCardProps) {
+    const t = useT();
     if (variant === 'row') {
         return (
             <View style={styles.row} testID={testID}>
@@ -103,7 +105,10 @@ export function ToothGroupCard({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityState={{ expanded }}
-                    accessibilityLabel={`${position}, ${lines.length} procedures`}
+                    accessibilityLabel={t('{position}, {count} procedures', {
+                        position,
+                        count: lines.length,
+                    })}
                     onPress={onToggle}
                     style={({ pressed }) => [styles.head, pressed && styles.pressed]}
                 >

@@ -18,7 +18,7 @@ import { Animated, AppState, type ScrollView, StyleSheet, useWindowDimensions, V
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MenuAnchor } from '../../components/ui';
 import { DropdownMenu, ScreenHeader, useKeyboardHeight, usePullToRefresh } from '../../components/ui';
-import { useLocale, useT } from '../../i18n';
+import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
 import { todayKey } from '../day/time';
 import { DebtorRow } from './components/DebtorRow';
@@ -58,7 +58,6 @@ export type MoneyScreenProps = {
 };
 
 export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
-    const locale = useLocale();
     const t = useT();
     const [period, setPeriod] = useState<Period>('month');
     const [search, setSearch] = useState('');
@@ -252,7 +251,6 @@ export function MoneyScreen({ goHome = 0, onOpenRecord }: MoneyScreenProps) {
                                 shownOf={outstanding.data.patients.length}
                                 sort={sort}
                                 searching={searching}
-                                locale={locale}
                                 onOpenRecord={onOpenRecord}
                             />
                         ) : null}
@@ -291,14 +289,12 @@ function DebtorList({
     shownOf,
     sort,
     searching,
-    locale,
     onOpenRecord,
 }: {
     debtors: PatientBalance[];
     shownOf: number;
     sort: DebtorSort;
     searching: boolean;
-    locale: 'en' | 'ar';
     onOpenRecord?: (patientId: string) => void;
 }) {
     const t = useT();
@@ -337,9 +333,12 @@ function DebtorList({
             </View>
 
             <Text variant="footnote" tone="muted" style={styles.foot}>
-                {locale === 'ar'
-                    ? `عرض ${debtors.length} من ${shownOf}${sort === 'balance' ? ' · أعلى الأرصدة' : ''}`
-                    : `Showing ${debtors.length} of ${shownOf}${sort === 'balance' ? ' · largest balances' : ''}`}
+                {sort === 'balance'
+                    ? t('Showing {count} of {total} · largest balances', {
+                          count: debtors.length,
+                          total: shownOf,
+                      })
+                    : t('Showing {count} of {total}', { count: debtors.length, total: shownOf })}
             </Text>
         </View>
     );

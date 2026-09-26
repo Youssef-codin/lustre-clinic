@@ -75,6 +75,7 @@ export function BasicsCard({
     ref: refMode = 'hidden',
     refError,
 }: BasicsCardProps) {
+    const t = useT();
     const owed = new Set(blank);
     const [refLeft, setRefLeft] = useState(false);
 
@@ -131,7 +132,7 @@ export function BasicsCard({
                                 <Text
                                     variant="callout"
                                     style={styles.mono}
-                                    accessibilityLabel={`Patient number ${form.ref}`}
+                                    accessibilityLabel={t('Patient number {ref}', { ref: form.ref })}
                                     testID="patient-ref-locked"
                                 >
                                     {form.ref}

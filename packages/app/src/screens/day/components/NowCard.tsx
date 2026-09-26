@@ -62,10 +62,11 @@ function Name({
     appointment: Appointment;
     onOpenRecord: (id: string) => void;
 }) {
+    const t = useT();
     return (
         <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`Open ${appointment.patient.name}'s record`}
+            accessibilityLabel={t("Open {name}'s record", { name: appointment.patient.name })}
             onPress={() => onOpenRecord(appointment.patient.id)}
             style={({ pressed }) => [styles.name, pressed && styles.namePressed]}
         >

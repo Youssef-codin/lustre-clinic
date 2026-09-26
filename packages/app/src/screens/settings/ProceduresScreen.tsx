@@ -250,7 +250,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                         />
                                     ) : (
                                         <IconButton
-                                            accessibilityLabel={`Rename ${node.name}`}
+                                            accessibilityLabel={t('Rename {name}', { name: node.name })}
                                             variant="bare"
                                             icon={<EditIcon size={15} />}
                                             onPress={() => editor.push({ kind: 'edit', procedure: node })}
@@ -284,7 +284,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                         {node.children.length > 0 ? <CardDivider /> : null}
                                         <AddButton
                                             variant="footer"
-                                            label={`Add to ${node.name}`}
+                                            label={t('Add to {name}', { name: node.name })}
                                             onPress={() => editor.push({ kind: 'under', parent: node })}
                                         />
                                     </>
@@ -331,8 +331,9 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
 
                 {tree.data && !empty ? (
                     <Text variant="footnote" tone="muted" style={styles.note}>
-                        A procedure with subtypes is a heading — only the subtypes under it can go on a visit,
-                        and each has its own price.
+                        {t(
+                            'A procedure with subtypes is a heading — only the subtypes under it can go on a visit, and each has its own price.',
+                        )}
                     </Text>
                 ) : null}
 
@@ -621,7 +622,7 @@ function ProcedureEditor({
     return (
         <Pane
             title={procedure ? 'Edit procedure' : 'New procedure'}
-            subtitle={!procedure && fixedParent ? `Under ${fixedParent}` : undefined}
+            subtitle={!procedure && fixedParent ? t('Under {parent}', { parent: fixedParent }) : undefined}
             onBack={busy ? () => {} : onClose}
             footer={
                 // Save alone, as the mockup draws it: the pane has a back
@@ -673,7 +674,10 @@ function ProcedureEditor({
                     </Callout>
                 ) : newCategory !== null ? (
                     <Callout tone="note">
-                        {`Saving this makes “${newCategory}” a category with this as its first subtype. A category has no price of its own.`}
+                        {t(
+                            'Saving this makes “{category}” a category with this as its first subtype. A category has no price of its own.',
+                            { category: newCategory },
+                        )}
                     </Callout>
                 ) : (
                     <Select
@@ -731,8 +735,9 @@ function ProcedureEditor({
             {procedure ? (
                 <Card padded style={styles.form}>
                     <Text variant="subhead" tone="muted">
-                        Hiding takes it out of the catalogue and off this screen. Visits that already charged
-                        for it keep it, at the price they were charged.
+                        {t(
+                            'Hiding takes it out of the catalogue and off this screen. Visits that already charged for it keep it, at the price they were charged.',
+                        )}
                     </Text>
                     <Button
                         label="Hide procedure"
@@ -772,14 +777,15 @@ type FlagRowProps = {
 };
 
 function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
+    const t = useT();
     return (
         <View style={styles.flagRow}>
             <View style={styles.rowText}>
                 <Text variant="body" weight="medium">
-                    {label}
+                    {t(label)}
                 </Text>
                 <Text variant="subhead" tone="muted">
-                    {sub}
+                    {t(sub)}
                 </Text>
             </View>
             <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />

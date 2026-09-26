@@ -159,7 +159,9 @@ export function ProcedurePlan({
                 <Text variant="caption" tone="muted">
                     {value.length === 0
                         ? t(copy.emptyHint)
-                        : `${value.length} procedure${value.length === 1 ? '' : 's'}`}
+                        : value.length === 1
+                          ? t('1 procedure')
+                          : t('{count} procedures', { count: value.length })}
                 </Text>
             </View>
 
@@ -215,7 +217,9 @@ export function ProcedurePlan({
                                                 onChangeText={(entry) => reprice(item.id, entry)}
                                                 keyboardType="number-pad"
                                                 selectTextOnFocus
-                                                accessibilityLabel={`Price for ${item.name}`}
+                                                accessibilityLabel={t('Price for {name}', {
+                                                    name: item.name,
+                                                })}
                                                 style={styles.price}
                                             />
                                         </>
@@ -223,7 +227,7 @@ export function ProcedurePlan({
                                     trailing: (
                                         <Pressable
                                             accessibilityRole="button"
-                                            accessibilityLabel={`Remove ${item.name}`}
+                                            accessibilityLabel={t('Remove {name}', { name: item.name })}
                                             hitSlop={8}
                                             onPress={() => remove(item.id)}
                                             style={({ pressed }) => [

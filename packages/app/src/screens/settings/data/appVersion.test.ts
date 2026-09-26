@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { apkLabel, type InstalledVersion, newerApk, updateLabel, versionLine } from './appVersion';
 
+/** The wording, without the isolates `localizeCopy` puts around each value in Arabic. */
+const plain = (text: string) => text.replace(/[\u2068\u2069]/g, '');
+
 /**
  * The banner is the only way a phone hears about a new APK. Offered when the
  * phone is already current, it never goes away; missed when it is not, the
@@ -87,5 +90,14 @@ describe('updateLabel', () => {
     test('says when the APK runs its own bundle, or cannot take updates at all', () => {
         expect(updateLabel({ ...installed, embedded: true })).toBe('Built in');
         expect(updateLabel({ ...installed, updateId: null })).toBe('Off in this build');
+    });
+});
+
+describe('in Arabic', () => {
+    test('every label is in Arabic, with the version figures left in Latin digits', () => {
+        expect(plain(versionLine(installed, 'ar'))).toBe('لستر 1.0.2 (البنية 525600)');
+        expect(plain(apkLabel(installed, 'ar'))).toBe('1.0.0 · البنية 525600');
+        expect(updateLabel({ ...installed, embedded: true }, 'ar')).toBe('مدمج');
+        expect(updateLabel({ ...installed, updateId: null }, 'ar')).toBe('غير متاح في هذه النسخة');
     });
 });

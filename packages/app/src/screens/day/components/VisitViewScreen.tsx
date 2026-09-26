@@ -33,12 +33,13 @@ import {
     Toast,
 } from '../../../components/ui';
 import { useT } from '../../../i18n';
+import { getLocale } from '../../../i18n/runtime';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import { type Appointment, api, useLocalMutation, type Visit, type VisitPayment } from '../data';
 import { describeError } from '../errors';
 import { formatAmount, formatMoney } from '../money';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
-import { dateKey, formatLongDate, formatTime12 } from '../time';
+import { dateKey, formatLongDate, formatTime12, monthShort } from '../time';
 import { MoreIcon, TrashIcon } from './icons';
 import { VisitStatusChip } from './VisitStatusChip';
 
@@ -68,10 +69,10 @@ function methodLabel(payment: VisitPayment): string {
     return METHOD_LABEL[payment.method] ?? payment.method;
 }
 
-const MONTHS_SHORT = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
+/** The tile's month: capitals in English, the month's name in Arabic, which has no capitals. */
 function monthOf(iso: string): string {
-    return MONTHS_SHORT[new Date(iso).getMonth()] ?? '';
+    const month = monthShort(dateKey(new Date(iso)));
+    return getLocale() === 'ar' ? month : month.toUpperCase();
 }
 
 export function VisitViewScreen({
@@ -190,7 +191,7 @@ export function VisitViewScreen({
             <View style={styles.strip}>
                 <View style={[styles.stripDot, settled ? styles.dotSettled : styles.dotDue]} />
                 <Text variant="subhead" tone="muted">
-                    {settled ? 'Paid in full' : 'Remaining balance'}
+                    {settled ? t('Paid in full') : t('Remaining balance')}
                 </Text>
                 <Text
                     variant="headline"
@@ -228,8 +229,8 @@ export function VisitViewScreen({
                             </Text>
                             <Text variant="footnote" tone="muted">
                                 {visit.procedures.length === 1
-                                    ? '1 procedure'
-                                    : `${visit.procedures.length} procedures`}
+                                    ? t('1 procedure')
+                                    : t('{count} procedures', { count: visit.procedures.length })}
                             </Text>
                         </View>
 
@@ -333,7 +334,10 @@ export function VisitViewScreen({
                                 {t('PAYMENTS RECEIVED')}
                             </Text>
                             <Text variant="footnote" tone="muted">
-                                {`${formatMoney(visit.paidTotal)} of ${formatAmount(visit.chargedTotal)}`}
+                                {t('{paid} of {charged}', {
+                                    paid: formatMoney(visit.paidTotal),
+                                    charged: formatAmount(visit.chargedTotal),
+                                })}
                             </Text>
                         </View>
 
@@ -366,7 +370,7 @@ export function VisitViewScreen({
                                             numberOfLines={1}
                                             style={styles.grow}
                                         >
-                                            {methodLabel(payment)}
+                                            {t(methodLabel(payment))}
                                         </Text>
 
                                         <Text variant="eyebrow" tone="muted">

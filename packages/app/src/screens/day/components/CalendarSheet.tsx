@@ -131,7 +131,7 @@ export function CalendarSheet({
     const pendingClosed = isClosed(pending, schedule, pendingBranch);
 
     const branchOf = (id: string | null) => branches.find((row) => row.id === id)?.name;
-    const scopeLabel = scope ? (branchOf(scope) ?? 'this branch') : 'all branches';
+    const scopeLabel = scope ? (branchOf(scope) ?? t('this branch')) : t('all branches');
     const movesTo =
         mode === 'open' && pendingLoad?.busiest && pendingLoad.busiest !== branchId
             ? pendingLoad.busiest
@@ -162,7 +162,7 @@ export function CalendarSheet({
                         mode === 'book'
                             ? 'Use this day'
                             : movesToName
-                              ? `Go to this day in ${movesToName}`
+                              ? t('Go to this day in {branch}', { branch: movesToName })
                               : 'Go to this day'
                     }
                     block
@@ -247,13 +247,22 @@ export function CalendarSheet({
                             disabled={unbookable}
                             accessibilityRole="button"
                             accessibilityState={{ selected: picked, disabled: unbookable }}
-                            accessibilityLabel={`${day}${closed ? ', closed' : ''}${
-                                counting ? ', still counting' : load ? `, ${load.count} booked` : ''
-                            }${
+                            accessibilityLabel={[
+                                day,
+                                closed ? t('closed') : null,
+                                counting
+                                    ? t('still counting')
+                                    : load
+                                      ? t('{count} booked', { count: load.count })
+                                      : null,
                                 load?.busiest && load.busiest !== branchId
-                                    ? `, mostly in ${branchOf(load.busiest) ?? 'another branch'}`
-                                    : ''
-                            }`}
+                                    ? t('mostly in {branch}', {
+                                          branch: branchOf(load.busiest) ?? t('another branch'),
+                                      })
+                                    : null,
+                            ]
+                                .filter(Boolean)
+                                .join(', ')}
                             onPress={() => setPending(day)}
                             style={styles.cell}
                         >
@@ -325,7 +334,7 @@ export function CalendarSheet({
                 {branches.length > 1 ? (
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Counting ${scopeLabel}, next branch`}
+                        accessibilityLabel={t('Counting {scope}, next branch', { scope: scopeLabel })}
                         onPress={cycleScope}
                         style={styles.legendBranch}
                     >

@@ -373,11 +373,16 @@ export function PatientEditScreen({
                         {unaskable.length > 0 && (
                             <View style={styles.callout}>
                                 <Callout tone="warning" title="This form cannot be completed">
-                                    {`${unaskable.map((question) => resolveLabel(question, locale)).join(', ')} ${
-                                        unaskable.length === 1 ? 'is' : 'are'
-                                    } required, and cannot be answered here yet. Make ${
-                                        unaskable.length === 1 ? 'it' : 'them'
-                                    } optional in Settings to register someone.`}
+                                    {t(
+                                        unaskable.length === 1
+                                            ? '{questions} is required, and cannot be answered here yet. Make it optional in Settings to register someone.'
+                                            : '{questions} are required, and cannot be answered here yet. Make them optional in Settings to register someone.',
+                                        {
+                                            questions: unaskable
+                                                .map((question) => resolveLabel(question, locale))
+                                                .join(locale === 'ar' ? '، ' : ', '),
+                                        },
+                                    )}
                                 </Callout>
                             </View>
                         )}
@@ -443,7 +448,7 @@ export function PatientEditScreen({
                     </ScrollView>
 
                     <SaveBar
-                        label={owed > 0 ? `${owed} required left` : 'Save patient'}
+                        label={owed > 0 ? t('{count} required left', { count: owed }) : 'Save patient'}
                         disabled={owed > 0 || unaskable.length > 0}
                         pending={saving}
                         onPress={onSave}
@@ -561,13 +566,13 @@ function Questions({
                     {t('CLINIC QUESTIONS')}
                 </Text>
                 <Text variant="caption" weight="medium" tone="muted">
-                    {`${answered} of ${total} answered`}
+                    {t('{answered} of {total} answered', { answered, total })}
                 </Text>
             </View>
 
             <ProgressBar
                 value={total === 0 ? 0 : answered / total}
-                accessibilityLabel={`${answered} of ${total} questions answered`}
+                accessibilityLabel={t('{answered} of {total} questions answered', { answered, total })}
             />
 
             <View style={styles.questions}>
@@ -591,8 +596,9 @@ function Questions({
             </View>
 
             <Text variant="caption" tone="muted" style={styles.footnote}>
-                Answers are kept on the record. Nothing here is ever deleted — a question the clinic stops
-                asking keeps its answer and stops showing.
+                {t(
+                    'Answers are kept on the record. Nothing here is ever deleted — a question the clinic stops asking keeps its answer and stops showing.',
+                )}
             </Text>
         </View>
     );

@@ -14,7 +14,7 @@
 import type { ClientRole } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
 import { Button, Sheet } from '../../../components/ui';
-import { useLocale, useT } from '../../../i18n';
+import { useT } from '../../../i18n';
 import { color, radius, space, Text } from '../../../theme';
 import { ArrowRightIcon, CheckIcon } from './icons';
 
@@ -34,9 +34,15 @@ export type RoleSwitchSheetProps = {
     onClosed?: () => void;
 };
 
-const ROLE_WORD: Record<ClientRole, string> = {
-    doctor: 'the doctor',
-    secretary: 'the secretary',
+/** Whole sentences per role, so each language can build its own around the role. */
+const ASK: Record<ClientRole, string> = {
+    doctor: 'Switch to the doctor?',
+    secretary: 'Switch to the secretary?',
+};
+
+const CONFIRM: Record<ClientRole, string> = {
+    doctor: 'Switch to the doctor',
+    secretary: 'Switch to the secretary',
 };
 
 const EFFECTS: Record<ClientRole, readonly string[]> = {
@@ -59,29 +65,22 @@ export function RoleSwitchSheet({
     onCancel,
     onClosed,
 }: RoleSwitchSheetProps) {
-    const locale = useLocale();
     const t = useT();
     const other: ClientRole = role === 'doctor' ? 'secretary' : 'doctor';
-    const word = ROLE_WORD[other];
 
     return (
         <Sheet
             visible={visible}
             onClose={onCancel}
             onClosed={onClosed}
-            title={locale === 'ar' ? `التبديل إلى ${t(toName)}؟` : `Switch to ${word}?`}
+            title={ASK[other]}
             subtitle={t(
                 'Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do.',
             )}
             testID="settings-role-sheet"
             footer={
                 <>
-                    <Button
-                        label={locale === 'ar' ? `التبديل إلى ${t(toName)}` : `Switch to ${word}`}
-                        onPress={onConfirm}
-                        block
-                        testID="settings-role-confirm"
-                    />
+                    <Button label={CONFIRM[other]} onPress={onConfirm} block testID="settings-role-confirm" />
                     <Button label="Cancel" variant="ghost" onPress={onCancel} block />
                 </>
             }

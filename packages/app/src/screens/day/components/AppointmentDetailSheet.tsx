@@ -35,7 +35,7 @@ import type { LabStatus } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { MoneyValue, StatusPill } from '../../../components/domain';
+import { MoneyValue, phoneText, StatusPill } from '../../../components/domain';
 import { Button, Callout, Sheet, Tag } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
@@ -220,7 +220,7 @@ export function AppointmentDetailSheet({
             <PlanSummary procedures={appointment.procedures} label="BOOKED FOR" />
 
             <View style={styles.facts}>
-                <Fact label="Phone" value={appointment.patient.phone} mono />
+                <Fact label="Phone" value={phoneText(appointment.patient.phone)} mono />
                 {appointment.note ? <Note text={appointment.note} /> : null}
             </View>
 
@@ -342,6 +342,7 @@ function SecondaryActions({
     onNoShow: () => void;
     onReschedule: () => void;
 }) {
+    const t = useT();
     const status = appointment.status;
 
     if (status === 'checked_in') {
@@ -364,7 +365,7 @@ function SecondaryActions({
         return tail ? (
             <Group>
                 <Text variant="subhead" tone="muted">
-                    {tail}
+                    {t(tail)}
                 </Text>
             </Group>
         ) : null;
@@ -375,12 +376,16 @@ function SecondaryActions({
         return (
             <Group>
                 <Text variant="headline" weight="semibold">
-                    {isCancel ? 'Cancel this appointment?' : 'Mark this a no-show?'}
+                    {isCancel ? t('Cancel this appointment?') : t('Mark this a no-show?')}
                 </Text>
                 <Text variant="subhead" tone="muted" style={styles.confirmBody}>
                     {isCancel
-                        ? 'The slot goes back on the day and the patient keeps their record. Nothing is deleted.'
-                        : 'They did not come. The slot goes back on the day and the visit is left unbooked.'}
+                        ? t(
+                              'The slot goes back on the day and the patient keeps their record. Nothing is deleted.',
+                          )
+                        : t(
+                              'They did not come. The slot goes back on the day and the visit is left unbooked.',
+                          )}
                 </Text>
                 <View style={styles.confirmRow}>
                     <Button
@@ -468,7 +473,7 @@ function VisitPanel({
         return (
             <View style={styles.panel}>
                 <Text variant="subhead" tone="muted">
-                    Loading the visit…
+                    {t('Loading the visit…')}
                 </Text>
             </View>
         );
@@ -489,8 +494,9 @@ function VisitPanel({
         return (
             <View style={styles.panel}>
                 <Text variant="subhead" tone="muted">
-                    This patient was checked in before the app was opened, so the visit is not to hand. Open
-                    it from the visit screen to check them out.
+                    {t(
+                        'This patient was checked in before the app was opened, so the visit is not to hand. Open it from the visit screen to check them out.',
+                    )}
                 </Text>
             </View>
         );
@@ -580,10 +586,11 @@ function LabPanel({
  * The number is mono: it is read off the screen onto a keypad.
  */
 function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+    const t = useT();
     return (
         <View style={styles.fact}>
             <Text variant="subhead" tone="muted">
-                {label}
+                {t(label)}
             </Text>
             <Text
                 variant="body"

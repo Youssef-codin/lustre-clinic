@@ -21,6 +21,7 @@
 import type { WhatsAppApp } from '@lustre/shared';
 import { Fragment, useRef, useState } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { phoneText } from '../../../components/domain';
 import { Sheet } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, containsArabic, radius, size, space, Text } from '../../../theme';
@@ -109,7 +110,7 @@ export function PatientHeader({ patient, branches, schedule, onFailed }: Patient
             <View style={styles.actions}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`WhatsApp ${patient.name}`}
+                    accessibilityLabel={t('WhatsApp {name}', { name: patient.name })}
                     onPress={onWhatsApp}
                     style={({ pressed }) => [styles.action, styles.whatsApp, pressed && styles.pressed]}
                 >
@@ -118,7 +119,7 @@ export function PatientHeader({ patient, branches, schedule, onFailed }: Patient
 
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Call ${patient.name}`}
+                    accessibilityLabel={t('Call {name}', { name: patient.name })}
                     onPress={() => open(`tel:${patient.phone}`, 'The dialler could not be opened.')}
                     style={({ pressed }) => [styles.action, styles.call, pressed && styles.pressed]}
                 >
@@ -172,8 +173,9 @@ export function PatientHeader({ patient, branches, schedule, onFailed }: Patient
  * is muted mono figures, and a fourth one would read as a second phone number.
  */
 function RefChip({ value }: { value: string }) {
+    const t = useT();
     return (
-        <View style={styles.ref} accessibilityLabel={`Patient reference ${value}`}>
+        <View style={styles.ref} accessibilityLabel={t('Patient reference {ref}', { ref: value })}>
             <Text variant="tag" weight="bold" script="mono">
                 {value}
             </Text>
@@ -188,7 +190,7 @@ function metaParts(patient: Patient, t: (copy: string) => string): string[] {
 
     // The old system's number is not one of these: a third mono figure on this
     // line would read as a second phone number.
-    return [who, patient.phone].filter((part): part is string => Boolean(part));
+    return [who, patient.phone && phoneText(patient.phone)].filter((part): part is string => Boolean(part));
 }
 
 /** `wa.me` wants the number without a `+` or separators. */

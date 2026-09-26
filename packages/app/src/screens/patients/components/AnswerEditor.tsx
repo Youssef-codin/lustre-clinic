@@ -173,7 +173,7 @@ export function ReadOnlyAnswer({ question, shown }: { question: CustomQuestion; 
 
             <View style={[styles.control, styles.box, styles.readOnly]}>
                 <Text variant="body" tone={shown === null ? 'muted' : 'ink'}>
-                    {shown ?? 'Not answered'}
+                    {shown ?? t('Not answered')}
                 </Text>
                 <Text variant="caption" tone="muted">
                     {t('Read-only for now')}

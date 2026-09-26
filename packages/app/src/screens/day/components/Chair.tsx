@@ -73,7 +73,7 @@ export function ChairStrip({
 
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Open ${appointment.patient.name}'s record`}
+                        accessibilityLabel={t("Open {name}'s record", { name: appointment.patient.name })}
                         onPress={() => onOpenRecord(appointment.patient.id)}
                         style={({ pressed }) => [styles.stripName, pressed && styles.namePressed]}
                     >
@@ -84,7 +84,7 @@ export function ChairStrip({
 
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`In the chair: ${appointment.patient.name}`}
+                        accessibilityLabel={t('In the chair: {name}', { name: appointment.patient.name })}
                         onPress={() => onOpen(appointment)}
                     >
                         <Text variant="footnote" tone="muted" numberOfLines={1}>
@@ -188,7 +188,7 @@ export function ChairCard({
                 the same split the secretary's card makes. */}
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Open ${appointment.patient.name}'s record`}
+                accessibilityLabel={t("Open {name}'s record", { name: appointment.patient.name })}
                 onPress={() => onOpenRecord(appointment.patient.id)}
                 style={({ pressed }) => [styles.name, pressed && styles.namePressed]}
             >
@@ -243,6 +243,7 @@ export function ChairCard({
 }
 
 function Waited({ checkedInAt, nowMinutes }: { checkedInAt?: string; nowMinutes: number }) {
+    const t = useT();
     if (!checkedInAt) return null;
 
     const since = time12(checkedInAt);
@@ -251,12 +252,12 @@ function Waited({ checkedInAt, nowMinutes }: { checkedInAt?: string; nowMinutes:
     return (
         <View style={styles.footer}>
             <Text variant="footnote" script="mono" weight="medium" tone="muted">
-                {`checked in ${since.time} ${since.meridiem}`}
+                {t('checked in {time}', { time: `${since.time} ${since.meridiem}` })}
             </Text>
             <View style={styles.waited}>
                 <ClockIcon size={14} stroke={color.due} width={2.2} />
                 <Text variant="subhead" weight="semibold" tone="due">
-                    {`waiting ${formatDuration(waited)}`}
+                    {t('waiting {duration}', { duration: formatDuration(waited) })}
                 </Text>
             </View>
         </View>

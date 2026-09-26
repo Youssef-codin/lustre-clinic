@@ -1,8 +1,9 @@
+import type { CopyVars } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT, useConnection } from '../api';
 import { Button } from '../components/ui';
-import { useLocale, useT } from '../i18n';
+import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { requestReconfigure } from './serverStore';
 
@@ -13,7 +14,6 @@ import { requestReconfigure } from './serverStore';
 // deliberately a dead end. The alternative, a banner over a live-looking app,
 // is how a secretary books onto a slot that was taken an hour ago.
 export function OfflineScreen() {
-    const locale = useLocale();
     const t = useT();
     const { retry, lastOnlineAt } = useConnection();
     const [retrying, setRetrying] = useState(false);
@@ -57,9 +57,7 @@ export function OfflineScreen() {
 
                 <Text variant="caption" tone="muted">
                     {lastOnlineAt
-                        ? locale === 'ar'
-                            ? `آخر اتصال ${formatLastOnline(lastOnlineAt, locale)}`
-                            : `Last connected ${formatLastOnline(lastOnlineAt, locale)}`
+                        ? t('Last connected {when}', { when: formatLastOnline(lastOnlineAt, t) })
                         : t('Never connected')}
                 </Text>
 
@@ -80,21 +78,14 @@ export function OfflineScreen() {
 
 // Coarse on purpose: the exact minute is noise, and the only question being
 // answered is "was this a moment ago, or is this stale?".
-function formatLastOnline(at: number, locale: 'en' | 'ar'): string {
+function formatLastOnline(at: number, t: (copy: string, vars?: CopyVars) => string): string {
     const minutes = Math.floor((Date.now() - at) / 60_000);
-    if (locale === 'ar') {
-        if (minutes < 1) return 'الآن';
-        if (minutes < 60) return `منذ ${minutes} دقيقة`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `منذ ${hours} ساعة`;
-        return `منذ ${Math.floor(hours / 24)} يوم`;
-    }
-    if (minutes < 1) return 'just now';
-    if (minutes < 60) return `${minutes} min ago`;
+    if (minutes < 1) return t('just now');
+    if (minutes < 60) return t('{minutes} min ago', { minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+    if (hours < 24) return hours === 1 ? t('1 hour ago') : t('{hours} hours ago', { hours });
     const days = Math.floor(hours / 24);
-    return days === 1 ? 'yesterday' : `${days} days ago`;
+    return days === 1 ? t('yesterday') : t('{days} days ago', { days });
 }
 
 const styles = StyleSheet.create({

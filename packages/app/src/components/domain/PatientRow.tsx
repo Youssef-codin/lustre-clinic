@@ -29,6 +29,7 @@ import { useT } from '../../i18n';
 import { border, color, containsArabic, size, space, Text } from '../../theme';
 import { Chevron } from '../ui';
 import { MoneyValue } from './MoneyValue';
+import { phoneText } from './phone';
 
 type SearchedPatient = RouterOutput['patient']['search'][number];
 
@@ -55,7 +56,7 @@ export function PatientRow({ patient, balance = 0, onPress, testID }: PatientRow
         .filter((part): part is string => Boolean(part))
         .join(' ');
 
-    const meta = [phone, person].filter(Boolean).join(' · ');
+    const meta = [phone && phoneText(phone), person].filter(Boolean).join(' · ');
 
     return (
         <Pressable

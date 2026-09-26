@@ -37,10 +37,12 @@ export function PlanSummary({ procedures, label }: PlanSummaryProps) {
         <>
             <View style={styles.head}>
                 <Text variant="eyebrow" tone="muted">
-                    {label}
+                    {t(label)}
                 </Text>
                 <Text variant="footnote" tone="muted">
-                    {procedures.length === 1 ? '1 procedure' : `${procedures.length} procedures`}
+                    {procedures.length === 1
+                        ? t('1 procedure')
+                        : t('{count} procedures', { count: procedures.length })}
                 </Text>
             </View>
 
