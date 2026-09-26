@@ -80,7 +80,7 @@ export function DayEmpty({ past, onBook, elsewhere }: DayEmptyProps) {
         <View style={styles.centred}>
             <EmptyState
                 weight="ring"
-                icon={state.glyph === 'calendar' ? <CalendarIcon size={22} /> : null}
+                icon={state.glyph === 'calendar' ? <CalendarIcon size={22} stroke={color.ink2} /> : null}
                 title={state.title}
                 body={state.body}
                 actionLabel={state.actionLabel}

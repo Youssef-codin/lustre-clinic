@@ -30,7 +30,7 @@ import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
 import { dateKey, relativeDayLabel, time12 } from '../time';
 import { DaySkeleton } from './DayStates';
-import { CloseIcon, LabIcon } from './icons';
+import { CheckIcon, CloseIcon, LabIcon, RetryIcon } from './icons';
 
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
@@ -121,6 +121,7 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
         return (
             <RefreshView pull={pull}>
                 <EmptyState
+                    icon={<RetryIcon size={22} stroke={color.ink2} />}
                     title={described.title}
                     body={described.body}
                     actionLabel="Try again"
@@ -133,7 +134,11 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     if (pending.length === 0) {
         return (
             <RefreshView pull={pull}>
-                <EmptyState title="Everyone has been messaged" body="No reminder is waiting to go out." />
+                <EmptyState
+                    icon={<CheckIcon size={22} stroke={color.ink2} />}
+                    title="Everyone has been messaged"
+                    body="No reminder is waiting to go out."
+                />
             </RefreshView>
         );
     }

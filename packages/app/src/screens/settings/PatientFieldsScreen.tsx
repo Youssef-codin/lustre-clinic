@@ -45,7 +45,7 @@ import { useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
-import { PowerIcon } from './components/icons';
+import { PlusIcon, PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
@@ -189,6 +189,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                             {active.length === 0 ? (
                                 <EmptyState
                                     weight="panel"
+                                    icon={<PlusIcon size={22} stroke={color.ink2} width={2.2} />}
                                     title="No questions yet"
                                     body="Ask what you need on top of the built-in details — medical history, how they found you, anything."
                                     actionLabel="Add a question"

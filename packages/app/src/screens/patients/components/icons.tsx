@@ -22,6 +22,9 @@ export const PlusIcon = icon(GLYPH.add, { width: 2.4 });
 export const CloseIcon = icon(GLYPH.close, { width: 2.4 });
 
 // The record bar's menu — Edit, and Delete under the divider.
+export const RetryIcon = icon(GLYPH.retry, { width: 2 });
+export const PatientsIcon = icon(GLYPH.patients, { width: 2 });
+
 export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
 
 // The record's actions: its two openers, the balance's Record payment, and the

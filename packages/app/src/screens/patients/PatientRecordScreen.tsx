@@ -53,7 +53,15 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { dateKey, formatMonth, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
-import { BookIcon, DeleteIcon, EditIcon, MoreIcon, OldVisitIcon, PayIcon } from './components/icons';
+import {
+    BookIcon,
+    DeleteIcon,
+    EditIcon,
+    MoreIcon,
+    OldVisitIcon,
+    PayIcon,
+    RetryIcon,
+} from './components/icons';
 import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
@@ -218,6 +226,7 @@ export function PatientRecordScreen({
             ) : record.error && !record.data ? (
                 <RefreshView pull={pull}>
                     <EmptyState
+                        icon={<RetryIcon size={22} stroke={color.ink2} />}
                         title="Could not open this record"
                         body={errorText(record.error)}
                         actionLabel="Try again"

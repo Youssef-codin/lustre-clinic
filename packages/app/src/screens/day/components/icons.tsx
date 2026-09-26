@@ -44,6 +44,8 @@ export const XIcon = icon(GLYPH.close, { width: 2.2 });
 
 export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
 
+export const RetryIcon = icon(GLYPH.retry, { width: 2 });
+
 export const TrashIcon = icon(GLYPH.delete, { width: 2 });
 
 // The appointment sheet's three actions. Cancel's calendar-with-a-cross is the

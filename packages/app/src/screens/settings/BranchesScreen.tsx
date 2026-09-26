@@ -107,6 +107,7 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                         {active.length === 0 ? (
                             <EmptyState
                                 weight="panel"
+                                icon={<PlusIcon size={22} stroke={color.ink2} width={2.2} />}
                                 title="No branches yet"
                                 body="A branch is where an appointment happens. Add the clinic itself first."
                                 actionLabel="Add a branch"

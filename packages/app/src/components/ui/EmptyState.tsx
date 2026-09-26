@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useT } from '../../i18n';
 import { color, radius, shadow, space, Text } from '../../theme';
 import { Button } from './Button';
@@ -8,11 +8,10 @@ export type EmptyStateProps = {
     title: string;
     body?: string;
     /**
-     * Glyph inside the ring or tile. Omit it for the default `+` — the empty
-     * state is an invitation and the screen has no other round `+` to be
-     * confused with. Pass `null` for a state that is a statement rather than an
-     * offer: the ring goes with it, because a ring drawn around nothing to press
-     * is the affordance without the action.
+     * The glyph, from the caller's icon set — `ui/` draws none of its own. With
+     * an action it sits in a raised ring and pressing it does the action, so
+     * the thing that looks pressable is; without one it sits in a flat tile,
+     * because a state with nothing to do should not look like a button.
      */
     icon?: ReactNode;
     actionLabel?: string;
@@ -39,19 +38,23 @@ export function EmptyState({ title, body, icon, actionLabel, onAction, weight = 
     }
 
     const panel = weight === 'panel';
-    const glyph =
-        icon === undefined ? (
-            <Text variant="title3" tone="muted">
-                {'+'}
-            </Text>
-        ) : (
-            icon
-        );
+    const pressable = Boolean(actionLabel && onAction);
 
     return (
         <View style={[styles.state, panel && styles.panel]}>
-            {glyph === null ? null : (
-                <View style={[styles.glyph, panel ? styles.tile : styles.ring]}>{glyph}</View>
+            {icon == null ? null : pressable ? (
+                // The button below carries the same action and its label, so a
+                // screen reader hears it once, there.
+                <Pressable
+                    onPress={onAction}
+                    accessible={false}
+                    importantForAccessibility="no-hide-descendants"
+                    style={({ pressed }) => [styles.glyph, styles.ring, pressed && styles.pressed]}
+                >
+                    {icon}
+                </Pressable>
+            ) : (
+                <View style={[styles.glyph, styles.tile]}>{icon}</View>
             )}
 
             <Text variant="headline">{t(title)}</Text>
@@ -97,6 +100,7 @@ const styles = StyleSheet.create({
         boxShadow: shadow.pill,
     },
     tile: { borderRadius: radius.xl, backgroundColor: color.surface2 },
+    pressed: { opacity: 0.72 },
     body: { textAlign: 'center' },
     action: { alignSelf: 'center', marginTop: space[2] },
     line: { alignSelf: 'stretch', alignItems: 'center', paddingVertical: space[6] },

@@ -9,6 +9,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { GLYPH } from '../../components/domain';
 import {
     ActionBar,
     AddButton,
@@ -352,15 +353,17 @@ function Feedback() {
             <Banner tone="warning" message="Showing data from 12 minutes ago" />
 
             <EmptyState
+                icon={<GLYPH.add size={22} color={color.ink2} strokeWidth={2.2} />}
                 title="No procedures yet"
                 body="Add the first one and it will show up here."
                 actionLabel="Add procedure"
+                onAction={() => undefined}
                 weight="panel"
             />
             <EmptyState
+                icon={<GLYPH.day size={22} color={color.ink2} strokeWidth={2} />}
                 title="Nothing in the chair"
                 body="The next patient is at 14:30."
-                actionLabel="Book a walk-in"
             />
             <EmptyState title="No one owes anything" weight="line" />
         </Section>

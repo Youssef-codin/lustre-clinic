@@ -74,7 +74,7 @@ import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
 
-import { CategoryIcon, EditIcon, HideIcon } from './components/icons';
+import { CategoryIcon, EditIcon, HideIcon, PlusIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
@@ -213,6 +213,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                 {tree.data && empty ? (
                     <EmptyState
                         weight="panel"
+                        icon={<PlusIcon size={22} stroke={color.ink2} width={2.2} />}
                         title="No procedures yet"
                         body="These are what a visit is charged for. Add the checkup first — it is the line every visit starts with."
                         actionLabel="Add a procedure"
