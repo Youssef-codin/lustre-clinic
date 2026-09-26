@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  Appointments, records and payments for one dental practice.<br>
-  Two Android phones, a server in the clinic, and nothing in the cloud.
+  The appointment book, patient records and takings for a dental practice.<br>
+  Each clinic runs it on a computer it owns, reached over its own private network.
 </p>
 
 <p align="center">
@@ -30,6 +30,13 @@
   <a href="infra/RELEASING.md">Releasing</a>
 </p>
 
+<p align="center">
+  <img src=".github/assets/screenshots/day.png" alt="The day: at the desk, in the chair, waiting, next" width="200">
+  <img src=".github/assets/screenshots/record.png" alt="A patient's visits and balance" width="200">
+  <img src=".github/assets/screenshots/money.png" alt="Charged, collected and due for the month" width="200">
+  <img src=".github/assets/screenshots/patients.png" alt="The patient register" width="200">
+</p>
+
 ---
 
 # Lustre
@@ -40,9 +47,10 @@ Tailscale-only network.
 It replaces a paper appointment book and an unwatched WhatsApp number without
 adding steps to the day, so fewer bookings, reminders and payments get missed.
 
-- **No cloud.** The server and database run on a PC at the clinic, reachable only
-  over Tailscale. The only copy that leaves is an encrypted nightly backup in the
-  doctor's own Google Drive.
+- **No cloud.** Each clinic's server and database run on a computer at that
+  clinic, reachable only over its tailnet. The only copy that leaves is an
+  encrypted nightly backup in the doctor's own Google Drive. All clinic-specific
+  values are data, so another clinic runs the same build.
 - **No automated messaging.** The app never sends anything. It prepares the
   WhatsApp message and the secretary sends it from her own phone.
 - **Overlap is impossible by construction.** A Postgres `EXCLUDE USING gist`
