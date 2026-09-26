@@ -70,6 +70,7 @@ const KINDS: readonly QuestionKind[] = ['boolean', 'select', 'text', 'number', '
 
 export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
     const trpc = useTRPC();
+    const t = useT();
     const queryClient = useQueryClient();
 
     const questions = useQuery(trpc.customQuestion.list.queryOptions({ includeInactive: true }));
@@ -152,8 +153,9 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                 }
             >
                 <Text variant="subhead" tone="muted" style={styles.intro}>
-                    These questions appear on every patient record, under the details the app always asks for.
-                    Changing them here changes the form for the whole clinic.
+                    {t(
+                        'These questions appear on every patient record, under the details the app always asks for. Changing them here changes the form for the whole clinic.',
+                    )}
                 </Text>
 
                 <FixedDetailsCard />
@@ -185,8 +187,9 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
 
                             {reordering ? (
                                 <Text variant="footnote" tone="muted" style={styles.note}>
-                                    This is the order the questions appear on the patient record. Move them
-                                    with the arrows.
+                                    {t(
+                                        'This is the order the questions appear on the patient record. Move them with the arrows.',
+                                    )}
                                 </Text>
                             ) : null}
 
@@ -246,8 +249,9 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                                     ))}
                                 </Card>
                                 <Text variant="footnote" tone="muted" style={styles.note}>
-                                    These stop being asked. The answers patients already gave are kept, and
-                                    come back if the question does.
+                                    {t(
+                                        'These stop being asked. The answers patients already gave are kept, and come back if the question does.',
+                                    )}
                                 </Text>
                             </View>
                         ) : null}
@@ -426,10 +430,11 @@ function QuestionRow({
     onMoveUp,
     onMoveDown,
 }: QuestionRowProps) {
+    const t = useT();
     const type =
         question.kind === 'select'
-            ? `${KIND_LABEL.select} · ${optionsOf(question).length} options`
-            : KIND_LABEL[question.kind];
+            ? t('Dropdown · {count} options', { count: optionsOf(question).length })
+            : t(KIND_LABEL[question.kind]);
 
     // The secretary reads the list in the language her phone is set to, even
     // here where she is the one who wrote both sides.
@@ -687,7 +692,7 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 <Card>
                     <View style={styles.flagRow}>
                         <Text variant="body" style={styles.rowText}>
-                            {required ? 'Must be answered' : 'Can be left blank'}
+                            {required ? t('Must be answered') : t('Can be left blank')}
                         </Text>
                         <Switch value={required} onValueChange={setRequired} accessibilityLabel="Required" />
                     </View>

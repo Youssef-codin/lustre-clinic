@@ -633,7 +633,9 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                 <Banner
                     tone="offline"
                     live
-                    message={`${describeError(day.error, 'day').title} — showing the day as it was.`}
+                    message={t('{problem} — showing the day as it was.', {
+                        problem: describeError(day.error, 'day').title,
+                    })}
                 />
             ) : null}
             {schedule.error !== null && schedule.status !== 'success' ? (
@@ -654,7 +656,9 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
             {openRow.error ? (
                 <Banner
                     tone="warning"
-                    message={`${describeError(openRow.error).title} — the visit could not be opened.`}
+                    message={t('{problem} — the visit could not be opened.', {
+                        problem: describeError(openRow.error).title,
+                    })}
                 />
             ) : null}
             {noShow.error ? <Banner tone="warning" message={describeError(noShow.error).title} /> : null}

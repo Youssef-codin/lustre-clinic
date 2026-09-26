@@ -48,6 +48,7 @@ import {
     useAfterSheet,
     usePullToRefresh,
 } from '../../components/ui';
+import { useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { color, size, space } from '../../theme';
 import { procedureLabel } from './agenda';
@@ -100,6 +101,7 @@ type DoctorDayScreenProps = {
 };
 
 function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: DoctorDayScreenProps) {
+    const t = useT();
     const [dateKey, setDateKey] = useState(todayKey);
     const branchId = usePickedBranch();
     const [calendar, setCalendar] = useState<CalendarState>(CALENDAR_CLOSED);
@@ -333,7 +335,9 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                 <Banner
                     tone="offline"
                     live
-                    message={`${describeError(day.error, 'day').title} — showing the day as it was.`}
+                    message={t('{problem} — showing the day as it was.', {
+                        problem: describeError(day.error, 'day').title,
+                    })}
                 />
             ) : null}
             {schedule.error !== null && schedule.status !== 'success' ? (
@@ -355,7 +359,9 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
             {loadVisit.error ? (
                 <Banner
                     tone="warning"
-                    message={`${describeError(loadVisit.error).title} — the visit could not be opened.`}
+                    message={t('{problem} — the visit could not be opened.', {
+                        problem: describeError(loadVisit.error).title,
+                    })}
                 />
             ) : null}
 

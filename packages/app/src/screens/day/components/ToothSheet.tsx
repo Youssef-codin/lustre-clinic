@@ -55,7 +55,7 @@ export function ToothSheet({ visible, onClose, onPick, required }: ToothSheetPro
             title="Which tooth?"
             subtitle={
                 required
-                    ? `${required} is done to a tooth. Pick the one it is for.`
+                    ? t('{procedure} is done to a tooth. Pick the one it is for.', { procedure: required })
                     : 'Pick the tooth first, or skip if it does not apply.'
             }
             testID="tooth-sheet"

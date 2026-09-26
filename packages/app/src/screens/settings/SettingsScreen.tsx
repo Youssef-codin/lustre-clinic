@@ -171,9 +171,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         const result = reportProblem();
         setToast(
             result.queued
-                ? locale === 'ar'
-                    ? `تم وضع التقرير في قائمة الإرسال · المرجع ${result.ref}`
-                    : `Report queued · ref ${result.ref}`
+                ? t('Report queued · ref {ref}', { ref: result.ref })
                 : t('Problem reports are off on this build'),
         );
     }
@@ -220,9 +218,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 {t('New version ready')}
                             </Text>
                             <Text variant="footnote" tone="muted">
-                                {locale === 'ar'
-                                    ? `لستر ${apkUpdate.version} (البنية ${apkUpdate.versionCode}). نزّله ثم اضغط تثبيت.`
-                                    : `Lustre ${apkUpdate.version} (build ${apkUpdate.versionCode}). Download it, then tap Install.`}
+                                {t('Lustre {version} (build {build}). Download it, then tap Install.', {
+                                    version: apkUpdate.version,
+                                    build: apkUpdate.versionCode,
+                                })}
                             </Text>
                         </View>
                         <Button
@@ -280,11 +279,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="appointments" />}
                                 label="Appointments"
-                                sub={
-                                    locale === 'ar'
-                                        ? `المدد · الافتراضي ${summary.data.defaultDuration} دقيقة`
-                                        : `Durations · default ${summary.data.defaultDuration} min`
-                                }
+                                sub={t('Durations · default {minutes} min', {
+                                    minutes: summary.data.defaultDuration,
+                                })}
                                 onPress={() => routes.push('appointments')}
                                 testID="settings-appointments-row"
                             />
@@ -292,11 +289,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="reminders" />}
                                 label="Reminders"
-                                sub={
-                                    locale === 'ar'
-                                        ? `قبل الموعد بـ ${summary.data.leadHours} س · التنبيه ${formatClock12(summary.data.notifyAt, locale)}`
-                                        : `Due ${summary.data.leadHours}h before · notify ${formatClock12(summary.data.notifyAt, locale)}`
-                                }
+                                sub={t('Due {hours}h before · notify {time}', {
+                                    hours: summary.data.leadHours,
+                                    time: formatClock12(summary.data.notifyAt, locale),
+                                })}
                                 onPress={() => routes.push('reminders')}
                                 testID="settings-reminders-row"
                             />
@@ -315,11 +311,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="branches" />}
                                     label="Branches"
-                                    sub={
-                                        locale === 'ar'
-                                            ? `${summary.data.activeBranches} نشط · ${summary.data.inactiveBranches} غير نشط`
-                                            : `${summary.data.activeBranches} active · ${summary.data.inactiveBranches} inactive`
-                                    }
+                                    sub={t('{active} active · {inactive} inactive', {
+                                        active: summary.data.activeBranches,
+                                        inactive: summary.data.inactiveBranches,
+                                    })}
                                     onPress={() => routes.push('branches')}
                                     testID="settings-branches"
                                 />
@@ -328,11 +323,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="hours" />}
                                     label="Working hours"
-                                    sub={
-                                        locale === 'ar'
-                                            ? `${summary.data.openDays} أيام عمل`
-                                            : `${summary.data.openDays} days open`
-                                    }
+                                    sub={t('{count} days open', { count: summary.data.openDays })}
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
@@ -350,11 +341,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="procedures" />}
                                     label="Procedures & prices"
-                                    sub={
-                                        locale === 'ar'
-                                            ? `${summary.data.procedures} إجراء · ${summary.data.activeProcedures} نشط`
-                                            : `${summary.data.procedures} procedures · ${summary.data.activeProcedures} active`
-                                    }
+                                    sub={t('{count} procedures · {active} active', {
+                                        count: summary.data.procedures,
+                                        active: summary.data.activeProcedures,
+                                    })}
                                     onPress={() => routes.push('procedures')}
                                     testID="settings-procedures"
                                 />
@@ -362,11 +352,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="fields" />}
                                     label="Patient fields"
-                                    sub={
-                                        locale === 'ar'
-                                            ? `${summary.data.questions} سؤال · ${summary.data.requiredQuestions} مطلوب`
-                                            : `${summary.data.questions} questions · ${summary.data.requiredQuestions} required`
-                                    }
+                                    sub={t('{count} questions · {required} required', {
+                                        count: summary.data.questions,
+                                        required: summary.data.requiredQuestions,
+                                    })}
                                     onPress={() => routes.push('patientFields')}
                                     testID="settings-patient-fields"
                                 />
@@ -438,7 +427,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                         {problem}
 
                         <Text variant="footnote" tone="muted" script="mono" style={styles.version}>
-                            {VERSION_LINE}
+                            {versionLine(INSTALLED, locale)}
                         </Text>
                     </>
                 ) : (
@@ -601,7 +590,6 @@ function summarize({ settings, schedule, branches, procedures, questions }: Summ
 
 // The release this launch runs, the OTA update's number included.
 const INSTALLED = installedVersion();
-const VERSION_LINE = versionLine(INSTALLED);
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },

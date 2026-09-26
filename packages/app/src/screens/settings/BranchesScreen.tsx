@@ -53,6 +53,7 @@ type Branch = RouterOutput['branch']['list'][number];
 
 export function BranchesScreen({ onBack }: { onBack: () => void }) {
     const trpc = useTRPC();
+    const t = useT();
 
     const branches = useQuery(trpc.branch.list.queryOptions({ includeInactive: true }));
     // The editor is a route over this list rather than a nullable piece of
@@ -136,8 +137,9 @@ export function BranchesScreen({ onBack }: { onBack: () => void }) {
                                     />
                                 ))}
                                 <Text variant="footnote" tone="muted" style={styles.note}>
-                                    Branches are never deleted — their visits, invoices and patients stay
-                                    attached to them. Deactivating just hides a branch from new bookings.
+                                    {t(
+                                        'Branches are never deleted — their visits, invoices and patients stay attached to them. Deactivating just hides a branch from new bookings.',
+                                    )}
                                 </Text>
                             </View>
                         ) : null}
@@ -336,14 +338,16 @@ function BranchEditor({ branch, onClose, onSaved }: BranchEditorProps) {
                         <View style={styles.statusHead}>
                             <Dot tone={branch.active ? 'wa' : 'muted'} size={8} />
                             <Text variant="body" weight="semibold" style={styles.statusLabel}>
-                                {branch.active ? 'Active' : 'Inactive'}
+                                {branch.active ? t('Active') : t('Inactive')}
                             </Text>
                         </View>
 
                         <Text variant="footnote" tone="muted">
                             {branch.active
-                                ? 'Appears in the branch picker and can take new bookings.'
-                                : 'Hidden from the branch picker. Past visits and invoices are untouched and still searchable.'}
+                                ? t('Appears in the branch picker and can take new bookings.')
+                                : t(
+                                      'Hidden from the branch picker. Past visits and invoices are untouched and still searchable.',
+                                  )}
                         </Text>
 
                         <Button

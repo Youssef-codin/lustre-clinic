@@ -5,6 +5,7 @@
  * accident.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useT } from '../../i18n';
 import { color, radius, space, Text } from '../../theme';
 
 export type ReorderControlsProps = {
@@ -22,13 +23,13 @@ export function ReorderControls({
     isLast = false,
     itemLabel,
 }: ReorderControlsProps) {
-    const suffix = itemLabel ? ` ${itemLabel}` : '';
+    const t = useT();
 
     return (
         <View style={styles.stack}>
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Move up${suffix}`}
+                accessibilityLabel={itemLabel ? t('Move up {item}', { item: itemLabel }) : t('Move up')}
                 accessibilityState={{ disabled: isFirst }}
                 disabled={isFirst}
                 onPress={onMoveUp}
@@ -45,7 +46,7 @@ export function ReorderControls({
 
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Move down${suffix}`}
+                accessibilityLabel={itemLabel ? t('Move down {item}', { item: itemLabel }) : t('Move down')}
                 accessibilityState={{ disabled: isLast }}
                 disabled={isLast}
                 onPress={onMoveDown}

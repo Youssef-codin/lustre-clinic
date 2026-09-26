@@ -27,6 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { api, useTRPC } from '../api';
+import { useLocale } from '../i18n';
 import { armNudges } from './notifications';
 import { minutesOfClock, planNudges } from './schedule';
 
@@ -43,6 +44,8 @@ export function useReminderNudges(): void {
     // and came back, and a process that was alive at midnight and needs the new
     // day's series.
     const [foregrounded, setForegrounded] = useState(0);
+    // The nudge is worded when it is armed, so a language switch re-arms it.
+    const locale = useLocale();
 
     const settings = useQuery(trpc.settings.get.queryOptions());
     const pending = useQuery(
@@ -58,7 +61,7 @@ export function useReminderNudges(): void {
     const dismissedOn = settings.data?.reminderDismissedOn ?? null;
     const pendingCount = pending.data?.length;
 
-    // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded` is a trigger, not a value — the arm reads the clock, the day and the OS permission, none of which React can see change
+    // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded` and `locale` are triggers, not values — the arm reads the clock, the day, the OS permission and the language, none of which it is handed
     useEffect(() => {
         // Nothing is armed and nothing is cancelled until both answers are in.
         // Disarming on a missing answer would silence the nudge every time the
@@ -80,7 +83,7 @@ export function useReminderNudges(): void {
                 now,
             }),
         );
-    }, [notifyAt, repeatMinutes, dismissedOn, pendingCount, foregrounded]);
+    }, [notifyAt, repeatMinutes, dismissedOn, pendingCount, foregrounded, locale]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {

@@ -196,7 +196,10 @@ function RowBody({
                     <ClockIcon size={13} />
                     <Text variant="subhead" tone="muted" numberOfLines={1} style={styles.name}>
                         {procedure
-                            ? `${procedure} · ${t('{minutes} min', { minutes: appointment.durationMinutes })}`
+                            ? t('{procedure} · {minutes} min', {
+                                  procedure,
+                                  minutes: appointment.durationMinutes,
+                              })
                             : t('{minutes} min', { minutes: appointment.durationMinutes })}
                     </Text>
                 </View>
@@ -346,6 +349,7 @@ export type BeforeThisProps = {
 };
 
 export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
+    const t = useT();
     const [open, setOpen] = useState(false);
     // What the rows measure when laid out. Zero until the first pass, which is
     // why the closed state animates from a real number the first time it opens
@@ -388,13 +392,13 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
             <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ expanded: open }}
-                accessibilityLabel={`Before this, ${appointments.length} appointments`}
+                accessibilityLabel={t('Before this, {count} appointments', { count: appointments.length })}
                 onPress={() => setOpen((current) => !current)}
                 style={({ pressed }) => [styles.sectionLabel, pressed && styles.pressed]}
             >
                 <ArrowBackIcon size={13} />
                 <Text variant="eyebrow" tone="muted">
-                    {`BEFORE THIS · ${appointments.length}`}
+                    {t('BEFORE THIS · {count}', { count: appointments.length })}
                 </Text>
                 <View style={styles.spacer} />
                 {/* Half a turn rather than swapping `direction`: 'down' rotated

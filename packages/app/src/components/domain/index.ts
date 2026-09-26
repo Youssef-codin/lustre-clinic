@@ -29,6 +29,7 @@ export type { MoneyValueProps } from './MoneyValue';
 export { formatMoney, MoneyValue } from './MoneyValue';
 export type { PatientRowProps, PatientSummary } from './PatientRow';
 export { PatientRow } from './PatientRow';
+export { phoneText } from './phone';
 export type { StatusPillProps, StatusTone } from './StatusPill';
 export { StatusPill, statusLabel, statusTone } from './StatusPill';
 export type { TimeValueProps } from './TimeValue';

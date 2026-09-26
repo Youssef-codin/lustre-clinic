@@ -39,7 +39,7 @@
 // visit.
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { MoneyValue, ToothGroupCard } from '../../components/domain';
+import { MoneyValue, phoneText, ToothGroupCard } from '../../components/domain';
 import { Button, Callout, Chevron, StepView, useKeyboardHeight } from '../../components/ui';
 import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
@@ -205,7 +205,7 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                         {name}
                     </Text>
                     <Text variant="footnote" tone="muted" numberOfLines={1}>
-                        {patient?.phone || 'No phone on file'}
+                        {patient?.phone ? phoneText(patient.phone) : t('No phone on file')}
                     </Text>
                     <View style={styles.chip}>
                         <Text variant="footnote" weight="bold" tone="ink2">
@@ -272,7 +272,9 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                                         {t('WHAT WAS DONE')}
                                     </Text>
                                     <Text variant="caption" weight="medium" tone="muted">
-                                        {`${plan.length} procedure${plan.length === 1 ? '' : 's'}`}
+                                        {plan.length === 1
+                                            ? t('1 procedure')
+                                            : t('{count} procedures', { count: plan.length })}
                                     </Text>
                                 </View>
 
