@@ -58,20 +58,6 @@ export function LabSwitch({ value, onValueChange, disabled = false, testID }: La
     );
 }
 
-/** Where the work is, in words, for the detail sheet. */
-export function LabState({ status }: { status: LabStatus }) {
-    const t = useT();
-    const back = status === 'ready';
-    return (
-        <View style={styles.state}>
-            <LabIcon size={15} stroke={back ? color.success : color.due} />
-            <Text variant="subhead" weight="semibold" tone={back ? 'success' : 'due'}>
-                {back ? t('Back from the lab') : t('Not back from the lab yet')}
-            </Text>
-        </View>
-    );
-}
-
 const styles = StyleSheet.create({
     tag: {
         alignSelf: 'flex-start',
@@ -81,5 +67,4 @@ const styles = StyleSheet.create({
     },
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
     switchText: { flex: 1, gap: space[0.5] },
-    state: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
 });

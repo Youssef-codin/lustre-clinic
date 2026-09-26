@@ -14,6 +14,7 @@ listed.
 
 ### Changed
 
+- The appointment sheet is redesigned: the patient's number instead of the booking code, what they're in for on one line, and no phone number. Lab work has its own panel with a Needs lab switch and a large Mark lab arrived button. Reschedule, No-show and Cancel are three big buttons side by side, and Check in has a tick.
 - Less repeated text across the app: the reminder count above the list, the booking and payment hints, the patient record's settings footnote and a few settings notes are gone, and the visit screens show their total once, at the bottom.
 - Record payment shows an icon beside each payment method, and Deactivate question has the same power icon as Deactivate branch.
 - Lab work still out shows as a small flask on the day list instead of "LAB PENDING", so names aren't cut short. The procedure line on the day list and the Now card uses the stethoscope rather than a clock.

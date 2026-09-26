@@ -75,7 +75,7 @@ interface AppointmentLine {
 }
 
 interface AppointmentWithPatient extends AppointmentRow {
-    patient: { id: string; name: string; phone: string };
+    patient: { id: string; ref: string; name: string; phone: string };
     procedures: AppointmentLine[];
 }
 
@@ -415,12 +415,12 @@ export async function makeRoomForWalkIn(
     return { startsAt, moved: moves };
 }
 
-/** Appointments with the three patient fields every list shows. The filter and order are the caller's. */
+/** Appointments with the patient fields every list shows. The filter and order are the caller's. */
 function selectWithPatient() {
     return db
         .select({
             appointment: appointments,
-            patient: { id: patients.id, name: patients.name, phone: patients.phone },
+            patient: { id: patients.id, ref: patients.ref, name: patients.name, phone: patients.phone },
         })
         .from(appointments)
         .innerJoin(patients, eq(appointments.patientId, patients.id));
