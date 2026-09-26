@@ -20,7 +20,7 @@ listed.
 - The appointment sheet's Reschedule, Mark no-show and Cancel, the patient record's Book appointment, Old visit and Record payment, and the Edit / Delete menu items now carry icons.
 - The patients list shows age as "22 y" and a coin beside what's owed, and a screen reader now hears the phone, age and balance too. Finances shows how long a balance has been owed next to an hourglass instead of "Outstanding for" on every row.
 - Shorter settings hints for reminder timing, WhatsApp app, patient fields and procedure switches. A question's switch now reads "Required", and its two inputs are labelled In English and In Arabic.
-- The role switch sheet and the setup screen are shorter.
+- The role switch sheet and the setup screen are shorter: the setup screen drops its demo note and Tailscale hints.
 - Empty and error screens show a proper icon instead of a plain "+" or "!". Where the screen offers an action, tapping the round icon does it too.
 
 ### Fixed

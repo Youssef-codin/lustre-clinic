@@ -326,13 +326,6 @@ export const COPY_AR = {
     'Connect to the clinic': 'الاتصال بالعيادة',
     "The branches haven't loaded yet. Try again in a moment.":
         'لم يتم تحميل الفروع بعد. حاول مرة أخرى بعد قليل.',
-    'Usually filled in by the clinic computer once connected. Leave blank.':
-        'يُملأ عادةً من كمبيوتر العيادة بعد الاتصال. اتركه فارغًا.',
-    "The clinic computer's Tailscale name, with the port. This phone must be signed in to Tailscale.":
-        'اسم كمبيوتر العيادة على تايل سكيل مع المنفذ. يجب تسجيل دخول هذا الهاتف إلى تايل سكيل.',
-    'No clinic server to hand?': 'لا يوجد خادم عيادة الآن؟',
-    'No clinic server to hand? The demo is sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.':
-        'لا يوجد خادم للعيادة؟ الوضع التجريبي مرضى ويوم تجريبي محفوظون على هذا الهاتف. لا يُحفظ شيء في العيادة.',
     'It is charged like any other visit.': 'تُحتسب مثل أي زيارة أخرى.',
     'Enter at least one address.': 'أدخل عنوانًا واحدًا على الأقل.',
     'Enter the Tailscale address.': 'أدخل عنوان تايل سكيل.',
