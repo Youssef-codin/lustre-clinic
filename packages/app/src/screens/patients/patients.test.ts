@@ -20,6 +20,10 @@ import { errorText } from './data/errors';
 import { PatientsRequestError } from './data/requestError';
 import type { CustomQuestion, Patient } from './data/types';
 import type { PatientForm } from './patientForm';
+
+/** The wording, without the isolates `localizeCopy` puts around each value in Arabic. */
+const plain = (text: string) => text.replace(/[\u2068\u2069]/g, '');
+
 import {
     answeredCount,
     birthDateOf,
@@ -189,7 +193,7 @@ describe('taking a payment — what the field accepts', () => {
  */
 describe('what a recorded payment says it did', () => {
     it('says what came in and what is still owed', () => {
-        expect(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 })).toBe(
+        expect(plain(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 }))).toBe(
             'EGP 6,000 recorded — EGP 3,550 still owed',
         );
     });
@@ -197,7 +201,7 @@ describe('what a recorded payment says it did', () => {
     // "EGP 0 still owed" is a true sentence nobody wants to read: closing a page
     // is a different mark from writing a balance on it.
     it('says paid in full rather than nothing owed', () => {
-        expect(paymentReceipt({ amount: 955_000, outstandingAfter: 0 })).toBe(
+        expect(plain(paymentReceipt({ amount: 955_000, outstandingAfter: 0 }))).toBe(
             'EGP 9,550 recorded — paid in full',
         );
     });
@@ -214,10 +218,10 @@ describe('what a recorded payment says it did', () => {
     it('reads the locale itself, currency included', () => {
         setRuntimeLocale('ar');
         try {
-            expect(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 })).toBe(
+            expect(plain(paymentReceipt({ amount: 600_000, outstandingAfter: 355_000 }))).toBe(
                 'سُجل 6,000 ج.م — وما زال 3,550 ج.م مستحقًا',
             );
-            expect(paymentReceipt({ amount: 955_000, outstandingAfter: 0 })).toBe(
+            expect(plain(paymentReceipt({ amount: 955_000, outstandingAfter: 0 }))).toBe(
                 'سُجل 9,550 ج.م — سُددت بالكامل',
             );
         } finally {

@@ -1267,14 +1267,108 @@ export type CopyVars = Record<string, string | number>;
 
 const SLOT = /\{(\w+)\}/g;
 
-function fill(copy: string, vars: CopyVars): string {
+/**
+ * First-strong isolate and its pop (U+2068, U+2069).
+ *
+ * Android lays a line out in the direction of its first strong character, and
+ * in Arabic a slot is usually filled with Latin — a patient's name, a
+ * procedure, a branch. `{procedure} · {minutes} دقيقة` filled with
+ * "Consultation" started with a Latin letter, so the whole line ran left to
+ * right and read "دقيقة 30". The rule skips whatever sits inside an isolate, so
+ * wrapping each value keeps the Arabic sentence the one that decides, and the
+ * value still reads in its own direction inside it.
+ */
+const ISOLATE = '\u2068';
+const POP = '\u2069';
+
+function fill(copy: string, vars: CopyVars, isolate: boolean): string {
     return copy.replace(SLOT, (slot, name: string) => {
         const value = vars[name];
-        return value === undefined ? slot : String(value);
+        if (value === undefined) return slot;
+        return isolate ? `${ISOLATE}${value}${POP}` : String(value);
     });
 }
 
+/**
+ * Arabic counted nouns take a form by number, where English takes two: one,
+ * two, three to ten, eleven to ninety-nine, and the hundreds, which go back to
+ * the singular. `COPY_AR` holds one string per key, so `{count} يوم` read
+ * "4 يوم" where Arabic says "4 أيام". A key listed here picks its form from
+ * the first number among its values; `COPY_AR` still carries the key, so the
+ * catalogue test sees it and anything missing falls back there.
+ */
+type ArabicForms = { one: string; two: string; few: string; many: string; other: string };
+
+const PLURAL_AR: Partial<Record<CopyKey, ArabicForms>> = {
+    '{count} days': {
+        one: 'يوم واحد',
+        two: 'يومان',
+        few: '{count} أيام',
+        many: '{count} يومًا',
+        other: '{count} يوم',
+    },
+    '{count} months': {
+        one: 'شهر واحد',
+        two: 'شهران',
+        few: '{count} أشهر',
+        many: '{count} شهرًا',
+        other: '{count} شهر',
+    },
+    '{count} years': {
+        one: 'سنة واحدة',
+        two: 'سنتان',
+        few: '{count} سنوات',
+        many: '{count} سنة',
+        other: '{count} سنة',
+    },
+    '{minutes} min ago': {
+        one: 'منذ دقيقة',
+        two: 'منذ دقيقتين',
+        few: 'منذ {minutes} دقائق',
+        many: 'منذ {minutes} دقيقة',
+        other: 'منذ {minutes} دقيقة',
+    },
+    '{hours} hours ago': {
+        one: 'منذ ساعة',
+        two: 'منذ ساعتين',
+        few: 'منذ {hours} ساعات',
+        many: 'منذ {hours} ساعة',
+        other: 'منذ {hours} ساعة',
+    },
+    '{days} days ago': {
+        one: 'منذ يوم',
+        two: 'منذ يومين',
+        few: 'منذ {days} أيام',
+        many: 'منذ {days} يومًا',
+        other: 'منذ {days} يوم',
+    },
+    'The off-site copy has been stopped for {days} days.': {
+        one: 'النسخة الخارجية متوقفة منذ يوم.',
+        two: 'النسخة الخارجية متوقفة منذ يومين.',
+        few: 'النسخة الخارجية متوقفة منذ {days} أيام.',
+        many: 'النسخة الخارجية متوقفة منذ {days} يومًا.',
+        other: 'النسخة الخارجية متوقفة منذ {days} يوم.',
+    },
+};
+
+function arabicForm(count: number): keyof ArabicForms {
+    const n = Math.abs(Math.trunc(count));
+    if (n === 1) return 'one';
+    if (n === 2) return 'two';
+    const rest = n % 100;
+    if (rest >= 3 && rest <= 10) return 'few';
+    if (rest >= 11) return 'many';
+    return 'other';
+}
+
+function arabic(copy: string, vars?: CopyVars): string {
+    const forms = PLURAL_AR[copy as CopyKey];
+    const count = vars && Object.values(vars).find((value): value is number => typeof value === 'number');
+    if (forms && count !== undefined) return forms[arabicForm(count)];
+    return COPY_AR[copy as CopyKey] ?? copy;
+}
+
 export function localizeCopy(locale: Locale, copy: string, vars?: CopyVars): string {
-    const resolved = locale === 'en' ? copy : (COPY_AR[copy as CopyKey] ?? copy);
-    return vars ? fill(resolved, vars) : resolved;
+    const resolved = locale === 'en' ? copy : arabic(copy, vars);
+    return vars ? fill(resolved, vars, locale === 'ar') : resolved;
 }
