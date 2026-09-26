@@ -25,7 +25,7 @@
  * plan is cheap to recompute and a diff is how a phone ends up with two series
  * layered over each other, each buzzing on its own half-hour.
  */
-import { localizeCopy } from '@lustre/shared';
+import { type Locale, localizeCopy } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getLocale } from '../i18n/runtime';
@@ -50,25 +50,25 @@ Notifications.setNotificationHandler({
     }),
 });
 
-let channelReady = false;
+let channelLocale: Locale | null = null;
 
 /**
  * Android needs a channel before anything can be posted to it, and the channel
- * is what the user tunes in system settings — so it is created once, named for
- * what it is rather than for the app.
+ * is what the user tunes in system settings — so it is named for what it is
+ * rather than for the app, and named again when the app's language changes:
+ * creating a channel under an id that exists only renames it, so the user's
+ * own settings for it survive. Every channel below follows the same rule.
  */
 async function ensureChannel(): Promise<void> {
-    if (channelReady || Platform.OS !== 'android') {
-        channelReady = true;
-        return;
-    }
+    if (Platform.OS !== 'android' || channelLocale === getLocale()) return;
 
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-        name: 'Appointment reminders',
-        description: 'The daily nudge that reminders are still waiting to be sent.',
+        name: t('Appointment reminders'),
+        description: t('The daily nudge that reminders are still waiting to be sent.'),
         importance: Notifications.AndroidImportance.DEFAULT,
     });
-    channelReady = true;
+    channelLocale = getLocale();
 }
 
 /**
@@ -134,7 +134,11 @@ export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' |
 
     for (const at of plan.at) {
         await Notifications.scheduleNotificationAsync({
-            content: { title: TITLE, body: BODY, data: { tag: NUDGE_TAG } },
+            content: {
+                title: localizeCopy(getLocale(), TITLE),
+                body: localizeCopy(getLocale(), BODY),
+                data: { tag: NUDGE_TAG },
+            },
             trigger: {
                 type: Notifications.SchedulableTriggerInputTypes.DATE,
                 date: at,
@@ -148,7 +152,7 @@ export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' |
 
 const VISIT_CHANNEL_ID = 'visits';
 
-let visitChannelReady = false;
+let visitChannelLocale: Locale | null = null;
 
 /**
  * High importance, so it drops down over whatever she is doing: the patient is
@@ -156,10 +160,7 @@ let visitChannelReady = false;
  * arrived and not whose.
  */
 async function ensureVisitChannel(): Promise<void> {
-    if (visitChannelReady || Platform.OS !== 'android') {
-        visitChannelReady = true;
-        return;
-    }
+    if (Platform.OS !== 'android' || visitChannelLocale === getLocale()) return;
 
     const t = (copy: string) => localizeCopy(getLocale(), copy);
     await Notifications.setNotificationChannelAsync(VISIT_CHANNEL_ID, {
@@ -168,7 +169,7 @@ async function ensureVisitChannel(): Promise<void> {
         importance: Notifications.AndroidImportance.HIGH,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
     });
-    visitChannelReady = true;
+    visitChannelLocale = getLocale();
 }
 
 /**
@@ -195,13 +196,10 @@ export async function presentVisitNotice(appointmentId: string, name: string | n
 
 const FINISH_CHANNEL_ID = 'visit-finish';
 
-let finishChannelReady = false;
+let finishChannelLocale: Locale | null = null;
 
 async function ensureFinishChannel(): Promise<void> {
-    if (finishChannelReady || Platform.OS !== 'android') {
-        finishChannelReady = true;
-        return;
-    }
+    if (Platform.OS !== 'android' || finishChannelLocale === getLocale()) return;
 
     const t = (copy: string) => localizeCopy(getLocale(), copy);
     await Notifications.setNotificationChannelAsync(FINISH_CHANNEL_ID, {
@@ -209,7 +207,7 @@ async function ensureFinishChannel(): Promise<void> {
         description: t('When finishing a visit from the notification does not go through.'),
         importance: Notifications.AndroidImportance.HIGH,
     });
-    finishChannelReady = true;
+    finishChannelLocale = getLocale();
 }
 
 /**
@@ -239,14 +237,11 @@ export async function dismissFinishFailure(appointmentId: string): Promise<void>
 
 const ARRIVAL_CHANNEL_ID = 'arrivals';
 
-let arrivalChannelReady = false;
+let arrivalChannelLocale: Locale | null = null;
 
 /** High importance and private, like the desk's: someone is waiting now, and a locked phone says so without saying who. */
 async function ensureArrivalChannel(): Promise<void> {
-    if (arrivalChannelReady || Platform.OS !== 'android') {
-        arrivalChannelReady = true;
-        return;
-    }
+    if (Platform.OS !== 'android' || arrivalChannelLocale === getLocale()) return;
 
     const t = (copy: string) => localizeCopy(getLocale(), copy);
     await Notifications.setNotificationChannelAsync(ARRIVAL_CHANNEL_ID, {
@@ -255,7 +250,7 @@ async function ensureArrivalChannel(): Promise<void> {
         importance: Notifications.AndroidImportance.HIGH,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
     });
-    arrivalChannelReady = true;
+    arrivalChannelLocale = getLocale();
 }
 
 /** Posts "{name} has checked in" on the doctor's phone. `name` is null when it could not be fetched, and the notice still goes. */
