@@ -83,7 +83,7 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
 
                 <Text variant="footnote" tone="muted" style={styles.hint}>
                     {t(
-                        "Changes the interface everywhere, including printed receipts. Patient messages use the patient's own language.",
+                        'Changes the language and layout of the app on this phone. Reminders to patients are sent as written in Settings → Reminders, whichever language is picked here.',
                     )}
                 </Text>
             </View>
