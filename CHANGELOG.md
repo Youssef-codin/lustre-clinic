@@ -14,7 +14,7 @@ listed.
 
 ### Changed
 
-- The doctor's phone no longer shows payments, balances, the Money tab, or what past visits cost (including a visit sent to the desk for payment), and the server refuses them to it. The doctor still prices the visit in front of them and checks the patient out, but can't reopen a finished visit. The admin's phone can switch between the doctor's day and the desk's day in Settings, and keeps everything either way.
+- The doctor's phone no longer shows payments, balances, the Money tab, or what past visits cost, and the server refuses them to it. The doctor still prices the visit in front of them and checks the patient out, but can't reopen a finished visit. The admin's phone can switch between the doctor's day and the desk's day in Settings, and keeps everything either way.
 - Only the admin can change how the clinic is set up: procedures and prices, patient fields, branches, working hours, clinic details and the backups link. The server refuses them to other phones.
 - Reminders are only on the secretary's phone. The doctor's and the admin's phones no longer show the Reminders setting or the daily reminder notification.
 

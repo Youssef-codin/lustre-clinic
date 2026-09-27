@@ -298,7 +298,7 @@ describe('a doctor and payment data', () => {
         expect(read.balance).toBeNull();
     });
 
-    test('sees no amounts once the visit has been sent to the desk', async () => {
+    test('still sees prices on a visit sent to the desk, until it is checked out', async () => {
         const { visit, patient, checkup, appointment } = await checkedInVisit();
         await visitService.setProcedures({
             visitId: visit.id,
@@ -308,10 +308,11 @@ describe('a doctor and payment data', () => {
         const doctor = api.clientAs((await provisioned('doctor')).token);
 
         const read = await doctor.visit.byId.query({ id: visit.id });
-        expect(read.chargedTotal).toBeNull();
-        expect(read.procedures[0]?.unitPrice).toBeNull();
+        expect(read.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(read.payments).toBeNull();
         const [entry] = (await doctor.patient.byId.query({ id: patient.id })).history;
-        expect(entry?.chargedTotal).toBeNull();
+        expect(entry?.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(entry?.paidTotal).toBeNull();
     });
 
     test('sees prices on a visit still open, to check it out', async () => {
