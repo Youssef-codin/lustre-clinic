@@ -179,6 +179,20 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         );
     }
 
+    // Not behind the summary either: the build is local, and it is what gets
+    // read out over the phone when the server is not answering.
+    const about = (
+        <Group title={t('ABOUT')}>
+            <SettingsRow
+                icon={<SettingsIcon glyph="about" />}
+                label="About"
+                sub={`${t('Version')} ${INSTALLED.version ?? '0.0.0'}`}
+                onPress={() => routes.push('about')}
+                testID="settings-about"
+            />
+        </Group>
+    );
+
     // Not behind the summary: a report is most wanted when the server is not
     // answering and the summary never loads.
     const problem = (
@@ -421,15 +435,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        <Group title={t('ABOUT')}>
-                            <SettingsRow
-                                icon={<SettingsIcon glyph="about" />}
-                                label="About"
-                                sub={`${t('Version')} ${INSTALLED.version ?? '0.0.0'}`}
-                                onPress={() => routes.push('about')}
-                                testID="settings-about"
-                            />
-                        </Group>
+                        {about}
 
                         {problem}
 
@@ -438,7 +444,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                         </Text>
                     </>
                 ) : (
-                    problem
+                    <>
+                        {about}
+                        {problem}
+                    </>
                 )}
             </ScrollView>
 
