@@ -58,7 +58,7 @@ import {
     useKeyboardHeight,
 } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
-import { useRole } from '../../shell/roleStore';
+import { useRole } from '../../shell/useRole';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';

@@ -30,6 +30,8 @@ const TRUNCATED_TABLES = [
     'clinic_days',
     'branches',
     'custom_questions',
+    'devices',
+    'role_grants',
     'settings',
 ] as const;
 

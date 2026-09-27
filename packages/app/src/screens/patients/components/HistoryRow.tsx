@@ -112,7 +112,9 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
               ? IN_CHAIR
               : STATUS[entry.status];
     const came = entry.visitId !== null;
-    const due = entry.balance > 0;
+    // Null on a phone not shown payments: the row then shows the charge alone.
+    const owed = entry.balance ?? 0;
+    const due = owed > 0;
 
     // A row is a way into what it stands for: the visit behind a row that came,
     // or the booking itself while it is still to come. One with neither — a
@@ -176,7 +178,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                 {came && due ? (
                     <View style={styles.meaning}>
                         <MoneyValue
-                            piastres={entry.balance}
+                            piastres={owed}
                             variant="callout"
                             weight="bold"
                             showCurrency={false}
@@ -186,7 +188,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                             {t('due')}
                         </Text>
                     </View>
-                ) : came ? (
+                ) : came && entry.chargedTotal !== null ? (
                     <MoneyValue
                         piastres={entry.chargedTotal}
                         variant="callout"
@@ -267,6 +269,10 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
         return null;
     }
 
+    // Withheld on a phone not shown payments: the charge above is all the row
+    // says, and nothing about whether it was paid.
+    if (entry.balance === null) return null;
+
     if (entry.balance > 0) {
         return (
             <View style={styles.meaning}>
@@ -274,7 +280,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
                     {t('of')}
                 </Text>
                 <MoneyValue
-                    piastres={entry.chargedTotal}
+                    piastres={entry.chargedTotal ?? 0}
                     variant="caption"
                     tone="muted"
                     showCurrency={false}

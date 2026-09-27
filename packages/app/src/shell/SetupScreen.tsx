@@ -17,6 +17,7 @@ import { Button, Dot, TextField } from '../components/ui';
 import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_DEV_SERVER, NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
+import { usePendingJoin } from './joinLink';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
 // First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
@@ -51,8 +52,13 @@ const DEMO_ALLOWED = allowsDemo(BUILD_VARIANT);
 export function SetupScreen() {
     const t = useT();
     const current = serverAddresses();
-    const [lan, setLan] = useState(current.lan ?? '');
-    const [tailscale, setTailscale] = useState(current.tailscale ?? '');
+    // A join link names the server its page came from. It fills in what is
+    // empty and nothing else: the person still connects, and a prod build
+    // still refuses an address off the tailnet.
+    const suggested = usePendingJoin()?.server ?? null;
+    const onTailnet = suggested !== null && isTailnetAddress(suggested);
+    const [lan, setLan] = useState(current.lan ?? (LAN_ALLOWED && suggested && !onTailnet ? suggested : ''));
+    const [tailscale, setTailscale] = useState(current.tailscale ?? (onTailnet ? suggested : ''));
     const [testing, setTesting] = useState(false);
     const [attempt, setAttempt] = useState<Attempt | null>(null);
 

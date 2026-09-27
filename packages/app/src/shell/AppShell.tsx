@@ -1,7 +1,8 @@
+import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
-import { useConnection } from '../api';
+import { useConnection, useCredential } from '../api';
 import { BottomTabBar, GLYPH, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import {
@@ -20,9 +21,10 @@ import { color } from '../theme';
 import { ApkUpdateBanner } from './ApkUpdateBanner';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { ClockBanner } from './ClockBanner';
+import { JoinSheet } from './JoinSheet';
 import { NotificationsBanner } from './NotificationsBanner';
 import { OfflineScreen } from './OfflineScreen';
-import { useRole } from './roleStore';
+import { ProvisionScreen } from './ProvisionScreen';
 import {
     ALL_TABS,
     ask,
@@ -35,6 +37,7 @@ import {
     type ShellRoute,
 } from './routes';
 import { BackStackContext } from './useBackHandler';
+import { useRole } from './useRole';
 
 // The app shell (SPEC §18 F3): four clusters under one `domain/BottomTabBar`,
 // each keeping its own internal stack. A tab is mounted on first open and then
@@ -92,7 +95,15 @@ export function AppShell() {
     const [tab, setTab] = useState<TabKey>('day');
     // Device-local and persisted (`roleStore`), not shell state: a role held
     // here only would be re-chosen as Doctor by every cold launch.
-    const { hydrated: roleReady, role } = useRole();
+    const { hydrated: roleReady, role, granted } = useRole();
+    // A doctor's phone has no Money tab and never mounts the cluster: every
+    // read on it is one the server refuses that role.
+    const money = seesPayments(granted);
+    // The server would not let this phone in (`api/credential`). The route is
+    // the connection's kind of answer, so it takes the panes' place the same way.
+    const { refusal } = useCredential();
+    // A code redeemed on the Money tab can take the tab away under her.
+    if (!money && tab === 'money') setTab('day');
     const [visited, setVisited] = useState<TabKey[]>(['day']);
     // The day tab can be showing a booking, which is patients' work — the tab
     // bar says so rather than leaving the highlight on a day nobody is looking
@@ -120,7 +131,8 @@ export function AppShell() {
     // day cluster: it has to stay armed while the app sits on another tab or in
     // the background, and the day cluster is unmounted for neither of those but
     // is the wrong owner for something the whole app has.
-    useReminderNudges();
+    // Only on the desk's phone, and not before the role is known.
+    useReminderNudges(roleReady && role === 'secretary' && granted !== 'admin');
     // The doctor finishing (`visit:completed`), on the desk's phone only.
     useVisitCompletedNotices(roleReady ? role : null);
     // And its other half: Finish from the doctor's notification shade.
@@ -139,6 +151,8 @@ export function AppShell() {
     const wanted = nextRoute(route, status);
     if (wanted !== route) setRoute(wanted);
     const disconnected = route === 'offline';
+    const refused = !disconnected && refusal !== 'none';
+    const away = disconnected || refused;
 
     // A pane nobody has opened has no components, so it has no queries either
     // and the round trip for Patients, Money or Settings started at the tap —
@@ -280,7 +294,7 @@ export function AppShell() {
         // The disconnected route is a dead end by design (`OfflineScreen`): no
         // tab bar, nothing behind it reachable. Back leaves the app rather than
         // being swallowed into a screen with one button on it.
-        if (disconnected) return false;
+        if (away) return false;
         if (stacks[tab].run()) return true;
 
         const home = backFromRoot(tab);
@@ -302,7 +316,7 @@ export function AppShell() {
             <View style={styles.body}>
                 <Pane
                     tab="day"
-                    visible={!disconnected && tab === 'day'}
+                    visible={!away && tab === 'day'}
                     mounted={visited.includes('day')}
                     back={stacks.day}
                 >
@@ -335,7 +349,7 @@ export function AppShell() {
 
                 <Pane
                     tab="patients"
-                    visible={!disconnected && tab === 'patients'}
+                    visible={!away && tab === 'patients'}
                     mounted={visited.includes('patients')}
                     back={stacks.patients}
                 >
@@ -344,8 +358,8 @@ export function AppShell() {
 
                 <Pane
                     tab="money"
-                    visible={!disconnected && tab === 'money'}
-                    mounted={visited.includes('money')}
+                    visible={!away && tab === 'money'}
+                    mounted={money && visited.includes('money')}
                     back={stacks.money}
                 >
                     {/* The debtor rows are the whole tab now: tapping one opens
@@ -356,7 +370,7 @@ export function AppShell() {
 
                 <Pane
                     tab="settings"
-                    visible={!disconnected && tab === 'settings'}
+                    visible={!away && tab === 'settings'}
                     mounted={visited.includes('settings')}
                     back={stacks.settings}
                 >
@@ -378,15 +392,20 @@ export function AppShell() {
                 {/* The route, in the panes' place rather than over them: they
                     are hidden above, so this is the only thing in the body. */}
                 {disconnected ? <OfflineScreen /> : null}
+                {refused ? <ProvisionScreen refusal={refusal} /> : null}
+                {/* Over any route but offline: a phone the server refuses is
+                    exactly the one a join link is for. */}
+                {disconnected ? null : <JoinSheet onDone={setToast} />}
             </View>
 
             {/* No tab bar on the disconnected route either. It is a dead end,
                 not a mode to navigate around, and every tab it offers leads to
                 the same screen. */}
-            {disconnected ? null : (
+            {away ? null : (
                 <BottomTabBar
                     active={booking && tab === 'day' ? 'patients' : tab}
-                    role={role}
+                    role={granted ?? role}
+                    granted={granted}
                     onChange={open}
                 />
             )}

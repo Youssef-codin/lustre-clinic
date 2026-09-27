@@ -1,11 +1,11 @@
-import { publicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, router, setupProcedure } from '../../trpc/init.ts';
 import { createBranchInput, listBranchInput, updateBranchInput } from './branch.schema.ts';
 import { branchService } from './branch.service.ts';
 
 export const branchRouter = router({
-    list: publicProcedure.input(listBranchInput).query(({ input }) => branchService.list(input)),
+    list: clinicProcedure.input(listBranchInput).query(({ input }) => branchService.list(input)),
 
-    create: publicProcedure.input(createBranchInput).mutation(({ input }) => branchService.create(input)),
+    create: setupProcedure.input(createBranchInput).mutation(({ input }) => branchService.create(input)),
 
-    update: publicProcedure.input(updateBranchInput).mutation(({ input }) => branchService.update(input)),
+    update: setupProcedure.input(updateBranchInput).mutation(({ input }) => branchService.update(input)),
 });

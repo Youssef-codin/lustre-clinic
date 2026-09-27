@@ -5,9 +5,9 @@
  *
  * Payloads carry IDs only. The client refetches through tRPC on receipt, so no
  * patient data crosses this channel. The channel is server-to-client only;
- * client messages are ignored. Like every other route it is reachable only on
- * the tailnet, which is the whole authorization model (§1) — there is no user
- * to authenticate a socket as.
+ * client messages are ignored. A socket is admitted on the same credential rule
+ * as tRPC (`deviceService.admitsSocket`), and closed when its phone is revoked
+ * or, for a phone with none, when the clinic starts requiring one.
  *
  * Delivery is at most once per socket, and recovery is the client's to ask for:
  * it reconnects with the `epoch` and last `seq` it applied, and gets the frames
@@ -16,7 +16,13 @@
  * converges on the server's state, and never by trusting a frame's content:
  * every event only says what to refetch.
  */
-import { WS_PROTOCOL_VERSION, WS_RESUME_PARAM, type WsEvent, type WsFrame } from '@lustre/shared';
+import {
+    WS_CLOSE_REFUSED,
+    WS_PROTOCOL_VERSION,
+    WS_RESUME_PARAM,
+    type WsEvent,
+    type WsFrame,
+} from '@lustre/shared';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { logger } from '../logger.ts';
 
@@ -28,6 +34,8 @@ export interface Resume {
 export interface WsData {
     connectedAt: number;
     resume: Resume | null;
+    /** Null for a phone with no credential. */
+    deviceId: string | null;
 }
 
 type Socket = ServerWebSocket<WsData>;
@@ -77,6 +85,15 @@ export const wsHandlers: WebSocketHandler<WsData> = {
     },
     message() {},
 };
+
+export function disconnectDevice(deviceId: string): void {
+    for (const ws of sockets) if (ws.data.deviceId === deviceId) ws.close(WS_CLOSE_REFUSED, 'revoked');
+}
+
+export function disconnectUnprovisioned(): void {
+    for (const ws of sockets)
+        if (ws.data.deviceId === null) ws.close(WS_CLOSE_REFUSED, 'provisioning required');
+}
 
 export function broadcast(event: WsEvent, payload: { id?: string } = {}): void {
     seq += 1;

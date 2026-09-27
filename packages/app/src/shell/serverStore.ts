@@ -5,6 +5,7 @@ import {
     allowsLan,
     BUILD_VARIANT,
     isTailnetAddress,
+    markFreshInstall,
     reprobe,
     type ServerAddresses,
     serverAddresses,
@@ -104,6 +105,10 @@ async function hydrate(): Promise<void> {
             return;
         }
     }
+
+    // Nothing stored is an install that has never reached a clinic — one made
+    // since roles existed — so it will ask for a role code once it can.
+    void markFreshInstall();
 
     const fallback = serverAddresses();
     emit({ ...state, hydrated: true, addresses: fallback, stored: false });

@@ -177,7 +177,9 @@ export function PatientRecordScreen({
 
     const edit = onEdit ?? (() => setToast('Editing a patient is not wired up from here yet.'));
 
-    const outstanding = history.reduce((total, entry) => total + Math.max(entry.balance, 0), 0);
+    // Withheld (null) on a doctor's phone, which then has nothing outstanding to
+    // show and no payment to take — the strip and its sheet stay away.
+    const outstanding = history.reduce((total, entry) => total + Math.max(entry.balance ?? 0, 0), 0);
     const visits = history.filter((entry) => entry.visitId !== null).length;
 
     /**
@@ -565,7 +567,7 @@ function History({
 }) {
     const t = useT();
     const years = useMemo(() => groupByYear(history), [history]);
-    const paid = history.reduce((total, entry) => total + entry.paidTotal, 0);
+    const paid = history.reduce((total, entry) => total + (entry.paidTotal ?? 0), 0);
 
     if (history.length === 0) {
         return (

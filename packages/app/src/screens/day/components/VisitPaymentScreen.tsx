@@ -15,6 +15,12 @@
  * blocked checkout — so the confirm button never blocks and only ever changes
  * what it says it is about to record.
  *
+ * A doctor's phone is not told what was paid (`seesPayments`): the visit comes
+ * with its payment fields withheld. It can still check the patient out and take
+ * money at the chair, against the charge, but it cannot correct what was taken
+ * before — that needs the figure it is not shown — and what it says afterwards
+ * does not claim to know the balance.
+ *
  * The design's identity line names the dentist. Lustre does not model one
  * (PRD §10 leaves a second practitioner undecided), so the line carries the
  * date alone.
@@ -27,16 +33,23 @@ import { formatMoney, MethodIcon } from '../../../components/domain';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
-import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery, type Visit } from '../data';
+import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
-import { amountDue, discountPercent, formatAmount, poundsEntry, procedureDiscount } from '../money';
+import {
+    amountDue,
+    discountPercent,
+    formatAmount,
+    type PricedVisit,
+    poundsEntry,
+    procedureDiscount,
+} from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CheckIcon } from './icons';
 
 export type VisitPaymentScreenProps = {
     appointment: Appointment;
     /** Priced by the visit screen — `chargedTotal` is what this screen collects. */
-    visit: Visit;
+    visit: PricedVisit;
     /**
      * The visit was checked out once already and is being corrected. The field
      * then means everything collected on it, not a payment on top: a visit
@@ -75,7 +88,7 @@ function toPounds(piastres: number): string {
 export function VisitPaymentScreen({
     appointment,
     visit,
-    correcting = false,
+    correcting: asked = false,
     onBack,
     onClosed,
     onWritingChange,
@@ -83,7 +96,9 @@ export function VisitPaymentScreen({
     const t = useT();
     const isRTL = useIsRTL();
     const keyboard = useKeyboardHeight();
-    const collected = visit.paidTotal;
+    const withheld = visit.paidTotal === null;
+    const correcting = asked && !withheld;
+    const collected = visit.paidTotal ?? 0;
     // There is no discount to type here: a discount is a procedure priced under
     // the catalogue's on the visit screen, and this only says how much that is.
     const charged = visit.chargedTotal;
@@ -100,9 +115,11 @@ export function VisitPaymentScreen({
         () => procedureDiscount(visit.procedures, defaults),
         [visit.procedures, defaults],
     );
-    const lineDiscount = (line: Visit['procedures'][number]) =>
+    const lineDiscount = (line: PricedVisit['procedures'][number]) =>
         discountPercent(defaults.get(line.procedureId) ?? 0, line.unitPrice);
-    const due = amountDue(charged, collected);
+    // Withheld, a visit already closed offers nothing to take: whatever it was
+    // paid is on it, and taking the charge again would be taking it twice.
+    const due = withheld ? (visit.completedAt ? 0 : charged) : amountDue(charged, collected);
     // What the field means, and so the most it can hold: money being taken now
     // cannot exceed what is owed, but a *total* collected is measured against
     // the whole charge — which is the figure a correction has to be free to
@@ -205,23 +222,40 @@ export function VisitPaymentScreen({
                 onError: () => onWritingChange?.(false),
                 onSuccess: (closed) => {
                     onWritingChange?.(false);
+                    const balance = closed.balance;
+                    if (balance === null) {
+                        setDone({
+                            tone: nothing ? 'none' : 'settled',
+                            title: t('Visit closed'),
+                            message: nothing
+                                ? t('No payment recorded here.')
+                                : t('{amount} {method} recorded.', {
+                                      amount: formatMoney(paidPiastres),
+                                      method: methodText(),
+                                  }),
+                            toast: nothing
+                                ? t('Checked out')
+                                : t('Checked out · {amount} recorded', { amount: formatMoney(paidPiastres) }),
+                        });
+                        return;
+                    }
                     if (correcting) {
                         setDone({
-                            tone: closed.balance > 0 ? 'owing' : 'settled',
+                            tone: balance > 0 ? 'owing' : 'settled',
                             title: t('Visit updated'),
                             message:
-                                closed.balance > 0
+                                balance > 0
                                     ? t('{amount} paid — {balance} still owed on this visit.', {
                                           amount: formatMoney(paidPiastres),
-                                          balance: formatMoney(closed.balance),
+                                          balance: formatMoney(balance),
                                       })
                                     : t('{amount} paid. Nothing left on this visit.', {
                                           amount: formatMoney(paidPiastres),
                                       }),
                             toast:
-                                closed.balance > 0
+                                balance > 0
                                     ? t('Visit updated · {balance} outstanding', {
-                                          balance: formatMoney(closed.balance),
+                                          balance: formatMoney(balance),
                                       })
                                     : t('Visit updated · settled in full'),
                         });
@@ -232,25 +266,25 @@ export function VisitPaymentScreen({
                             tone: 'none',
                             title: t('Visit closed'),
                             message: t('No payment recorded — {balance} outstanding on this visit.', {
-                                balance: formatMoney(closed.balance),
+                                balance: formatMoney(balance),
                             }),
                             toast: t('Checked out · {balance} outstanding', {
-                                balance: formatMoney(closed.balance),
+                                balance: formatMoney(balance),
                             }),
                         });
                         return;
                     }
-                    if (closed.balance > 0) {
+                    if (balance > 0) {
                         setDone({
                             tone: 'owing',
                             title: t('Visit closed'),
                             message: t('{amount} {method} — {balance} still owed on this visit.', {
                                 amount: formatMoney(paidPiastres),
                                 method: methodText(),
-                                balance: formatMoney(closed.balance),
+                                balance: formatMoney(balance),
                             }),
                             toast: t('Checked out · {balance} outstanding', {
-                                balance: formatMoney(closed.balance),
+                                balance: formatMoney(balance),
                             }),
                         });
                         return;
@@ -269,15 +303,19 @@ export function VisitPaymentScreen({
         );
     }
 
-    const confirmLabel = correcting
-        ? settled
-            ? t('Save & close visit')
-            : t('Save — {balance} still owed', { balance: formatMoney(remaining) })
-        : nothing
-          ? t('Close visit without payment')
-          : settled
-            ? t('Confirm & close visit')
-            : t('Confirm — {balance} still owed', { balance: formatMoney(remaining) });
+    const confirmLabel = withheld
+        ? nothing
+            ? t('Close visit without payment')
+            : t('Confirm & close visit')
+        : correcting
+          ? settled
+              ? t('Save & close visit')
+              : t('Save — {balance} still owed', { balance: formatMoney(remaining) })
+          : nothing
+            ? t('Close visit without payment')
+            : settled
+              ? t('Confirm & close visit')
+              : t('Confirm — {balance} still owed', { balance: formatMoney(remaining) });
 
     /**
      * The method belongs to the money moving now, not to the visit. A patient
@@ -568,25 +606,30 @@ export function VisitPaymentScreen({
                     </Text>
                 ) : null}
 
-                <View style={styles.strip}>
-                    {settled ? (
-                        <CheckIcon size={15} stroke={color.success} width={3} />
-                    ) : (
-                        <View style={styles.stripDot} />
-                    )}
-                    <Text variant="subhead" tone="muted">
-                        {t(settled ? 'Settled — nothing owed' : 'Remaining balance')}
-                    </Text>
-                    <Text
-                        variant="headline"
-                        script="mono"
-                        weight="bold"
-                        tone={settled ? 'success' : 'due'}
-                        style={styles.stripAmount}
-                    >
-                        {formatMoney(remaining)}
-                    </Text>
-                </View>
+                {/* Worked out from the charge alone, which is wrong the moment
+                    anything was paid before — and a doctor's phone is not told
+                    whether it was. So it says nothing about what is owed. */}
+                {withheld ? null : (
+                    <View style={styles.strip}>
+                        {settled ? (
+                            <CheckIcon size={15} stroke={color.success} width={3} />
+                        ) : (
+                            <View style={styles.stripDot} />
+                        )}
+                        <Text variant="subhead" tone="muted">
+                            {t(settled ? 'Settled — nothing owed' : 'Remaining balance')}
+                        </Text>
+                        <Text
+                            variant="headline"
+                            script="mono"
+                            weight="bold"
+                            tone={settled ? 'success' : 'due'}
+                            style={styles.stripAmount}
+                        >
+                            {formatMoney(remaining)}
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
 
             {failure ? (

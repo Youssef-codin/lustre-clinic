@@ -29,6 +29,8 @@ import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
+import { credentialToken, noteRefusal } from '../credential';
+import { admit, inputFor, shownTo } from './access';
 import { getDb, isOpen, loadStored, setDb } from './db';
 import { hasHandler, resolve } from './handlers';
 import { DemoError } from './rules';
@@ -38,6 +40,8 @@ const LATENCY_MS = { query: 120, mutation: 240 } as const;
 
 /** JSONRPC2 error codes, picked the way the server's `trpcCodeFor` picks them. */
 const TRPC_CODE: Record<number, number> = {
+    401: -32001,
+    403: -32003,
     404: -32004,
     409: -32009,
     422: -32022,
@@ -69,7 +73,7 @@ let opening: Promise<void> | null = null;
  * Opened once, on the first request rather than at import: a seed that runs
  * during module evaluation runs on every launch of the real app too.
  */
-function openDemoDb(): Promise<void> {
+export function openDemoDb(): Promise<void> {
     if (isOpen()) return Promise.resolve();
     if (opening) return opening;
 
@@ -105,7 +109,24 @@ export const demoLink: TRPCLink<AppRouter> = () => {
                 // throws until the open above has finished.
                 getDb();
 
-                return toWire(resolve(op.path, op.input));
+                // The server's credential check, against the demo's devices.
+                // A refusal reaches the shell the way the server's does.
+                const token = credentialToken();
+                try {
+                    const caller = admit(op.path, token, op.input);
+                    const output = resolve(op.path, inputFor(op.path, op.input, caller), caller);
+                    return toWire(shownTo(op.path, output, caller));
+                } catch (error) {
+                    if (error instanceof DemoError && error.code === ERROR_CODE.DEVICE_REVOKED) {
+                        noteRefusal('revoked', token);
+                    } else if (
+                        error instanceof DemoError &&
+                        error.code === ERROR_CODE.DEVICE_NOT_PROVISIONED
+                    ) {
+                        noteRefusal('unprovisioned', token);
+                    }
+                    throw error;
+                }
             };
 
             run().then(

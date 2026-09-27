@@ -13,6 +13,7 @@ import { backupHandlers } from './backup';
 import { balanceHandlers } from './balance';
 import { branchHandlers } from './branch';
 import { customQuestionHandlers } from './customQuestion';
+import { type DemoCaller, deviceHandlers } from './device';
 import { healthHandlers } from './health';
 import { migrationHandlers } from './migration';
 import { patientHandlers } from './patient';
@@ -28,7 +29,7 @@ import { visitHandlers } from './visit';
  * share one table: every function type is assignable to it, and the single cast
  * that pays for it lives in `resolve` below.
  */
-type Handler = (input: never) => unknown;
+type Handler = (input: never, caller: DemoCaller) => unknown;
 
 /** Every `module.procedure` string the router exposes, off the inferred inputs. */
 type Path = {
@@ -115,6 +116,13 @@ const handlers = {
     'backup.linkDrive': backupHandlers.linkDrive,
 
     'migration.progress': migrationHandlers.progress,
+
+    'device.me': deviceHandlers.me,
+    'device.redeem': deviceHandlers.redeem,
+    'device.grants': deviceHandlers.grants,
+    'device.issue': deviceHandlers.issue,
+    'device.revoke': deviceHandlers.revoke,
+    'device.setRequireProvisioning': settingsHandlers.setRequireProvisioning,
 } as const satisfies Record<Path, Handler>;
 
 // `in` would also answer for `toString` and `constructor`, and `resolve` would
@@ -124,6 +132,6 @@ export function hasHandler(path: string): path is Path {
 }
 
 /** The one cast: `resolve` is called with whatever the client sent for `path`. */
-export function resolve(path: Path, input: unknown): unknown {
-    return handlers[path](input as never);
+export function resolve(path: Path, input: unknown, caller: DemoCaller): unknown {
+    return handlers[path](input as never, caller);
 }

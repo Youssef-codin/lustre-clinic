@@ -28,6 +28,10 @@ type DateKey =
     | 'pricedAt'
     | 'completedAt'
     | 'editedAt'
+    | 'issuedAt'
+    | 'expiresAt'
+    | 'redeemedAt'
+    | 'revokedAt'
     | 'oldestUnpaidAt'
     | 'from'
     | 'to';

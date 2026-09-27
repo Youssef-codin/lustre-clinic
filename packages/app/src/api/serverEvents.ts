@@ -95,6 +95,7 @@ export type Area =
     | 'balance'
     | 'branch'
     | 'customQuestion'
+    | 'device'
     | 'patient'
     | 'procedure'
     | 'reminder'
@@ -116,6 +117,7 @@ const REFRESHES: Record<WsEvent, readonly Area[]> = {
     [WS_EVENT.PATIENT_UPDATED]: ['patient', 'appointment', 'reminder', 'balance'],
     [WS_EVENT.REMINDER_UPDATED]: ['reminder'],
     [WS_EVENT.CATALOG_UPDATED]: ['branch', 'procedure', 'customQuestion'],
+    [WS_EVENT.DEVICES_UPDATED]: ['device'],
 };
 
 /**

@@ -1,5 +1,5 @@
 import { expect } from 'bun:test';
-import { type ErrorCode, TRPC_ENDPOINT, WS_PATH, type WsFrame } from '@lustre/shared';
+import { DEVICE_TOKEN_HEADER, type ErrorCode, TRPC_ENDPOINT, WS_PATH, type WsFrame } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink, TRPCClientError } from '@trpc/client';
 import type { Server } from 'bun';
 import { createServer } from '../../src/server.ts';
@@ -22,6 +22,8 @@ export type TestClient = ReturnType<typeof createTRPCClient<AppRouter>>;
 
 export interface TestServer {
     client: TestClient;
+    /** A client that sends this phone credential, as a provisioned phone does. */
+    clientAs(token: string): TestClient;
     baseUrl: string;
     endpoint: string;
     wsUrl: string;
@@ -46,6 +48,15 @@ export function startTestServer(): TestServer {
 
     return {
         client,
+        clientAs: (token) =>
+            createTRPCClient<AppRouter>({
+                links: [
+                    httpBatchLink({
+                        url: `${baseUrl}${TRPC_ENDPOINT}`,
+                        headers: { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` },
+                    }),
+                ],
+            }),
         baseUrl,
         endpoint: `${baseUrl}${TRPC_ENDPOINT}`,
         wsUrl: `ws://localhost:${server.port}${WS_PATH}`,
@@ -55,6 +66,17 @@ export function startTestServer(): TestServer {
         },
         stop: () => server.stop(true),
     };
+}
+
+/** Bun's `WebSocket` takes headers; the DOM type it is checked against does not know that. */
+const HeaderedWebSocket = WebSocket as unknown as new (
+    url: string,
+    options: { headers: Record<string, string> },
+) => WebSocket;
+
+/** A socket opened with a phone's credential, as the app opens `/ws`. */
+export function socketAs(wsUrl: string, token: string): WebSocket {
+    return new HeaderedWebSocket(wsUrl, { headers: { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` } });
 }
 
 interface TrpcErrorData {

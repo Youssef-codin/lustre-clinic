@@ -18,7 +18,7 @@
  * Checkout closes either `checked_in` (the chair) or `awaiting_payment` (the
  * desk), and zero paid is a valid checkout — the balance is derived (§10).
  */
-import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
+import { canTransition, ERROR_CODE, type Role, seesPayments, type Tooth, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
@@ -56,11 +56,12 @@ interface VisitLine {
     procedureId: string;
     name: string;
     quantity: number;
-    unitPrice: number;
+    /** Null, with `lineTotal`, where the visit's amounts are withheld (see `Visit`). */
+    unitPrice: number | null;
     isCheckup: boolean;
     tooth: Tooth | null;
     note: string | null;
-    lineTotal: number;
+    lineTotal: number | null;
 }
 
 interface VisitPayment {
@@ -71,12 +72,27 @@ interface VisitPayment {
     paidAt: Date;
 }
 
-interface Visit extends VisitRow {
+/**
+ * The three payment fields are null for a viewer who may not see payments (a
+ * doctor): withheld, not zero, so no screen can mistake one for "nothing paid".
+ * A finished visit's amounts go the same way for that viewer — what it cost is
+ * the patient's money too. A visit still open keeps its prices: the doctor
+ * prices and checks it out.
+ */
+interface Visit extends Omit<VisitRow, 'chargedTotal' | 'computedTotal'> {
+    chargedTotal: number | null;
+    computedTotal: number | null;
     procedures: VisitLine[];
-    payments: VisitPayment[];
-    paidTotal: number;
-    balance: number;
+    payments: VisitPayment[] | null;
+    paidTotal: number | null;
+    balance: number | null;
 }
+
+/**
+ * Who a returned visit is for. Omitted by callers inside the server, which see
+ * everything; a router passes the caller's role.
+ */
+type Viewer = Role | null | undefined;
 
 async function requireVisit(executor: Executor, id: string): Promise<VisitRow> {
     const [row] = await executor.select().from(visits).where(eq(visits.id, id)).limit(1);
@@ -298,7 +314,7 @@ export const visitService = {
         return visit;
     },
 
-    async byId(id: string): Promise<Visit> {
+    async byId(id: string, viewer?: Viewer): Promise<Visit> {
         const visit = await requireVisit(db, id);
 
         const lines = await db
@@ -328,17 +344,27 @@ export const visitService = {
             .where(eq(payments.visitId, id));
 
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
+        const shown = viewer === undefined || seesPayments(viewer);
+        // Priced for the doctor until checkout: a patient sent to the desk can
+        // still be checked out from his phone.
+        const priced = shown || visit.completedAt === null;
 
         return {
             ...visit,
-            procedures: lines.map((l) => ({ ...l, lineTotal: l.unitPrice * l.quantity })),
-            payments: paymentRows,
-            paidTotal,
-            balance: visit.chargedTotal - paidTotal,
+            chargedTotal: priced ? visit.chargedTotal : null,
+            computedTotal: priced ? visit.computedTotal : null,
+            procedures: lines.map((l) =>
+                priced
+                    ? { ...l, lineTotal: l.unitPrice * l.quantity }
+                    : { ...l, unitPrice: null, lineTotal: null },
+            ),
+            payments: shown ? paymentRows : null,
+            paidTotal: shown ? paidTotal : null,
+            balance: shown ? visit.chargedTotal - paidTotal : null,
         };
     },
 
-    async setProcedures(input: SetProceduresInput): Promise<Visit> {
+    async setProcedures(input: SetProceduresInput, viewer?: Viewer): Promise<Visit> {
         const lines = await resolveProcedureLines(input.procedures);
 
         const resolved = lines.map((line, i) => ({
@@ -379,10 +405,10 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
-        return this.byId(input.visitId);
+        return this.byId(input.visitId, viewer);
     },
 
-    async setPrice(input: SetPriceInput): Promise<Visit> {
+    async setPrice(input: SetPriceInput, viewer?: Viewer): Promise<Visit> {
         const row = await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 
@@ -405,10 +431,10 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: row.id });
-        return this.byId(row.id);
+        return this.byId(row.id, viewer);
     },
 
-    async checkOut(input: CheckOutInput): Promise<Visit> {
+    async checkOut(input: CheckOutInput, viewer?: Viewer): Promise<Visit> {
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 
@@ -475,6 +501,19 @@ export const visitService = {
 
             const paidTotal = input.paidTotal ?? 0;
             if (paidTotal > 0) {
+                // The desk's phone clamps to what is owed; a doctor's is not
+                // shown what was already paid and cannot, so the rule is here.
+                const [taken] = await tx
+                    .select({ paid: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
+                    .from(payments)
+                    .where(eq(payments.visitId, visit.id));
+                if (paidTotal > input.chargedTotal - (taken?.paid ?? 0)) {
+                    throw new AppError(
+                        ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                        'the payment is more than is owed on this visit',
+                        422,
+                    );
+                }
                 await insertPayment(tx, visit.id, paidTotal, input.method, input.methodNote ?? null);
             }
 
@@ -500,7 +539,7 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
-        return this.byId(input.visitId);
+        return this.byId(input.visitId, viewer);
     },
 
     /**
@@ -566,7 +605,12 @@ export const visitService = {
      * receipt is a fact; the visit reopens owing whatever is left after them,
      * which is what `amountDue` already reads.
      */
-    async reopen(input: ReopenInput): Promise<Visit> {
+    async reopen(input: ReopenInput, viewer?: Viewer): Promise<Visit> {
+        // Reopening puts a finished visit's amounts back in front of whoever
+        // reopened it, and a doctor is not shown those.
+        if (viewer !== undefined && !seesPayments(viewer)) {
+            throw new AppError(ERROR_CODE.ROLE_FORBIDDEN, 'this role may not reopen a finished visit', 403);
+        }
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 
@@ -582,7 +626,7 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
-        return this.byId(input.visitId);
+        return this.byId(input.visitId, viewer);
     },
 
     /**

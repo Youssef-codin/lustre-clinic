@@ -131,10 +131,50 @@ export function toothQuadrant(tooth: Tooth): string {
     return tooth.slice(0, 2);
 }
 
-/** §6. A client-side preference, not a permission boundary. */
+/**
+ * §6. Which of the two views a phone draws: the desk's day or the doctor's.
+ * It is not who the phone is — `ROLES` below is — and a phone that has not been
+ * provisioned still carries the one it was set to before roles existed.
+ */
 export const CLIENT_ROLES = ['secretary', 'doctor'] as const;
 export const clientRoleSchema = z.enum(CLIENT_ROLES);
 export type ClientRole = z.infer<typeof clientRoleSchema>;
+
+/**
+ * Who a provisioned phone is. An admin grants one by QR code, the phone that
+ * redeems it is given a credential carrying it, and the server reads the role
+ * off that credential on every request — never off anything the client says.
+ * The admin is the clinic's owner: the doctor's views and everything else, plus
+ * issuing and revoking the codes.
+ */
+export const ROLES = ['admin', 'doctor', 'secretary'] as const;
+export const roleSchema = z.enum(ROLES);
+export type Role = z.infer<typeof roleSchema>;
+
+export function viewOf(role: Role): ClientRole {
+    return role === 'secretary' ? 'secretary' : 'doctor';
+}
+
+/**
+ * Payment history, what a patient owes, and the money screen and its stats. A
+ * doctor still sees prices and can check a patient out.
+ *
+ * `null` is a phone with no credential, which keeps what it could do before
+ * roles existed until the clinic turns `requireProvisioning` on.
+ */
+export function seesPayments(role: Role | null): boolean {
+    return role !== 'doctor';
+}
+
+/**
+ * Setting the clinic up: branches, opening hours, procedures and their prices,
+ * patient fields, the clinic's details and numbering, and the backups link.
+ * The admin's; a phone with no credential keeps what it could do before roles
+ * existed, as with `seesPayments`.
+ */
+export function managesClinic(role: Role | null): boolean {
+    return role === null || role === 'admin';
+}
 
 /**
  * The roles allowed to edit a ref that is already on a record.
@@ -144,11 +184,8 @@ export type ClientRole = z.infer<typeof clientRoleSchema>;
  * secretary who typed it wrong says so, the doctor makes the change, and the
  * audit trail records which role did.
  *
- * `CLIENT_ROLES` above is a device preference and not a permission boundary
- * (§1: there are no accounts), so the server checking this is a guard rail, not
- * authentication. It is still worth checking: it keeps the rule in one place for
- * when there are accounts, and it stamps the audit row with what the client
- * claimed rather than nothing at all.
+ * The server checks it against the view of the phone's credential, and only
+ * falls back to what the client claims for a phone that has none yet.
  */
 export const REF_EDIT_ROLES = ['doctor'] as const satisfies readonly ClientRole[];
 

@@ -3,7 +3,7 @@
  * it to check the patient out, and handing back a row would make each of them
  * follow with `byId`.
  */
-import { publicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, paymentProcedure, router } from '../../trpc/init.ts';
 import {
     checkInInput,
     checkOutInput,
@@ -20,34 +20,42 @@ import {
 import { visitService } from './visit.service.ts';
 
 export const visitRouter = router({
-    byId: publicProcedure.input(visitByIdInput).query(({ input }) => visitService.byId(input.id)),
+    byId: clinicProcedure
+        .input(visitByIdInput)
+        .query(({ input, ctx }) => visitService.byId(input.id, ctx.caller.role)),
 
-    byAppointment: publicProcedure.input(visitByAppointmentInput).query(async ({ input }) => {
+    byAppointment: clinicProcedure.input(visitByAppointmentInput).query(async ({ input, ctx }) => {
         const row = await visitService.byAppointment(input.appointmentId);
-        return row ? visitService.byId(row.id) : null;
+        return row ? visitService.byId(row.id, ctx.caller.role) : null;
     }),
 
-    checkIn: publicProcedure.input(checkInInput).mutation(({ input }) => visitService.checkIn(input)),
+    checkIn: clinicProcedure.input(checkInInput).mutation(({ input }) => visitService.checkIn(input)),
 
-    setProcedures: publicProcedure
+    setProcedures: clinicProcedure
         .input(setProceduresInput)
-        .mutation(({ input }) => visitService.setProcedures(input)),
+        .mutation(({ input, ctx }) => visitService.setProcedures(input, ctx.caller.role)),
 
-    setPrice: publicProcedure.input(setPriceInput).mutation(({ input }) => visitService.setPrice(input)),
+    setPrice: clinicProcedure
+        .input(setPriceInput)
+        .mutation(({ input, ctx }) => visitService.setPrice(input, ctx.caller.role)),
 
-    checkOut: publicProcedure.input(checkOutInput).mutation(({ input }) => visitService.checkOut(input)),
+    checkOut: clinicProcedure
+        .input(checkOutInput)
+        .mutation(({ input, ctx }) => visitService.checkOut(input, ctx.caller.role)),
 
-    recordPayment: publicProcedure
+    recordPayment: paymentProcedure
         .input(recordPaymentInput)
         .mutation(({ input }) => visitService.recordPayment(input)),
 
-    reopen: publicProcedure.input(reopenInput).mutation(({ input }) => visitService.reopen(input)),
+    reopen: clinicProcedure
+        .input(reopenInput)
+        .mutation(({ input, ctx }) => visitService.reopen(input, ctx.caller.role)),
 
-    setPaid: publicProcedure.input(setPaidInput).mutation(({ input }) => visitService.setPaid(input)),
+    setPaid: paymentProcedure.input(setPaidInput).mutation(({ input }) => visitService.setPaid(input)),
 
-    delete: publicProcedure.input(deleteVisitInput).mutation(({ input }) => visitService.delete(input)),
+    delete: clinicProcedure.input(deleteVisitInput).mutation(({ input }) => visitService.delete(input)),
 
-    deletePayment: publicProcedure
+    deletePayment: paymentProcedure
         .input(deletePaymentInput)
         .mutation(({ input }) => visitService.deletePayment(input)),
 });

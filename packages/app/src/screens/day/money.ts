@@ -13,6 +13,8 @@
  * `discountPercent` is presentation only: prices stay whole piastres, and this
  * just says how far a typed price sits under the catalogue's.
  */
+import type { Visit, VisitLine } from './data/types';
+
 export { formatAmount, formatMoney } from '../../components/domain/money';
 
 export function amountDue(chargedTotal: number, alreadyPaid: number): number {
@@ -57,4 +59,31 @@ export function procedureDiscount(
     }
     const percent = discountPercent(usual, charged);
     return percent === null ? null : { off: usual - charged, usual, percent };
+}
+
+export interface PricedLine extends VisitLine {
+    unitPrice: number;
+    lineTotal: number;
+}
+
+export interface PricedVisit extends Visit {
+    chargedTotal: number;
+    computedTotal: number;
+    procedures: PricedLine[];
+}
+
+/**
+ * The visit with its amounts, or null when this phone is not shown them: the
+ * server withholds a finished visit's charge and prices from a doctor's phone.
+ * The screens that price or take money are only for a visit that has them.
+ */
+export function pricedVisit(visit: Visit): PricedVisit | null {
+    const { chargedTotal, computedTotal } = visit;
+    if (chargedTotal === null || computedTotal === null) return null;
+    const procedures: PricedLine[] = [];
+    for (const line of visit.procedures) {
+        if (line.unitPrice === null || line.lineTotal === null) return null;
+        procedures.push({ ...line, unitPrice: line.unitPrice, lineTotal: line.lineTotal });
+    }
+    return { ...visit, chargedTotal, computedTotal, procedures };
 }

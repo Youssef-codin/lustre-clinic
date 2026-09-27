@@ -150,7 +150,6 @@ export const COPY_AR = {
     Settings: 'الإعدادات',
     Sex: 'النوع',
     Status: 'الحالة',
-    'Switch role': 'تبديل الدور',
     GENERAL: 'عام',
     CLINIC: 'العيادة',
     MIGRATION: 'نقل البيانات',
@@ -175,11 +174,6 @@ export const COPY_AR = {
     TO: 'إلى',
     'Used when a phone has both WhatsApp apps.': 'يُستخدم عندما يكون على الهاتف تطبيقا واتساب.',
     'WhatsApp Business': 'واتساب للأعمال',
-    "You'll see the doctor's day view and clinic settings": 'سترى يوم الطبيب وإعدادات العيادة',
-    'Prices, procedures and patient fields become editable': 'يمكن تعديل الأسعار والإجراءات وحقول المرضى',
-    "You'll see the desk view: check-in, payments, reminders":
-        'سترى واجهة الاستقبال: الحضور والمدفوعات والتذكيرات',
-    'Clinic settings and prices are hidden': 'تُخفى إعدادات العيادة والأسعار',
     'Test & connect': 'اختبار الاتصال',
     Tooth: 'السن',
     Treatment: 'علاج',
@@ -1179,10 +1173,6 @@ export const COPY_AR = {
     'This visit is finished.': 'انتهت هذه الزيارة.',
     'Under {parent}': 'تحت {parent}',
     'WhatsApp {name}': 'واتساب {name}',
-    'Switch to the doctor?': 'التبديل إلى الطبيب؟',
-    'Switch to the secretary?': 'التبديل إلى السكرتارية؟',
-    'Switch to the doctor': 'التبديل إلى الطبيب',
-    'Switch to the secretary': 'التبديل إلى السكرتارية',
     'A category needs a name.': 'التصنيف يحتاج إلى اسم.',
     'Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it.':
         'يُضاف إلى كل زيارة عند تسجيل الوصول، ويُلغى إذا أُجري أي عمل آخر. يمكن أن يحمل هذا الإعداد إجراء واحد فقط.',
@@ -1241,6 +1231,85 @@ export const COPY_AR = {
     '1 hour ago': 'منذ ساعة',
     '{hours} hours ago': 'منذ {hours} ساعة',
     'Last connected {when}': 'آخر اتصال {when}',
+    Admin: 'المدير',
+    ADMIN: 'الإدارة',
+    CODES: 'الرموز',
+    Role: 'الدور',
+    'Demo mode': 'الوضع التجريبي',
+    'Turn on': 'تفعيل',
+    Withdraw: 'سحب',
+    'In use': 'قيد الاستخدام',
+    Reception: 'الاستقبال',
+    'Which phone': 'أي هاتف',
+    'this phone': 'هذا الهاتف',
+    'Checked out': 'تم إنهاء الحساب',
+    'Checked out · {amount} recorded': 'تم إنهاء الحساب · سُجّل {amount}',
+    '{amount} {method} recorded.': 'سُجّل {amount} {method}.',
+    'No payment recorded here.': 'لم يُسجَّل دفع هنا.',
+    'Scan a role code': 'مسح رمز الدور',
+    'Scan again': 'امسح مرة أخرى',
+    'Checking the code…': 'جارٍ التحقق من الرمز…',
+    'Allow the camera': 'السماح بالكاميرا',
+    'The camera is off': 'الكاميرا متوقفة',
+    'Lustre needs the camera to read the code.': 'يحتاج Lustre إلى الكاميرا لقراءة الرمز.',
+    'Turn the camera on for Lustre in Android settings, then come back.':
+        'فعّل الكاميرا لتطبيق Lustre من إعدادات أندرويد، ثم عُد.',
+    'That is not a Lustre role code.': 'هذا ليس رمز دور من Lustre.',
+    'An admin makes a code for this phone in Settings → Phones & role codes. Hold it inside the frame.':
+        'ينشئ المدير رمزًا لهذا الهاتف من الإعدادات ← الهواتف ورموز الأدوار. ضعه داخل الإطار.',
+    'There is no second phone in the demo. Pick the role this phone should have.':
+        'لا يوجد هاتف ثانٍ في الوضع التجريبي. اختر الدور الذي يأخذه هذا الهاتف.',
+    'This code was not made by this clinic’s server.': 'هذا الرمز لم ينشئه خادم هذه العيادة.',
+    'This code has expired. Ask for a new one.': 'انتهت صلاحية هذا الرمز. اطلب رمزًا جديدًا.',
+    'This code has already been used on a phone. Ask for a new one.':
+        'استُخدم هذا الرمز على هاتف من قبل. اطلب رمزًا جديدًا.',
+    'This code was withdrawn. Ask for a new one.': 'سُحب هذا الرمز. اطلب رمزًا جديدًا.',
+    'This phone is now {role}': 'أصبح هذا الهاتف: {role}',
+    'Phones & role codes': 'الهواتف ورموز الأدوار',
+    'Give a phone its role, or withdraw it': 'امنح هاتفًا دوره، أو اسحبه',
+    'New role code': 'رمز دور جديد',
+    'Make the code': 'إنشاء الرمز',
+    'Scan this on the new phone': 'امسح هذا على الهاتف الجديد',
+    'Works once, for {minutes} minutes.': 'يعمل مرة واحدة، لمدة {minutes} دقيقة.',
+    '{role} code for {label}. Scan it with that phone’s camera, or in Lustre: Settings → Scan a role code. Works once, until {when}.':
+        'رمز {role} لـ{label}. امسحه بكاميرا ذلك الهاتف، أو من Lustre: الإعدادات ← مسح رمز الدور. يعمل مرة واحدة، حتى {when}.',
+    'Every phone needs a role code': 'كل هاتف يحتاج إلى رمز دور',
+    'Phones without one are refused.': 'تُرفض الهواتف التي ليس لديها رمز.',
+    'Off: phones without a code still work, as before. Phones with a code: {count}.':
+        'متوقف: الهواتف بلا رمز تعمل كما كانت. هواتف لديها رمز: {count}.',
+    'Ask every phone for a code?': 'طلب رمز من كل هاتف؟',
+    'A phone that has not scanned a role code stops working until it does. Turn this on once every phone has one.':
+        'الهاتف الذي لم يمسح رمز دور يتوقف عن العمل حتى يفعل. فعّل هذا بعد أن يحصل كل هاتف على رمز.',
+    'No codes yet. Make one for each phone in the clinic.':
+        'لا توجد رموز بعد. أنشئ رمزًا لكل هاتف في العيادة.',
+    'Withdraw this code?': 'سحب هذا الرمز؟',
+    'Withdraw this code': 'سحب هذا الرمز',
+    'The phone it was used on stops working until it scans a new code.':
+        'يتوقف الهاتف الذي استخدمه عن العمل حتى يمسح رمزًا جديدًا.',
+    'Nobody will be able to use it.': 'لن يتمكن أحد من استخدامه.',
+    'Code for {label} withdrawn': 'سُحب رمز {label}',
+    'Scanned {when}': 'مُسح {when}',
+    'Until {when}': 'حتى {when}',
+    'This phone’s role was withdrawn': 'سُحب دور هذا الهاتف',
+    'This phone needs a role code': 'هذا الهاتف يحتاج إلى رمز دور',
+    'An admin withdrew the role this phone had. Ask them for a new code, then scan it.':
+        'سحب المدير دور هذا الهاتف. اطلب منه رمزًا جديدًا، ثم امسحه.',
+    'The clinic now asks every phone for a role code. Ask the admin for one, then scan it.':
+        'تطلب العيادة الآن رمز دور من كل هاتف. اطلب رمزًا من المدير، ثم امسحه.',
+    'This phone’s role cannot do that.': 'دور هذا الهاتف لا يسمح بذلك.',
+    'That is more than they owe': 'هذا أكثر مما عليه',
+    'Part of this visit was already paid. Take the rest at the desk.':
+        'دُفع جزء من هذه الزيارة من قبل. خذ الباقي عند الاستقبال.',
+    'Use this role code?': 'استخدام رمز الدور هذا؟',
+    'Lustre was opened with a role code. Using it gives this phone the role it was made for.':
+        'فُتح Lustre برمز دور. استخدامه يمنح هذا الهاتف الدور الذي أُنشئ له.',
+    'Use code': 'استخدام الرمز',
+    'Day view': 'عرض اليوم',
+    'Scan your role code': 'امسح رمز دورك',
+    'Ask the clinic’s admin for a code for this phone, then scan it. It decides what this phone can do.':
+        'اطلب من مدير العيادة رمزًا لهذا الهاتف، ثم امسحه. هو ما يحدد ما يمكن لهذا الهاتف فعله.',
+    'This is the clinic’s only admin phone. Make another phone an admin first.':
+        'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;
