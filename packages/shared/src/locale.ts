@@ -98,8 +98,8 @@ export const COPY_AR = {
         'يتصل لستر بخادم العيادة عبر تايل سكيل. أعد الفحص إذا توقف عن الاستجابة.',
     'Lustre prefers the clinic server when you are on its wifi and falls back to the tailnet elsewhere. Re-probe if the app is stuck on the wrong one.':
         'يفضل لستر شبكة العيادة داخلها ويستخدم تايل سكيل خارجها. أعد الفحص إذا اتصل بالمسار الخطأ.',
-    'Updates download by themselves and apply the next time Lustre is opened from closed.':
-        'تُنزل التحديثات تلقائيًا وتُطبق عند فتح لستر من جديد.',
+    'Updates download by themselves and apply the next time you come back to Lustre.':
+        'تُنزل التحديثات تلقائيًا وتُطبق عند عودتك إلى لستر.',
     Language: 'اللغة',
     'Last patient number': 'آخر رقم مريض',
     'Leave demo': 'الخروج من الوضع التجريبي',
@@ -159,7 +159,7 @@ export const COPY_AR = {
     DEMO: 'الوضع التجريبي',
     ABOUT: 'حول التطبيق',
     HELP: 'المساعدة',
-    'Language, server connection, version': 'اللغة، اتصال الخادم، الإصدار',
+    'Server connection': 'الاتصال بالخادم',
     'Name, phone': 'الاسم، الهاتف',
     'Bulk entry from the old system': 'إدخال جماعي من النظام القديم',
     'Reset demo data': 'إعادة ضبط البيانات التجريبية',

@@ -44,6 +44,7 @@ import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 import { setRole, useRole } from '../../shell/roleStore';
 import { color, size, space, Text } from '../../theme';
+import { AboutScreen } from './AboutScreen';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
 import { BranchesScreen } from './BranchesScreen';
@@ -58,6 +59,7 @@ import {
     ResetDemoIcon,
     SettingsIcon,
 } from './components/icons';
+import { LanguageBlock } from './components/LanguageBlock';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
@@ -75,6 +77,7 @@ import { WorkingHoursScreen } from './WorkingHoursScreen';
 
 /** The panes over the index. The index itself is the root and is not one. */
 type Route =
+    | 'about'
     | 'app'
     | 'appointments'
     | 'reminders'
@@ -255,6 +258,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     </Card>
                 ) : null}
 
+                {/* Above the summary and outside it: the language is this
+                    phone's, so it answers whether or not the server does. */}
+                <LanguageBlock locale={locale} onChange={setLocale} />
+
                 {summary.loading ? <SkeletonRows count={3} /> : null}
 
                 {summary.error ? (
@@ -271,7 +278,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="app" />}
                                 label="App"
-                                sub={t('Language, server connection, version')}
+                                sub={t('Server connection')}
                                 onPress={() => routes.push('app')}
                                 testID="settings-app-row"
                             />
@@ -419,7 +426,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 icon={<SettingsIcon glyph="about" />}
                                 label="About"
                                 sub={`${t('Version')} ${INSTALLED.version ?? '0.0.0'}`}
-                                onPress={() => {}}
+                                onPress={() => routes.push('about')}
                                 testID="settings-about"
                             />
                         </Group>
@@ -477,9 +484,8 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     onClosed={routes.settled}
                     testID={`settings-pane-${pane}`}
                 >
-                    {pane === 'app' ? (
-                        <AppScreen locale={locale} onChangeLocale={setLocale} onBack={back} />
-                    ) : null}
+                    {pane === 'about' ? <AboutScreen onBack={back} /> : null}
+                    {pane === 'app' ? <AppScreen onBack={back} /> : null}
                     {pane === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
                     {pane === 'reminders' ? <RemindersScreen onBack={back} /> : null}
                     {pane === 'clinic' ? <ClinicScreen onBack={back} /> : null}

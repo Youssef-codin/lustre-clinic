@@ -1,7 +1,6 @@
 /**
- * Settings → App: the things that are about this phone rather than about the
- * clinic — what language it draws in, which way it is reaching the server, and
- * which build it runs, for reading out when someone asks over the phone.
+ * Settings → App: which way this phone is reaching the clinic server. The
+ * language sits on the index itself and the build under About.
  *
  * There is no server picker, and that is the design's point, not an omission:
  * the clinic has one server. A prod build reaches it over Tailscale only; a dev
@@ -10,84 +9,25 @@
  * offers a re-probe — the one useful action when the phone has stayed on a
  * stale answer.
  */
-import type { Locale } from '@lustre/shared';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT } from '../../api';
 import { Button, Card, Dot, SectionLabel } from '../../components/ui';
 import { useT } from '../../i18n';
-import { color, radius, space, Text } from '../../theme';
+import { color, space, Text } from '../../theme';
 import { ReprobeIcon } from './components/icons';
 import { Pane } from './components/Pane';
-import { installedVersion } from './data/appUpdate';
-import { apkLabel, updateLabel } from './data/appVersion';
 import { useConnectionView } from './data/connection';
 
-const LANGUAGES: readonly { value: Locale; label: string }[] = [
-    { value: 'en', label: 'EN' },
-    { value: 'ar', label: 'ع' },
-];
-
-const LANGUAGE_NAME: Record<Locale, string> = { en: 'English', ar: 'العربية' };
-
-const INSTALLED = installedVersion();
-
 export type AppScreenProps = {
-    locale: Locale;
-    onChangeLocale: (locale: Locale) => void;
     onBack: () => void;
 };
 
-export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
+export function AppScreen({ onBack }: AppScreenProps) {
     const t = useT();
     const connection = useConnectionView();
 
     return (
         <Pane title="App" onBack={onBack} testID="settings-app">
-            <View style={styles.section}>
-                <SectionLabel inset={false}>LANGUAGE</SectionLabel>
-
-                <Card style={styles.languageCard}>
-                    <Text variant="body" weight="semibold" style={styles.languageName}>
-                        {LANGUAGE_NAME[locale]}
-                    </Text>
-                    <View
-                        accessibilityRole="tablist"
-                        accessibilityLabel={t('Interface language')}
-                        style={styles.langTrack}
-                        testID="settings-language"
-                    >
-                        {LANGUAGES.map(({ value, label }) => {
-                            const selected = value === locale;
-                            return (
-                                <Pressable
-                                    key={value}
-                                    accessibilityRole="tab"
-                                    accessibilityState={{ selected }}
-                                    accessibilityLabel={LANGUAGE_NAME[value]}
-                                    onPress={() => onChangeLocale(value)}
-                                    testID={`settings-language-${value}`}
-                                    style={[styles.langButton, selected && styles.langButtonOn]}
-                                >
-                                    <Text
-                                        variant="subhead"
-                                        weight="semibold"
-                                        tone={selected ? 'inverse' : 'ink2'}
-                                    >
-                                        {label}
-                                    </Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
-                </Card>
-
-                <Text variant="footnote" tone="muted" style={styles.hint}>
-                    {t(
-                        'Changes the language and layout of the app on this phone. Reminders to patients are sent as written in Settings → Reminders, whichever language is picked here.',
-                    )}
-                </Text>
-            </View>
-
             <View style={styles.section}>
                 <SectionLabel inset={false}>SERVER CONNECTION</SectionLabel>
 
@@ -130,37 +70,7 @@ export function AppScreen({ locale, onChangeLocale, onBack }: AppScreenProps) {
                     )}
                 </Text>
             </View>
-
-            <View style={styles.section}>
-                <SectionLabel inset={false}>VERSION</SectionLabel>
-
-                <Card padded style={styles.versionCard} testID="settings-app-version">
-                    <VersionRow label="Version" value={INSTALLED.version ?? '—'} />
-                    <VersionRow label="APK" value={apkLabel(INSTALLED)} />
-                    <VersionRow label="Update" value={updateLabel(INSTALLED)} />
-                </Card>
-
-                <Text variant="footnote" tone="muted" style={styles.hint}>
-                    {t(
-                        'Updates download by themselves and apply the next time Lustre is opened from closed.',
-                    )}
-                </Text>
-            </View>
         </Pane>
-    );
-}
-
-function VersionRow({ label, value }: { label: string; value: string }) {
-    const t = useT();
-    return (
-        <View style={styles.versionRow}>
-            <Text variant="subhead" tone="muted">
-                {t(label)}
-            </Text>
-            <Text variant="subhead" weight="semibold" script="mono">
-                {value}
-            </Text>
-        </View>
     );
 }
 
@@ -172,38 +82,6 @@ function statusTone(kind: ReturnType<typeof useConnectionView>['kind']) {
 
 const styles = StyleSheet.create({
     section: { gap: space[2] },
-    languageCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[3],
-        paddingStart: space[3.5],
-        paddingEnd: space[3],
-        paddingVertical: space[3],
-    },
-    languageName: { flex: 1, minWidth: 0 },
-
-    /**
-     * Two buttons sized to their labels, not `ui/SegmentedControl`: that one is
-     * a full-width control — `alignSelf: 'stretch'` over `flex: 1` segments —
-     * and inside this row it stretches to the card's height and collapses its
-     * labels. This is the mockup's compact pill, which is a different control.
-     */
-    langTrack: {
-        flexDirection: 'row',
-        flex: 0,
-        padding: space[0.5],
-        borderRadius: radius.full,
-        backgroundColor: color.surface2,
-    },
-    langButton: {
-        minHeight: 38,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: space[4],
-        borderRadius: radius.full,
-    },
-    langButtonOn: { backgroundColor: color.ink },
-
     serverCard: { gap: space[1.5] },
     serverHead: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
     serverName: { flex: 1, minWidth: 0 },
@@ -220,7 +98,4 @@ const styles = StyleSheet.create({
     stamp: { flex: 1 },
 
     hint: { paddingHorizontal: space[0.5] },
-
-    versionCard: { gap: space[2] },
-    versionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: space[3] },
 });
