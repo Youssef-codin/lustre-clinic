@@ -1255,8 +1255,8 @@ export const COPY_AR = {
     'Make the code': 'إنشاء الرمز',
     'Scan this on the new phone': 'امسح هذا على الهاتف الجديد',
     'Works once, for {minutes} minutes.': 'يعمل مرة واحدة، لمدة {minutes} دقيقة.',
-    '{role} code for {label}. On that phone: Settings → Scan a role code. Works once, until {when}.':
-        'رمز {role} لـ{label}. على ذلك الهاتف: الإعدادات ← مسح رمز الدور. يعمل مرة واحدة، حتى {when}.',
+    '{role} code for {label}. Scan it with that phone’s camera, or in Lustre: Settings → Scan a role code. Works once, until {when}.':
+        'رمز {role} لـ{label}. امسحه بكاميرا ذلك الهاتف، أو من Lustre: الإعدادات ← مسح رمز الدور. يعمل مرة واحدة، حتى {when}.',
     'Every phone needs a role code': 'كل هاتف يحتاج إلى رمز دور',
     'Phones without one are refused.': 'تُرفض الهواتف التي ليس لديها رمز.',
     'Off: phones without a code still work, as before. Phones with a code: {count}.':
@@ -1286,6 +1286,10 @@ export const COPY_AR = {
     'That is more than they owe': 'هذا أكثر مما عليه',
     'Part of this visit was already paid. Take the rest at the desk.':
         'دُفع جزء من هذه الزيارة من قبل. خذ الباقي عند الاستقبال.',
+    'Use this role code?': 'استخدام رمز الدور هذا؟',
+    'Lustre was opened with a role code. Using it gives this phone the role it was made for.':
+        'فُتح Lustre برمز دور. استخدامه يمنح هذا الهاتف الدور الذي أُنشئ له.',
+    'Use code': 'استخدام الرمز',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

@@ -6,11 +6,19 @@
  * There is no public ingress and no TLS: Tailscale is the transport and the
  * security boundary (§1).
  */
-import { APK_PATH, TRPC_ENDPOINT, UPDATES_ASSETS_PATH, UPDATES_MANIFEST_PATH, WS_PATH } from '@lustre/shared';
+import {
+    APK_PATH,
+    JOIN_PATH,
+    TRPC_ENDPOINT,
+    UPDATES_ASSETS_PATH,
+    UPDATES_MANIFEST_PATH,
+    WS_PATH,
+} from '@lustre/shared';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import type { Server } from 'bun';
 import { config } from './config.ts';
 import { logger } from './logger.ts';
+import { serveJoinPage } from './modules/device/device.http.ts';
 import { deviceService, tokenFrom } from './modules/device/device.service.ts';
 import { serveApk, serveUpdateAsset, serveUpdateManifest } from './modules/release/release.http.ts';
 import { createContext } from './trpc/init.ts';
@@ -44,6 +52,7 @@ export function createServer(port = config.PORT): Server<WsData> {
             }
 
             if (url.pathname === APK_PATH) return serveApk();
+            if (url.pathname === JOIN_PATH) return serveJoinPage();
             if (url.pathname === UPDATES_MANIFEST_PATH) return serveUpdateManifest(req);
             if (url.pathname.startsWith(`${UPDATES_ASSETS_PATH}/`)) return serveUpdateAsset(url.pathname);
 

@@ -441,3 +441,15 @@ describe('setting the clinic up', () => {
         expect((await api.client.settings.update.mutate({ clinicName: 'Legacy' })).clinicName).toBe('Legacy');
     });
 });
+
+describe('the join page', () => {
+    test('is served without the code, which stays in the fragment', async () => {
+        const response = await fetch(`${api.baseUrl}/join`);
+        expect(response.status).toBe(200);
+        expect(response.headers.get('content-type')).toContain('text/html');
+        const page = await response.text();
+        expect(page).toContain('/app/android.apk');
+        expect(page).toContain('://join?code=');
+        expect(page).toContain('location.hash');
+    });
+});

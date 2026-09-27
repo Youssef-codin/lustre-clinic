@@ -24,7 +24,7 @@ import { errorText } from './data/errors';
 
 export const ROLE_NAME: Record<Role, string> = { admin: 'Admin', doctor: 'Doctor', secretary: 'Secretary' };
 
-const REFUSED = {
+export const REFUSED = {
     [ERROR_CODE.GRANT_INVALID]: 'This code was not made by this clinic’s server.',
     [ERROR_CODE.GRANT_EXPIRED]: 'This code has expired. Ask for a new one.',
     [ERROR_CODE.GRANT_USED]: 'This code has already been used on a phone. Ask for a new one.',

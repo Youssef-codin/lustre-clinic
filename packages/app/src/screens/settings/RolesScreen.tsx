@@ -12,11 +12,11 @@
  * scanned a code keeps working as it did before roles existed; the admin turns
  * it on once every phone in the clinic has one.
  */
-import { GRANT_TTL_MINUTES, MAX_DEVICE_LABEL, ROLES, type Role } from '@lustre/shared';
+import { GRANT_TTL_MINUTES, grantCodeOf, joinUrl, MAX_DEVICE_LABEL, ROLES, type Role } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { type RouterOutput, useCredential, useTRPC } from '../../api';
+import { getConnectionState, type RouterOutput, useCredential, useDemoMode, useTRPC } from '../../api';
 import { formatStamp } from '../../components/domain';
 import {
     ActionBar,
@@ -251,6 +251,17 @@ function GrantRow({ grant, mine, onPress }: { grant: Grant; mine: boolean; onPre
 }
 
 /**
+ * The QR's text: the join page on the server this phone is talking to, so a
+ * phone without the app can scan it with its camera and be offered the app
+ * (`device.http.ts`). The demo has no server to point at, and keeps the bare code.
+ */
+function qrValue(payload: string, demo: boolean): string {
+    const base = demo ? null : getConnectionState().baseUrl;
+    const code = grantCodeOf(payload);
+    return base && code ? joinUrl(base, code) : payload;
+}
+
+/**
  * Two steps in one sheet: what the code is for, then the code. The QR is shown
  * once — the server keeps only its hash — so closing the sheet is the end of it,
  * and a phone that did not get to scan it needs a new one.
@@ -265,6 +276,7 @@ function MakeCodeSheet({
     onMade: () => void;
 }) {
     const trpc = useTRPC();
+    const demo = useDemoMode();
     const t = useT();
     const [role, setRole] = useState<Role>('secretary');
     const [label, setLabel] = useState('');
@@ -312,10 +324,10 @@ function MakeCodeSheet({
         >
             {issued ? (
                 <View style={styles.code}>
-                    <QrCode value={issued.payload} size={264} testID="roles-qr" />
+                    <QrCode value={qrValue(issued.payload, demo.enabled)} size={264} testID="roles-qr" />
                     <Text variant="subhead" tone="muted" style={styles.codeText}>
                         {t(
-                            '{role} code for {label}. On that phone: Settings → Scan a role code. Works once, until {when}.',
+                            '{role} code for {label}. Scan it with that phone’s camera, or in Lustre: Settings → Scan a role code. Works once, until {when}.',
                             {
                                 role: t(ROLE_NAME[issued.role]),
                                 label: issued.label,

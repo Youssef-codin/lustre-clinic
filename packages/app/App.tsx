@@ -7,7 +7,15 @@ import { ApiProvider } from './src/api';
 import { ErrorBoundary } from './src/components/ui';
 import { LocaleProvider, useT } from './src/i18n';
 import { renderErrorReporter } from './src/reporting';
-import { AppShell, DevBanner, SetupScreen, UpdateScreen, useServerSetup } from './src/shell';
+import {
+    AppShell,
+    DevBanner,
+    SetupScreen,
+    UpdateScreen,
+    useJoinLinks,
+    usePendingJoin,
+    useServerSetup,
+} from './src/shell';
 import { color, useAppFonts } from './src/theme';
 
 // The entry point mounts the shell (F3): the bottom tab bar and four clusters,
@@ -27,6 +35,8 @@ import { color, useAppFonts } from './src/theme';
 export default function App() {
     const fontsLoaded = useAppFonts();
     const { ready, showSetup } = useServerSetup();
+    // Before anything draws: the link a phone was launched by is only offered once.
+    useJoinLinks();
     if (!fontsLoaded || !ready) return <View style={styles.screen} />;
 
     // `GestureHandlerRootView` and `BottomSheetModalProvider` are the two things
@@ -67,6 +77,7 @@ export default function App() {
 
 function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
     const t = useT();
+    const join = usePendingJoin();
     return (
         <ErrorBoundary
             title={t('The app stopped')}
@@ -80,7 +91,9 @@ function LocalizedRoot({ showSetup }: { showSetup: boolean }) {
                     on the setup screen it opens on as well as on the day it
                     lands in. */}
                 <DevBanner />
-                {showSetup ? <SetupScreen /> : <AppShell />}
+                {/* Keyed on the server a join link names, so a link that
+                    arrives while setup is up fills it in. */}
+                {showSetup ? <SetupScreen key={join?.server ?? ''} /> : <AppShell />}
                 {/* Over both, last so it draws on top: a minor update takes the
                     whole screen until it has downloaded and restarted. */}
                 <UpdateScreen />

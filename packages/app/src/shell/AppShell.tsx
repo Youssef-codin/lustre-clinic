@@ -20,6 +20,7 @@ import { color } from '../theme';
 import { ApkUpdateBanner } from './ApkUpdateBanner';
 import { type BackStack, type BackStacks, backFromRoot, createBackStacks } from './backStack';
 import { ClockBanner } from './ClockBanner';
+import { JoinSheet } from './JoinSheet';
 import { NotificationsBanner } from './NotificationsBanner';
 import { OfflineScreen } from './OfflineScreen';
 import { ProvisionScreen } from './ProvisionScreen';
@@ -370,7 +371,7 @@ export function AppShell() {
                     It has nothing to say on the disconnected route: what it
                     reports happened on a tab, and no tab is up. */}
                 <Toast
-                    visible={!away && toast !== null}
+                    visible={!disconnected && toast !== null}
                     message={toast ?? ''}
                     onDismiss={clearToast}
                     testID="shell-toast"
@@ -380,6 +381,9 @@ export function AppShell() {
                     are hidden above, so this is the only thing in the body. */}
                 {disconnected ? <OfflineScreen /> : null}
                 {refused ? <ProvisionScreen refusal={refusal} /> : null}
+                {/* Over any route but offline: a phone the server refuses is
+                    exactly the one a join link is for. */}
+                {disconnected ? null : <JoinSheet onDone={setToast} />}
             </View>
 
             {/* No tab bar on the disconnected route either. It is a dead end,

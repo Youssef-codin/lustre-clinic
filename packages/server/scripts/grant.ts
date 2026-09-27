@@ -9,10 +9,22 @@
  * is the everyday way; this one needs a shell on the server, which is the
  * authority it rests on. No phone is promoted by it: the code has to be scanned.
  *
+ * The QR is the join page on this server's tailnet address when it has one, so
+ * a phone without the app can scan it with its camera and be offered the APK.
+ * Without one it is the bare code, which only the app's own scanner reads.
+ *
  * The code is printed, never logged: whoever holds it takes the role.
  */
-import { GRANT_TTL_MINUTES, MAX_DEVICE_LABEL, qrModules, type Role, roleSchema } from '@lustre/shared';
-import { config } from '../src/config.ts';
+import {
+    GRANT_TTL_MINUTES,
+    grantCodeOf,
+    joinUrl,
+    MAX_DEVICE_LABEL,
+    qrModules,
+    type Role,
+    roleSchema,
+} from '@lustre/shared';
+import { config, tailnetAddress } from '../src/config.ts';
 import { sql } from '../src/db/index.ts';
 import { logger } from '../src/logger.ts';
 import { deviceService } from '../src/modules/device/device.service.ts';
@@ -65,9 +77,15 @@ if (!role.success) {
             minute: '2-digit',
             timeZone: config.CLINIC_TIME_ZONE,
         });
+        const code = grantCodeOf(grant.payload);
+        const qr = tailnetAddress && code ? joinUrl(tailnetAddress, code) : grant.payload;
+        const how =
+            qr === grant.payload
+                ? 'Scan it in the app: Settings → Scan a role code.'
+                : 'Scan it with the phone’s camera to get the app, or in the app: Settings → Scan a role code.';
         process.stdout.write(
-            `\n${terminalQr(qrModules(grant.payload))}\n\n` +
-                `${LABEL[role.data]} code for "${label}". Scan it in the app: Settings → the role card → Scan a code.\n` +
+            `\n${terminalQr(qrModules(qr))}\n\n` +
+                `${LABEL[role.data]} code for "${label}". ${how}\n` +
                 `One phone, once, within ${GRANT_TTL_MINUTES} minutes (until ${expires}).\n\n`,
         );
     } catch (err) {
