@@ -8,6 +8,14 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- Phone roles by QR code. An admin makes a code in Settings → Phones & role codes, and the phone that scans it (Settings → Scan a role code) gets that role; switching roles in Settings is gone. The first admin code is printed by the server (`grant admin`). Codes work once, for 30 minutes, and the admin can withdraw them, which shuts out the phone that used one. Phones without a code keep working until the admin turns on "Every phone needs a role code". Needs the new APK, for the camera.
+
+### Changed
+
+- The doctor's phone no longer shows payments, balances or the Money tab, and the server refuses them to it. Prices and checking a patient out still work. The admin's phone has everything.
+
 ## [1.6.3] - 2026-09-27
 
 ### Changed

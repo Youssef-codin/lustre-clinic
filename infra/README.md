@@ -115,6 +115,23 @@ docker compose run --rm server backup
 
 `lustre seed` refuses the production database, whatever its connection string.
 
+### Phone roles
+
+A phone's role (admin, doctor or secretary) comes from a QR code an admin
+shows it; the server reads the role off the credential the phone gets for
+scanning it. The first admin, and any admin after every admin phone is lost,
+comes from the server itself:
+
+```sh
+docker compose run --rm server grant admin "Owner phone"
+```
+
+It prints a one-time QR in the terminal, good for 30 minutes. On the phone:
+Settings → Scan a role code. From then on the admin issues and withdraws codes
+in Settings → Phones & role codes. Phones that have not scanned a code keep
+working until the admin turns on "Every phone needs a role code" there. From a
+checkout, `bun cli grant admin` does the same against `.env`'s database.
+
 ## Google Drive backups
 
 The production stack can push each verified, encrypted dump into a folder in

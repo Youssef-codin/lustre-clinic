@@ -33,7 +33,7 @@ import { settingsService } from '../settings/settings.service.ts';
 import type { IssueGrantInput } from './device.schema.ts';
 
 /** Who is asking. `role` null is a phone with no credential, let in because provisioning is not yet required. */
-export interface Caller {
+interface Caller {
     deviceId: string | null;
     role: Role | null;
 }

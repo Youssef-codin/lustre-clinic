@@ -5,7 +5,7 @@ import { noteLive } from '../reporting/trail';
 import { api } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
-import { credentialToken, hydrateCredential } from './credential';
+import { useCredential } from './credential';
 import { subscribeToDemoEvents, useDemoMode } from './demo';
 import { queryClient } from './queryClient';
 import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
@@ -71,7 +71,7 @@ function receive(frame: unknown): void {
     for (const listener of listeners) listener(step.event);
 }
 
-function connect(): () => void {
+function connect(token: string | null): () => void {
     let socket: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let delay: number = timing.reconnectMinMs;
@@ -98,9 +98,6 @@ function connect(): () => void {
         }
         if (closed) return;
 
-        await hydrateCredential();
-        if (closed) return;
-        const token = credentialToken();
         const next = new HeaderedWebSocket(
             `${wsUrl(base)}${cursor.resumeQuery()}`,
             null,
@@ -155,6 +152,16 @@ export function useServerEvents(): void {
     // would leave that session subscribed to a socket that will never open and
     // deaf to the events it does get, until the app was next launched.
     const { enabled } = useDemoMode();
+    // A socket is admitted as the credential it opened with, and closed by the
+    // server when that credential is revoked. One opened before this phone
+    // scanned a code would never be, so a new credential opens a new socket.
+    // Not before the stored one has been read, or a provisioned phone opens one
+    // bare first.
+    const { hydrated, credential } = useCredential();
+    const token = credential?.token ?? null;
 
-    useEffect(() => (enabled ? subscribeToDemoEvents(refresh) : connect()), [enabled]);
+    useEffect(() => {
+        if (enabled) return subscribeToDemoEvents(refresh);
+        return hydrated ? connect(token) : undefined;
+    }, [enabled, hydrated, token]);
 }
