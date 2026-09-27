@@ -36,8 +36,7 @@
                 "expo-notifications",
                 {
                     "icon": "./assets/notification-icon.png",
-                    "color": "#111114",
-                    "sounds": ["./assets/sounds/reminder_alarm.wav"]
+                    "color": "#111114"
                 }
             ],
             "@sentry/react-native/expo"

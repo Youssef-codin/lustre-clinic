@@ -28,6 +28,7 @@ export function createAlarmStore() {
     }
 
     let chosen = false;
+    let writes = 0;
 
     async function hydrate(): Promise<void> {
         const stored = await AsyncStorage.getItem(ALARM_KEY).catch(() => null);
@@ -40,8 +41,15 @@ export function createAlarmStore() {
         getSnapshot: (): AlarmState => state,
         set(enabled: boolean): void {
             chosen = true;
+            const previous = state.enabled;
+            const write = ++writes;
             emit({ hydrated: true, enabled });
-            void AsyncStorage.setItem(ALARM_KEY, enabled ? 'on' : 'off').catch(() => undefined);
+            // A write that did not land goes back on screen too, or the switch
+            // would read off while the next launch comes up ringing. Only the
+            // latest flip is undone; an older one was already overtaken.
+            void AsyncStorage.setItem(ALARM_KEY, enabled ? 'on' : 'off').catch(() => {
+                if (write === writes) emit({ hydrated: true, enabled: previous });
+            });
         },
     };
 }

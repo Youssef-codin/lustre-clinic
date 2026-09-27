@@ -6,12 +6,14 @@ import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
 let readFails = false;
+let writeFails = false;
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
         getItem: (key: string) =>
             readFails ? Promise.reject(new Error('storage')) : Promise.resolve(stored.get(key) ?? null),
-        setItem: (key: string, value: string) => Promise.resolve(void stored.set(key, value)),
+        setItem: (key: string, value: string) =>
+            writeFails ? Promise.reject(new Error('storage')) : Promise.resolve(void stored.set(key, value)),
         removeItem: (key: string) => Promise.resolve(void stored.delete(key)),
     },
 }));
@@ -29,6 +31,7 @@ async function launch() {
 beforeEach(() => {
     stored.clear();
     readFails = false;
+    writeFails = false;
 });
 
 describe('alarmStore', () => {
@@ -71,5 +74,17 @@ describe('alarmStore', () => {
         await Promise.resolve();
         await Promise.resolve();
         expect(store.getSnapshot()).toEqual({ hydrated: true, enabled: true });
+    });
+
+    it('puts the switch back when the write does not land', async () => {
+        stored.set('lustre.reminderAlarm', 'on');
+        const store = await launch();
+        writeFails = true;
+        store.set(false);
+        expect(store.getSnapshot().enabled).toBe(false);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(store.getSnapshot()).toEqual({ hydrated: true, enabled: true });
+        expect(stored.get('lustre.reminderAlarm')).toBe('on');
     });
 });

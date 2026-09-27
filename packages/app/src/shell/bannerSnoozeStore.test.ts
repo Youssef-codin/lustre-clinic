@@ -3,7 +3,7 @@
  * back on its own once the snooze runs out, because what it warns about is
  * still broken.
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { beforeEach, describe, expect, it, jest, mock, onTestFinished } from 'bun:test';
 
 const stored = new Map<string, string>();
 let readFails = false;
@@ -59,11 +59,14 @@ describe('bannerSnoozeStore', () => {
     });
 
     it('comes back by itself when the snooze ends with the app open', async () => {
+        // Fake before the launch: the launch is what sets the timer.
+        jest.useFakeTimers();
+        onTestFinished(() => jest.useRealTimers());
         stored.set(KEY, String(clock + 5));
         const store = await launch();
         expect(store.getSnapshot().snoozed).toBe(true);
         clock += 5;
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        jest.advanceTimersByTime(5);
         expect(store.getSnapshot()).toEqual({ hydrated: true, snoozed: false });
     });
 
