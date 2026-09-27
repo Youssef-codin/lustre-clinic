@@ -192,6 +192,7 @@ export function RecordPaymentSheet({
                         selected={option === method}
                         onPress={() => setMethod(option)}
                         disabled={isPending}
+                        grow
                         testID={`record-payment-method-${option}`}
                     />
                 ))}
@@ -223,5 +224,5 @@ const styles = StyleSheet.create({
     due: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space[3] },
     notice: { alignSelf: 'stretch' },
     quick: { flexDirection: 'row', gap: space[2] },
-    methods: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+    methods: { flexDirection: 'row', gap: space[2] },
 });
