@@ -10,10 +10,11 @@ listed.
 
 ### Added
 
-- Settings → Reminders has a "Ring like an alarm" switch, off unless you turn it on. When it's on, this phone's daily reminder rings like an alarm clock: it keeps ringing and vibrating at the alarm volume, even on silent, until you tap Snooze or Open reminders, and it fills the lock screen. Open reminders goes straight to the list of who to remind. Just before each ring it checks with the clinic computer and stays quiet if the list has been cleared or dismissed for the day, even from the other phone. The ordinary reminder notification checks the same way, and tapping it also opens the list. It still comes back at the next "Repeat every" until the list is cleared. Needs the new APK.
+- Settings → Reminders has a "Ring like an alarm" switch, off unless you turn it on. When it's on, this phone's daily reminder rings like an alarm clock: it keeps ringing and vibrating at the alarm volume, even on silent, and fills the lock screen until you tap Snooze or Open reminders. Open reminders goes straight to the list of who to remind. It rings again at the next "Repeat every" until the list is cleared.
 
 ### Changed
 
+- The daily reminder checks with the clinic computer just before it goes off, and stays quiet if the list has already been cleared or dismissed for the day, even from the other phone. Tapping it opens the list of who to remind.
 - Settings → About opens a page with the version, APK and update details, which used to sit under Settings → App. The language switch is now on the Settings page itself, so it takes one tap, and Settings → App shows only the server connection.
 - Once Google Drive is linked, tapping Backups in Settings opens a page showing whether backups are up to date, when the last one ran, and which Google account the copy goes to, with a Change account button. Until Drive is linked, it still opens the sign-in.
 - The warnings about the phone's time zone or clock being wrong, and about notifications being off, can be closed with the X. They come back after 4 hours if the problem hasn't been fixed. The time warning no longer tells you to turn on automatic date and time, which set some phones an hour out.
