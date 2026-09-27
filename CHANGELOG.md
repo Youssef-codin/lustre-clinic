@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-09-27
+
 ### Added
 
 - Swiping left or right on the calendar moves to the next or previous month, the same way the arrows do, in Arabic as well as English.
@@ -15,15 +17,9 @@ listed.
 
 ### Changed
 
-- The appointment sheet is redesigned: the patient's number instead of the booking code, what they're in for on one line, and no phone number. Lab work has its own panel with a Needs lab switch and a large Mark lab arrived button. Reschedule, No-show and Cancel are three big buttons side by side, and Check in has a tick.
-- Less repeated text across the app: the reminder count above the list, the booking and payment hints, the patient record's settings footnote and a few settings notes are gone, and the visit screens show their total once, at the bottom.
-- Record payment shows an icon beside each payment method, all four on one row, and Deactivate question has the same power icon as Deactivate branch.
-- Lab work still out shows as a small flask on the day list instead of "LAB PENDING", so names aren't cut short. The procedure line on the day list and the Now card uses the stethoscope rather than a clock.
-- The appointment sheet's Reschedule, Mark no-show and Cancel, the patient record's Book appointment, Old visit and Record payment, and the Edit / Delete menu items now carry icons.
-- The patients list shows age as "22 y" and a banknote beside what's owed, and a screen reader now hears the phone, age and balance too. Finances shows how long a balance has been owed next to an hourglass instead of "Outstanding for" on every row.
-- Shorter settings hints for reminder timing, WhatsApp app, patient fields and procedure switches. A question's switch now reads "Required", and its two inputs are labelled In English and In Arabic.
-- The role switch sheet and the setup screen are shorter: the setup screen drops its demo note and Tailscale hints.
-- Empty and error screens show a proper icon instead of a plain "+" or "!". Where the screen offers an action, tapping the round icon does it too.
+- The appointment sheet is redesigned: the patient's number instead of the booking code, a lab panel with a Mark lab arrived button, and big Reschedule, No-show and Cancel buttons.
+- More icons across the app: payment methods, action buttons, menu items and empty screens. Lab work still out is a small flask on the day list.
+- Less repeated text: fewer hints and notes in booking, payments, settings and setup, and visit totals show once.
 
 ### Fixed
 
@@ -193,7 +189,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.5.0...v1.5.1
