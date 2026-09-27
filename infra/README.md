@@ -77,12 +77,11 @@ own directory with its own database, network and passwords:
 | prod | `/opt/lustre-prod` | `:3000` | `production`, `127.0.0.1:5432` | `:8000` | a deploy step, as `lustre_owner` |
 | dev | `/opt/lustre-dev` | `:3001` | `development`, `127.0.0.1:5433` | none | on boot |
 
-Both listen on the Tailscale address only. Build the binary, then run the `app`
-tag. The Discord webhook and heartbeat URLs come from the environment so they are
+Both listen on the Tailscale address only. Run the `app` tag: `bun play` builds
+`dist/lustre` first. A release deploys this way by itself (`bun ship`). The Discord webhook and heartbeat URLs come from the environment so they are
 never written into the repo; `read -rs` keeps them out of shell history.
 
 ```sh
-bun run build:server
 read -rs LUSTRE_DISCORD_WEBHOOK_URL && export LUSTRE_DISCORD_WEBHOOK_URL
 read -rs LUSTRE_HEARTBEAT_URL && export LUSTRE_HEARTBEAT_URL
 bun play app                  # both stacks, prod first
@@ -253,9 +252,9 @@ nothing is bumped by hand.
 
 | Part | Means | Set by |
 |---|---|---|
-| MAJOR | a change the server and the app must ship together | `bun release:apk --major` |
-| MINOR | a new APK, or an OTA update the phones stop and take now; PATCH goes back to 0 | `bun release:apk`, `bun release:update --minor` |
-| PATCH | a quiet OTA update on that APK's runtime: 1.4.1, 1.4.2, … | `bun release:update` |
+| MAJOR | a change the server and the app must ship together | `bun ship --apk --major` |
+| MINOR | a new APK, or an OTA update the phones stop and take now; PATCH goes back to 0 | `bun ship --apk`, `bun ship --minor` |
+| PATCH | a quiet OTA update on that APK's runtime: 1.4.1, 1.4.2, … | `bun ship` |
 
 The next number is one above the higher of the `vX.Y.Z` git tags and what is
 already staged in `dist/releases`, so a lost tag or a wiped staging directory
@@ -264,15 +263,15 @@ update counts on from everything released since the staged APK, so the patch
 after an OTA 1.6.0 is 1.6.1. It needs a staged APK with its runtime version and
 is refused without one, because no phone would take it.
 
-`bun release:update` also rebuilds the APK from the same commit, numbered as the
+An update also rebuilds the APK from the same commit, numbered as the
 update (1.4.1), and stages it over the last one, so a phone installing fresh
 starts on the latest patch. That makes every `bun ship` a Gradle build. The
 rebuilt APK has the same runtime, so phones already running it are not offered
 it: the update brought them the same code. Only an APK with new native code
 shows the install banner.
 
-Both scripts refuse uncommitted changes and tag the commit they built from.
-They create the tag locally; push it yourself with the command they print.
+`bun ship` refuses uncommitted changes, tags the commit it built from and
+pushes the tag.
 
 Settings → App shows the release the phone runs (the update's number, `1.4.2`)
 with the APK under it (`1.4.0 · build …`, or a later patch if it was installed
@@ -319,57 +318,43 @@ LUSTRE_UPDATES_PRIVATE_KEY=/home/<you>/.local/share/lustre/signing/updates/priva
 A release build without them fails and names what is missing. It never falls
 back to the debug key. Debug builds do not need them.
 
-### Shipping a new APK
+### Shipping
 
-```sh
-bun release:apk
-git push origin v<the version it printed>
-bun play releases --stack=prod    # or `bun play app` if the server changed too
-```
+Every release goes out with `bun ship` ([RELEASING.md](RELEASING.md) has the
+commands and what each step does). What it needs:
 
 `LUSTRE_UPDATES_URL` and `LUSTRE_GLITCHTIP_DSN` are read from the root `.env`
-(`.env.example` documents them); setting them on the command line works too.
-`LUSTRE_UPDATES_URL` is the prod stack's address, the one `health.check`
-reports. It is baked into the APK as the place to ask for OTA updates, so use
-the same value every time. The build is arm64 only; `LUSTRE_APK_ABIS=arm64-v8a,x86_64`
-adds the emulator's ABI. Every release build gets a higher `versionCode` (tens
-of seconds since 2026-01-01 UTC, see `plugins/withReleaseVersionCode.js`), and
-`release:apk` refuses to stage a build that is not higher than the one already
-staged, or one signed with any certificate but the release keystore's.
+(`.env.example` documents them). `LUSTRE_UPDATES_URL` is the prod stack's
+address, the one `health.check` reports. It is baked into the APK as the place
+to ask for OTA updates, so use the same value every time. The build is arm64
+only; `LUSTRE_APK_ABIS=arm64-v8a,x86_64` adds the emulator's ABI. Every release
+build gets a higher `versionCode` (tens of seconds since 2026-01-01 UTC, see
+`plugins/withReleaseVersionCode.js`), and a build that is not higher than the
+one already staged, or signed with any certificate but the release keystore's,
+is refused.
 
 `LUSTRE_GLITCHTIP_DSN` is the crash reporting DSN (SPEC §17), from the GlitchTip
 UI under the project's Settings -> Client Keys. Use the clinic's MagicDNS name,
 not localhost: the DSN is read on the phone, so loopback would name the phone.
-It is baked into the APK at build time and no OTA update can add it later, so
-`release:apk` refuses a production build without it. It must name the same host
-as `LUSTRE_UPDATES_URL`. `release:update` needs the same value too: the DSN is
-part of the runtime fingerprint, so an update published without it would target
-a runtime no phone has. Dev and demo builds are exempt and ship with reporting
-off on purpose.
+It is baked into the APK at build time and no OTA update can add it later, so a
+production build without it is refused. It must name the same host as
+`LUSTRE_UPDATES_URL`. Updates need the same value too: the DSN is part of the
+runtime fingerprint, so an update published without it would target a runtime
+no phone has. Dev and demo builds are exempt and ship with reporting off on
+purpose.
 
-Check the server has it: `curl http://<clinic>:3000/trpc/release.latestApk`.
+An update is only offered to APKs with the same runtime version, a fingerprint
+of everything native. `bun ship` refuses when the staged APK's runtime differs:
+something native changed, and it needs `bun ship --apk` instead.
+
+Check the server has the APK: `curl http://<clinic>:3000/trpc/release.latestApk`.
 
 **Once per phone, at handover**: allow the browser to install apps (Android
 Settings → Apps → Chrome → Install unknown apps). The first install is over the
 cable with `adb install`; after that, Settings → Download, then Install. The
 role and saved address survive because the APK is signed with the same key.
 
-### Publishing a JavaScript update
-
-```sh
-bun release:update                # a patch; --minor for one the phones take now
-git push origin v<the version it printed>
-bun play releases --stack=prod    # or `bun play app` if the server changed too
-```
-
-`bun ship` runs these steps in order, cuts the changelog first, and deploys the
-server as well when it changed (RELEASING.md, Shipping to production). For a
-minor, `bun ship --minor`.
-
-Publish with the same `LUSTRE_UPDATES_URL` the APK was built with. An update is
-only offered to APKs with the same runtime version, a fingerprint of everything
-native. The script refuses when the staged APK's runtime differs: something
-native changed, and it needs `release:apk` instead.
+### After an update ships
 
 Phones pick it up on launch, or when the app comes back after 5 minutes away.
 A patch runs the next time the app comes back after 5 minutes, or on a cold
@@ -386,7 +371,7 @@ update's short id.
   after the first screen has drawn, such as one behind a button, is not caught
   and does not roll back: fix forward by publishing a corrected update.
 - **An update with a bug that does not crash**: check out the last good
-  release's tag (`git checkout v1.4.1`) and run `release:update` again. It is
+  release (`git revert` the bad commits on `main`) and `bun ship` again. It is
   published as the next number, `1.4.3`, and becomes the latest.
 - **Which update a crash came from**: GlitchTip's release is the number the
   phone ran, `lustre@1.4.2`. Every report also carries an `update` tag (the id,
@@ -405,9 +390,8 @@ OTA development launch starts with the dev stack at port 3001, even if the
 Metro build had a different server saved. The red DEV strip remains visible.
 
 ```sh
-bun release:dev:apk
+bun ship:dev --apk
 adb -s <phone serial> install -r dist/releases-dev/android/lustre.apk
-bun play releases --stack=dev
 ```
 
 The dev track reads `LUSTRE_DEV_UPDATES_URL` (the dev stack,
@@ -427,12 +411,11 @@ signed, and only a matching native runtime accepts an update. To publish one:
 bun ship:dev
 ```
 
-`bun ship:dev` is `bun ship` on the dev track: `release:dev:update`, then the
-dev stack's deploy. It cuts no changelog, pushes nothing and ships any branch.
+`bun ship:dev` is `bun ship` on the dev track, deployed to the dev stack. It
+cuts no changelog, pushes nothing and ships any branch.
 
 Development versions use `dev-vX.Y.Z` git tags, separate from production's
-`vX.Y.Z`. Push the tag printed by the script. A native change needs
-`release:dev:apk` again. Running `bun app` later reinstalls the Metro build
+`vX.Y.Z`, and they stay local. A native change needs `bun ship:dev --apk` again. Running `bun app` later reinstalls the Metro build
 over `.dev`; reinstall the staged development APK to resume OTA testing.
 
 The manifest is signed on this machine when it is published; the server only
@@ -490,7 +473,7 @@ talk to the clinic server say which stack they touch.
 | `bun dev` | The API from source with `--watch`, reading the root `.env`. Reports `environment: development`. |
 | `bun server` | The same, without `--watch`. |
 | `bun start` | `bun dev` in the background plus `bun emu` in front (`scripts/dev.sh`). Ctrl-C stops both; arguments go to the emulator script (`bun start --clear`). |
-| `bun run build:server` | Compiles `dist/lustre` and copies the migrations to `dist/migrations`. `bun play app` deploys this build, so run it first. |
+| `bun run build:server` | Compiles `dist/lustre` and copies the migrations to `dist/migrations`. `bun play` runs it before deploying the app. |
 | `bun lint` / `bun lint:fix` | Biome check, or check and fix. |
 | `bun format` | Biome format, writing. |
 | `bun typecheck` | `tsc --noEmit` in every package. |
@@ -527,17 +510,14 @@ talk to the clinic server say which stack they touch.
 `device:logs` (the phone's JS log), `emu:release` and `waydroid:release`. Run
 those with `bun run --cwd packages/app <name>`.
 
-**Releasing and deploying** (see Releases above, and [RELEASING.md](RELEASING.md))
+**Releasing and deploying** ([RELEASING.md](RELEASING.md) says which to run)
 
-| Script | Builds | Touches the clinic server |
-|---|---|---|
-| `bun release:apk [--major]` | Production APK, next minor (or major). Tags `vX.Y.0` locally. | No |
-| `bun release:update [--minor]` | Production OTA patch (or minor) plus the rebuilt APK. Tags locally. | No |
-| `bun release:dev:apk` / `release:dev:update` | The same on the dev track, from `LUSTRE_DEV_UPDATES_URL`. Tags `dev-v…`. | No |
-| `bun play [tags] [--stack=prod\|dev]` | Nothing. Runs the ansible play (Running it, above). | Yes. `app` and `releases` act on both stacks unless `--stack` is given |
-| `bun ship [--minor \| --apk [--major]]` | Cuts CHANGELOG.md, then `release:update` (or `release:apk`); pushes `main` and the tag | Prod: `play app` when the server changed since the last release, else `play releases` |
-| `bun ship deploy [--server]` | Nothing, or `build:server` | The deploy step alone, for the release at HEAD |
-| `bun ship:dev [--apk]` | `release:dev:update` (or `release:dev:apk`) | The same deploy on dev |
+| Script | Does |
+|---|---|
+| `bun ship [--minor \| --apk [--major]]` | The whole release: changelog, build, tag, push, then `play app` on prod |
+| `bun ship deploy` | Only the deploy, for the release at HEAD |
+| `bun ship:dev [--apk]` | The same on the dev track and dev stack. No changelog, no push |
+| `bun play [tags] [--stack=prod\|dev]` | The ansible play (Running it, above). Builds the server first when it deploys `app`. `app` and `releases` act on both stacks unless `--stack` is given |
 
 ## Adding a clinic
 

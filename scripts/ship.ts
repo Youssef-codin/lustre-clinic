@@ -1,23 +1,20 @@
 /**
- * A release from `main` to the clinic in one command (infra/RELEASING.md).
+ * The whole release, from `main` to the clinic (infra/RELEASING.md).
  *
- *   bun ship [--minor]              an OTA update: a quiet patch, or a minor the phones take now
- *   bun ship --apk [--major]        a new APK, for a native change
- *   bun ship --dev [--apk]          the same on the dev track, to the dev stack
- *   bun ship … --dry-run            say what it would do and change nothing
- *   bun ship deploy [--dev] [--server]  only the last step, again: the latest release onto the server
+ *   bun ship [--minor]          an OTA update: a quiet patch, or a minor the phones take now
+ *   bun ship --apk [--major]    a new APK, for a native change
+ *   bun ship --dry-run          prints the number and changes nothing
+ *   bun ship deploy             the deploy step alone, for the release at HEAD
+ *   bun ship:dev [--apk]        the dev track, to the dev stack
  *
  * In order: checks `main` is clean and not behind origin, asks `release.ts` for
  * the number, moves `[Unreleased]` in CHANGELOG.md under it and commits, builds
- * and stages the release (which tags it), pushes `main` and the tag, and deploys.
+ * and stages the release (which tags it), pushes `main` and the tag, then runs
+ * `play app`, which builds the server and deploys it with the releases.
  *
- * The deploy redeploys the server too (`build:server`, then `play app`) when
- * the server, `shared` or the lockfile changed since the previous release, and
- * otherwise only copies the releases (`play releases`). `--server` forces it.
- *
- * Every step survives running again: a changelog already cut for the number is
- * kept, and a deploy that failed (the sudo password, the tailnet) is `bun ship deploy`.
- * The dev track cuts no changelog and pushes nothing: its `dev-v*` tags stay here.
+ * Run it again after a failure: a changelog already cut for the number is kept,
+ * and every message says what to run next. The dev track cuts no changelog and
+ * pushes nothing: its `dev-v*` tags stay here.
  */
 import { join, resolve } from 'node:path';
 import { $ } from 'bun';
@@ -26,16 +23,15 @@ import { cutChangelog } from './cutChangelog';
 const ROOT = resolve(import.meta.dir, '..');
 const RELEASE = join(ROOT, 'packages/app/scripts/release.ts');
 const CHANGELOG = join(ROOT, 'CHANGELOG.md');
-/** What the compiled server is built from. A change here needs `play app`, not just the releases. */
-const SERVER_PATHS = ['packages/server', 'packages/shared', 'bun.lock'];
+/** What `build:server` compiles. The deploy builds from the working tree, so these must match the tag. */
+const SERVER_PATHS = ['packages/server', 'packages/shared', 'bun.lock', 'package.json'];
 
 const args = process.argv.slice(2);
 const deployOnly = args[0] === 'deploy';
 const dev = args.includes('--dev');
 const apk = args.includes('--apk');
 const dryRun = args.includes('--dry-run');
-const forceServer = args.includes('--server');
-const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--dry-run', '--server'];
+const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--dry-run'];
 const unknown = args.filter((arg) => !known.includes(arg));
 if (unknown.length) fail(`unknown ${unknown.join(' ')}. See the top of scripts/ship.ts.`);
 if (args.includes('--major') && !apk) fail('--major is for an APK: bun ship --apk --major');
@@ -80,11 +76,6 @@ async function releaseTagAt(ref: string): Promise<string | null> {
         .quiet()
         .nothrow();
     return result.exitCode === 0 ? result.stdout.toString().trim() : null;
-}
-
-async function serverChanged(since: string | null, until: string): Promise<boolean> {
-    if (!since) return true;
-    return !(await gitSucceeds('diff', '--quiet', since, until, '--', ...SERVER_PATHS));
 }
 
 async function nextVersion(): Promise<string> {
@@ -143,31 +134,16 @@ async function cutRelease(version: string): Promise<void> {
     say(`Moved [Unreleased] under ${version} and committed it.`);
 }
 
-/** Puts the release tagged at HEAD's newest release onto the server. */
+/** Builds the server and deploys it with the staged releases (`play app`). */
 async function deploy(): Promise<void> {
     const tag = await releaseTagAt('HEAD');
     if (!tag) fail(`no ${tagPrefix}X.Y.Z tag at or before HEAD. Ship one first.`);
-    const previous = await releaseTagAt(`${tag}^`);
-    const server = forceServer || (await serverChanged(previous, tag));
-
-    if (!server) {
-        say(`Nothing on the server changed since ${previous}. Copying the releases to ${stack}.`);
-        if (dryRun) return;
-        if (!(await run(['scripts/play.sh', 'releases', `--stack=${stack}`]))) deployFailed(tag);
-        return;
-    }
-
-    // The server is built from the working tree, so it has to be the release's code.
-    if ((await git('rev-parse', 'HEAD')) !== (await git('rev-parse', `${tag}^{commit}`))) {
+    if (!(await gitSucceeds('diff', '--quiet', tag, 'HEAD', '--', ...SERVER_PATHS))) {
         fail(
-            `HEAD is past ${tag}, and the server would be built from code that isn't in it. Check out ${tag}, or ship again.`,
+            `the server code changed after ${tag}, so this would deploy code no release has. Ship again instead.`,
         );
     }
-    say(
-        `${forceServer ? 'Deploying the server as asked' : `The server changed since ${previous ?? 'the start'}`}. Building it and deploying it with the releases to ${stack}.`,
-    );
-    if (dryRun) return;
-    if (!(await run(['bun', 'run', 'build:server']))) fail('the server build failed. Nothing was deployed.');
+    say(`Deploying the server and ${tag} to ${stack}. The sudo password is for the clinic server.`);
     if (!(await run(['scripts/play.sh', 'app', `--stack=${stack}`]))) deployFailed(tag);
 }
 
@@ -189,9 +165,8 @@ say(`Shipping ${tag}${dev ? ' on the dev track' : ''}${dryRun ? ' (dry run)' : '
 
 if (!dev) await cutRelease(version);
 if (dryRun) {
-    const server = forceServer || (await serverChanged(await releaseTagAt('HEAD'), 'HEAD'));
     say(
-        `Would build ${apk ? 'the APK' : 'the update and the APK'}, tag ${tag}${dev ? '' : ', push main and the tag'}, and ${server ? 'deploy the server with the releases' : 'copy the releases'} to ${stack}.`,
+        `Would build ${apk ? 'the APK' : 'the update and the APK'}, tag ${tag}${dev ? '' : ', push main and the tag'}, and deploy the server and releases to ${stack}.`,
     );
     process.exit(0);
 }

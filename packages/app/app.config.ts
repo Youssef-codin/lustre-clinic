@@ -93,7 +93,7 @@ export function glitchtipDsn(dsn: string | undefined, demo: boolean): string | n
  *
  * It is hashed into the runtime fingerprint the way `LUSTRE_UPDATES_URL` and
  * `LUSTRE_GLITCHTIP_DSN` are, so a release is built without it set — which is
- * what `bun release:apk` does, since only the three device scripts export it.
+ * what `bun ship` does, since only the three device scripts export it.
  */
 export const DEV_SERVER = 'http://localhost:3000';
 

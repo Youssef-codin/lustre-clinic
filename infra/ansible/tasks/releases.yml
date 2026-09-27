@@ -1,6 +1,6 @@
 # Release artefacts for one stack (`stack`): the APK Settings offers and the OTA
-# updates release builds fetch, staged in dist/releases by `bun release:apk` and
-# `bun release:update` (infra/README.md, "Releases"). The server reads them on
+# updates release builds fetch, staged in dist/releases by
+# `bun ship` (infra/README.md, "Releases"). The server reads them on
 # each request, so nothing restarts.
 #
 # Additive on purpose: an update a phone may still be downloading is never

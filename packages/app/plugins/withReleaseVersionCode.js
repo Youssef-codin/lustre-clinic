@@ -5,7 +5,7 @@
  *
  * It is the build time in tens of seconds since 2026-01-01 UTC, stamped by
  * Gradle. A release build takes minutes, so two builds never share a number, and
- * `bun release:apk` refuses to stage one that is not higher than the APK already
+ * `bun ship --apk` refuses to stage one that is not higher than the APK already
  * staged. The alternatives go wrong quietly: a hand-bumped `android.versionCode`
  * gets forgotten and two builds share a number, and a git commit count goes
  * backwards on a rebased branch or a shallow clone. A clock goes backwards only

@@ -1,8 +1,9 @@
 /**
  * Stages a release for the clinic server (§15, infra/README.md "Releases").
+ * Run by `bun ship` (scripts/ship.ts), not by hand.
  *
- *   bun release:apk [--major]   prebuild, build and sign the release APK
- *   bun release:update [--minor] export the JavaScript and sign it as an OTA update, and
+ *   release.ts apk [--major]    prebuild, build and sign the release APK
+ *   release.ts update [--minor] export the JavaScript and sign it as an OTA update, and
  *                               rebuild the APK with it so a fresh install starts on it.
  *                               A patch applies quietly on the next launch; --minor
  *                               makes phones stop, download it and restart now.
@@ -207,7 +208,7 @@ async function headCommit(): Promise<string> {
 async function tagRelease(version: Version, message: string): Promise<void> {
     const tag = `${DEV ? 'dev-' : ''}${tagFor(version)}`;
     await $`git tag --annotate ${tag} --message ${message}`.cwd(APP_DIR);
-    say(`Tagged ${tag}. Push it with: git push origin ${tag}`);
+    say(`Tagged ${tag}.`);
 }
 
 interface StagedApk {

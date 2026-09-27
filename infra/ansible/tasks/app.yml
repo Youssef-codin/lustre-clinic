@@ -1,5 +1,5 @@
 # One stack (`stack`, from `lustre_stacks` in the inventory): prod or dev.
-# Needs `bun run build:server` on the machine running the play first.
+# `bun play` builds dist/lustre on the machine running the play first.
 #
 # Runs as the admin user, who owns /opt/lustre-<name> and is in the docker
 # group; only creating the directory needs root.
@@ -14,7 +14,7 @@
 - name: "{{ stack.name }}: refuse to deploy without a build"
   ansible.builtin.assert:
     that: built_binary.stat.exists
-    fail_msg: dist/lustre is missing. Run `bun run build:server` in the repo first.
+    fail_msg: dist/lustre is missing. Run the play with `bun play`, which builds it.
     quiet: true
 
 - name: "{{ stack.name }}: read this node's Tailscale address"

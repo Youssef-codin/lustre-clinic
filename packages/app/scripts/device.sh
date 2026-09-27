@@ -138,7 +138,7 @@ esac
 # nothing to reload, and it exits when the app is up. Signed with the release
 # keystore (`plugins/withReleaseSigning.js`), so the build fails on a machine
 # without it; see infra/README.md, "Release signing". A dev build already on the
-# phone is left where it is — it is a different application id. `bun release:apk`
+# phone is left where it is — it is a different application id. `bun ship --apk`
 # is the build that goes to the clinic.
 if [ "$mode" = "release" ]; then
     apk="android/app/build/outputs/apk/release/app-release.apk"

@@ -3,9 +3,9 @@
  * by hand (infra/README.md "Versions"). Pure, so the arithmetic is tested
  * without a git repository or a build.
  *
- *   MAJOR  a change the server and the app have to ship together. By hand: `release:apk --major`.
+ *   MAJOR  a change the server and the app have to ship together. By hand: `bun ship --apk --major`.
  *   MINOR  a new APK, or an OTA update big enough that the phone should stop and
- *          take it now (`release:update --minor`: the app shows a download
+ *          take it now (`bun ship --minor`: the app shows a download
  *          screen and restarts itself, `shell/UpdateScreen.tsx`). PATCH goes back to 0.
  *   PATCH  a quiet OTA update: 1.4.1, 1.4.2, … It applies on the next launch.
  *

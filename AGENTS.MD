@@ -21,6 +21,10 @@ Read the matching file before working in that area:
 - No `any` unless strictly needed.
 - Comment sparingly. Write a comment only for what the code can't say: a non-obvious constraint, a spec reference, or why the obvious approach was rejected. Default to none.
 
+## Releasing
+
+- Releases go out with one command, `bun ship`, and the user runs it. Never run `bun ship` or `bun play` yourself. When asked to ship, read [infra/RELEASING.md](infra/RELEASING.md) and give the user the one command from its table.
+
 ## Git
 
 - Work on the branch that is already checked out. Never `git checkout -b`. Commit, push, and open the PR against `main`.

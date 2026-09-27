@@ -8,6 +8,9 @@
 # `prod`) limits them to one: `bun play app --stack=dev` deploys the dev server
 # and its releases and leaves the clinic's alone.
 #
+# A run that deploys the server (`app`, or no tags) builds it first, so the
+# play never ships a stale `dist/lustre`.
+#
 # The sudo password is asked for each run (`-K`). To stop typing it, put it in a
 # file outside the repo with mode 0600 and point LUSTRE_SUDO_PASSWORD_FILE at
 # it; the play then reads it from there and never sees it on the command line.
@@ -37,6 +40,10 @@ fi
 
 if ((${#tags[@]})); then
     flags+=(--tags "$(IFS=,; echo "${tags[*]}")")
+fi
+
+if ((${#tags[@]} == 0)) || [[ " ${tags[*]} " == *" app "* ]]; then
+    (cd ../.. && bun run build:server)
 fi
 
 # `bun run` hands the script non-blocking stdio, which ansible refuses outright

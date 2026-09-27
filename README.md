@@ -199,7 +199,7 @@ and a file whose name does not parse as a dump is never touched.
 
 The clinic machine runs two stacks, prod on `:3000` and dev on `:3001`,
 deployed with `bun play app` (`--stack=dev` for dev only). Releases go out with
-`bun release:*` and `bun play`. See [infra/README.md](infra/README.md) and
+`bun ship`. See [infra/README.md](infra/README.md) and
 [infra/RELEASING.md](infra/RELEASING.md). Under the play, it is
 `docker compose up -d` per stack.
 The published port binds to the Tailscale interface only — there is no public
