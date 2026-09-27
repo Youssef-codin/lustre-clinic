@@ -2,8 +2,8 @@
  * Settings — one screen, not two: the doctor's rows are simply absent for the
  * secretary, and the admin's for everyone else. Which rows is the phone's view
  * (`shell/useRole`); what the phone may actually do is the server's to say,
- * from the role code it scanned. There is no navigator yet, so this screen is its own stack
- * (`src/navigation`) drawn with `ui/PushView`; lifting the panes into a real
+ * from the role code it scanned. There is no navigator yet, so this screen is
+ * its own stack (`src/navigation`) drawn with `ui/PushView`; lifting the panes into a real
  * navigator is `push` → `navigate`. The index is the root, and every pane sits
  * one deep on top of it — a pane's own editors push again from inside it.
  *

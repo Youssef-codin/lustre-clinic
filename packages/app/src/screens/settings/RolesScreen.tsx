@@ -19,6 +19,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { type RouterOutput, useCredential, useTRPC } from '../../api';
 import { formatStamp } from '../../components/domain';
 import {
+    ActionBar,
     Button,
     Card,
     CardDivider,
@@ -113,15 +114,11 @@ export function RolesScreen({ onBack }: { onBack: () => void }) {
             pull={pull}
             testID="settings-roles-pane"
             footer={
-                <View style={styles.footer}>
-                    <Button
-                        label="New role code"
-                        size="lg"
-                        block
-                        onPress={() => setMaking(true)}
-                        testID="roles-new"
-                    />
-                </View>
+                <ActionBar
+                    primaryLabel="New role code"
+                    onPrimary={() => setMaking(true)}
+                    testID="roles-new"
+                />
             }
             overlay={
                 <>
@@ -163,7 +160,7 @@ export function RolesScreen({ onBack }: { onBack: () => void }) {
                             {t(
                                 required
                                     ? 'Phones without one are refused.'
-                                    : 'Off: phones without a code still work, as before. {count} phones have one.',
+                                    : 'Off: phones without a code still work, as before. Phones with a code: {count}.',
                                 { count: inUse },
                             )}
                         </Text>
@@ -357,7 +354,6 @@ function MakeCodeSheet({
 }
 
 const styles = StyleSheet.create({
-    footer: { paddingTop: space[2] },
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
     switchText: { flex: 1, gap: space[0.5] },
     section: { gap: space[2], marginTop: space[4.5] },

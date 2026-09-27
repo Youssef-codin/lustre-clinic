@@ -205,8 +205,10 @@ export function noteRefusal(kind: 'revoked' | 'unprovisioned', sentWith: string 
     if (store.getSnapshot().credential !== before.credential) noteDataReset();
 }
 
+/** Everything behind the refusal failed; clearing it is what makes the screens ask again. */
 export function retryProvisioning(): void {
     store.retry();
+    noteDataReset();
 }
 
 /** A reseeded demo has no devices, so the demo's credential goes with it. */

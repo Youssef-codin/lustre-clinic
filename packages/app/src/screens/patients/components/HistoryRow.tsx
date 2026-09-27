@@ -269,7 +269,11 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
         return null;
     }
 
-    if ((entry.balance ?? 0) > 0) {
+    // Withheld on a phone not shown payments: the charge above is all the row
+    // says, and nothing about whether it was paid.
+    if (entry.balance === null) return null;
+
+    if (entry.balance > 0) {
         return (
             <View style={styles.meaning}>
                 <Text variant="caption" tone="muted">

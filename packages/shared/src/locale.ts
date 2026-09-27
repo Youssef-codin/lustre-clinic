@@ -1259,8 +1259,8 @@ export const COPY_AR = {
         'رمز {role} لـ{label}. على ذلك الهاتف: الإعدادات ← مسح رمز الدور. يعمل مرة واحدة، حتى {when}.',
     'Every phone needs a role code': 'كل هاتف يحتاج إلى رمز دور',
     'Phones without one are refused.': 'تُرفض الهواتف التي ليس لديها رمز.',
-    'Off: phones without a code still work, as before. {count} phones have one.':
-        'متوقف: الهواتف بلا رمز تعمل كما كانت. {count} هواتف لديها رمز.',
+    'Off: phones without a code still work, as before. Phones with a code: {count}.':
+        'متوقف: الهواتف بلا رمز تعمل كما كانت. هواتف لديها رمز: {count}.',
     'Ask every phone for a code?': 'طلب رمز من كل هاتف؟',
     'A phone that has not scanned a role code stops working until it does. Turn this on once every phone has one.':
         'الهاتف الذي لم يمسح رمز دور يتوقف عن العمل حتى يفعل. فعّل هذا بعد أن يحصل كل هاتف على رمز.',
