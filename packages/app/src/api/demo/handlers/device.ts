@@ -16,13 +16,17 @@ export interface DemoCaller {
     role: Role | null;
 }
 
-type GrantStatus = Dated<RouterOutput['device']['grants'][number]>['status'];
+/** A code and the phone it made, gone (`deleteGrant` in the service). */
+function deleteGrant(grantId: string): void {
+    const db = getDb();
+    db.devices = db.devices.filter((device) => device.grantId !== grantId);
+    db.roleGrants = db.roleGrants.filter((grant) => grant.id !== grantId);
+}
 
-function statusOf(row: RoleGrantRow, now: Date, deviceRetired = false): GrantStatus {
-    if (row.revokedAt) return 'revoked';
-    if (row.redeemedAt) return deviceRetired ? 'replaced' : 'redeemed';
-    if (row.expiresAt <= now) return 'expired';
-    return 'pending';
+/** Unused codes past their expiry (`purge` in the service). */
+function purge(now: Date): void {
+    const db = getDb();
+    db.roleGrants = db.roleGrants.filter((grant) => grant.redeemedAt !== null || grant.expiresAt > now);
 }
 
 function liveDevice(token: string | null): DeviceRow | null {
@@ -68,11 +72,9 @@ function redeem(code: string, previous: string | null = null) {
     const db = getDb();
     const now = new Date();
     const grant = db.roleGrants.find((row) => row.code === code);
-    const status = grant ? statusOf(grant, now) : null;
-    if (!grant || status === null) throw new DemoError(ERROR_CODE.GRANT_INVALID, 'no such grant', 404);
-    if (status === 'redeemed') throw new DemoError(ERROR_CODE.GRANT_USED, 'grant already redeemed', 409);
-    if (status === 'revoked') throw new DemoError(ERROR_CODE.GRANT_REVOKED, 'grant revoked', 422);
-    if (status === 'expired') throw new DemoError(ERROR_CODE.GRANT_EXPIRED, 'grant expired', 422);
+    if (!grant) throw new DemoError(ERROR_CODE.GRANT_INVALID, 'no such grant', 404);
+    if (grant.redeemedAt) throw new DemoError(ERROR_CODE.GRANT_USED, 'grant already redeemed', 409);
+    if (grant.expiresAt <= now) throw new DemoError(ERROR_CODE.GRANT_EXPIRED, 'grant expired', 422);
 
     grant.redeemedAt = now;
     const device: DeviceRow = {
@@ -84,8 +86,9 @@ function redeem(code: string, previous: string | null = null) {
         createdAt: now,
         revokedAt: null,
     };
-    for (const old of db.devices) if (previous !== null && old.token === previous) old.revokedAt ??= now;
-    db.devices.push(device);
+    const old = previous === null ? undefined : db.devices.find((row) => row.token === previous);
+    if (old) deleteGrant(old.grantId);
+    getDb().devices.push(device);
     save();
     broadcast(WS_EVENT.DEVICES_UPDATED);
     return { token: device.token, deviceId: device.id, role: device.role, label: device.label };
@@ -116,8 +119,8 @@ export const deviceHandlers = {
     },
 
     grants(): Dated<RouterOutput['device']['grants']> {
+        purge(new Date());
         const db = getDb();
-        const now = new Date();
         return [...db.roleGrants]
             .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())
             .map((row) => {
@@ -126,12 +129,11 @@ export const deviceHandlers = {
                     id: row.id,
                     role: row.role,
                     label: row.label,
-                    status: statusOf(row, now, device?.revokedAt !== null && device !== undefined),
+                    status: row.redeemedAt ? ('redeemed' as const) : ('pending' as const),
                     issuedBy: row.issuedBy,
                     issuedAt: row.issuedAt,
                     expiresAt: row.expiresAt,
                     redeemedAt: row.redeemedAt,
-                    revokedAt: row.revokedAt,
                     deviceId: device?.id ?? null,
                 };
             });
@@ -156,9 +158,7 @@ export const deviceHandlers = {
         if (device && device.id === caller.deviceId) {
             throw new DemoError(ERROR_CODE.ROLE_FORBIDDEN, 'this role may not revoke its own role', 403);
         }
-        const now = new Date();
-        grant.revokedAt ??= now;
-        if (device) device.revokedAt ??= now;
+        deleteGrant(grant.id);
         save();
         broadcast(WS_EVENT.DEVICES_UPDATED);
     },

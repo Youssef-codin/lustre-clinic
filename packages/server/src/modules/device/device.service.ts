@@ -24,8 +24,8 @@ import {
     seesPayments,
     WS_EVENT,
 } from '@lustre/shared';
-import { and, desc, eq, gt, isNull } from 'drizzle-orm';
-import { db } from '../../db/index.ts';
+import { and, desc, eq, gt, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
+import { db, type Executor } from '../../db/index.ts';
 import { devices, roleGrants } from '../../db/schema.ts';
 import { AppError, isAppError } from '../../errors/AppError.ts';
 import { logger } from '../../logger.ts';
@@ -61,20 +61,23 @@ interface DeviceIdentity {
     label: string;
 }
 
-/** `replaced`: used, and the phone it made has since scanned another code. */
-type GrantStatus = 'pending' | 'redeemed' | 'replaced' | 'expired' | 'revoked';
+type GrantStatus = 'pending' | 'redeemed' | 'expired' | 'revoked';
 
+/**
+ * What the admin's list shows: codes waiting to be scanned, and the phones
+ * using theirs. A code that was withdrawn, replaced by the phone's next one, or
+ * never used before it expired is deleted rather than listed.
+ */
 interface GrantRecord {
     id: string;
     role: Role;
     label: string;
-    status: GrantStatus;
+    status: 'pending' | 'redeemed';
     /** Null when the server's CLI issued it. */
     issuedBy: string | null;
     issuedAt: Date;
     expiresAt: Date;
     redeemedAt: Date | null;
-    revokedAt: Date | null;
     /** The phone it made, once redeemed. */
     deviceId: string | null;
 }
@@ -95,11 +98,39 @@ export function tokenFrom(headers: Headers): string | null {
     return token.length > 0 ? token : null;
 }
 
-function statusOf(row: typeof roleGrants.$inferSelect, now: Date, deviceRetired = false): GrantStatus {
+function statusOf(row: typeof roleGrants.$inferSelect, now: Date): GrantStatus {
     if (row.revokedAt) return 'revoked';
-    if (row.redeemedAt) return deviceRetired ? 'replaced' : 'redeemed';
+    if (row.redeemedAt) return 'redeemed';
     if (row.expiresAt <= now) return 'expired';
     return 'pending';
+}
+
+/** A code and the phone it made, gone: a withdrawn or replaced role leaves nothing behind. */
+async function deleteGrant(executor: Executor, grantId: string): Promise<void> {
+    await executor.delete(devices).where(eq(devices.grantId, grantId));
+    await executor.delete(roleGrants).where(eq(roleGrants.id, grantId));
+}
+
+/**
+ * Codes nobody used before they expired, and anything left retired by an
+ * earlier build, which marked withdrawn and replaced rows rather than deleting
+ * them.
+ */
+async function purge(executor: Executor): Promise<void> {
+    const now = new Date();
+    await executor.delete(devices).where(isNotNull(devices.revokedAt));
+    await executor
+        .delete(roleGrants)
+        .where(
+            or(
+                isNotNull(roleGrants.revokedAt),
+                and(isNull(roleGrants.redeemedAt), lte(roleGrants.expiresAt, now)),
+                and(
+                    isNotNull(roleGrants.redeemedAt),
+                    notExists(executor.select().from(devices).where(eq(devices.grantId, roleGrants.id))),
+                ),
+            ),
+        );
 }
 
 async function deviceFor(token: string): Promise<typeof devices.$inferSelect | null> {
@@ -202,12 +233,10 @@ export const deviceService = {
      * Single-use under concurrency: the grant is claimed by one conditional
      * UPDATE, so two phones scanning the same code at once cannot both get it.
      * When nothing is claimed the row is read again only to say why.
-     */
-    /**
+     *
      * `previous` is the credential the phone sent with the scan, if it had one.
-     * A phone is one device: taking a new role retires the old credential, so
-     * the admin's list shows one live entry per phone rather than every code it
-     * ever scanned.
+     * A phone is one device: taking a new role deletes the old credential and
+     * its code, so the admin's list has one entry per phone.
      */
     async redeem(code: string, previous: string | null = null): Promise<Redeemed> {
         const codeHash = hashOf(code);
@@ -238,19 +267,20 @@ export const deviceService = {
                 label: grant.label,
                 tokenHash: hashOf(token),
             });
-            const retired = previous
+            const [old] = previous
                 ? await tx
-                      .update(devices)
-                      .set({ revokedAt: now })
-                      .where(and(eq(devices.tokenHash, hashOf(previous)), isNull(devices.revokedAt)))
-                      .returning({ id: devices.id })
+                      .select({ id: devices.id, grantId: devices.grantId })
+                      .from(devices)
+                      .where(eq(devices.tokenHash, hashOf(previous)))
+                      .limit(1)
                 : [];
+            if (old) await deleteGrant(tx, old.grantId);
             return {
                 grantId: grant.id,
                 deviceId,
                 role: grant.role,
                 label: grant.label,
-                replaced: retired[0]?.id ?? null,
+                replaced: old?.id ?? null,
             };
         });
 
@@ -285,32 +315,32 @@ export const deviceService = {
     },
 
     async grants(): Promise<GrantRecord[]> {
+        await purge(db);
         const rows = await db
-            .select({ grant: roleGrants, deviceId: devices.id, deviceRevokedAt: devices.revokedAt })
+            .select({ grant: roleGrants, deviceId: devices.id })
             .from(roleGrants)
             .leftJoin(devices, eq(devices.grantId, roleGrants.id))
             .orderBy(desc(roleGrants.issuedAt));
 
-        const now = new Date();
-        return rows.map(({ grant, deviceId, deviceRevokedAt }) => ({
+        return rows.map(({ grant, deviceId }) => ({
             id: grant.id,
             role: grant.role,
             label: grant.label,
-            status: statusOf(grant, now, deviceRevokedAt !== null),
+            status: grant.redeemedAt ? 'redeemed' : 'pending',
             issuedBy: grant.issuedBy,
             issuedAt: grant.issuedAt,
             expiresAt: grant.expiresAt,
             redeemedAt: grant.redeemedAt,
-            revokedAt: grant.revokedAt,
             deviceId,
         }));
     },
 
     /**
-     * Withdraws a code, and the phone it made if it was already used. Revoking
-     * twice is not an error: the second admin to tap it wanted the same thing.
-     * A phone cannot revoke its own grant — that would lock the last admin out
-     * with nobody to let it back in but the server's CLI.
+     * Withdraws a code, and the phone it made if it was already used: both are
+     * deleted, and the phone's next request is refused as a credential the
+     * server does not know. A phone cannot revoke its own grant — that would
+     * lock the last admin out with nobody to let it back in but the server's
+     * CLI.
      */
     async revoke(grantId: string, caller: Caller): Promise<void> {
         // The grant row is locked first: `redeem` claims it with an UPDATE, so
@@ -328,15 +358,7 @@ export const deviceService = {
             const [device] = await tx.select().from(devices).where(eq(devices.grantId, grantId)).limit(1);
             if (device && device.id === caller.deviceId) throw forbidden('revoke its own role');
 
-            const now = new Date();
-            await tx
-                .update(roleGrants)
-                .set({ revokedAt: now })
-                .where(and(eq(roleGrants.id, grantId), isNull(roleGrants.revokedAt)));
-            await tx
-                .update(devices)
-                .set({ revokedAt: now })
-                .where(and(eq(devices.grantId, grantId), isNull(devices.revokedAt)));
+            await deleteGrant(tx, grantId);
             return device?.id ?? null;
         });
 

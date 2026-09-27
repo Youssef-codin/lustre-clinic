@@ -3,8 +3,9 @@
  * is handed out: pick the role, name the phone it is for, and hold the QR up to
  * that phone's camera. A code works once, for `GRANT_TTL_MINUTES`.
  *
- * The list is the audit trail the server keeps — every code, who it made, and
- * whether it was used, expired or withdrawn. Withdrawing a used code shuts its
+ * The list is what is live: codes waiting to be scanned, and the phones using
+ * theirs. A code withdrawn, replaced by the phone's next one, or left unused
+ * past its expiry is deleted, not listed. Withdrawing a used code shuts its
  * phone out at once. This phone's own code cannot be withdrawn from here: the
  * last admin revoking itself would leave only the server's CLI to get back in.
  *
@@ -49,9 +50,6 @@ type Issued = RouterOutput['device']['issue'];
 const STATUS: Record<Grant['status'], { label: string; tone: TagTone }> = {
     pending: { label: 'Waiting', tone: 'accent' },
     redeemed: { label: 'In use', tone: 'success' },
-    replaced: { label: 'Replaced', tone: 'muted' },
-    expired: { label: 'Expired', tone: 'muted' },
-    revoked: { label: 'Withdrawn', tone: 'danger' },
 };
 
 function when(iso: string | Date): string {
@@ -195,14 +193,13 @@ export function RolesScreen({ onBack }: { onBack: () => void }) {
                     <Card>
                         {grants.data.map((grant, index) => {
                             const mine = grant.deviceId !== null && grant.deviceId === credential?.deviceId;
-                            const live = grant.status === 'pending' || grant.status === 'redeemed';
                             return (
                                 <View key={grant.id}>
                                     {index > 0 ? <CardDivider /> : null}
                                     <GrantRow
                                         grant={grant}
                                         mine={mine}
-                                        onPress={live && !mine ? () => setRevoking(grant) : undefined}
+                                        onPress={mine ? undefined : () => setRevoking(grant)}
                                     />
                                 </View>
                             );
@@ -220,11 +217,7 @@ function GrantRow({ grant, mine, onPress }: { grant: Grant; mine: boolean; onPre
     const detail =
         grant.status === 'redeemed' && grant.redeemedAt
             ? t('Scanned {when}', { when: when(grant.redeemedAt) })
-            : grant.status === 'pending'
-              ? t('Until {when}', { when: when(grant.expiresAt) })
-              : grant.status === 'revoked' && grant.revokedAt
-                ? t('Withdrawn {when}', { when: when(grant.revokedAt) })
-                : t('Made {when}', { when: when(grant.issuedAt) });
+            : t('Until {when}', { when: when(grant.expiresAt) });
 
     return (
         <Pressable

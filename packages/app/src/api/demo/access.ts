@@ -5,6 +5,7 @@
  * read off by kind, and have to be changed with them.
  */
 import { ERROR_CODE, managesClinic, seesPayments, viewOf } from '@lustre/shared';
+import { getDb } from './db';
 import { authorizeDemo, type DemoCaller } from './handlers/device';
 import { DemoError } from './rules';
 
@@ -98,9 +99,11 @@ function withheld<T extends object>(row: T, fields: readonly string[]): T {
 }
 
 /** A finished visit's amounts, which a doctor is not shown either (`visitService.byId`). */
-function withheldVisit(visit: { completedAt: unknown; procedures: object[] }): object {
+function withheldVisit(visit: { completedAt: unknown; appointmentId: string; procedures: object[] }): object {
     const unpaid = withheld(visit, ['payments', 'paidTotal', 'balance']);
-    if (visit.completedAt === null) return unpaid;
+    const sentToDesk =
+        getDb().appointments.find((row) => row.id === visit.appointmentId)?.status === 'awaiting_payment';
+    if (visit.completedAt === null && !sentToDesk) return unpaid;
     return {
         ...withheld(unpaid, ['chargedTotal', 'computedTotal']),
         procedures: visit.procedures.map((line) => withheld(line, ['unitPrice', 'lineTotal'])),
@@ -109,6 +112,7 @@ function withheldVisit(visit: { completedAt: unknown; procedures: object[] }): o
 
 interface HistoryEntry {
     completedAt: unknown;
+    status: string;
     isImported: boolean;
     isOpeningBalance: boolean;
 }
@@ -122,7 +126,11 @@ export function shownTo(path: string, output: unknown, caller: DemoCaller): unkn
         return {
             ...detail,
             history: detail.history.map((entry) => {
-                const past = entry.completedAt !== null || entry.isImported || entry.isOpeningBalance;
+                const past =
+                    entry.completedAt !== null ||
+                    entry.status === 'awaiting_payment' ||
+                    entry.isImported ||
+                    entry.isOpeningBalance;
                 const fields = past
                     ? ['paidTotal', 'balance', 'chargedTotal', 'computedTotal']
                     : ['paidTotal', 'balance'];

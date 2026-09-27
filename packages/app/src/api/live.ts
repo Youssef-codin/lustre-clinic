@@ -1,8 +1,8 @@
-import { DEVICE_TOKEN_HEADER } from '@lustre/shared';
+import { DEVICE_TOKEN_HEADER, WS_CLOSE_REFUSED } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: opens the `/ws` socket and closes it on cleanup — the subscription case this hook exists for
 import { useEffect } from 'react';
 import { noteLive } from '../reporting/trail';
-import { api } from './client';
+import { api, trpcClient } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
 import { useCredential } from './credential';
@@ -118,9 +118,13 @@ function connect(token: string | null): () => void {
             receive(frame);
         };
         next.onerror = () => next.close();
-        next.onclose = () => {
+        next.onclose = (event) => {
             if (socket === next) socket = null;
             if (closed) return;
+            // The server shut this phone out (its role withdrawn or replaced).
+            // One request now is what brings the refusal back through
+            // `serverFetch` and puts the shell on the scan screen at once.
+            if (event.code === WS_CLOSE_REFUSED) void trpcClient.settings.get.query().catch(() => undefined);
             schedule();
             // Not a freshness matter, unlike everything else here: a socket
             // that closes on its own is the first sign the clinic PC is gone,

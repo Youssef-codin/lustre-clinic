@@ -91,14 +91,14 @@ describe('grants', () => {
         );
     });
 
-    test('a revoked code is refused', async () => {
+    test('a withdrawn code is gone', async () => {
         const admin = await provisioned('admin');
         const grant = await api
             .clientAs(admin.token)
             .device.issue.mutate({ role: 'doctor', label: 'Doctor' });
         await api.clientAs(admin.token).device.revoke.mutate({ grantId: grant.id });
 
-        await expectTrpcError(ERROR_CODE.GRANT_REVOKED, 422, () =>
+        await expectTrpcError(ERROR_CODE.GRANT_INVALID, 404, () =>
             api.client.device.redeem.mutate({ code: codeOf(grant.payload) }),
         );
     });
@@ -107,6 +107,17 @@ describe('grants', () => {
         await expectTrpcError(ERROR_CODE.GRANT_INVALID, 404, () =>
             api.client.device.redeem.mutate({ code: 'A'.repeat(43) }),
         );
+    });
+
+    test('a code nobody used is deleted once it expires', async () => {
+        const admin = await provisioned('admin');
+        const grant = await deviceService.issue({ role: 'doctor', label: 'Late' }, null);
+        await sql`UPDATE role_grants SET expires_at = now() - interval '1 minute' WHERE id = ${grant.id}`;
+
+        const listed = await api.clientAs(admin.token).device.grants.query();
+        expect(listed.find((g) => g.id === grant.id)).toBeUndefined();
+        const [row] = await sql`SELECT count(*)::int AS count FROM role_grants WHERE id = ${grant.id}`;
+        expect(row?.count).toBe(0);
     });
 
     test('only the code’s hash is stored', async () => {
@@ -131,7 +142,9 @@ describe('the admin', () => {
 
         await client.device.revoke.mutate({ grantId: grant.id });
         const after = (await client.device.grants.query()).find((g) => g.id === grant.id);
-        expect(after?.status).toBe('revoked');
+        expect(after).toBeUndefined();
+        const [left] = await sql`SELECT count(*)::int AS count FROM devices WHERE grant_id = ${grant.id}`;
+        expect(left?.count).toBe(0);
     });
 
     test('revoking a used code shuts its phone out, even before provisioning is required', async () => {
@@ -158,7 +171,7 @@ describe('the admin', () => {
             api.clientAs(phone.token).settings.get.query(),
         );
         const listed = await api.clientAs(admin.token).device.grants.query();
-        expect(listed.find((g) => g.id === phone.grantId)?.status).toBe('replaced');
+        expect(listed.find((g) => g.id === phone.grantId)).toBeUndefined();
         expect(listed.find((g) => g.id === grant.id)?.status).toBe('redeemed');
     });
 
@@ -283,6 +296,22 @@ describe('a doctor and payment data', () => {
         expect(read.chargedTotal).toBeNull();
         expect(read.payments).toBeNull();
         expect(read.balance).toBeNull();
+    });
+
+    test('sees no amounts once the visit has been sent to the desk', async () => {
+        const { visit, patient, checkup, appointment } = await checkedInVisit();
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: checkup.id, quantity: 1 }],
+        });
+        await sql`UPDATE appointments SET status = 'awaiting_payment' WHERE id = ${appointment.id}`;
+        const doctor = api.clientAs((await provisioned('doctor')).token);
+
+        const read = await doctor.visit.byId.query({ id: visit.id });
+        expect(read.chargedTotal).toBeNull();
+        expect(read.procedures[0]?.unitPrice).toBeNull();
+        const [entry] = (await doctor.patient.byId.query({ id: patient.id })).history;
+        expect(entry?.chargedTotal).toBeNull();
     });
 
     test('sees prices on a visit still open, to check it out', async () => {

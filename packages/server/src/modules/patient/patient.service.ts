@@ -539,8 +539,14 @@ export const patientService = {
             history: rows.map((r) => {
                 const chargedTotal = r.chargedTotal ?? 0;
                 const paidTotal = r.paidTotal ?? 0;
-                // Past: checked out, or brought over from the old system.
-                const priced = shown || (r.completedAt === null && !r.isImported && !r.isOpeningBalance);
+                // Past: sent to the desk or checked out, or brought over from
+                // the old system.
+                const past =
+                    r.completedAt !== null ||
+                    r.status === 'awaiting_payment' ||
+                    r.isImported ||
+                    r.isOpeningBalance;
+                const priced = shown || !past;
                 return {
                     ...r,
                     computedTotal: priced ? (r.computedTotal ?? 0) : null,

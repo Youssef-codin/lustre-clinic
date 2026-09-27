@@ -16,7 +16,13 @@
  * converges on the server's state, and never by trusting a frame's content:
  * every event only says what to refetch.
  */
-import { WS_PROTOCOL_VERSION, WS_RESUME_PARAM, type WsEvent, type WsFrame } from '@lustre/shared';
+import {
+    WS_CLOSE_REFUSED,
+    WS_PROTOCOL_VERSION,
+    WS_RESUME_PARAM,
+    type WsEvent,
+    type WsFrame,
+} from '@lustre/shared';
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
 import { logger } from '../logger.ts';
 
@@ -80,15 +86,13 @@ export const wsHandlers: WebSocketHandler<WsData> = {
     message() {},
 };
 
-/** Policy violation: the phone's credential no longer admits it, and a reconnect is refused until it has a new one. */
-const REFUSED = 1008;
-
 export function disconnectDevice(deviceId: string): void {
-    for (const ws of sockets) if (ws.data.deviceId === deviceId) ws.close(REFUSED, 'revoked');
+    for (const ws of sockets) if (ws.data.deviceId === deviceId) ws.close(WS_CLOSE_REFUSED, 'revoked');
 }
 
 export function disconnectUnprovisioned(): void {
-    for (const ws of sockets) if (ws.data.deviceId === null) ws.close(REFUSED, 'provisioning required');
+    for (const ws of sockets)
+        if (ws.data.deviceId === null) ws.close(WS_CLOSE_REFUSED, 'provisioning required');
 }
 
 export function broadcast(event: WsEvent, payload: { id?: string } = {}): void {

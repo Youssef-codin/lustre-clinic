@@ -1220,8 +1220,6 @@ export const COPY_AR = {
     'Demo mode': 'الوضع التجريبي',
     'Turn on': 'تفعيل',
     Withdraw: 'سحب',
-    Withdrawn: 'مسحوب',
-    Expired: 'منتهي',
     'In use': 'قيد الاستخدام',
     Reception: 'الاستقبال',
     'Which phone': 'أي هاتف',
@@ -1274,8 +1272,6 @@ export const COPY_AR = {
     'Code for {label} withdrawn': 'سُحب رمز {label}',
     'Scanned {when}': 'مُسح {when}',
     'Until {when}': 'حتى {when}',
-    'Withdrawn {when}': 'سُحب {when}',
-    'Made {when}': 'أُنشئ {when}',
     'This phone’s role was withdrawn': 'سُحب دور هذا الهاتف',
     'This phone needs a role code': 'هذا الهاتف يحتاج إلى رمز دور',
     'An admin withdrew the role this phone had. Ask them for a new code, then scan it.':
@@ -1294,7 +1290,6 @@ export const COPY_AR = {
     'Scan your role code': 'امسح رمز دورك',
     'Ask the clinic’s admin for a code for this phone, then scan it. It decides what this phone can do.':
         'اطلب من مدير العيادة رمزًا لهذا الهاتف، ثم امسحه. هو ما يحدد ما يمكن لهذا الهاتف فعله.',
-    Replaced: 'استُبدل',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

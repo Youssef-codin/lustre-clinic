@@ -345,7 +345,16 @@ export const visitService = {
 
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
         const shown = viewer === undefined || seesPayments(viewer);
-        const priced = shown || visit.completedAt === null;
+        // Past for the doctor as soon as he is done with it: sent to the desk
+        // (`awaiting_payment`) as much as checked out.
+        const [appointment] = shown
+            ? []
+            : await db
+                  .select({ status: appointments.status })
+                  .from(appointments)
+                  .where(eq(appointments.id, visit.appointmentId))
+                  .limit(1);
+        const priced = shown || (visit.completedAt === null && appointment?.status !== 'awaiting_payment');
 
         return {
             ...visit,
