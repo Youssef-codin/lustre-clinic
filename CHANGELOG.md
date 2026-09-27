@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Changed
+
+- Updates arrive without closing the app. The phone downloads a new version quietly while it's open and switches to it the next time you come back to the app: from WhatsApp, from the lock screen, or opening it again after swiping it away.
+
 ## [1.6.2] - 2026-09-27
 
 ### Added

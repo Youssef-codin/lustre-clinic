@@ -40,25 +40,41 @@ export function isMinorUpdate(
 }
 
 /**
- * How long the app has to have been away before coming back reloads it into a
- * downloaded update. Long enough that a hop to WhatsApp from the reminders and
- * straight back never costs anyone their place; short enough that a phone
- * picked up after a patient leaves is on the new version without anybody
- * closing it.
+ * How soon after coming back to the app a patch that finishes downloading still
+ * restarts it. Long enough for the download the return starts; short enough
+ * that nobody has started typing yet.
  */
-export const RELOAD_AFTER_AWAY_MS = 5 * 60_000;
+export const RELOAD_WINDOW_MS = 10_000;
 
-/** Whether a return to the app counts: away at least `RELOAD_AFTER_AWAY_MS`. `null` is never having left. */
-export function awayLongEnough(awayMs: number | null): boolean {
-    return awayMs !== null && awayMs >= RELOAD_AFTER_AWAY_MS;
-}
+/** How often an open app looks for an update, so a patch is usually on the phone before the next return. */
+export const CHECK_EVERY_MS = 15 * 60_000;
 
 /**
- * Whether coming back to the app should restart it into an update that has
- * already downloaded. Any update, patch or minor: the patch no longer waits for
- * a cold start nobody makes, because Android keeps the app alive in the
- * background and "reopening" it is not one.
+ * Whether the app, back on screen for `msSinceReturn`, should restart into a
+ * downloaded update. Any return counts, a hop to WhatsApp included: that is the
+ * moment nothing is half-typed. `null` is never having come back, the first
+ * launch, which expo-updates already started on the newest bundle it had.
  */
-export function reloadOnReturn(updatePending: boolean, awayMs: number | null): boolean {
-    return updatePending && awayLongEnough(awayMs);
+export function reloadOnReturn(updatePending: boolean, msSinceReturn: number | null, held: boolean): boolean {
+    return updatePending && !held && msSinceReturn !== null && msSinceReturn < RELOAD_WINDOW_MS;
+}
+
+let holds = 0;
+
+/**
+ * Runs `task`, a flow that leaves the app and needs the same app when it comes
+ * back (Google's sign-in, the permission dialog), with no update restart until
+ * it has finished. The return that ends it would otherwise reload mid-flow.
+ */
+export async function withUpdatesHeld<T>(task: () => Promise<T>): Promise<T> {
+    holds += 1;
+    try {
+        return await task();
+    } finally {
+        holds -= 1;
+    }
+}
+
+export function updatesHeld(): boolean {
+    return holds > 0;
 }

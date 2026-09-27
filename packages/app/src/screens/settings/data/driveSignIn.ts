@@ -16,6 +16,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as AuthSession from 'expo-auth-session';
 import { useTRPC } from '../../../api';
 import { getLocale } from '../../../i18n/runtime';
+import { withUpdatesHeld } from '../../../shell/updateGate';
 
 const DISCOVERY: AuthSession.DiscoveryDocument = {
     authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -53,20 +54,23 @@ export function useDriveSignIn() {
             extraParams: { access_type: 'offline', prompt: 'consent', hl: getLocale() },
         });
 
-        const result = await request.promptAsync(DISCOVERY);
-        if (result.type !== 'success') return { kind: 'cancelled' };
-        if (!request.codeVerifier) return { kind: 'failed', code: 'INTERNAL' };
+        // Google's screens leave the app; coming back must not restart it into an update mid-link.
+        return withUpdatesHeld(async () => {
+            const result = await request.promptAsync(DISCOVERY);
+            if (result.type !== 'success') return { kind: 'cancelled' };
+            if (!request.codeVerifier) return { kind: 'failed', code: 'INTERNAL' };
 
-        try {
-            const linked = await link.mutateAsync({
-                code: result.params.code ?? '',
-                codeVerifier: request.codeVerifier,
-            });
-            await queryClient.invalidateQueries({ queryKey: trpc.backup.status.queryKey() });
-            return { kind: 'linked', account: linked.account };
-        } catch (error) {
-            return { kind: 'failed', code: codeOf(error) };
-        }
+            try {
+                const linked = await link.mutateAsync({
+                    code: result.params.code ?? '',
+                    codeVerifier: request.codeVerifier,
+                });
+                await queryClient.invalidateQueries({ queryKey: trpc.backup.status.queryKey() });
+                return { kind: 'linked', account: linked.account };
+            } catch (error) {
+                return { kind: 'failed', code: codeOf(error) };
+            }
+        });
     }
 
     return { signIn, linking: link.isPending };

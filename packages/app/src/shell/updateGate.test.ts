@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { isMinorUpdate, manifestVersion, RELOAD_AFTER_AWAY_MS, reloadOnReturn } from './updateGate';
+import {
+    isMinorUpdate,
+    manifestVersion,
+    RELOAD_WINDOW_MS,
+    reloadOnReturn,
+    updatesHeld,
+    withUpdatesHeld,
+} from './updateGate';
 
 describe('isMinorUpdate', () => {
     it('stops the phone for a new minor or major', () => {
@@ -38,19 +45,36 @@ describe('manifestVersion', () => {
 });
 
 describe('reloadOnReturn', () => {
-    it('restarts into a downloaded update once the app was away long enough', () => {
-        expect(reloadOnReturn(true, RELOAD_AFTER_AWAY_MS)).toBe(true);
-        expect(reloadOnReturn(true, 60 * 60_000)).toBe(true);
+    // Back from WhatsApp, the lock screen, or reopened after a swipe away.
+    it('restarts into a downloaded update on any return to the app', () => {
+        expect(reloadOnReturn(true, 0, false)).toBe(true);
+        expect(reloadOnReturn(true, RELOAD_WINDOW_MS - 1, false)).toBe(true);
     });
 
-    // A hop to WhatsApp from the reminders and straight back.
-    it('never restarts after a short trip away', () => {
-        expect(reloadOnReturn(true, 30_000)).toBe(false);
-        expect(reloadOnReturn(true, RELOAD_AFTER_AWAY_MS - 1)).toBe(false);
+    // By then someone may be typing.
+    it('leaves an update that lands later to the next return', () => {
+        expect(reloadOnReturn(true, RELOAD_WINDOW_MS, false)).toBe(false);
     });
 
-    it('does nothing without a downloaded update, or without having been away', () => {
-        expect(reloadOnReturn(false, 60 * 60_000)).toBe(false);
-        expect(reloadOnReturn(true, null)).toBe(false);
+    it('never restarts in the middle of a flow that left the app', () => {
+        expect(reloadOnReturn(true, 0, true)).toBe(false);
+    });
+
+    it('does nothing without a downloaded update, or before any return', () => {
+        expect(reloadOnReturn(false, 0, false)).toBe(false);
+        expect(reloadOnReturn(true, null, false)).toBe(false);
+    });
+});
+
+describe('withUpdatesHeld', () => {
+    it('holds updates until the flow ends, however it ends', async () => {
+        const during = withUpdatesHeld(async () => updatesHeld());
+        expect(await during).toBe(true);
+        expect(updatesHeld()).toBe(false);
+
+        await withUpdatesHeld(async () => {
+            throw new Error('cancelled');
+        }).catch(() => undefined);
+        expect(updatesHeld()).toBe(false);
     });
 });

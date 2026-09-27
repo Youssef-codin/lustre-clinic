@@ -29,6 +29,7 @@ import { type Locale, localizeCopy } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getLocale } from '../i18n/runtime';
+import { withUpdatesHeld } from '../shell/updateGate';
 import type { NudgePlan } from './schedule';
 import { failureIdentifier } from './visitAction';
 import { arrivalIdentifier, noticeIdentifier } from './visitNotice';
@@ -92,7 +93,8 @@ export function ensurePermission(): Promise<boolean> {
         if (current.granted) return true;
         if (!current.canAskAgain) return false;
 
-        const asked = await Notifications.requestPermissionsAsync();
+        // The dialog takes the app off screen; its answer must reach this app, not a restarted one.
+        const asked = await withUpdatesHeld(() => Notifications.requestPermissionsAsync());
         return asked.granted;
     })().finally(() => {
         asking = null;

@@ -37,7 +37,7 @@ Running it again after a failure picks up where it stopped. A changelog already 
 
 ## Patch, minor, APK
 
-- **Patch** (`bun ship`): phones download it in the background. It runs when the app is opened after being away 5 minutes or more, or on a cold start (Force stop, then open). Swiping the app away isn't a cold start.
+- **Patch** (`bun ship`): no screen. Phones download it quietly (every 15 minutes while open, and on each return to the app) and switch to it the next time the app comes back on screen: from WhatsApp, the lock screen, or reopened after a swipe away. Phones on 1.6.2 or older still need two trips of 5+ minutes away, or a cold start (restart the phone).
 - **Minor** (`bun ship --minor`): phones on 1.6.0 or later show a download screen and restart into it.
 - **APK** (`bun ship --apk`): phones show an install banner on the home screen and in Settings.
 

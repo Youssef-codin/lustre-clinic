@@ -356,14 +356,18 @@ role and saved address survive because the APK is signed with the same key.
 
 ### After an update ships
 
-Phones pick it up on launch, or when the app comes back after 5 minutes away.
-A patch runs the next time the app comes back after 5 minutes, or on a cold
-start. Swiping the app out of recents is **not** a cold start: the background
-listener service (check-in and finish notifications) keeps the process alive.
-A real cold start is Android Settings → Apps → Lustre Clinic → Force stop, then
-open. Phones before 1.6.1 have no other way to take an update. A minor shows the download screen and restarts by
-itself. Settings → App → Version shows the new number, and Update shows the
-update's short id.
+A patch never shows a screen. The phone downloads it on launch, every 15
+minutes while the app is open, and on each return to the app. It switches to
+it the next time the app comes back on screen, from WhatsApp, the lock screen or
+a reopen after a swipe away, and also when one finishes downloading within 10
+seconds of that return (`packages/app/src/shell/updateGate.ts`). Google's
+sign-in and the notification permission dialog hold it off, since they leave the
+app and need it unchanged when they come back. Swiping the app away does not
+end it (the listener service keeps the process), so the app notices the reopen
+itself. Phones on 1.6.2 or older only check after 5 minutes away and switch on
+the next such return: two trips, or a cold start (restarting the phone). A
+minor shows the download screen and restarts by itself. Settings → App →
+Version shows the new number, and Update shows the update's short id.
 
 - **An update that crashes before its first screen draws** rolls itself back:
   expo-updates marks it failed and relaunches on the previous bundle. That
