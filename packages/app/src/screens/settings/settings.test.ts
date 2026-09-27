@@ -302,6 +302,16 @@ describe('the Backups pane', () => {
         expect(details.note).toBeNull();
     });
 
+    // The age sits beside a clock time, so it counts midnights, not 24-hour spans.
+    test('a backup from before midnight is yesterday, however recent', () => {
+        const lastNight = new Date(2026, 8, 19, 23, 0).toISOString();
+        const details = backupDetails(
+            { ...linked, lastSuccessAt: lastNight },
+            new Date(2026, 8, 20, 1, 0).getTime(),
+        );
+        expect(details.last.endsWith('· yesterday')).toBe(true);
+    });
+
     test('says how far behind is behind', () => {
         const details = backupDetails({ ...linked, stale: true }, now);
         expect(details.dot).toBe('due');

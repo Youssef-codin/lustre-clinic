@@ -60,6 +60,18 @@ export function driveSignInError(code: string): string {
     return 'Could not link Google Drive';
 }
 
+/**
+ * Calendar days on this phone's clock rather than 24-hour spans: the pane puts
+ * the age beside a clock time, and "11:00 PM · today" read at 1 AM is wrong.
+ */
+function calendarDaysSince(since: string, now: number): number | null {
+    const at = new Date(since);
+    if (Number.isNaN(at.getTime())) return null;
+    const today = new Date(now);
+    const dayOf = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.max(0, Math.round((dayOf(today) - dayOf(at)) / 86_400_000));
+}
+
 export function ageInDays(since: string, now: number): number | null {
     const at = new Date(since).getTime();
     if (Number.isNaN(at)) return null;
@@ -159,7 +171,7 @@ export function backupDetails(
 ): BackupDetails {
     const view = backupView(status, now, t);
     const at = status.lastSuccessAt ? new Date(status.lastSuccessAt).getTime() : Number.NaN;
-    const days = status.lastSuccessAt ? ageInDays(status.lastSuccessAt, now) : null;
+    const days = status.lastSuccessAt ? calendarDaysSince(status.lastSuccessAt, now) : null;
     const last =
         Number.isNaN(at) || days === null ? t('No backup yet') : `${clock(at)} · ${formatAge(days, t)}`;
     const offsite = status.offsite.configured

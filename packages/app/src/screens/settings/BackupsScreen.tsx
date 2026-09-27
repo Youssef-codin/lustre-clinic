@@ -36,7 +36,7 @@ export function BackupsScreen({ onBack, onChangeAccount }: BackupsScreenProps) {
         <Pane title="Backups" onBack={onBack} testID="settings-backups-pane">
             {status.isLoading ? <SkeletonRows count={2} /> : null}
 
-            {status.error ? (
+            {status.error && !status.data ? (
                 <ErrorState
                     message={errorText(status.error)}
                     onRetry={() => void status.refetch()}
@@ -47,6 +47,14 @@ export function BackupsScreen({ onBack, onChangeAccount }: BackupsScreenProps) {
             {details ? (
                 <View style={styles.section}>
                     <SectionLabel inset={false}>STATUS</SectionLabel>
+
+                    {/* A refresh that failed after one that worked keeps the
+                        old answer, which must not pass for today's. */}
+                    {status.error ? (
+                        <Text variant="footnote" tone="muted" style={styles.note}>
+                            {t('Could not refresh. Showing the last results.')}
+                        </Text>
+                    ) : null}
 
                     <Card padded style={styles.card} testID="settings-backups-status">
                         <View style={styles.head}>
