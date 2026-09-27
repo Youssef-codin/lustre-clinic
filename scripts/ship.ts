@@ -14,7 +14,8 @@
  *
  * Run it again after a failure: a changelog already cut for the number is kept,
  * and every message says what to run next. The dev track cuts no changelog and
- * pushes nothing: its `dev-v*` tags stay here.
+ * pushes nothing: its `dev-v*` tags stay here. It also ships the same commit
+ * again, since testing an update on a phone takes several in a row.
  */
 import { join, resolve } from 'node:path';
 import { $ } from 'bun';
@@ -96,13 +97,14 @@ async function preflight(): Promise<void> {
     if (await git('status', '--porcelain')) {
         fail('the working tree has uncommitted changes. Commit or stash them first.');
     }
+    if (dev) return;
+
     const released = await git('tag', '--points-at', 'HEAD', '--list', `${tagPrefix}[0-9]*`);
     if (released) {
         fail(
             `HEAD is already released as ${released.split('\n')[0]}. Nothing new to ship. If it never reached the server, run \`bun ship deploy${dev ? ' --dev' : ''}\`.`,
         );
     }
-    if (dev) return;
 
     if ((await git('branch', '--show-current')) !== 'main')
         fail('ship from main. The dev track (--dev) ships any branch.');
