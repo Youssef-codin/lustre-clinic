@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-27
+
 ### Added
 
 - Phone roles by QR code. An admin makes a code in Settings → Phones & role codes, and the phone that scans it (Settings → Scan a role code) gets that role; switching roles in Settings is gone. The first admin code is printed by the server (`grant admin`). Codes work once, for 30 minutes, and the admin can withdraw them, which shuts out the phone that used one. Phones without a code keep working until the admin turns on "Every phone needs a role code". A code can also be scanned with any phone's camera: it opens a page on the clinic server with the app to download and an Open in Lustre button that hands the app the code, so a new phone gets the app and its role from one scan. A newly installed Lustre opens on "Scan your role code" and does nothing else until it has one; phones that already had Lustre keep working as before. When a phone scans a new code, its old one stops working. Withdrawing a phone's code shuts it out straight away. The admin's list only shows codes still waiting and phones using theirs: withdrawn and replaced codes, and codes left unused for 30 minutes, are deleted. Lustre is no longer included in the phone's Google backup, so a phone set up from a backup has to be given a code like any new phone. Needs the new APK, for the camera.
@@ -210,7 +212,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.3...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.3...v1.7.0
 [1.6.3]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.0...v1.6.1
