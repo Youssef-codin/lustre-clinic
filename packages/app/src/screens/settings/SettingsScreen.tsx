@@ -46,8 +46,10 @@ import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
 import { setAdminView } from '../../shell/roleStore';
 import { useRole } from '../../shell/useRole';
 import { color, size, space, Text } from '../../theme';
+import { AboutScreen } from './AboutScreen';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
+import { BackupsScreen } from './BackupsScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { DriveSignInSheet } from './components/DriveSignInSheet';
@@ -60,6 +62,7 @@ import {
     ResetDemoIcon,
     SettingsIcon,
 } from './components/icons';
+import { LanguageBlock } from './components/LanguageBlock';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { SettingsRow } from './components/SettingsRow';
 import { installedVersion, useApkUpdate } from './data/appUpdate';
@@ -78,8 +81,10 @@ import { WorkingHoursScreen } from './WorkingHoursScreen';
 
 /** The panes over the index. The index itself is the root and is not one. */
 type Route =
+    | 'about'
     | 'app'
     | 'appointments'
+    | 'backups'
     | 'reminders'
     | 'clinic'
     | 'branches'
@@ -181,6 +186,20 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         );
     }
 
+    // Not behind the summary either: the build is local, and it is what gets
+    // read out over the phone when the server is not answering.
+    const about = (
+        <Group title={t('ABOUT')}>
+            <SettingsRow
+                icon={<SettingsIcon glyph="about" />}
+                label="About"
+                sub={`${t('Version')} ${INSTALLED.version ?? '0.0.0'}`}
+                onPress={() => routes.push('about')}
+                testID="settings-about"
+            />
+        </Group>
+    );
+
     // Not behind the summary: a report is most wanted when the server is not
     // answering and the summary never loads.
     const problem = (
@@ -260,6 +279,10 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     </Card>
                 ) : null}
 
+                {/* Above the summary and outside it: the language is this
+                    phone's, so it answers whether or not the server does. */}
+                <LanguageBlock locale={locale} onChange={setLocale} />
+
                 {summary.loading ? <SkeletonRows count={3} /> : null}
 
                 {summary.error ? (
@@ -276,7 +299,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="app" />}
                                 label="App"
-                                sub={t('Language, server connection, version')}
+                                sub={t('Server connection')}
                                 onPress={() => routes.push('app')}
                                 testID="settings-app-row"
                             />
@@ -344,7 +367,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     label="Backups"
                                     sub={backups?.sub ?? 'Checking…'}
                                     onPress={() => {
-                                        if (backups?.canSignIn) setLinkingDrive(true);
+                                        if (!backups) return;
+                                        // Nothing to report on until Drive is linked, so
+                                        // the sign-in comes first when it can be run here.
+                                        if (backups.canSignIn && !backups.linked) setLinkingDrive(true);
+                                        else routes.push('backups');
                                     }}
                                     testID="settings-backups"
                                 />
@@ -457,15 +484,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        <Group title={t('ABOUT')}>
-                            <SettingsRow
-                                icon={<SettingsIcon glyph="about" />}
-                                label="About"
-                                sub={`${t('Version')} ${INSTALLED.version ?? '0.0.0'}`}
-                                onPress={() => {}}
-                                testID="settings-about"
-                            />
-                        </Group>
+                        {about}
 
                         {problem}
 
@@ -474,16 +493,12 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                         </Text>
                     </>
                 ) : (
-                    problem
+                    <>
+                        {about}
+                        {problem}
+                    </>
                 )}
             </ScrollView>
-
-            <Toast
-                visible={toast !== null}
-                message={toast ?? ''}
-                onDismiss={() => setToast(null)}
-                testID="settings-toast"
-            />
 
             <DriveSignInSheet
                 visible={linkingDrive}
@@ -504,10 +519,15 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     onClosed={routes.settled}
                     testID={`settings-pane-${pane}`}
                 >
-                    {pane === 'app' ? (
-                        <AppScreen locale={locale} onChangeLocale={setLocale} onBack={back} />
-                    ) : null}
+                    {pane === 'about' ? <AboutScreen onBack={back} /> : null}
+                    {pane === 'app' ? <AppScreen onBack={back} /> : null}
                     {pane === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
+                    {pane === 'backups' ? (
+                        <BackupsScreen
+                            onBack={back}
+                            onChangeAccount={backups?.canSignIn ? () => setLinkingDrive(true) : undefined}
+                        />
+                    ) : null}
                     {pane === 'reminders' ? <RemindersScreen onBack={back} /> : null}
                     {pane === 'clinic' ? <ClinicScreen onBack={back} /> : null}
                     {pane === 'branches' ? <BranchesScreen onBack={back} /> : null}
@@ -526,6 +546,15 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'roles' ? <RolesScreen onBack={back} /> : null}
                 </PushView>
             ))}
+
+            {/* After the panes: a Drive sign-in started from the Backups pane
+                reports here, and a toast under the pane would never be seen. */}
+            <Toast
+                visible={toast !== null}
+                message={toast ?? ''}
+                onDismiss={() => setToast(null)}
+                testID="settings-toast"
+            />
         </View>
     );
 }

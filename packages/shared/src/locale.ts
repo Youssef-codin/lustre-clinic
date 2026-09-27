@@ -88,8 +88,6 @@ export const COPY_AR = {
     'Open WhatsApp in': 'فتح واتساب في',
     'SERVER CONNECTION': 'الاتصال بالخادم',
     VERSION: 'الإصدار',
-    'Changes the language and layout of the app on this phone. Reminders to patients are sent as written in Settings → Reminders, whichever language is picked here.':
-        'يغيّر لغة التطبيق واتجاهه على هذا الهاتف. تُرسل التذكيرات للمرضى كما هي مكتوبة في الإعدادات ← التذكيرات، أيًّا كانت اللغة المختارة هنا.',
     'Not recorded': 'غير مسجّل',
     'Not checked yet': 'لم يُفحص بعد',
     'Probing…': 'جارٍ الفحص…',
@@ -98,8 +96,8 @@ export const COPY_AR = {
         'يتصل لستر بخادم العيادة عبر تايل سكيل. أعد الفحص إذا توقف عن الاستجابة.',
     'Lustre prefers the clinic server when you are on its wifi and falls back to the tailnet elsewhere. Re-probe if the app is stuck on the wrong one.':
         'يفضل لستر شبكة العيادة داخلها ويستخدم تايل سكيل خارجها. أعد الفحص إذا اتصل بالمسار الخطأ.',
-    'Updates download by themselves and apply the next time Lustre is opened from closed.':
-        'تُنزل التحديثات تلقائيًا وتُطبق عند فتح لستر من جديد.',
+    'Updates download by themselves and apply the next time you come back to Lustre.':
+        'تُنزل التحديثات تلقائيًا وتُطبق عند عودتك إلى لستر.',
     Language: 'اللغة',
     'Last patient number': 'آخر رقم مريض',
     'Leave demo': 'الخروج من الوضع التجريبي',
@@ -158,7 +156,7 @@ export const COPY_AR = {
     DEMO: 'الوضع التجريبي',
     ABOUT: 'حول التطبيق',
     HELP: 'المساعدة',
-    'Language, server connection, version': 'اللغة، اتصال الخادم، الإصدار',
+    'Server connection': 'الاتصال بالخادم',
     'Name, phone': 'الاسم، الهاتف',
     'Bulk entry from the old system': 'إدخال جماعي من النظام القديم',
     'Reset demo data': 'إعادة ضبط البيانات التجريبية',
@@ -937,6 +935,13 @@ export const COPY_AR = {
     'Last backup {age}': 'آخر نسخة احتياطية {age}',
     '{last} · copied off-site': '{last} · منسوخة خارج العيادة',
     '{last} · on this machine only': '{last} · على هذا الجهاز فقط',
+    'Backups are up to date': 'النسخ الاحتياطية محدّثة',
+    'Backups are behind': 'النسخ الاحتياطية متأخرة',
+    'No backup in over {hours}h.': 'لا توجد نسخة احتياطية منذ أكثر من {hours} س.',
+    'Last backup': 'آخر نسخة احتياطية',
+    'Off-site copy': 'النسخة الخارجية',
+    'Google Drive': 'جوجل درايف',
+    'On this machine only': 'على هذا الجهاز فقط',
     'Google Drive needs a new sign-in': 'جوجل درايف يحتاج إلى تسجيل دخول جديد',
     'The off-site copy has stopped.': 'توقفت النسخة الخارجية.',
     'The off-site copy has been stopped since yesterday.': 'النسخة الخارجية متوقفة منذ أمس.',

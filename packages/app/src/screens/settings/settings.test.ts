@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ageInDays, backupView, driveSignInError, formatAge } from './data/backups';
+import { ageInDays, backupDetails, backupView, driveSignInError, formatAge } from './data/backups';
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { minutesFromTime, TEMPLATE_MAX, templateDraft, timeFromMinutes } from './data/reminders';
 
@@ -276,5 +276,74 @@ describe('backup status on the index', () => {
         expect(ageInDays('2026-09-21T09:00:00Z', now)).toBe(0);
         expect(formatAge(0)).toBe('today');
         expect(formatAge(1)).toBe('yesterday');
+    });
+});
+
+describe('the Backups pane', () => {
+    const now = Date.parse('2026-09-20T09:00:00Z');
+    const linked = {
+        lastSuccessAt: '2026-09-19T03:00:00Z',
+        stale: false,
+        staleAfterHours: 48,
+        offsite: {
+            configured: true,
+            reauthorizationRequiredSince: null,
+            account: 'clinic@example.com',
+            canSignIn: true,
+        },
+    };
+
+    test('names the account and puts the clock time back on the age', () => {
+        const details = backupDetails(linked, now);
+        expect(details.headline).toBe('Backups are up to date');
+        expect(details.dot).toBe('success');
+        expect(details.last).toBe('03:00 · yesterday');
+        expect(details.offsite).toBe('clinic@example.com');
+        expect(details.note).toBeNull();
+    });
+
+    // The age sits beside a clock time, so it counts midnights, not 24-hour spans.
+    test('a backup from before midnight is yesterday, however recent', () => {
+        const lastNight = new Date(2026, 8, 19, 23, 0).toISOString();
+        const details = backupDetails(
+            { ...linked, lastSuccessAt: lastNight },
+            new Date(2026, 8, 20, 1, 0).getTime(),
+        );
+        expect(details.last.endsWith('· yesterday')).toBe(true);
+    });
+
+    test('says how far behind is behind', () => {
+        const details = backupDetails({ ...linked, stale: true }, now);
+        expect(details.dot).toBe('due');
+        expect(details.note).toBe('No backup in over 48h.');
+    });
+
+    test('a machine with no off-site copy says so rather than naming Drive', () => {
+        const details = backupDetails(
+            {
+                ...linked,
+                lastSuccessAt: null,
+                offsite: { ...linked.offsite, configured: false, account: null },
+            },
+            now,
+        );
+        expect(details.last).toBe('No backup yet');
+        expect(details.offsite).toBe('On this machine only');
+    });
+
+    test('the index only opens the pane once Drive is linked', () => {
+        expect(backupView(linked, now).linked).toBe(true);
+        expect(backupView({ ...linked, offsite: { ...linked.offsite, configured: false } }, now).linked).toBe(
+            false,
+        );
+        expect(
+            backupView(
+                {
+                    ...linked,
+                    offsite: { ...linked.offsite, reauthorizationRequiredSince: '2026-09-18T03:00:00Z' },
+                },
+                now,
+            ).linked,
+        ).toBe(false);
     });
 });
