@@ -25,6 +25,12 @@
  * restages carries the update's number, `X.Y.Z`, on the same runtime. Both refuse a working
  * tree with uncommitted changes, and both tag the commit they were built from
  * `vX.Y.Z`, so a number always names code that can be checked out again.
+ *
+ *   bun packages/app/scripts/release.ts next apk|update [--major|--minor]
+ *
+ * prints the number the same command would release, and builds nothing.
+ * `scripts/ship.ts` cuts the changelog with it, then passes it back as
+ * LUSTRE_EXPECT_VERSION, and a release that works out another number stops.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -359,13 +365,46 @@ async function stageApk(built: BuiltApk, url: string): Promise<void> {
     say(`Staged Lustre ${built.version} (build ${built.versionCode}, ${built.abis}) in ${OUT_DIR}/android`);
 }
 
+function assertExpected(next: Version): void {
+    const expected = process.env.LUSTRE_EXPECT_VERSION?.trim();
+    if (expected && expected !== formatVersion(next)) {
+        fail(`this release is ${formatVersion(next)}, not ${expected} as expected. Nothing was built.`);
+    }
+}
+
+async function nextApk(major: boolean): Promise<Version> {
+    const staged = await stagedApk();
+    return nextApkVersion([...(await taggedVersions()), staged?.version], major);
+}
+
+/** The next update's number, and the runtime it is for: the staged APK's, or it fails. */
+async function nextUpdate(minor: boolean): Promise<{ next: Version; runtimeVersion: string }> {
+    // An update is numbered on the APK it is for, and that is the APK whose
+    // runtime it has. With no such APK staged it would reach no phone.
+    const runtimeVersion = await resolvedRuntimeVersion();
+    const apk = await stagedApk();
+    const apkVersion = apk?.version ? parseVersion(apk.version) : null;
+    if (!apk || !apkVersion) fail('no numbered APK is staged. Ship one with `bun ship --apk` first.');
+    if (apk.runtimeVersion !== runtimeVersion) {
+        fail(
+            `this code is runtime ${runtimeVersion}, but the staged APK (${apk.version}, build ${apk.versionCode}) is runtime ${apk.runtimeVersion}. No phone would take the update: something native changed, so ship an APK with \`bun ship --apk\`.`,
+        );
+    }
+    const next = nextUpdateVersion(
+        apkVersion,
+        [...(await taggedVersions()), ...(await publishedUpdateVersions(runtimeVersion))],
+        minor,
+    );
+    return { next, runtimeVersion };
+}
+
 async function releaseApk(major: boolean): Promise<void> {
     const url = updatesUrl();
     const dsn = await glitchtipDsn(url);
     await assertCleanTree();
 
-    const staged = await stagedApk();
-    const next = nextApkVersion([...(await taggedVersions()), staged?.version], major);
+    const next = await nextApk(major);
+    assertExpected(next);
     const built = await buildApk(formatVersion(next));
     await stageApk(built, url);
 
@@ -395,22 +434,8 @@ async function publishUpdate(minor: boolean): Promise<void> {
     );
     await assertCleanTree();
 
-    // An update is numbered on the APK it is for, and that is the APK whose
-    // runtime it has. With no such APK staged it would reach no phone.
-    const runtimeVersion = await resolvedRuntimeVersion();
-    const apk = await stagedApk();
-    const apkVersion = apk?.version ? parseVersion(apk.version) : null;
-    if (!apk || !apkVersion) fail('no numbered APK is staged. Ship one with `bun release:apk` first.');
-    if (apk.runtimeVersion !== runtimeVersion) {
-        fail(
-            `this code is runtime ${runtimeVersion}, but the staged APK (${apk.version}, build ${apk.versionCode}) is runtime ${apk.runtimeVersion}. No phone would take the update: something native changed, so ship an APK with \`bun release:apk\`.`,
-        );
-    }
-    const next = nextUpdateVersion(
-        apkVersion,
-        [...(await taggedVersions()), ...(await publishedUpdateVersions(runtimeVersion))],
-        minor,
-    );
+    const { next, runtimeVersion } = await nextUpdate(minor);
+    assertExpected(next);
     const version = formatVersion(next);
     // What `Constants.expoConfig.version` reads on a phone running this update.
     const env = { ...process.env, LUSTRE_VERSION: version };
@@ -471,7 +496,11 @@ async function publishUpdate(minor: boolean): Promise<void> {
     await tagRelease(next, `Lustre ${version}, update ${id}, APK build ${built.versionCode}`);
 }
 
-const command = process.argv[2];
-if (command === 'apk') await releaseApk(process.argv.includes('--major'));
-else if (command === 'update') await publishUpdate(process.argv.includes('--minor'));
-else fail('usage: bun packages/app/scripts/release.ts apk [--major] | update [--minor]');
+const [command, kind] = process.argv.slice(2);
+const major = process.argv.includes('--major');
+const minor = process.argv.includes('--minor');
+if (command === 'apk') await releaseApk(major);
+else if (command === 'update') await publishUpdate(minor);
+else if (command === 'next' && kind === 'apk') say(formatVersion(await nextApk(major)));
+else if (command === 'next' && kind === 'update') say(formatVersion((await nextUpdate(minor)).next));
+else fail('usage: bun packages/app/scripts/release.ts [next] apk [--major] | [next] update [--minor]');

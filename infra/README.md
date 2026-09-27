@@ -362,8 +362,9 @@ git push origin v<the version it printed>
 bun play releases --stack=prod    # or `bun play app` if the server changed too
 ```
 
-`bun ship` is `release:update` followed by `play releases --stack=prod`, for a
-patch. For a minor, run the steps above with `--minor`.
+`bun ship` runs these steps in order, cuts the changelog first, and deploys the
+server as well when it changed (RELEASING.md, Shipping to production). For a
+minor, `bun ship --minor`.
 
 Publish with the same `LUSTRE_UPDATES_URL` the APK was built with. An update is
 only offered to APKs with the same runtime version, a fingerprint of everything
@@ -426,8 +427,8 @@ signed, and only a matching native runtime accepts an update. To publish one:
 bun ship:dev
 ```
 
-`bun ship:dev` is `release:dev:update` followed by `play releases --stack=dev`;
-`bun ship` is the same for production (`--stack=prod`).
+`bun ship:dev` is `bun ship` on the dev track: `release:dev:update`, then the
+dev stack's deploy. It cuts no changelog, pushes nothing and ships any branch.
 
 Development versions use `dev-vX.Y.Z` git tags, separate from production's
 `vX.Y.Z`. Push the tag printed by the script. A native change needs
@@ -534,8 +535,9 @@ those with `bun run --cwd packages/app <name>`.
 | `bun release:update [--minor]` | Production OTA patch (or minor) plus the rebuilt APK. Tags locally. | No |
 | `bun release:dev:apk` / `release:dev:update` | The same on the dev track, from `LUSTRE_DEV_UPDATES_URL`. Tags `dev-v…`. | No |
 | `bun play [tags] [--stack=prod\|dev]` | Nothing. Runs the ansible play (Running it, above). | Yes. `app` and `releases` act on both stacks unless `--stack` is given |
-| `bun ship` | `release:update` (patch) | Copies prod's releases (`play releases --stack=prod`) |
-| `bun ship:dev` | `release:dev:update` | Copies dev's releases (`play releases --stack=dev`) |
+| `bun ship [--minor \| --apk [--major]]` | Cuts CHANGELOG.md, then `release:update` (or `release:apk`); pushes `main` and the tag | Prod: `play app` when the server changed since the last release, else `play releases` |
+| `bun ship deploy [--server]` | Nothing, or `build:server` | The deploy step alone, for the release at HEAD |
+| `bun ship:dev [--apk]` | `release:dev:update` (or `release:dev:apk`) | The same deploy on dev |
 
 ## Adding a clinic
 

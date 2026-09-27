@@ -6,21 +6,23 @@ JS-only change: OTA update. Native change (native dep, app.json, config plugin, 
 
 ## Commands
 
-| Command | Builds | Copies to the server | Tags (local) |
-|---|---|---|---|
-| `bun release:apk [--major]` | APK, next minor (or major) | nothing | `vX.Y.0` |
-| `bun release:update` | OTA patch + rebuilt APK | nothing | `vX.Y.Z+1` |
-| `bun release:update --minor` | OTA minor + rebuilt APK | nothing | `vX.Y+1.0` |
-| `bun ship` | `release:update` (patch only) | prod's releases (`bun play releases --stack=prod`) | `vX.Y.Z+1` |
-| `bun release:dev:apk` / `release:dev:update` | the same on the dev track | nothing | `dev-vX.Y.Z` |
-| `bun ship:dev` | `release:dev:update` | dev's releases (`bun play releases --stack=dev`) | `dev-vX.Y.Z` |
-| `bun play releases [--stack=prod\|dev]` | nothing | staged releases, both stacks unless `--stack` | — |
-| `bun play app [--stack=prod\|dev]` | nothing (run `bun run build:server` first) | server **and** releases, both stacks unless `--stack` | — |
+`bun ship` is the release. The rest are the steps it runs, for when one has to be run alone.
 
-- `bun play app` already copies the releases. Don't also run `bun play releases` after it.
+| Command | Does |
+|---|---|
+| `bun ship` | OTA patch, start to finish (below) |
+| `bun ship --minor` | the same, as a minor the phones take now |
+| `bun ship --apk [--major]` | the same, as a new APK |
+| `bun ship --dry-run` | the number, and whether the server deploys. Changes nothing |
+| `bun ship deploy [--server]` | only the deploy, again: after a failed play, or to force the server (`--server`) |
+| `bun ship:dev [--apk]` | the dev track to the dev stack: no changelog, no push, any branch |
+| `bun release:update [--minor]` / `release:apk [--major]` | the build step alone: builds, stages, tags locally |
+| `bun play releases [--stack=prod\|dev]` | copies the staged releases, both stacks unless `--stack` |
+| `bun play app [--stack=prod\|dev]` | deploys `dist/lustre` **and** copies the releases. Run `bun run build:server` first |
+
 - `bun play` without `--stack` touches production. Use `--stack=dev` for dev-only work.
-- `bun play` needs the sudo password. The user runs it (`! bun play …`), unless `LUSTRE_SUDO_PASSWORD_FILE` is set.
-- Nothing pushes tags for you: `git push origin <tag>`. Pushing a `v*` tag runs `.github/workflows/release.yml`. `dev-v*` tags stay local.
+- `bun play` (and so `bun ship`) needs the sudo password. The user runs it (`! bun ship`), unless `LUSTRE_SUDO_PASSWORD_FILE` is set.
+- Pushing a `v*` tag runs `.github/workflows/release.yml`, which fails if CHANGELOG.md has no section for it. `dev-v*` tags stay local.
 
 ## Patch or minor
 
@@ -30,11 +32,16 @@ JS-only change: OTA update. Native change (native dep, app.json, config plugin, 
 
 ## Shipping to production
 
-1. Move `## [Unreleased]` in CHANGELOG.md under the new version and date, and add its compare link. Commit. Write entries for the clinic, not the code: what changed on the phone.
-2. If the server changed: `bun run build:server`.
-3. `bun release:update [--minor]` (or `bun release:apk`). It needs a clean tree.
-4. `git push origin main` and `git push origin v<version>`.
-5. The user runs `bun play app` if the server changed, otherwise `bun play releases`. The play deploys the server before it copies the releases, so the server is always ahead of the phones.
+Write the `[Unreleased]` entries for the clinic, not the code: what changed on the phone. Merge to `main`, pull, then `bun ship` (`scripts/ship.ts`):
+
+1. Refuses a dirty tree, a branch other than `main`, a `main` behind origin, or a HEAD that is already a release.
+2. Asks `release.ts next` for the number.
+3. Moves `[Unreleased]` in CHANGELOG.md under it, with the date and compare links, and commits `docs(changelog): X.Y.Z`. Refuses an empty `[Unreleased]`.
+4. Builds, stages and tags (`release.ts`, told the number it must come to).
+5. Pushes `main` and the tag.
+6. Deploys. If `packages/server`, `packages/shared` or `bun.lock` changed since the previous release: `bun run build:server`, then `play app`. Otherwise `play releases`. The play deploys the server before it copies the releases, so the server is always ahead of the phones.
+
+Run again after a failure, it picks up where it stopped: a changelog already cut for the number is kept. A failed deploy is `bun ship deploy`.
 
 ## Environment
 
