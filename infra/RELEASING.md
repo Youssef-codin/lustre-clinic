@@ -8,6 +8,7 @@ One command ships everything: `bun ship`. There are no other release commands.
 - **Tell the user the exact command to run from the table below, and nothing else.** Don't piece together steps like `release.ts`, `build:server` or `play releases`. `bun ship` already runs them, in the right order.
 - **Before a release, the only file to touch is CHANGELOG.md**: lines under `## [Unreleased]`, written for the clinic. Don't move them under a version, add links or date it. `bun ship` does all of that.
 - **Never stash, check out or reset to test release scripts.** An older checkout has older scripts, and `bun ship` there is a real release.
+- **Don't touch `packages/app/app.json`, `app.config.ts` or `plugins/` unless the change needs a new APK, not even a comment.** They're hashed into the runtime fingerprint byte for byte, so any edit makes `bun ship` refuse the update and ask for `bun ship --apk`.
 - If a ship fails, read its last line. It says what to run next: `bun ship` again, or `bun ship deploy`.
 
 ## Commands
