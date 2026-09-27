@@ -76,6 +76,13 @@ function redeem(code: string, previous: string | null = null) {
     if (grant.redeemedAt) throw new DemoError(ERROR_CODE.GRANT_USED, 'grant already redeemed', 409);
     if (grant.expiresAt <= now) throw new DemoError(ERROR_CODE.GRANT_EXPIRED, 'grant expired', 422);
 
+    const old = previous === null ? undefined : db.devices.find((row) => row.token === previous);
+    const lastAdmin =
+        old?.role === 'admin' &&
+        grant.role !== 'admin' &&
+        !db.devices.some((row) => row.role === 'admin' && row.id !== old.id && !row.revokedAt);
+    if (lastAdmin) throw new DemoError(ERROR_CODE.LAST_ADMIN, 'this is the only admin phone', 409);
+
     grant.redeemedAt = now;
     const device: DeviceRow = {
         id: uuidv7(),
@@ -86,7 +93,6 @@ function redeem(code: string, previous: string | null = null) {
         createdAt: now,
         revokedAt: null,
     };
-    const old = previous === null ? undefined : db.devices.find((row) => row.token === previous);
     if (old) deleteGrant(old.grantId);
     getDb().devices.push(device);
     save();

@@ -105,6 +105,22 @@ function statusOf(row: typeof roleGrants.$inferSelect, now: Date): GrantStatus {
     return 'pending';
 }
 
+/**
+ * The live admin phones, locked until the transaction ends. Every change that
+ * could leave the clinic without an admin takes this first, so two of them
+ * racing are decided one after the other, the second seeing the first's
+ * result rather than a count taken before it.
+ */
+async function lockAdmins(executor: Executor): Promise<string[]> {
+    const rows = await executor
+        .select({ id: devices.id })
+        .from(devices)
+        .where(and(eq(devices.role, 'admin'), isNull(devices.revokedAt)))
+        .orderBy(devices.id)
+        .for('update');
+    return rows.map((row) => row.id);
+}
+
 /** A code and the phone it made, gone: a withdrawn or replaced role leaves nothing behind. */
 async function deleteGrant(executor: Executor, grantId: string): Promise<void> {
     await executor.delete(devices).where(eq(devices.grantId, grantId));
@@ -269,11 +285,20 @@ export const deviceService = {
             });
             const [old] = previous
                 ? await tx
-                      .select({ id: devices.id, grantId: devices.grantId })
+                      .select({ id: devices.id, grantId: devices.grantId, role: devices.role })
                       .from(devices)
                       .where(eq(devices.tokenHash, hashOf(previous)))
                       .limit(1)
                 : [];
+            // The clinic's last admin phone giving up the role would leave
+            // nobody to make codes but the server's CLI — the same reason an
+            // admin cannot withdraw its own. Refused, and the code is kept.
+            if (old?.role === 'admin' && grant.role !== 'admin') {
+                const admins = await lockAdmins(tx);
+                if (!admins.some((id) => id !== old.id)) {
+                    throw new AppError(ERROR_CODE.LAST_ADMIN, 'this is the only admin phone', 409);
+                }
+            }
             if (old) await deleteGrant(tx, old.grantId);
             return {
                 grantId: grant.id,
@@ -357,6 +382,12 @@ export const deviceService = {
 
             const [device] = await tx.select().from(devices).where(eq(devices.grantId, grantId)).limit(1);
             if (device && device.id === caller.deviceId) throw forbidden('revoke its own role');
+            // Two admins withdrawing each other at once: the second, waiting
+            // on the lock, finds it is no longer an admin and is refused.
+            if (device?.role === 'admin') {
+                const admins = await lockAdmins(tx);
+                if (!caller.deviceId || !admins.includes(caller.deviceId)) throw forbidden('manage roles');
+            }
 
             await deleteGrant(tx, grantId);
             return device?.id ?? null;

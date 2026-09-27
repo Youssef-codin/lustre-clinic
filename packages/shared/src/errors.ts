@@ -128,6 +128,11 @@ export const ERROR_CODE = {
     GRANT_EXPIRED: 'GRANT_EXPIRED',
     /** The scanned code has already given a phone its role. Codes are single-use. */
     GRANT_USED: 'GRANT_USED',
+    /**
+     * The clinic's only admin phone scanned a code for another role. Taking it
+     * would leave no phone able to make codes; another admin comes first.
+     */
+    LAST_ADMIN: 'LAST_ADMIN',
     /** An admin withdrew the scanned code before it was used. */
     GRANT_REVOKED: 'GRANT_REVOKED',
 

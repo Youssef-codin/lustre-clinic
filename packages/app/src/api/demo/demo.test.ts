@@ -1045,7 +1045,9 @@ describe('roles', () => {
             payload: string;
         };
         const code = issued.payload.split(':').pop() ?? '';
-        const doctor = resolve('device.redeem', { code }, admin) as { token: string };
+        const doctor = resolve('device.redeem', { code }, { token: null, deviceId: null, role: null }) as {
+            token: string;
+        };
         resolve('device.revoke', { grantId: issued.id }, admin);
 
         expect(() => admit('settings.get', doctor.token)).toThrow(DemoError);

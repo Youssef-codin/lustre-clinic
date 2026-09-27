@@ -1290,6 +1290,8 @@ export const COPY_AR = {
     'Scan your role code': 'امسح رمز دورك',
     'Ask the clinic’s admin for a code for this phone, then scan it. It decides what this phone can do.':
         'اطلب من مدير العيادة رمزًا لهذا الهاتف، ثم امسحه. هو ما يحدد ما يمكن لهذا الهاتف فعله.',
+    'This is the clinic’s only admin phone. Make another phone an admin first.':
+        'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

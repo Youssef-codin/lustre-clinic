@@ -303,15 +303,19 @@ export function VisitPaymentScreen({
         );
     }
 
-    const confirmLabel = correcting
-        ? settled
-            ? t('Save & close visit')
-            : t('Save — {balance} still owed', { balance: formatMoney(remaining) })
-        : nothing
-          ? t('Close visit without payment')
-          : settled
-            ? t('Confirm & close visit')
-            : t('Confirm — {balance} still owed', { balance: formatMoney(remaining) });
+    const confirmLabel = withheld
+        ? nothing
+            ? t('Close visit without payment')
+            : t('Confirm & close visit')
+        : correcting
+          ? settled
+              ? t('Save & close visit')
+              : t('Save — {balance} still owed', { balance: formatMoney(remaining) })
+          : nothing
+            ? t('Close visit without payment')
+            : settled
+              ? t('Confirm & close visit')
+              : t('Confirm — {balance} still owed', { balance: formatMoney(remaining) });
 
     /**
      * The method belongs to the money moving now, not to the visit. A patient
@@ -602,25 +606,30 @@ export function VisitPaymentScreen({
                     </Text>
                 ) : null}
 
-                <View style={styles.strip}>
-                    {settled ? (
-                        <CheckIcon size={15} stroke={color.success} width={3} />
-                    ) : (
-                        <View style={styles.stripDot} />
-                    )}
-                    <Text variant="subhead" tone="muted">
-                        {t(settled ? 'Settled — nothing owed' : 'Remaining balance')}
-                    </Text>
-                    <Text
-                        variant="headline"
-                        script="mono"
-                        weight="bold"
-                        tone={settled ? 'success' : 'due'}
-                        style={styles.stripAmount}
-                    >
-                        {formatMoney(remaining)}
-                    </Text>
-                </View>
+                {/* Worked out from the charge alone, which is wrong the moment
+                    anything was paid before — and a doctor's phone is not told
+                    whether it was. So it says nothing about what is owed. */}
+                {withheld ? null : (
+                    <View style={styles.strip}>
+                        {settled ? (
+                            <CheckIcon size={15} stroke={color.success} width={3} />
+                        ) : (
+                            <View style={styles.stripDot} />
+                        )}
+                        <Text variant="subhead" tone="muted">
+                            {t(settled ? 'Settled — nothing owed' : 'Remaining balance')}
+                        </Text>
+                        <Text
+                            variant="headline"
+                            script="mono"
+                            weight="bold"
+                            tone={settled ? 'success' : 'due'}
+                            style={styles.stripAmount}
+                        >
+                            {formatMoney(remaining)}
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
 
             {failure ? (

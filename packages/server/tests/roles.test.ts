@@ -159,7 +159,7 @@ describe('the admin', () => {
         expect(await api.clientAs(secretary.token).device.me.query()).toBeNull();
     });
 
-    test('a phone that scans a new code gives up its old one, which the list shows as replaced', async () => {
+    test('a phone that scans a new code gives up its old one, which leaves the list', async () => {
         const admin = await provisioned('admin');
         const phone = await provisioned('secretary');
         const grant = await deviceService.issue({ role: 'doctor', label: 'Surgery' }, null);
@@ -173,6 +173,52 @@ describe('the admin', () => {
         const listed = await api.clientAs(admin.token).device.grants.query();
         expect(listed.find((g) => g.id === phone.grantId)).toBeUndefined();
         expect(listed.find((g) => g.id === grant.id)?.status).toBe('redeemed');
+    });
+
+    test('the only admin phone cannot trade its role away, but can once there is another', async () => {
+        const admin = await provisioned('admin');
+        const doctorCode = await deviceService.issue({ role: 'doctor', label: 'Surgery' }, null);
+        const redeem = () =>
+            api.clientAs(admin.token).device.redeem.mutate({ code: codeOf(doctorCode.payload) });
+
+        await expectTrpcError(ERROR_CODE.LAST_ADMIN, 409, redeem);
+        expect((await api.clientAs(admin.token).device.me.query())?.role).toBe('admin');
+
+        await provisioned('admin');
+        expect((await redeem()).role).toBe('doctor');
+    });
+
+    test('two admin phones giving up the role at once leave one admin', async () => {
+        const first = await provisioned('admin');
+        const second = await provisioned('admin');
+        const codes = await Promise.all([
+            deviceService.issue({ role: 'doctor', label: 'One' }, null),
+            deviceService.issue({ role: 'doctor', label: 'Two' }, null),
+        ]);
+
+        const results = await Promise.allSettled([
+            api.clientAs(first.token).device.redeem.mutate({ code: codeOf(codes[0].payload) }),
+            api.clientAs(second.token).device.redeem.mutate({ code: codeOf(codes[1].payload) }),
+        ]);
+
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        const [row] =
+            await sql`SELECT count(*)::int AS count FROM devices WHERE role = 'admin' AND revoked_at IS NULL`;
+        expect(row?.count).toBe(1);
+    });
+
+    test('two admins withdrawing each other at once leave one admin', async () => {
+        const first = await provisioned('admin');
+        const second = await provisioned('admin');
+
+        await Promise.allSettled([
+            api.clientAs(first.token).device.revoke.mutate({ grantId: second.grantId }),
+            api.clientAs(second.token).device.revoke.mutate({ grantId: first.grantId }),
+        ]);
+
+        const [row] =
+            await sql`SELECT count(*)::int AS count FROM devices WHERE role = 'admin' AND revoked_at IS NULL`;
+        expect(row?.count).toBe(1);
     });
 
     test('cannot revoke its own role', async () => {
@@ -354,6 +400,13 @@ describe('a doctor and payment data', () => {
         await expectTrpcError(ERROR_CODE.ROLE_FORBIDDEN, 403, () =>
             doctor.visit.reopen.mutate({ visitId: visit.id }),
         );
+    });
+
+    test('is not told what the carried-over debt comes to', async () => {
+        const doctor = api.clientAs((await provisioned('doctor')).token);
+        const admin = api.clientAs((await provisioned('admin')).token);
+        expect((await doctor.migration.progress.query()).openingBalanceTotal).toBeNull();
+        expect((await admin.migration.progress.query()).openingBalanceTotal).toBe(0);
     });
 
     test('can check a patient out', async () => {

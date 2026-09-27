@@ -60,6 +60,7 @@ const CONSTRAINT_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
     ERROR_CODE.GRANT_EXPIRED,
     ERROR_CODE.GRANT_USED,
     ERROR_CODE.GRANT_REVOKED,
+    ERROR_CODE.LAST_ADMIN,
 ]);
 
 const VALIDATION_CODES: ReadonlySet<ErrorCode> = new Set<ErrorCode>([

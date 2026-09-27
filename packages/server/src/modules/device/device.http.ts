@@ -8,7 +8,7 @@
  * page reads it in script and the server never sees or logs it. The page is
  * the same for everyone and carries nothing of the clinic's.
  */
-import { APK_PATH, JOIN_APP_PATH } from '@lustre/shared';
+import { APK_PATH, GRANT_TTL_MINUTES, JOIN_APP_PATH } from '@lustre/shared';
 import { serverEnvironment } from '../../config.ts';
 
 // The app's scheme per stack, as `app.json` registers them: a dev stack's page
@@ -40,7 +40,7 @@ const PAGE = `<!doctype html>
 <body>
 <main>
   <h1>Lustre role code</h1>
-  <p id="lead">This code gives this phone its role in the clinic's Lustre app. It works once, for 30 minutes.</p>
+  <p id="lead">This code gives this phone its role in the clinic's Lustre app. It works once, for ${GRANT_TTL_MINUTES} minutes.</p>
   <div id="steps">
     <div class="step">
       <h2>1. Don't have Lustre yet?</h2>

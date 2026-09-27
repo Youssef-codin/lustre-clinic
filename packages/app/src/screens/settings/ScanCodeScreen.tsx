@@ -29,6 +29,7 @@ export const REFUSED = {
     [ERROR_CODE.GRANT_EXPIRED]: 'This code has expired. Ask for a new one.',
     [ERROR_CODE.GRANT_USED]: 'This code has already been used on a phone. Ask for a new one.',
     [ERROR_CODE.GRANT_REVOKED]: 'This code was withdrawn. Ask for a new one.',
+    [ERROR_CODE.LAST_ADMIN]: 'This is the clinic’s only admin phone. Make another phone an admin first.',
 };
 
 export type ScanCodeScreenProps = {

@@ -116,6 +116,7 @@ interface HistoryEntry {
 /** What `path` answered, less what the caller's role may not see. */
 export function shownTo(path: string, output: unknown, caller: DemoCaller): unknown {
     if (seesPayments(caller.role) || !output || typeof output !== 'object') return output;
+    if (path === 'migration.progress') return withheld(output, ['openingBalanceTotal']);
     if (VISIT_ANSWERS.has(path)) return withheldVisit(output as Parameters<typeof withheldVisit>[0]);
     if (path === 'patient.byId') {
         const detail = output as { history: HistoryEntry[] };
