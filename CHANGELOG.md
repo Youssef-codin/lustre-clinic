@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-09-27
+
 ### Changed
 
 - Updates arrive without closing the app. The phone downloads a new version quietly while it's open and switches to it the next time you come back to the app: from WhatsApp, from the lock screen, or opening it again after swiping it away.
@@ -193,7 +195,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.2...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.3...HEAD
+[1.6.3]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.5.1...v1.6.0
