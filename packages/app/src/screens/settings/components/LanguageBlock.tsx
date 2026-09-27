@@ -1,8 +1,8 @@
 /**
  * The LANGUAGE block on the settings index: the language's name and a compact
- * EN / ع pill beside it, with the note on what the switch changes. On the index
- * rather than in a pane so it takes one tap, and drawn whether or not the
- * server answers — the language is this phone's, not the clinic's.
+ * EN / ع pill beside it. On the index rather than in a pane so it takes one
+ * tap, and drawn whether or not the server answers — the language is this
+ * phone's, not the clinic's.
  */
 import type { Locale } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -63,12 +63,6 @@ export function LanguageBlock({ locale, onChange }: LanguageBlockProps) {
                     })}
                 </View>
             </Card>
-
-            <Text variant="footnote" tone="muted" style={styles.hint}>
-                {t(
-                    'Changes the language and layout of the app on this phone. Reminders to patients are sent as written in Settings → Reminders, whichever language is picked here.',
-                )}
-            </Text>
         </View>
     );
 }
@@ -106,6 +100,4 @@ const styles = StyleSheet.create({
         borderRadius: radius.full,
     },
     buttonOn: { backgroundColor: color.ink },
-
-    hint: { paddingHorizontal: space[0.5] },
 });

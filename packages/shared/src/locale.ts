@@ -88,8 +88,6 @@ export const COPY_AR = {
     'Open WhatsApp in': 'فتح واتساب في',
     'SERVER CONNECTION': 'الاتصال بالخادم',
     VERSION: 'الإصدار',
-    'Changes the language and layout of the app on this phone. Reminders to patients are sent as written in Settings → Reminders, whichever language is picked here.':
-        'يغيّر لغة التطبيق واتجاهه على هذا الهاتف. تُرسل التذكيرات للمرضى كما هي مكتوبة في الإعدادات ← التذكيرات، أيًّا كانت اللغة المختارة هنا.',
     'Not recorded': 'غير مسجّل',
     'Not checked yet': 'لم يُفحص بعد',
     'Probing…': 'جارٍ الفحص…',
