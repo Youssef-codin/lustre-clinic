@@ -33,16 +33,23 @@ import { formatMoney, MethodIcon } from '../../../components/domain';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
-import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery, type Visit } from '../data';
+import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery } from '../data';
 import { describeError } from '../errors';
-import { amountDue, discountPercent, formatAmount, poundsEntry, procedureDiscount } from '../money';
+import {
+    amountDue,
+    discountPercent,
+    formatAmount,
+    type PricedVisit,
+    poundsEntry,
+    procedureDiscount,
+} from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
 import { CheckIcon } from './icons';
 
 export type VisitPaymentScreenProps = {
     appointment: Appointment;
     /** Priced by the visit screen — `chargedTotal` is what this screen collects. */
-    visit: Visit;
+    visit: PricedVisit;
     /**
      * The visit was checked out once already and is being corrected. The field
      * then means everything collected on it, not a payment on top: a visit
@@ -108,7 +115,7 @@ export function VisitPaymentScreen({
         () => procedureDiscount(visit.procedures, defaults),
         [visit.procedures, defaults],
     );
-    const lineDiscount = (line: Visit['procedures'][number]) =>
+    const lineDiscount = (line: PricedVisit['procedures'][number]) =>
         discountPercent(defaults.get(line.procedureId) ?? 0, line.unitPrice);
     // Withheld, a visit already closed offers nothing to take: whatever it was
     // paid is on it, and taking the charge again would be taking it twice.

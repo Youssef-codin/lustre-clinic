@@ -541,12 +541,14 @@ function VisitPanel({
 
     return (
         <View style={styles.panel}>
-            <View style={styles.money}>
-                <Text variant="subhead" tone="muted">
-                    {t('Charged')}
-                </Text>
-                <MoneyValue piastres={visit.chargedTotal} />
-            </View>
+            {visit.chargedTotal !== null ? (
+                <View style={styles.money}>
+                    <Text variant="subhead" tone="muted">
+                        {t('Charged')}
+                    </Text>
+                    <MoneyValue piastres={visit.chargedTotal} />
+                </View>
+            ) : null}
             {/* Null on a phone whose role is not shown payments. */}
             {visit.paidTotal !== null ? (
                 <View style={styles.money}>

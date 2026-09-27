@@ -142,6 +142,9 @@ export function VisitViewScreen({
     // treatment only, and the payment panel is not offered at all.
     const payments = visit.payments;
     const settled = (visit.balance ?? 0) <= 0;
+    // Null on a finished visit a doctor's phone reads: the treatment is shown
+    // without a price anywhere on it, and it cannot be reopened to edit.
+    const priced = visit.chargedTotal !== null;
     const day = dateKey(new Date(appointment.startsAt));
 
     return (
@@ -254,9 +257,19 @@ export function VisitViewScreen({
                                                 {toothPosition(group.tooth)}
                                             </Text>
 
-                                            <Text variant="callout" script="mono" weight="bold">
-                                                {formatAmount(chargeableTotal(group.items, waived))}
-                                            </Text>
+                                            {priced ? (
+                                                <Text variant="callout" script="mono" weight="bold">
+                                                    {formatAmount(
+                                                        chargeableTotal(
+                                                            group.items.map((line) => ({
+                                                                ...line,
+                                                                unitPrice: line.unitPrice ?? 0,
+                                                            })),
+                                                            waived,
+                                                        ),
+                                                    )}
+                                                </Text>
+                                            ) : null}
                                         </View>
 
                                         <View>
@@ -282,12 +295,16 @@ export function VisitViewScreen({
                                                             </Text>
                                                         ) : null}
                                                     </View>
-                                                    <Text variant="eyebrow" tone="muted">
-                                                        {t('EGP')}
-                                                    </Text>
-                                                    <Text variant="body" script="mono" weight="bold">
-                                                        {formatAmount(line.lineTotal)}
-                                                    </Text>
+                                                    {line.lineTotal !== null ? (
+                                                        <>
+                                                            <Text variant="eyebrow" tone="muted">
+                                                                {t('EGP')}
+                                                            </Text>
+                                                            <Text variant="body" script="mono" weight="bold">
+                                                                {formatAmount(line.lineTotal)}
+                                                            </Text>
+                                                        </>
+                                                    ) : null}
                                                 </View>
                                             ))}
                                         </View>
@@ -307,14 +324,16 @@ export function VisitViewScreen({
                             </View>
                         ) : null}
 
-                        <View style={styles.total}>
-                            <Text variant="subhead" tone="muted">
-                                {t('Total cost')}
-                            </Text>
-                            <Text variant="headline" script="mono" weight="bold">
-                                {formatMoney(visit.chargedTotal)}
-                            </Text>
-                        </View>
+                        {visit.chargedTotal !== null ? (
+                            <View style={styles.total}>
+                                <Text variant="subhead" tone="muted">
+                                    {t('Total cost')}
+                                </Text>
+                                <Text variant="headline" script="mono" weight="bold">
+                                    {formatMoney(visit.chargedTotal)}
+                                </Text>
+                            </View>
+                        ) : null}
                     </>
                 ) : (
                     <>
@@ -325,7 +344,7 @@ export function VisitViewScreen({
                             <Text variant="footnote" tone="muted">
                                 {t('{paid} of {charged}', {
                                     paid: formatMoney(visit.paidTotal ?? 0),
-                                    charged: formatAmount(visit.chargedTotal),
+                                    charged: formatAmount(visit.chargedTotal ?? 0),
                                 })}
                             </Text>
                         </View>
@@ -394,16 +413,18 @@ export function VisitViewScreen({
                                 weight="bold"
                                 tone={settled ? 'success' : 'due'}
                             >
-                                {formatMoney(settled ? visit.chargedTotal : (visit.balance ?? 0))}
+                                {formatMoney(settled ? (visit.chargedTotal ?? 0) : (visit.balance ?? 0))}
                             </Text>
                         </View>
                     </>
                 )}
             </ScrollView>
 
-            <View style={styles.bar}>
-                <Button label="Edit visit" block onPress={() => onEdit(visit)} testID="visit-view-edit" />
-            </View>
+            {priced ? (
+                <View style={styles.bar}>
+                    <Button label="Edit visit" block onPress={() => onEdit(visit)} testID="visit-view-edit" />
+                </View>
+            ) : null}
 
             <PopoverMenu
                 visible={menuOpen}

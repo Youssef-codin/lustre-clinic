@@ -1,4 +1,4 @@
-import { clinicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, router, setupProcedure } from '../../trpc/init.ts';
 import { procedureHistoryService } from './procedure.history.ts';
 import {
     addHistoricalProceduresInput,
@@ -16,19 +16,19 @@ export const procedureRouter = router({
 
     list: clinicProcedure.query(() => procedureService.selectableList()),
 
-    create: clinicProcedure
+    create: setupProcedure
         .input(createProcedureInput)
         .mutation(({ input }) => procedureService.create(input)),
 
-    createCategory: clinicProcedure
+    createCategory: setupProcedure
         .input(createCategoryInput)
         .mutation(({ input }) => procedureService.createCategory(input)),
 
-    update: clinicProcedure
+    update: setupProcedure
         .input(updateProcedureInput)
         .mutation(({ input }) => procedureService.update(input)),
 
-    reorder: clinicProcedure
+    reorder: setupProcedure
         .input(reorderProceduresInput)
         .mutation(({ input }) => procedureService.reorder(input)),
 

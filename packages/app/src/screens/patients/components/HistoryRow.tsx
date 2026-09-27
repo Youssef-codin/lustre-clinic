@@ -188,7 +188,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                             {t('due')}
                         </Text>
                     </View>
-                ) : came ? (
+                ) : came && entry.chargedTotal !== null ? (
                     <MoneyValue
                         piastres={entry.chargedTotal}
                         variant="callout"
@@ -280,7 +280,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
                     {t('of')}
                 </Text>
                 <MoneyValue
-                    piastres={entry.chargedTotal}
+                    piastres={entry.chargedTotal ?? 0}
                     variant="caption"
                     tone="muted"
                     showCurrency={false}

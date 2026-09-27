@@ -2073,7 +2073,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2111,7 +2111,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2247,7 +2247,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2280,7 +2280,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2307,7 +2307,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,

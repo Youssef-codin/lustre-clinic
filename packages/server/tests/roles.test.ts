@@ -245,26 +245,50 @@ describe('a doctor and payment data', () => {
         return fixtures;
     }
 
-    test('sees prices on a patient’s history, but not what was paid or is owed', async () => {
+    test('sees no amounts on a finished visit in a patient’s history', async () => {
         const { patient } = await paidVisit();
         const doctor = await provisioned('doctor');
 
         const [entry] = (await api.clientAs(doctor.token).patient.byId.query({ id: patient.id })).history;
-        expect(entry?.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(entry?.chargedTotal).toBeNull();
+        expect(entry?.computedTotal).toBeNull();
         expect(entry?.paidTotal).toBeNull();
         expect(entry?.balance).toBeNull();
     });
 
-    test('sees a visit’s lines and charge, but not its payments', async () => {
+    test('sees a finished visit’s procedures, but no charge, price or payment', async () => {
         const { visit } = await paidVisit();
         const doctor = await provisioned('doctor');
 
         const read = await api.clientAs(doctor.token).visit.byId.query({ id: visit.id });
-        expect(read.chargedTotal).toBe(CHECKUP_PRICE);
-        expect(read.procedures[0]?.unitPrice).toBe(CHECKUP_PRICE);
+        expect(read.procedures).toHaveLength(1);
+        expect(read.procedures[0]?.unitPrice).toBeNull();
+        expect(read.procedures[0]?.lineTotal).toBeNull();
+        expect(read.chargedTotal).toBeNull();
         expect(read.payments).toBeNull();
-        expect(read.paidTotal).toBeNull();
         expect(read.balance).toBeNull();
+    });
+
+    test('sees prices on a visit still open, to check it out', async () => {
+        const { visit, checkup } = await checkedInVisit();
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: checkup.id, quantity: 1 }],
+        });
+        const doctor = await provisioned('doctor');
+
+        const read = await api.clientAs(doctor.token).visit.byId.query({ id: visit.id });
+        expect(read.procedures[0]?.unitPrice).toBe(CHECKUP_PRICE);
+        expect(read.chargedTotal).toBe(CHECKUP_PRICE);
+        expect(read.payments).toBeNull();
+    });
+
+    test('cannot reopen a finished visit', async () => {
+        const { visit } = await paidVisit();
+        const doctor = api.clientAs((await provisioned('doctor')).token);
+        await expectTrpcError(ERROR_CODE.ROLE_FORBIDDEN, 403, () =>
+            doctor.visit.reopen.mutate({ visitId: visit.id }),
+        );
     });
 
     test('can check a patient out', async () => {
@@ -283,6 +307,7 @@ describe('a doctor and payment data', () => {
         });
         expect(done.completedAt).not.toBeNull();
         expect(done.balance).toBeNull();
+        expect(done.chargedTotal).toBeNull();
     });
 
     test('is refused every read and write of payments, balances and the money stats', async () => {
@@ -312,6 +337,7 @@ describe('a doctor and payment data', () => {
             const phone = api.clientAs((await provisioned(role)).token);
 
             const [entry] = (await phone.patient.byId.query({ id: patient.id })).history;
+            expect(entry?.chargedTotal).toBe(CHECKUP_PRICE);
             expect(entry?.paidTotal).toBe(10_000);
             expect(entry?.balance).toBe(CHECKUP_PRICE - 10_000);
             expect((await phone.visit.byId.query({ id: visit.id })).payments).toHaveLength(1);
@@ -347,5 +373,52 @@ describe('ref edits', () => {
             editedBy: 'secretary',
         });
         expect(moved.ref).toBe('K7MX');
+    });
+});
+
+describe('setting the clinic up', () => {
+    for (const role of ['doctor', 'secretary'] as const) {
+        test(`a ${role} cannot change branches, hours, procedures, patient fields or the clinic`, async () => {
+            const { branch, checkup } = await checkedInVisit();
+            const phone = api.clientAs((await provisioned(role)).token);
+
+            const refused: (() => Promise<unknown>)[] = [
+                () => phone.branch.create.mutate({ name: 'Elsewhere' }),
+                () => phone.branch.update.mutate({ id: branch.id, name: 'Renamed' }),
+                () =>
+                    phone.settings.setDay.mutate({
+                        weekday: 1,
+                        branchId: branch.id,
+                        opensAt: '09:00',
+                        closesAt: '17:00',
+                    }),
+                () => phone.settings.clearDay.mutate({ weekday: 1 }),
+                () => phone.procedure.update.mutate({ id: checkup.id, defaultPrice: 1 }),
+                () =>
+                    phone.customQuestion.create.mutate({
+                        key: 'allergies',
+                        label: 'Allergies',
+                        kind: 'text',
+                    }),
+                () => phone.settings.update.mutate({ clinicName: 'Mine now' }),
+                () => phone.settings.update.mutate({ requireAge: false }),
+            ];
+            for (const call of refused) await expectTrpcError(ERROR_CODE.ROLE_FORBIDDEN, 403, call);
+        });
+    }
+
+    test('everyone can still set durations and reminders', async () => {
+        const doctor = api.clientAs((await provisioned('doctor')).token);
+        const updated = await doctor.settings.update.mutate({
+            reminderLeadHours: 48,
+            askToEditOnFinish: false,
+        });
+        expect(updated.reminderLeadHours).toBe(48);
+    });
+
+    test('the admin, and a phone with no role yet, can set the clinic up', async () => {
+        const admin = api.clientAs((await provisioned('admin')).token);
+        expect((await admin.settings.update.mutate({ clinicName: 'Lustre' })).clinicName).toBe('Lustre');
+        expect((await api.client.settings.update.mutate({ clinicName: 'Legacy' })).clinicName).toBe('Legacy');
     });
 });

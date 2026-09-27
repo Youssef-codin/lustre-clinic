@@ -78,11 +78,12 @@ export interface VisitLine {
     procedureId: string;
     name: string;
     quantity: number;
-    unitPrice: number;
+    /** Null with `lineTotal`, and the visit's two totals, on a finished visit a doctor's phone reads. */
+    unitPrice: number | null;
     isCheckup: boolean;
     tooth: Tooth | null;
     note: string | null;
-    lineTotal: number;
+    lineTotal: number | null;
 }
 
 export interface VisitPayment {
@@ -101,8 +102,8 @@ export interface Visit {
     inChairAt: string | null;
     pricedAt: string | null;
     completedAt: string | null;
-    computedTotal: number;
-    chargedTotal: number;
+    computedTotal: number | null;
+    chargedTotal: number | null;
     createdAt: string;
     procedures: VisitLine[];
     /** The three are null on a phone whose role may not see payments (a doctor). */

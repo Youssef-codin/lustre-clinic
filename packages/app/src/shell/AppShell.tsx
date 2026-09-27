@@ -127,7 +127,8 @@ export function AppShell() {
     // day cluster: it has to stay armed while the app sits on another tab or in
     // the background, and the day cluster is unmounted for neither of those but
     // is the wrong owner for something the whole app has.
-    useReminderNudges();
+    // Only on the desk's phone, and not before the role is known.
+    useReminderNudges(roleReady && role === 'secretary');
     // The doctor finishing (`visit:completed`), on the desk's phone only.
     useVisitCompletedNotices(roleReady ? role : null);
     // And its other half: Finish from the doctor's notification shade.

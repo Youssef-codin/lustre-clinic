@@ -56,11 +56,12 @@ interface VisitLine {
     procedureId: string;
     name: string;
     quantity: number;
-    unitPrice: number;
+    /** Null, with `lineTotal`, where the visit's amounts are withheld (see `Visit`). */
+    unitPrice: number | null;
     isCheckup: boolean;
     tooth: Tooth | null;
     note: string | null;
-    lineTotal: number;
+    lineTotal: number | null;
 }
 
 interface VisitPayment {
@@ -74,9 +75,13 @@ interface VisitPayment {
 /**
  * The three payment fields are null for a viewer who may not see payments (a
  * doctor): withheld, not zero, so no screen can mistake one for "nothing paid".
- * The charge stays — a doctor sees prices.
+ * A finished visit's amounts go the same way for that viewer — what it cost is
+ * the patient's money too. A visit still open keeps its prices: the doctor
+ * prices and checks it out.
  */
-interface Visit extends VisitRow {
+interface Visit extends Omit<VisitRow, 'chargedTotal' | 'computedTotal'> {
+    chargedTotal: number | null;
+    computedTotal: number | null;
     procedures: VisitLine[];
     payments: VisitPayment[] | null;
     paidTotal: number | null;
@@ -340,10 +345,17 @@ export const visitService = {
 
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
         const shown = viewer === undefined || seesPayments(viewer);
+        const priced = shown || visit.completedAt === null;
 
         return {
             ...visit,
-            procedures: lines.map((l) => ({ ...l, lineTotal: l.unitPrice * l.quantity })),
+            chargedTotal: priced ? visit.chargedTotal : null,
+            computedTotal: priced ? visit.computedTotal : null,
+            procedures: lines.map((l) =>
+                priced
+                    ? { ...l, lineTotal: l.unitPrice * l.quantity }
+                    : { ...l, unitPrice: null, lineTotal: null },
+            ),
             payments: shown ? paymentRows : null,
             paidTotal: shown ? paidTotal : null,
             balance: shown ? visit.chargedTotal - paidTotal : null,
@@ -579,6 +591,11 @@ export const visitService = {
      * which is what `amountDue` already reads.
      */
     async reopen(input: ReopenInput, viewer?: Viewer): Promise<Visit> {
+        // Reopening puts a finished visit's amounts back in front of whoever
+        // reopened it, and a doctor is not shown those.
+        if (viewer !== undefined && !seesPayments(viewer)) {
+            throw new AppError(ERROR_CODE.ROLE_FORBIDDEN, 'this role may not reopen a finished visit', 403);
+        }
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 

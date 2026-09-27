@@ -167,6 +167,16 @@ export function seesPayments(role: Role | null): boolean {
 }
 
 /**
+ * Setting the clinic up: branches, opening hours, procedures and their prices,
+ * patient fields, the clinic's details and numbering, and the backups link.
+ * The admin's; a phone with no credential keeps what it could do before roles
+ * existed, as with `seesPayments`.
+ */
+export function managesClinic(role: Role | null): boolean {
+    return role === null || role === 'admin';
+}
+
+/**
  * The roles allowed to edit a ref that is already on a record.
  *
  * A ref is written at the top of a paper file and read back off it for years,

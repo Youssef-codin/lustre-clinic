@@ -16,7 +16,8 @@
  * role (health, the APK, redeeming a code); `clinicProcedure` for everything
  * else, which resolves the caller and refuses a revoked phone or, once the
  * clinic requires it, an unprovisioned one; and on top of that
- * `paymentProcedure`, which a doctor may not call, and `adminProcedure`.
+ * `paymentProcedure`, which a doctor may not call, `setupProcedure` for
+ * setting the clinic up, which only an admin may, and `adminProcedure`.
  */
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import { initTRPC, TRPCError } from '@trpc/server';
@@ -119,6 +120,11 @@ export const clinicProcedure = publicProcedure.use(async ({ ctx, next }) =>
 
 export const paymentProcedure = clinicProcedure.use(({ ctx, next }) => {
     deviceService.assertSeesPayments(ctx.caller);
+    return next();
+});
+
+export const setupProcedure = clinicProcedure.use(({ ctx, next }) => {
+    deviceService.assertManagesClinic(ctx.caller);
     return next();
 });
 

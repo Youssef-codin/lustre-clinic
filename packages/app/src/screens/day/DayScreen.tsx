@@ -65,6 +65,7 @@ import {
 import { dayDelay, delayLabel } from './delay';
 import { describeError } from './errors';
 import { isClosed } from './hours';
+import { pricedVisit } from './money';
 import { busiestBranch, holdsSlot } from './month';
 import { draftFor, type PatientDraft } from './patientDraft';
 import { relativeDayLabel, todayKey } from './time';
@@ -211,6 +212,8 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
         standing: Standing | null;
         seq: number;
     } | null>(null);
+    // Always priced on the desk's phone; narrowed because checkout needs it.
+    const payable = visit?.visit ? pricedVisit(visit.visit) : null;
     // The book-next offer, raised by a check-in and by nothing else. `seated` is
     // captured when it opens rather than read when it closes: it describes the
     // queue at the moment the patient came through the door, and the refetch
@@ -979,11 +982,11 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
                         />
                     ) : null}
 
-                    {route.name === 'payment' && visit?.visit ? (
+                    {route.name === 'payment' && visit && payable ? (
                         <VisitPaymentScreen
-                            key={`payment:${visit.seq}:${visit.visit.chargedTotal}`}
+                            key={`payment:${visit.seq}:${payable.chargedTotal}`}
                             appointment={visit.appointment}
-                            visit={visit.visit}
+                            visit={payable}
                             // Reopened from the read-only page: the money on it
                             // is being corrected, not collected for the first
                             // time.

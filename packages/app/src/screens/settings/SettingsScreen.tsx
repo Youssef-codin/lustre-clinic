@@ -13,7 +13,7 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import type { Role } from '@lustre/shared';
+import { managesClinic, type Role } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
@@ -163,6 +163,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     }
 
     const isDoctor = role === 'doctor';
+    // Setting the clinic up is the admin's (`managesClinic`); a phone with no
+    // role code yet keeps what its view had before roles existed.
+    const setsUp = granted ? managesClinic(granted) : isDoctor;
 
     const [toast, setToast] = useState<string | null>(null);
     const reports = CRASH_REPORTS_ON && !demo.enabled;
@@ -239,7 +242,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     only — it is his Google account, and the CLINIC rows below
                     are gated the same way (§1: the role hides rows, it does
                     not guard anything). */}
-                {isDoctor && backups?.tone === 'reauthorize' ? (
+                {setsUp && backups?.tone === 'reauthorize' ? (
                     <Card padded style={styles.backupAlert} testID="settings-backup-alert">
                         <View style={styles.backupIcon}>
                             <DriveAlertIcon />
@@ -285,20 +288,26 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 onPress={() => routes.push('appointments')}
                                 testID="settings-appointments-row"
                             />
-                            <CardDivider />
-                            <SettingsRow
-                                icon={<SettingsIcon glyph="reminders" />}
-                                label="Reminders"
-                                sub={t('Due {hours}h before · notify {time}', {
-                                    hours: summary.data.leadHours,
-                                    time: formatClock12(summary.data.notifyAt, locale),
-                                })}
-                                onPress={() => routes.push('reminders')}
-                                testID="settings-reminders-row"
-                            />
+                            {/* The desk's work: the doctor's and the admin's
+                                phones have no reminders. */}
+                            {isDoctor ? null : (
+                                <>
+                                    <CardDivider />
+                                    <SettingsRow
+                                        icon={<SettingsIcon glyph="reminders" />}
+                                        label="Reminders"
+                                        sub={t('Due {hours}h before · notify {time}', {
+                                            hours: summary.data.leadHours,
+                                            time: formatClock12(summary.data.notifyAt, locale),
+                                        })}
+                                        onPress={() => routes.push('reminders')}
+                                        testID="settings-reminders-row"
+                                    />
+                                </>
+                            )}
                         </Group>
 
-                        {isDoctor ? (
+                        {setsUp ? (
                             <Group title={t('CLINIC')}>
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="clinic" />}

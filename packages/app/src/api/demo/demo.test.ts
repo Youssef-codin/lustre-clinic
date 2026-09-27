@@ -989,22 +989,34 @@ describe('roles', () => {
         expect(admit('visit.checkOut', token).role).toBe('doctor');
     });
 
-    it('shows a doctor the charge on a visit, and not its payments', () => {
+    it('shows a doctor a finished visit’s procedures, and no charge, price or payment', () => {
         const { visit, patientId } = paidVisit();
         const caller = admit('visit.byId', as('doctor'));
 
-        const read = shownTo('visit.byId', visitHandlers.byId({ id: visit.id }), caller) as Record<
-            string,
-            unknown
-        >;
-        expect(read.chargedTotal).toBe(visit.chargedTotal);
+        const read = shownTo('visit.byId', visitHandlers.byId({ id: visit.id }), caller) as {
+            chargedTotal: unknown;
+            payments: unknown;
+            procedures: { unitPrice: unknown }[];
+        };
+        expect(read.chargedTotal).toBeNull();
         expect(read.payments).toBeNull();
-        expect(read.balance).toBeNull();
+        expect(read.procedures.every((line) => line.unitPrice === null)).toBe(true);
 
         const record = shownTo('patient.byId', patientHandlers.byId({ id: patientId }), caller) as {
-            history: { paidTotal: number | null }[];
+            history: { completedAt: unknown; chargedTotal: unknown; paidTotal: unknown }[];
         };
         expect(record.history.every((entry) => entry.paidTotal === null)).toBe(true);
+        const finished = record.history.filter((entry) => entry.completedAt !== null);
+        expect(finished.every((entry) => entry.chargedTotal === null)).toBe(true);
+    });
+
+    it('does not let a doctor reopen a finished visit, or set the clinic up', () => {
+        const token = as('doctor');
+        expect(() => admit('visit.reopen', token)).toThrow(DemoError);
+        expect(() => admit('procedure.update', token)).toThrow(DemoError);
+        expect(() => admit('settings.update', token, { clinicName: 'Mine' })).toThrow(DemoError);
+        expect(admit('settings.update', token, { reminderLeadHours: 12 }).role).toBe('doctor');
+        expect(admit('procedure.update', as('admin')).role).toBe('admin');
     });
 
     it('leaves the secretary and a phone with no role everything', () => {

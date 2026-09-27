@@ -246,7 +246,7 @@ export interface ChargeableLine {
  * about the whole visit, not about a group: a tooth's subtotal has to be struck
  * under the same rule the strip uses, or the groups stop adding up to it.
  */
-export function checkupIsWaived(lines: readonly ChargeableLine[]): boolean {
+export function checkupIsWaived(lines: readonly Pick<ChargeableLine, 'isCheckup'>[]): boolean {
     return lines.some((line) => !line.isCheckup);
 }
 

@@ -113,7 +113,7 @@ export const demoLink: TRPCLink<AppRouter> = () => {
                 // A refusal reaches the shell the way the server's does.
                 const token = credentialToken();
                 try {
-                    const caller = admit(op.path, token);
+                    const caller = admit(op.path, token, op.input);
                     const output = resolve(op.path, inputFor(op.path, op.input, caller), caller);
                     return toWire(shownTo(op.path, output, caller));
                 } catch (error) {

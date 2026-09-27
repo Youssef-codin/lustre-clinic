@@ -24,6 +24,8 @@ import {
     DEFAULT_REQUIRE_AGE,
     DEFAULT_REQUIRE_GENDER,
     ERROR_CODE,
+    managesClinic,
+    type Role,
     WS_EVENT,
 } from '@lustre/shared';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -69,6 +71,17 @@ export interface PatientRequirements {
 }
 
 type SettingsRow = typeof settings.$inferSelect;
+
+/** The fields of `update` that set the clinic up (`managesClinic`). */
+const CLINIC_FIELDS = [
+    'clinicName',
+    'clinicPhone',
+    'patientRefNext',
+    'migrationBranchId',
+    'migrationCutoffDate',
+    'requireAge',
+    'requireGender',
+] as const satisfies readonly (keyof UpdateSettingsInput)[];
 
 function toSettings(row: SettingsRow): Settings {
     return {
@@ -238,7 +251,19 @@ export const settingsService = {
         return row ?? { requireAge: DEFAULT_REQUIRE_AGE, requireGender: DEFAULT_REQUIRE_GENDER };
     },
 
-    async update(input: UpdateSettingsInput): Promise<Settings> {
+    /**
+     * `viewer` is the caller's role when a router asks. The clinic's details,
+     * numbering and required fields are the admin's to change; durations,
+     * reminders and the Finish prompt are everyone's.
+     */
+    async update(input: UpdateSettingsInput, viewer?: Role | null): Promise<Settings> {
+        if (viewer !== undefined && !managesClinic(viewer) && CLINIC_FIELDS.some((field) => field in input)) {
+            throw new AppError(
+                ERROR_CODE.ROLE_FORBIDDEN,
+                'this role may not change how the clinic is set up',
+                403,
+            );
+        }
         const current = await readRow();
 
         const durationOptions = input.durationOptions

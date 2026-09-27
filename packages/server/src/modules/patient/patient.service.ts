@@ -113,9 +113,10 @@ interface PatientHistoryEntry {
     isImported: boolean;
     /** The file did not say when. `startsAt` is the cutoff only because the column demands a value. */
     dateUnknown: boolean;
-    computedTotal: number;
-    chargedTotal: number;
-    /** Null for a viewer who may not see payments (a doctor). The charge is still shown. */
+    /** Null, like the two below, for a viewer not shown payments, once the visit is past (see `Visit`). */
+    computedTotal: number | null;
+    chargedTotal: number | null;
+    /** Null for a viewer who may not see payments (a doctor). */
     paidTotal: number | null;
     balance: number | null;
     procedures: PatientHistoryProcedure[];
@@ -538,10 +539,12 @@ export const patientService = {
             history: rows.map((r) => {
                 const chargedTotal = r.chargedTotal ?? 0;
                 const paidTotal = r.paidTotal ?? 0;
+                // Past: checked out, or brought over from the old system.
+                const priced = shown || (r.completedAt === null && !r.isImported && !r.isOpeningBalance);
                 return {
                     ...r,
-                    computedTotal: r.computedTotal ?? 0,
-                    chargedTotal,
+                    computedTotal: priced ? (r.computedTotal ?? 0) : null,
+                    chargedTotal: priced ? chargedTotal : null,
                     paidTotal: shown ? paidTotal : null,
                     balance: shown ? chargedTotal - paidTotal : null,
                     procedures: (r.visitId ? performed.get(r.visitId) : planned.get(r.appointmentId)) ?? [],

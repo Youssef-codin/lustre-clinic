@@ -19,6 +19,7 @@ import {
     ERROR_CODE,
     GRANT_TTL_MINUTES,
     grantPayload,
+    managesClinic,
     type Role,
     seesPayments,
     WS_EVENT,
@@ -153,6 +154,10 @@ export const deviceService = {
 
     assertAdmin(caller: Caller): void {
         if (caller.role !== 'admin') throw forbidden('manage roles');
+    },
+
+    assertManagesClinic(caller: Caller): void {
+        if (!managesClinic(caller.role)) throw forbidden('change how the clinic is set up');
     },
 
     assertSeesPayments(caller: Caller): void {
