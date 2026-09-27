@@ -86,10 +86,11 @@ export interface PatientHistoryEntry {
     isImported: boolean;
     /** The file did not say when. The row carries the cutoff only because a date is required. */
     dateUnknown: boolean;
-    computedTotal: number;
-    chargedTotal: number;
-    paidTotal: number;
-    balance: number;
+    computedTotal: number | null;
+    chargedTotal: number | null;
+    /** Null on a phone whose role may not see payments (a doctor). */
+    paidTotal: number | null;
+    balance: number | null;
     procedures: HistoryProcedure[];
 }
 

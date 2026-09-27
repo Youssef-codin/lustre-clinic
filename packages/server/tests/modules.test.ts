@@ -2073,7 +2073,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2111,7 +2111,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2182,7 +2182,7 @@ describe('visit', () => {
 
         await expectAppError(ERROR_CODE.HAS_PAYMENTS, () => visitService.delete({ visitId: visit.id }));
 
-        const [payment] = (await visitService.byId(visit.id)).payments;
+        const [payment] = (await visitService.byId(visit.id)).payments ?? [];
         if (!payment) throw new Error('expected a payment');
         const after = await visitService.deletePayment({ paymentId: payment.id });
         expect(after.payments).toEqual([]);
@@ -2247,7 +2247,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2267,7 +2267,10 @@ describe('visit', () => {
         expect(corrected.balance).toBe(20_000);
         // Nothing was edited or deleted — the refund is a row of its own, so
         // both what was entered and what put it right are still readable.
-        expect(corrected.payments.map((p) => p.amount).sort((a, b) => b - a)).toEqual([charged, -20_000]);
+        expect((corrected.payments ?? []).map((p) => p.amount).sort((a, b) => b - a)).toEqual([
+            charged,
+            -20_000,
+        ]);
     });
 
     test('corrects what was paid up by adding the difference', async () => {
@@ -2277,7 +2280,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2294,7 +2297,7 @@ describe('visit', () => {
 
         expect(corrected.paidTotal).toBe(charged);
         expect(corrected.balance).toBe(0);
-        expect(corrected.payments.length).toBe(2);
+        expect(corrected.payments?.length).toBe(2);
     });
 
     test('writes nothing when the paid total is what is already on the visit', async () => {
@@ -2304,7 +2307,7 @@ describe('visit', () => {
             visitId: visit.id,
             procedures: [{ procedureId: extraction.id, quantity: 1, tooth: 'UL6' }],
         });
-        const charged = (await visitService.byId(visit.id)).computedTotal;
+        const charged = (await visitService.byId(visit.id)).computedTotal ?? 0;
 
         await visitService.checkOut({
             visitId: visit.id,
@@ -2320,7 +2323,7 @@ describe('visit', () => {
         });
 
         // A row of zero would be a payment that moved no money.
-        expect(same.payments.length).toBe(1);
+        expect(same.payments?.length).toBe(1);
         expect(same.paidTotal).toBe(charged);
     });
 
@@ -2508,7 +2511,7 @@ describe('visit', () => {
             method: 'cash',
         });
 
-        expect(done.payments.length).toBe(0);
+        expect(done.payments?.length).toBe(0);
         expect(done.balance).toBe(100_000);
     });
 

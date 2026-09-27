@@ -75,7 +75,7 @@
  * months later, so if any of it cannot be written none of it is, the patient
  * included, and the row is typed again.
  */
-import { ERROR_CODE } from '@lustre/shared';
+import { ERROR_CODE, type Role, seesPayments } from '@lustre/shared';
 import { count, eq, sql } from 'drizzle-orm';
 import { config } from '../../config.ts';
 import { db, type Executor } from '../../db/index.ts';
@@ -310,7 +310,8 @@ interface MigrationProgress {
     patients: number;
     oldPatients: number;
     openingBalances: number;
-    openingBalanceTotal: number;
+    /** What the carried-over debt comes to. Null for a viewer not shown payments (a doctor). */
+    openingBalanceTotal: number | null;
 }
 
 export const migrationService = {
@@ -319,7 +320,7 @@ export const migrationService = {
      * answer different questions: how many came across, and how many are on
      * file at all.
      */
-    async progress(): Promise<MigrationProgress> {
+    async progress(viewer?: Role | null): Promise<MigrationProgress> {
         const [entered] = await db.select({ total: count() }).from(patients);
 
         const [old] = await db
@@ -340,7 +341,7 @@ export const migrationService = {
             patients: entered?.total ?? 0,
             oldPatients: old?.total ?? 0,
             openingBalances: carried?.total ?? 0,
-            openingBalanceTotal: carried?.amount ?? 0,
+            openingBalanceTotal: viewer === undefined || seesPayments(viewer) ? (carried?.amount ?? 0) : null,
         };
     },
 };

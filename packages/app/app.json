@@ -20,6 +20,7 @@
                 "backgroundImage": "./assets/android-icon-background.png",
                 "monochromeImage": "./assets/android-icon-monochrome.png"
             },
+            "allowBackup": false,
             "predictiveBackGestureEnabled": true,
             "softwareKeyboardLayoutMode": "resize"
         },
@@ -37,6 +38,14 @@
                 {
                     "icon": "./assets/notification-icon.png",
                     "color": "#111114"
+                }
+            ],
+            [
+                "expo-camera",
+                {
+                    "cameraPermission": "Lustre uses the camera to scan the code that gives this phone its role.",
+                    "recordAudioAndroid": false,
+                    "barcodeScannerEnabled": true
                 }
             ],
             "@sentry/react-native/expo"

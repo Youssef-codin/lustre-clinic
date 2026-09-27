@@ -18,6 +18,7 @@ import { isOpen, rendered, useRouteStack } from '../../../navigation';
 import { color, size, space, Text } from '../../../theme';
 import { api, useLocalQuery, type Visit } from '../data';
 import { describeError } from '../errors';
+import { pricedVisit } from '../money';
 import { VisitPaymentScreen } from './VisitPaymentScreen';
 import { VisitScreen } from './VisitScreen';
 import { VisitViewScreen } from './VisitViewScreen';
@@ -49,6 +50,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
     const loaded = useLocalQuery(`visit:${visitId}`, () => api.visitById(visitId));
 
     const visit = edited ?? loaded.data;
+    const priced = visit ? pricedVisit(visit) : null;
     const failure = appointment.error ?? loaded.error;
 
     /**
@@ -171,11 +173,11 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
                         />
                     ) : null}
 
-                    {route === 'payment' ? (
+                    {route === 'payment' && priced ? (
                         <VisitPaymentScreen
-                            key={`pay:${visit.id}:${visit.chargedTotal}`}
+                            key={`pay:${visit.id}:${priced.chargedTotal}`}
                             appointment={appointmentData}
-                            visit={visit}
+                            visit={priced}
                             // Always: this page only ever reaches the money by
                             // way of reopening a visit that was checked out.
                             correcting

@@ -539,7 +539,7 @@ function DoctorDayScreenView({ onOpenRecord, open, onReturn, goHome = 0 }: Docto
                             onBack={routes.pop}
                             onConfirm={(priced) => {
                                 routes.popToRoot();
-                                setToast(`Saved · ${formatMoney(priced.chargedTotal)}`);
+                                setToast(`Saved · ${formatMoney(priced.chargedTotal ?? 0)}`);
                                 day.refetch();
                             }}
                             onSentToDesk={(message) => {

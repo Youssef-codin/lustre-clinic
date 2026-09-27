@@ -12,6 +12,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
+        "qrcode-generator": "^2.0.4",
         "zod": "^4.1.13"
     }
 }

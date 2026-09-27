@@ -5,15 +5,16 @@
  * see the server — above every row, so neither is a screen you have to go
  * looking for. Everything below it is navigation.
  *
- * Role is a device preference and not a permission (the shell owns it), so the
- * card states it and offers the swap; it never claims to be a login.
+ * The role is the one an admin's code gave this phone, and the only way to
+ * change it is another code — so the card states it and offers the scanner,
+ * never a switch. It is still not a login: the phone is the account.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import type { ConnectionView } from '../data/connection';
-import { ReprobeIcon, SwitchRoleIcon } from './icons';
+import { ReprobeIcon, ScanCodeIcon } from './icons';
 
 export type IdentityCardProps = {
     roleName: string;
@@ -22,7 +23,7 @@ export type IdentityCardProps = {
      * branch a phone is standing in yet, so the card does not claim to. */
     clinicName: string;
     connection: ConnectionView;
-    onSwitchRole: () => void;
+    onScanCode: () => void;
     testID?: string;
 };
 
@@ -31,7 +32,7 @@ export function IdentityCard({
     roleInitial,
     clinicName,
     connection,
-    onSwitchRole,
+    onScanCode,
     testID,
 }: IdentityCardProps) {
     const t = useT();
@@ -84,14 +85,14 @@ export function IdentityCard({
 
             <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={t('Switch role')}
-                onPress={onSwitchRole}
-                testID="settings-switch-role"
+                accessibilityLabel={t('Scan a role code')}
+                onPress={onScanCode}
+                testID="settings-scan-code"
                 style={({ pressed }) => [styles.switch, pressed && styles.pressed]}
             >
-                <SwitchRoleIcon size={16} />
+                <ScanCodeIcon size={16} />
                 <Text variant="callout" weight="semibold" tone="inverse">
-                    {t('Switch role')}
+                    {t('Scan a role code')}
                 </Text>
             </Pressable>
         </View>

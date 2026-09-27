@@ -24,6 +24,8 @@ import {
     DEFAULT_REQUIRE_AGE,
     DEFAULT_REQUIRE_GENDER,
     ERROR_CODE,
+    managesClinic,
+    type Role,
     WS_EVENT,
 } from '@lustre/shared';
 import { asc, eq, sql } from 'drizzle-orm';
@@ -57,6 +59,8 @@ interface Settings {
     requireGender: boolean;
     /** Whether the doctor's Finish asks first if the procedures need editing. */
     askToEditOnFinish: boolean;
+    /** Whether a phone with no role credential is refused. Changed only by an admin (`device.setRequireProvisioning`). */
+    requireProvisioning: boolean;
     updatedAt: Date;
 }
 
@@ -67,6 +71,17 @@ export interface PatientRequirements {
 }
 
 type SettingsRow = typeof settings.$inferSelect;
+
+/** The fields of `update` that set the clinic up (`managesClinic`). */
+const CLINIC_FIELDS = [
+    'clinicName',
+    'clinicPhone',
+    'patientRefNext',
+    'migrationBranchId',
+    'migrationCutoffDate',
+    'requireAge',
+    'requireGender',
+] as const satisfies readonly (keyof UpdateSettingsInput)[];
 
 function toSettings(row: SettingsRow): Settings {
     return {
@@ -85,6 +100,7 @@ function toSettings(row: SettingsRow): Settings {
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
+        requireProvisioning: row.requireProvisioning,
         updatedAt: row.updatedAt,
     };
 }
@@ -235,7 +251,19 @@ export const settingsService = {
         return row ?? { requireAge: DEFAULT_REQUIRE_AGE, requireGender: DEFAULT_REQUIRE_GENDER };
     },
 
-    async update(input: UpdateSettingsInput): Promise<Settings> {
+    /**
+     * `viewer` is the caller's role when a router asks. The clinic's details,
+     * numbering and required fields are the admin's to change; durations,
+     * reminders and the Finish prompt are everyone's.
+     */
+    async update(input: UpdateSettingsInput, viewer?: Role | null): Promise<Settings> {
+        if (viewer !== undefined && !managesClinic(viewer) && CLINIC_FIELDS.some((field) => field in input)) {
+            throw new AppError(
+                ERROR_CODE.ROLE_FORBIDDEN,
+                'this role may not change how the clinic is set up',
+                403,
+            );
+        }
         const current = await readRow();
 
         const durationOptions = input.durationOptions
@@ -331,6 +359,21 @@ export const settingsService = {
     async clearDay(weekday: number): Promise<void> {
         await db.delete(clinicDays).where(eq(clinicDays.weekday, weekday));
         broadcast(WS_EVENT.SETTINGS_UPDATED);
+    },
+
+    /** Read on every request from a phone without a credential, so without seeding: no row is the column default. */
+    async requireProvisioning(): Promise<boolean> {
+        const [row] = await db
+            .select({ requireProvisioning: settings.requireProvisioning })
+            .from(settings)
+            .where(eq(settings.id, 1))
+            .limit(1);
+        return row?.requireProvisioning ?? false;
+    },
+
+    async setRequireProvisioning(required: boolean): Promise<Settings> {
+        await readRow();
+        return writeRow({ requireProvisioning: required });
     },
 
     async dismissRemindersFor(date: string): Promise<Settings> {

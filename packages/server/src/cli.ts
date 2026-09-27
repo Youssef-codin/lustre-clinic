@@ -9,6 +9,7 @@
  *   lustre drive-authorize                           link the doctor's Drive once
  *   lustre restore <file> [--into <db>] [--key <k>]
  *   lustre seed                                     refuses a production database
+ *   lustre grant <role> [label]                     print a one-time role QR (the first admin)
  *
  * Each script reads its own arguments from argv[2] onward, so the command word
  * is taken out before the script is imported. `Bun.argv` is the same array.
@@ -22,6 +23,7 @@ const COMMANDS = {
     'drive-authorize': () => import('../scripts/drive-authorize.ts'),
     restore: () => import('../scripts/restore.ts'),
     seed: () => import('../scripts/seed.ts'),
+    grant: () => import('../scripts/grant.ts'),
 };
 
 type Command = keyof typeof COMMANDS;

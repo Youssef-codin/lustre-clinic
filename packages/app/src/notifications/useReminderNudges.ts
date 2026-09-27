@@ -31,7 +31,12 @@ import { useLocale } from '../i18n';
 import { armNudges } from './notifications';
 import { minutesOfClock, planNudges } from './schedule';
 
-export function useReminderNudges(): void {
+/**
+ * `enabled` is the desk's phone: reminders are the secretary's job, and the
+ * doctor's and the admin's phones never nudge. Turned off, anything already
+ * armed on this phone is cancelled.
+ */
+export function useReminderNudges(enabled: boolean): void {
     const trpc = useTRPC();
     const rearm = useRearmReminderNudges();
 
@@ -47,13 +52,16 @@ export function useReminderNudges(): void {
     // The nudge is worded when it is armed, so a language switch re-arms it.
     const locale = useLocale();
 
-    const settings = useQuery(trpc.settings.get.queryOptions());
+    const settings = useQuery(trpc.settings.get.queryOptions(undefined, { enabled }));
     const pending = useQuery(
-        trpc.reminder.pending.queryOptions({
-            dueOnly: true,
-            limit: 100,
-            offsetMinutes: offsetForDate(todayKey()),
-        }),
+        trpc.reminder.pending.queryOptions(
+            {
+                dueOnly: true,
+                limit: 100,
+                offsetMinutes: offsetForDate(todayKey()),
+            },
+            { enabled },
+        ),
     );
 
     const notifyAt = settings.data?.reminderNotifyAt;
@@ -63,6 +71,10 @@ export function useReminderNudges(): void {
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded` and `locale` are triggers, not values — the arm reads the clock, the day, the OS permission and the language, none of which it is handed
     useEffect(() => {
+        if (!enabled) {
+            void armNudges({ at: [], silent: null });
+            return;
+        }
         // Nothing is armed and nothing is cancelled until both answers are in.
         // Disarming on a missing answer would silence the nudge every time the
         // clinic PC is briefly unreachable, which is when it matters most.
@@ -83,7 +95,7 @@ export function useReminderNudges(): void {
                 now,
             }),
         );
-    }, [notifyAt, repeatMinutes, dismissedOn, pendingCount, foregrounded, locale]);
+    }, [enabled, notifyAt, repeatMinutes, dismissedOn, pendingCount, foregrounded, locale]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {

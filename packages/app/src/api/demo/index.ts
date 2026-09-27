@@ -9,8 +9,12 @@ export { subscribeToDemoEvents } from './events';
 export { disableDemoMode, enableDemoMode, isDemoMode, useDemoMode } from './flag';
 export { demoLink } from './link';
 
+import type { Role } from '@lustre/shared';
+import { credentialToken, forgetDemoCredential, grantCredential } from '../credential';
 import { noteDataReset } from '../dataReset';
 import { clearStored, setDb } from './db';
+import { provisionDemo } from './handlers/device';
+import { openDemoDb } from './link';
 import { seedDemoDb } from './seed';
 
 /**
@@ -21,5 +25,16 @@ import { seedDemoDb } from './seed';
 export async function resetDemoData(): Promise<void> {
     await clearStored();
     setDb(seedDemoDb());
+    forgetDemoCredential();
     noteDataReset();
+}
+
+/**
+ * Becomes `role` inside the demo, which has no second phone to hand this one a
+ * code. The role still lives on a demo device row and every demo request is
+ * checked against it, as the server checks the real one.
+ */
+export async function becomeInDemo(role: Role): Promise<void> {
+    await openDemoDb();
+    grantCredential(provisionDemo(role, credentialToken()));
 }

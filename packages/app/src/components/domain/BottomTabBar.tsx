@@ -13,11 +13,14 @@
  * Settings, and the role is the card at the top of that screen with a sheet that
  * says what switching changes before it changes anything.
  *
+ * A phone whose role may not see payments (a doctor's) has no Money tab: the
+ * server refuses everything on it, so a tab of refusals is all it could be.
+ *
  * `settings.html` labels this tab "Settings" over a gear. Naming the role is a
  * deliberate departure: the gear is the same on both phones, and which phone
  * this is answers more questions than what the screen contains.
  */
-import type { ClientRole } from '@lustre/shared';
+import { type Role, seesPayments } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../../i18n';
@@ -29,8 +32,10 @@ export type TabKey = 'day' | 'patients' | 'money' | 'settings';
 
 export type BottomTabBarProps = {
     active: TabKey;
-    /** The fourth tab's glyph and its label both come from this. */
-    role: ClientRole;
+    /** The fourth tab's glyph and its label both come from this, and whether Money is a tab at all. */
+    role: Role;
+    /** Null for a phone with no role code yet, which keeps every tab. */
+    granted: Role | null;
     onChange: (tab: TabKey) => void;
 };
 
@@ -43,12 +48,14 @@ const STROKE = 2;
  * about the app that is true before you tap anything, and the tab is where it
  * belongs now that the role is no longer a tab of its own.
  */
-const ROLE_ICON: Record<ClientRole, Glyph> = {
+const ROLE_ICON: Record<Role, Glyph> = {
+    admin: GLYPH.roles,
     doctor: GLYPH.procedure,
     secretary: GLYPH.desk,
 };
 
-const ROLE_LABEL: Record<ClientRole, string> = {
+const ROLE_LABEL: Record<Role, string> = {
+    admin: 'Admin',
     doctor: 'Doctor',
     secretary: 'Secretary',
 };
@@ -59,7 +66,7 @@ const TAB_ICON: Record<Exclude<TabKey, 'settings'>, Glyph> = {
     money: GLYPH.money,
 };
 
-export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
+export function BottomTabBar({ active, role, granted, onChange }: BottomTabBarProps) {
     const t = useT();
     const insets = useSafeAreaInsets();
     const keyboard = useKeyboardHeight();
@@ -71,12 +78,13 @@ export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {
     // bottom of the window, and floats a tab bar's height clear of the keys.
     if (keyboard > 0) return null;
 
-    const tabs: { key: TabKey; label: string }[] = [
+    const every: { key: TabKey; label: string }[] = [
         { key: 'day', label: 'Day' },
         { key: 'patients', label: 'Patients' },
         { key: 'money', label: 'Money' },
         { key: 'settings', label: ROLE_LABEL[role] },
     ];
+    const tabs = every.filter((tab) => tab.key !== 'money' || seesPayments(granted));
 
     return (
         <View style={[styles.bar, { paddingBottom: space[3] + insets.bottom }]} testID="tab-bar">

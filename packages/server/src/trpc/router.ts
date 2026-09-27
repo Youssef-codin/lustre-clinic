@@ -8,6 +8,7 @@ import { backupRouter } from '../modules/backup/backup.router.ts';
 import { balanceRouter } from '../modules/balance/balance.router.ts';
 import { branchRouter } from '../modules/branch/branch.router.ts';
 import { customQuestionRouter } from '../modules/customQuestion/customQuestion.router.ts';
+import { deviceRouter } from '../modules/device/device.router.ts';
 import { healthRouter } from '../modules/health/health.router.ts';
 import { migrationRouter } from '../modules/migration/migration.router.ts';
 import { patientRouter } from '../modules/patient/patient.router.ts';
@@ -34,6 +35,7 @@ export const appRouter = router({
     backup: backupRouter,
     migration: migrationRouter,
     release: releaseRouter,
+    device: deviceRouter,
 });
 
 export type AppRouter = typeof appRouter;

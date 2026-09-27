@@ -120,6 +120,8 @@ export const WS_EVENT = {
     VISIT_COMPLETED: 'visit:completed',
     /** A patient has arrived and is checked in (`booked → checked_in`), walk-ins included. */
     APPOINTMENT_CHECKED_IN: 'appointment:checked_in',
+    /** A role code was issued, redeemed or revoked. Only the admin's list reads it. */
+    DEVICES_UPDATED: 'devices:updated',
 } as const;
 
 export type WsEvent = (typeof WS_EVENT)[keyof typeof WS_EVENT];
@@ -144,6 +146,14 @@ export type WsFrame =
 export const TRPC_ENDPOINT = '/trpc';
 /** Path the websocket upgrade is handled at (§4). */
 export const WS_PATH = '/ws';
+
+/**
+ * The close code `/ws` ends a socket with when its phone may no longer be let
+ * in: its role withdrawn or replaced, or none while the clinic requires one.
+ * The app takes it as its cue to ask the server straight away, rather than
+ * finding out on its next request.
+ */
+export const WS_CLOSE_REFUSED = 1008;
 
 // --- releases (§15) ---------------------------------------------------------
 

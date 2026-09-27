@@ -1,9 +1,11 @@
+import { DEVICE_TOKEN_HEADER, WS_CLOSE_REFUSED } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: opens the `/ws` socket and closes it on cleanup — the subscription case this hook exists for
 import { useEffect } from 'react';
 import { noteLive } from '../reporting/trail';
-import { api } from './client';
+import { api, trpcClient } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
+import { useCredential } from './credential';
 import { subscribeToDemoEvents, useDemoMode } from './demo';
 import { queryClient } from './queryClient';
 import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
@@ -18,6 +20,13 @@ import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } fr
 // The cursor outlives the socket, so a reconnect resumes where the last one
 // stopped and the server replays what was missed (`serverEvents.ts`).
 const cursor = createEventCursor();
+
+/** React Native's socket takes headers as a third argument; the DOM type it is checked against does not. */
+const HeaderedWebSocket = WebSocket as unknown as new (
+    url: string,
+    protocols: null,
+    options: { headers: Record<string, string> } | null,
+) => WebSocket;
 
 const changeListeners = new Set<(areas: ReadonlySet<Area> | 'all') => void>();
 
@@ -62,7 +71,7 @@ function receive(frame: unknown): void {
     for (const listener of listeners) listener(step.event);
 }
 
-function connect(): () => void {
+function connect(token: string | null): () => void {
     let socket: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let delay: number = timing.reconnectMinMs;
@@ -89,7 +98,11 @@ function connect(): () => void {
         }
         if (closed) return;
 
-        const next = new WebSocket(`${wsUrl(base)}${cursor.resumeQuery()}`);
+        const next = new HeaderedWebSocket(
+            `${wsUrl(base)}${cursor.resumeQuery()}`,
+            null,
+            token ? { headers: { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` } } : null,
+        );
         socket = next;
 
         next.onopen = () => {
@@ -105,9 +118,13 @@ function connect(): () => void {
             receive(frame);
         };
         next.onerror = () => next.close();
-        next.onclose = () => {
+        next.onclose = (event) => {
             if (socket === next) socket = null;
             if (closed) return;
+            // The server shut this phone out (its role withdrawn or replaced).
+            // One request now is what brings the refusal back through
+            // `serverFetch` and puts the shell on the scan screen at once.
+            if (event.code === WS_CLOSE_REFUSED) void trpcClient.settings.get.query().catch(() => undefined);
             schedule();
             // Not a freshness matter, unlike everything else here: a socket
             // that closes on its own is the first sign the clinic PC is gone,
@@ -139,6 +156,16 @@ export function useServerEvents(): void {
     // would leave that session subscribed to a socket that will never open and
     // deaf to the events it does get, until the app was next launched.
     const { enabled } = useDemoMode();
+    // A socket is admitted as the credential it opened with, and closed by the
+    // server when that credential is revoked. One opened before this phone
+    // scanned a code would never be, so a new credential opens a new socket.
+    // Not before the stored one has been read, or a provisioned phone opens one
+    // bare first.
+    const { hydrated, credential } = useCredential();
+    const token = credential?.token ?? null;
 
-    useEffect(() => (enabled ? subscribeToDemoEvents(refresh) : connect()), [enabled]);
+    useEffect(() => {
+        if (enabled) return subscribeToDemoEvents(refresh);
+        return hydrated ? connect(token) : undefined;
+    }, [enabled, hydrated, token]);
 }

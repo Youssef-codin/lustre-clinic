@@ -19,6 +19,7 @@
 // costs only the row's amount. A refresh that failed over an existing list
 // leaves it up — stale, not gone (§7.14). The search is debounced because it
 // runs over Tailscale; stale answers are dropped by `useQuery`.
+import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -34,6 +35,7 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
+import { useRole } from '../../shell/useRole';
 import { color, radius, size, space, Text } from '../../theme';
 import { PatientsIcon, PlusIcon, RetryIcon, SearchIcon } from './components/icons';
 import { patientsApi } from './data/api';
@@ -85,7 +87,11 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
         enabled: searching,
     });
 
-    const balances = useQuery(['outstanding'], () => patientsApi.outstanding());
+    // A doctor's phone is refused balances by the server, so it does not ask.
+    const { granted } = useRole();
+    const balances = useQuery(['outstanding'], () => patientsApi.outstanding(), {
+        enabled: seesPayments(granted),
+    });
     const dueByPatient = new Map((balances.data ?? []).map((row) => [row.patientId, row.balance]));
 
     const list = searching ? results : recent;
@@ -97,7 +103,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // is the query key, so this is the list on screen.
     const pull = usePullToRefresh(() => {
         list.refetch();
-        balances.refetch();
+        if (seesPayments(granted)) balances.refetch();
     }, list.loading || balances.loading);
 
     // An effect because scrolling is imperative and there is nothing to derive:

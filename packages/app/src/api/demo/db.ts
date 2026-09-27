@@ -21,6 +21,7 @@ import type {
     PaymentMethod,
     QuestionKind,
     ReminderStatus,
+    Role,
     Tooth,
     WhatsAppApp,
 } from '@lustre/shared';
@@ -159,6 +160,33 @@ export interface RefEditRow {
     editedAt: Date;
 }
 
+/**
+ * `role_grants`. The server keeps only a hash of the code; the demo keeps the
+ * code, because its secrets are nobody's.
+ */
+export interface RoleGrantRow {
+    id: string;
+    role: Role;
+    label: string;
+    code: string;
+    issuedBy: string | null;
+    issuedAt: Date;
+    expiresAt: Date;
+    redeemedAt: Date | null;
+    revokedAt: Date | null;
+}
+
+/** `devices`, with the token for the same reason. */
+export interface DeviceRow {
+    id: string;
+    grantId: string;
+    role: Role;
+    label: string;
+    token: string;
+    createdAt: Date;
+    revokedAt: Date | null;
+}
+
 export interface SettingsRow {
     clinicName: string;
     clinicPhone: string | null;
@@ -175,6 +203,7 @@ export interface SettingsRow {
     requireAge: boolean;
     requireGender: boolean;
     askToEditOnFinish: boolean;
+    requireProvisioning: boolean;
     updatedAt: Date;
 }
 
@@ -191,6 +220,8 @@ export interface DemoDb {
     customQuestions: CustomQuestionRow[];
     reminders: ReminderRow[];
     refEdits: RefEditRow[];
+    roleGrants: RoleGrantRow[];
+    devices: DeviceRow[];
     settings: SettingsRow;
 }
 
@@ -219,8 +250,9 @@ const STORE_KEY = 'lustre.demo.db';
  *    has no age again.
  * 10: settings carry `askToEditOnFinish`.
  * 11: planned procedures carry `quotedPrice`.
+ * 12: `roleGrants` and `devices`, and settings carry `requireProvisioning`.
  */
-const STORE_VERSION = 11;
+const STORE_VERSION = 12;
 
 let db: DemoDb | null = null;
 
@@ -268,6 +300,8 @@ const DATE_FIELDS = {
     payments: ['paidAt'],
     reminders: ['dueAt', 'sentAt'],
     refEdits: ['editedAt'],
+    roleGrants: ['issuedAt', 'expiresAt', 'redeemedAt', 'revokedAt'],
+    devices: ['createdAt', 'revokedAt'],
 } as const satisfies Partial<Record<keyof DemoDb, readonly string[]>>;
 
 function reviveRows(rows: unknown, fields: readonly string[]): void {

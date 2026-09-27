@@ -35,7 +35,15 @@
  * in `ref_edits` every time it does.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import { canEditRef, ERROR_CODE, REF_EDIT_ROLES, WS_EVENT } from '@lustre/shared';
+import {
+    canEditRef,
+    ERROR_CODE,
+    REF_EDIT_ROLES,
+    type Role,
+    seesPayments,
+    viewOf,
+    WS_EVENT,
+} from '@lustre/shared';
 import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
@@ -105,10 +113,12 @@ interface PatientHistoryEntry {
     isImported: boolean;
     /** The file did not say when. `startsAt` is the cutoff only because the column demands a value. */
     dateUnknown: boolean;
-    computedTotal: number;
-    chargedTotal: number;
-    paidTotal: number;
-    balance: number;
+    /** Null, like the two below, for a viewer not shown payments, once the visit is past (see `Visit`). */
+    computedTotal: number | null;
+    chargedTotal: number | null;
+    /** Null for a viewer who may not see payments (a doctor). */
+    paidTotal: number | null;
+    balance: number | null;
     procedures: PatientHistoryProcedure[];
 }
 
@@ -482,7 +492,8 @@ export const patientService = {
      * which is the only record of what was going to be done. Both are fetched
      * once for the whole history rather than per row.
      */
-    async byId(id: string): Promise<PatientDetail> {
+    /** `viewer` is the caller's role when a router asks; omitted, everything is returned. */
+    async byId(id: string, viewer?: Role | null): Promise<PatientDetail> {
         const patient = await requireRow(id);
 
         const paid = db
@@ -521,17 +532,22 @@ export const patientService = {
             rows.filter((r) => r.visitId === null).map((r) => r.appointmentId),
         );
 
+        const shown = viewer === undefined || seesPayments(viewer);
+
         return {
             patient: toPatient(patient),
             history: rows.map((r) => {
                 const chargedTotal = r.chargedTotal ?? 0;
                 const paidTotal = r.paidTotal ?? 0;
+                // Past: checked out, or brought over from the old system.
+                const past = r.completedAt !== null || r.isImported || r.isOpeningBalance;
+                const priced = shown || !past;
                 return {
                     ...r,
-                    computedTotal: r.computedTotal ?? 0,
-                    chargedTotal,
-                    paidTotal,
-                    balance: chargedTotal - paidTotal,
+                    computedTotal: priced ? (r.computedTotal ?? 0) : null,
+                    chargedTotal: priced ? chargedTotal : null,
+                    paidTotal: shown ? paidTotal : null,
+                    balance: shown ? chargedTotal - paidTotal : null,
                     procedures: (r.visitId ? performed.get(r.visitId) : planned.get(r.appointmentId)) ?? [],
                 };
             }),
@@ -643,7 +659,13 @@ export const patientService = {
      * filling the trail with rows where nothing moved would bury the edits that
      * did.
      */
-    async updateRef({ id, ref, editedBy }: UpdatePatientRefInput): Promise<Patient> {
+    async updateRef(
+        { id, ref, editedBy: claimed }: UpdatePatientRefInput,
+        caller?: Role | null,
+    ): Promise<Patient> {
+        // A provisioned phone is the role on its credential, whatever it
+        // claims; only a phone with none is still taken at its word.
+        const editedBy = caller ? viewOf(caller) : claimed;
         if (!canEditRef(editedBy)) {
             throw new AppError(
                 ERROR_CODE.REF_EDIT_FORBIDDEN,

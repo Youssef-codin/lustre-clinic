@@ -58,6 +58,8 @@ export async function truncateAll(): Promise<void> {
             clinic_days,
             branches,
             custom_questions,
+            devices,
+            role_grants,
             settings
         RESTART IDENTITY CASCADE
     `;

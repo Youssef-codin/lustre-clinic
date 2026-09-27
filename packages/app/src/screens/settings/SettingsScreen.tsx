@@ -1,8 +1,9 @@
 /**
- * Settings — one screen, not two: the role is a device-local preference
- * (`shell/roleStore`), not a permission, so the doctor's rows are simply absent
- * for the secretary. There is no navigator yet, so this screen is its own stack
- * (`src/navigation`) drawn with `ui/PushView`; lifting the panes into a real
+ * Settings — one screen, not two: the doctor's rows are simply absent for the
+ * secretary, and the admin's for everyone else. Which rows is the phone's view
+ * (`shell/useRole`); what the phone may actually do is the server's to say,
+ * from the role code it scanned. There is no navigator yet, so this screen is
+ * its own stack (`src/navigation`) drawn with `ui/PushView`; lifting the panes into a real
  * navigator is `push` → `navigate`. The index is the root, and every pane sits
  * one deep on top of it — a pane's own editors push again from inside it.
  *
@@ -12,7 +13,7 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import type { ClientRole } from '@lustre/shared';
+import { type ClientRole, managesClinic, type Role } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
@@ -33,8 +34,8 @@ import {
     PushView,
     ScreenHeader,
     SectionLabel,
+    SegmentedControl,
     Toast,
-    useAfterSheet,
     usePendingAction,
 } from '../../components/ui';
 // The store module directly, not the `shell` barrel: that barrel exports
@@ -42,7 +43,8 @@ import {
 import { setLocale, useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
-import { setRole, useRole } from '../../shell/roleStore';
+import { setAdminView } from '../../shell/roleStore';
+import { useRole } from '../../shell/useRole';
 import { color, size, space, Text } from '../../theme';
 import { AboutScreen } from './AboutScreen';
 import { AppointmentsScreen } from './AppointmentsScreen';
@@ -62,7 +64,6 @@ import {
 } from './components/icons';
 import { LanguageBlock } from './components/LanguageBlock';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
-import { RoleSwitchSheet } from './components/RoleSwitchSheet';
 import { SettingsRow } from './components/SettingsRow';
 import { installedVersion, useApkUpdate } from './data/appUpdate';
 import { versionLine } from './data/appVersion';
@@ -74,6 +75,8 @@ import { minutesFromTime } from './data/reminders';
 import { PatientFieldsScreen } from './PatientFieldsScreen';
 import { ProceduresScreen } from './ProceduresScreen';
 import { RemindersScreen } from './RemindersScreen';
+import { RolesScreen } from './RolesScreen';
+import { ROLE_NAME, ScanCodeScreen } from './ScanCodeScreen';
 import { WorkingHoursScreen } from './WorkingHoursScreen';
 
 /** The panes over the index. The index itself is the root and is not one. */
@@ -87,10 +90,11 @@ type Route =
     | 'branches'
     | 'hours'
     | 'procedures'
-    | 'patientFields';
+    | 'patientFields'
+    | 'scan'
+    | 'roles';
 
-const ROLE_NAME: Record<ClientRole, string> = { doctor: 'Doctor', secretary: 'Secretary' };
-const ROLE_INITIAL: Record<ClientRole, string> = { doctor: 'D', secretary: 'S' };
+const ROLE_INITIAL: Record<Role, string> = { admin: 'A', doctor: 'D', secretary: 'S' };
 
 type SettingsScreenProps = {
     /**
@@ -102,10 +106,6 @@ type SettingsScreenProps = {
 };
 
 function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
-    const [switching, setSwitching] = useState(false);
-    // The switch redraws every tab in the shell, so it waits for the sheet that
-    // asked for it to be off the screen.
-    const roleDone = useAfterSheet();
     const [seenHome, setSeenHome] = useState(goHome);
 
     /**
@@ -123,14 +123,16 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     if (goHome !== seenHome) {
         setSeenHome(goHome);
         routes.popToRoot();
-        setSwitching(false);
     }
 
     const demo = useDemoMode();
 
     // From the store rather than from a prop, like the locale below it: the
     // shell holds neither, and this screen is where both are changed.
-    const { role } = useRole();
+    const { role, granted } = useRole();
+    // The role card names what the phone was granted; a phone with no code yet
+    // names the view it is still on.
+    const shown: Role = granted ?? role;
     const locale = useLocale();
     const t = useT();
 
@@ -168,6 +170,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     }
 
     const isDoctor = role === 'doctor';
+    // Setting the clinic up is the admin's (`managesClinic`); a phone with no
+    // role code yet keeps what its view had before roles existed.
+    const setsUp = granted ? managesClinic(granted) : isDoctor;
 
     const [toast, setToast] = useState<string | null>(null);
     const reports = CRASH_REPORTS_ON && !demo.enabled;
@@ -217,11 +222,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
             />
 
             <IdentityCard
-                roleName={ROLE_NAME[role]}
-                roleInitial={ROLE_INITIAL[role]}
+                roleName={ROLE_NAME[shown]}
+                roleInitial={ROLE_INITIAL[shown]}
                 clinicName={summary.data?.clinicName ?? ''}
                 connection={connection}
-                onSwitchRole={() => setSwitching(true)}
+                onScanCode={() => routes.push('scan')}
                 testID="settings-identity"
             />
 
@@ -258,7 +263,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     only — it is his Google account, and the CLINIC rows below
                     are gated the same way (§1: the role hides rows, it does
                     not guard anything). */}
-                {isDoctor && backups?.tone === 'reauthorize' ? (
+                {setsUp && backups?.tone === 'reauthorize' ? (
                     <Card padded style={styles.backupAlert} testID="settings-backup-alert">
                         <View style={styles.backupIcon}>
                             <DriveAlertIcon />
@@ -308,20 +313,26 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                 onPress={() => routes.push('appointments')}
                                 testID="settings-appointments-row"
                             />
-                            <CardDivider />
-                            <SettingsRow
-                                icon={<SettingsIcon glyph="reminders" />}
-                                label="Reminders"
-                                sub={t('Due {hours}h before · notify {time}', {
-                                    hours: summary.data.leadHours,
-                                    time: formatClock12(summary.data.notifyAt, locale),
-                                })}
-                                onPress={() => routes.push('reminders')}
-                                testID="settings-reminders-row"
-                            />
+                            {/* The desk's work: the doctor's and the admin's
+                                phones have no reminders. */}
+                            {isDoctor || granted === 'admin' ? null : (
+                                <>
+                                    <CardDivider />
+                                    <SettingsRow
+                                        icon={<SettingsIcon glyph="reminders" />}
+                                        label="Reminders"
+                                        sub={t('Due {hours}h before · notify {time}', {
+                                            hours: summary.data.leadHours,
+                                            time: formatClock12(summary.data.notifyAt, locale),
+                                        })}
+                                        onPress={() => routes.push('reminders')}
+                                        testID="settings-reminders-row"
+                                    />
+                                </>
+                            )}
                         </Group>
 
-                        {isDoctor ? (
+                        {setsUp ? (
                             <Group title={t('CLINIC')}>
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="clinic" />}
@@ -385,6 +396,38 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     })}
                                     onPress={() => routes.push('patientFields')}
                                     testID="settings-patient-fields"
+                                />
+                            </Group>
+                        ) : null}
+
+                        {granted === 'admin' ? (
+                            <Group title={t('ADMIN')}>
+                                {/* Which day this phone shows. Screens only: the
+                                    server still treats it as the admin, so Money
+                                    and these settings stay either way. */}
+                                <View style={styles.viewRow}>
+                                    <Text variant="body" weight="semibold">
+                                        {t('Day view')}
+                                    </Text>
+                                    <SegmentedControl<ClientRole>
+                                        segments={[
+                                            { value: 'doctor', label: 'Doctor' },
+                                            { value: 'secretary', label: 'Secretary' },
+                                        ]}
+                                        value={role}
+                                        onChange={setAdminView}
+                                        accessibilityLabel="Day view"
+                                        size="sm"
+                                        testID="settings-admin-view"
+                                    />
+                                </View>
+                                <CardDivider />
+                                <SettingsRow
+                                    icon={<SettingsIcon glyph="roles" />}
+                                    label="Phones & role codes"
+                                    sub={t('Give a phone its role, or withdraw it')}
+                                    onPress={() => routes.push('roles')}
+                                    testID="settings-roles"
                                 />
                             </Group>
                         ) : null}
@@ -465,22 +508,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 onCancel={() => setLinkingDrive(false)}
             />
 
-            <RoleSwitchSheet
-                visible={switching}
-                role={role}
-                fromName={ROLE_NAME[role]}
-                toName={ROLE_NAME[role === 'doctor' ? 'secretary' : 'doctor']}
-                onConfirm={() => {
-                    setSwitching(false);
-                    roleDone.after(() => {
-                        setRole(role === 'doctor' ? 'secretary' : 'doctor');
-                        routes.popToRoot();
-                    });
-                }}
-                onCancel={() => setSwitching(false)}
-                onClosed={roleDone.closed}
-            />
-
             {/* Nine near-identical blocks before the stack, each repeating its
                 own route name three times. A popped pane stays in here until it
                 reports the slide finished (`onClosed`), which is the only reason
@@ -507,6 +534,16 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'hours' ? <WorkingHoursScreen onBack={back} /> : null}
                     {pane === 'procedures' ? <ProceduresScreen onBack={back} /> : null}
                     {pane === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
+                    {pane === 'scan' ? (
+                        <ScanCodeScreen
+                            onBack={back}
+                            onGranted={(next) => {
+                                routes.popToRoot();
+                                setToast(t('This phone is now {role}', { role: t(ROLE_NAME[next]) }));
+                            }}
+                        />
+                    ) : null}
+                    {pane === 'roles' ? <RolesScreen onBack={back} /> : null}
                 </PushView>
             ))}
 
@@ -630,6 +667,7 @@ const styles = StyleSheet.create({
         gap: space[4.5],
     },
     group: { gap: space[2] },
+    viewRow: { gap: space[2.5], padding: space[3.5] },
     version: { textAlign: 'center' },
     backupAlert: {
         flexDirection: 'row',

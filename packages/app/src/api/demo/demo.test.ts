@@ -40,6 +40,8 @@ const { reminderHandlers } = await import('./handlers/reminder');
 const { statsHandlers } = await import('./handlers/stats');
 const { resolve, hasHandler } = await import('./handlers');
 const { DemoError } = await import('./rules');
+const accessModule = await import('./access');
+const { provisionDemo } = await import('./handlers/device');
 
 function today(): string {
     const now = new Date();
@@ -268,7 +270,7 @@ describe('a visit, end to end', () => {
 
         const settled = balanceHandlers.settle({
             patientId: patient.id,
-            amount: closed.balance,
+            amount: closed.balance ?? 0,
             method: 'visa',
         });
 
@@ -755,11 +757,11 @@ describe('the dispatch table', () => {
         expect(hasHandler('toString')).toBe(false);
         expect(hasHandler('constructor')).toBe(false);
 
-        const report = resolve('stats.summary', {
-            from: today(),
-            to: today(),
-            offsetMinutes: offsetMinutes(),
-        });
+        const report = resolve(
+            'stats.summary',
+            { from: today(), to: today(), offsetMinutes: offsetMinutes() },
+            { token: null, deviceId: null, role: null },
+        );
 
         expect(report).toMatchObject({ appointments: { total: expect.any(Number) } });
     });
@@ -960,5 +962,94 @@ describe('the reminder message the demo renders', () => {
 
     it('sends the seeded default with no braces left in it', () => {
         expect(firstPending().message).not.toMatch(/[{}]/);
+    });
+});
+
+describe('roles', () => {
+    const { admit, shownTo } = accessModule;
+
+    function paidVisit() {
+        const db = getDb();
+        const payment = db.payments[0];
+        const visit = db.visits.find((row) => row.id === payment?.visitId);
+        const appointment = db.appointments.find((row) => row.id === visit?.appointmentId);
+        if (!visit || !appointment) throw new Error('the seed has no paid visit');
+        return { visit, patientId: appointment.patientId };
+    }
+
+    function as(role: 'admin' | 'doctor' | 'secretary') {
+        return provisionDemo(role, null).token;
+    }
+
+    it('refuses a doctor every payment procedure, as the server does', () => {
+        const token = as('doctor');
+        for (const path of ['balance.outstanding', 'balance.settle', 'stats.summary', 'visit.setPaid']) {
+            expect(() => admit(path, token)).toThrow(DemoError);
+        }
+        expect(admit('visit.checkOut', token).role).toBe('doctor');
+    });
+
+    it('shows a doctor a finished visit’s procedures, and no charge, price or payment', () => {
+        const { visit, patientId } = paidVisit();
+        const caller = admit('visit.byId', as('doctor'));
+
+        const read = shownTo('visit.byId', visitHandlers.byId({ id: visit.id }), caller) as {
+            chargedTotal: unknown;
+            payments: unknown;
+            procedures: { unitPrice: unknown }[];
+        };
+        expect(read.chargedTotal).toBeNull();
+        expect(read.payments).toBeNull();
+        expect(read.procedures.every((line) => line.unitPrice === null)).toBe(true);
+
+        const record = shownTo('patient.byId', patientHandlers.byId({ id: patientId }), caller) as {
+            history: { completedAt: unknown; chargedTotal: unknown; paidTotal: unknown }[];
+        };
+        expect(record.history.every((entry) => entry.paidTotal === null)).toBe(true);
+        const finished = record.history.filter((entry) => entry.completedAt !== null);
+        expect(finished.every((entry) => entry.chargedTotal === null)).toBe(true);
+    });
+
+    it('does not let a doctor reopen a finished visit, or set the clinic up', () => {
+        const token = as('doctor');
+        expect(() => admit('visit.reopen', token)).toThrow(DemoError);
+        expect(() => admit('procedure.update', token)).toThrow(DemoError);
+        expect(() => admit('settings.update', token, { clinicName: 'Mine' })).toThrow(DemoError);
+        expect(admit('settings.update', token, { reminderLeadHours: 12 }).role).toBe('doctor');
+        expect(admit('procedure.update', as('admin')).role).toBe('admin');
+    });
+
+    it('leaves the secretary and a phone with no role everything', () => {
+        const { visit } = paidVisit();
+        for (const token of [as('secretary'), null]) {
+            const caller = admit('visit.byId', token);
+            const read = shownTo('visit.byId', visitHandlers.byId({ id: visit.id }), caller) as {
+                payments: unknown;
+            };
+            expect(read.payments).not.toBeNull();
+        }
+    });
+
+    it('turns a phone with no role away once provisioning is required', () => {
+        getDb().settings.requireProvisioning = true;
+        expect(() => admit('settings.get', null)).toThrow(DemoError);
+        expect(admit('device.redeem', null).role).toBeNull();
+    });
+
+    it('lets only the admin issue codes, and a revoked phone nothing at all', () => {
+        const admin = admit('device.issue', as('admin'));
+        expect(() => admit('device.issue', as('secretary'))).toThrow(DemoError);
+
+        const issued = resolve('device.issue', { role: 'doctor', label: 'Surgery' }, admin) as {
+            id: string;
+            payload: string;
+        };
+        const code = issued.payload.split(':').pop() ?? '';
+        const doctor = resolve('device.redeem', { code }, { token: null, deviceId: null, role: null }) as {
+            token: string;
+        };
+        resolve('device.revoke', { grantId: issued.id }, admin);
+
+        expect(() => admit('settings.get', doctor.token)).toThrow(DemoError);
     });
 });

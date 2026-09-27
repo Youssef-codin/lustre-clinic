@@ -32,6 +32,7 @@ function toSettings(row: SettingsRow): Settings {
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
+        requireProvisioning: row.requireProvisioning,
         updatedAt: row.updatedAt,
     };
 }
@@ -117,6 +118,16 @@ export const settingsHandlers = {
 
         save();
         broadcast(WS_EVENT.SETTINGS_UPDATED);
+    },
+
+    /** `device.setRequireProvisioning` — an admin's switch, kept off `update` as it is on the server. */
+    setRequireProvisioning(input: RouterInput['device']['setRequireProvisioning']): Settings {
+        const settings = getDb().settings;
+        settings.requireProvisioning = input.required;
+        settings.updatedAt = new Date();
+        save();
+        broadcast(WS_EVENT.SETTINGS_UPDATED);
+        return toSettings(settings);
     },
 
     dismissRemindersFor(date: string): Settings {

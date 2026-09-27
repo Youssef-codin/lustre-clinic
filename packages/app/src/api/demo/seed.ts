@@ -428,6 +428,8 @@ function emptyDb(): DemoDb {
         customQuestions: [],
         reminders: [],
         refEdits: [],
+        roleGrants: [],
+        devices: [],
         settings: {
             clinicName: 'Lustre Dental',
             clinicPhone: '+20221234567',
@@ -449,6 +451,7 @@ function emptyDb(): DemoDb {
             requireAge: DEFAULT_REQUIRE_AGE,
             requireGender: DEFAULT_REQUIRE_GENDER,
             askToEditOnFinish: true,
+            requireProvisioning: false,
             updatedAt: new Date(),
         },
     };

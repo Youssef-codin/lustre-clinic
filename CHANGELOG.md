@@ -8,8 +8,15 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- Phone roles by QR code. An admin makes a code in Settings → Phones & role codes, and the phone that scans it (Settings → Scan a role code) gets that role; switching roles in Settings is gone. The first admin code is printed by the server (`grant admin`). Codes work once, for 30 minutes, and the admin can withdraw them, which shuts out the phone that used one. Phones without a code keep working until the admin turns on "Every phone needs a role code". A code can also be scanned with any phone's camera: it opens a page on the clinic server with the app to download and an Open in Lustre button that hands the app the code, so a new phone gets the app and its role from one scan. A newly installed Lustre opens on "Scan your role code" and does nothing else until it has one; phones that already had Lustre keep working as before. When a phone scans a new code, its old one stops working. Withdrawing a phone's code shuts it out straight away. The admin's list only shows codes still waiting and phones using theirs: withdrawn and replaced codes, and codes left unused for 30 minutes, are deleted. Lustre is no longer included in the phone's Google backup, so a phone set up from a backup has to be given a code like any new phone. Needs the new APK, for the camera.
+
 ### Changed
 
+- The doctor's phone no longer shows payments, balances, the Money tab, or what past visits cost, and the server refuses them to it. The doctor still prices the visit in front of them and checks the patient out, but can't reopen a finished visit. The admin's phone can switch between the doctor's day and the desk's day in Settings, and keeps everything either way.
+- Only the admin can change how the clinic is set up: procedures and prices, patient fields, branches, working hours, clinic details and the backups link. The server refuses them to other phones.
+- Reminders are only on the secretary's phone. The doctor's and the admin's phones no longer show the Reminders setting or the daily reminder notification.
 - Settings → About opens a page with the version, APK and update details, which used to sit under Settings → App. The language switch is now on the Settings page itself, so it takes one tap, and Settings → App shows only the server connection.
 - Once Google Drive is linked, tapping Backups in Settings opens a page showing whether backups are up to date, when the last one ran, and which Google account the copy goes to, with a Change account button. Until Drive is linked, it still opens the sign-in.
 

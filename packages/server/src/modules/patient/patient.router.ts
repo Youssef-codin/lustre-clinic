@@ -1,7 +1,7 @@
 /**
  * `byId` returns the patient and visit history in one payload (§13).
  */
-import { publicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, router } from '../../trpc/init.ts';
 import {
     createPatientInput,
     deletePatientInput,
@@ -16,27 +16,29 @@ import {
 import { patientService } from './patient.service.ts';
 
 export const patientRouter = router({
-    search: publicProcedure.input(searchPatientInput).query(({ input }) => patientService.search(input)),
+    search: clinicProcedure.input(searchPatientInput).query(({ input }) => patientService.search(input)),
 
-    recent: publicProcedure.input(recentPatientsInput).query(({ input }) => patientService.recent(input)),
+    recent: clinicProcedure.input(recentPatientsInput).query(({ input }) => patientService.recent(input)),
 
-    byId: publicProcedure.input(patientByIdInput).query(({ input }) => patientService.byId(input.id)),
+    byId: clinicProcedure
+        .input(patientByIdInput)
+        .query(({ input, ctx }) => patientService.byId(input.id, ctx.caller.role)),
 
-    byPhone: publicProcedure.input(patientByPhoneInput).query(({ input }) => patientService.byPhone(input)),
+    byPhone: clinicProcedure.input(patientByPhoneInput).query(({ input }) => patientService.byPhone(input)),
 
-    create: publicProcedure.input(createPatientInput).mutation(({ input }) => patientService.create(input)),
+    create: clinicProcedure.input(createPatientInput).mutation(({ input }) => patientService.create(input)),
 
-    update: publicProcedure.input(updatePatientInput).mutation(({ input }) => patientService.update(input)),
+    update: clinicProcedure.input(updatePatientInput).mutation(({ input }) => patientService.update(input)),
 
-    updateRef: publicProcedure
+    updateRef: clinicProcedure
         .input(updatePatientRefInput)
-        .mutation(({ input }) => patientService.updateRef(input)),
+        .mutation(({ input, ctx }) => patientService.updateRef(input, ctx.caller.role)),
 
-    refHistory: publicProcedure
+    refHistory: clinicProcedure
         .input(patientRefHistoryInput)
         .query(({ input }) => patientService.refHistory(input.id)),
 
-    delete: publicProcedure
+    delete: clinicProcedure
         .input(deletePatientInput)
         .mutation(({ input }) => patientService.delete(input.id)),
 });
