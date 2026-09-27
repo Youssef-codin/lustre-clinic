@@ -189,7 +189,7 @@ export function AppShell() {
         reveal('day');
         setRemindersAsked((n) => n + 1);
     }, [reveal]);
-    useAlarmOpen(openReminders);
+    useAlarmOpen(openReminders, roleReady);
 
     const openRecord = useCallback(
         (patientId: string, backLabel?: string, said?: string) => {

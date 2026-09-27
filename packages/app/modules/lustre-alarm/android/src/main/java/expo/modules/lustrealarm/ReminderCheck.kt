@@ -18,7 +18,9 @@ import org.json.JSONObject
 object ReminderCheck {
   data class Check(val bases: List<String>, val pendingPath: String, val settingsPath: String, val today: String)
 
-  private const val TIMEOUT_MS = 2_000
+  private const val TIMEOUT_MS = 2_000L
+  // Not worth asking an address with less than this left for its two requests.
+  private const val MIN_TIMEOUT_MS = 500L
   // Inside the ~10 s Android gives an alarm to start its foreground service,
   // with room left to start it.
   private const val BUDGET_MS = 6_000L
@@ -26,10 +28,12 @@ object ReminderCheck {
   fun shouldRing(check: Check): Boolean {
     val deadline = SystemClock.elapsedRealtime() + BUDGET_MS
     for (base in check.bases) {
-      // Two requests left to make on this address.
-      if (deadline - SystemClock.elapsedRealtime() < 2 * TIMEOUT_MS) break
-      val pending = get(base + check.pendingPath) ?: continue
-      val settings = get(base + check.settingsPath) ?: continue
+      // Each address gets what is left, not a fixed share: the LAN address
+      // timing out on mobile data must still leave time for Tailscale.
+      val timeout = minOf(TIMEOUT_MS, (deadline - SystemClock.elapsedRealtime()) / 2)
+      if (timeout < MIN_TIMEOUT_MS) break
+      val pending = get(base + check.pendingPath, timeout) ?: continue
+      val settings = get(base + check.settingsPath, timeout) ?: continue
       return try {
         val due = JSONObject(pending).getJSONObject("result").getJSONArray("data").length() > 0
         val dismissedOn = JSONObject(settings).getJSONObject("result").getJSONObject("data").optString("reminderDismissedOn")
@@ -41,11 +45,11 @@ object ReminderCheck {
     return true
   }
 
-  private fun get(url: String): String? =
+  private fun get(url: String, timeoutMs: Long): String? =
     try {
       val connection = URL(url).openConnection() as HttpURLConnection
-      connection.connectTimeout = TIMEOUT_MS
-      connection.readTimeout = TIMEOUT_MS
+      connection.connectTimeout = timeoutMs.toInt()
+      connection.readTimeout = timeoutMs.toInt()
       try {
         if (connection.responseCode == HttpURLConnection.HTTP_OK) {
           connection.inputStream.bufferedReader().use { it.readText() }
