@@ -978,7 +978,7 @@ describe('roles', () => {
     }
 
     function as(role: 'admin' | 'doctor' | 'secretary') {
-        return provisionDemo(role).token;
+        return provisionDemo(role, null).token;
     }
 
     it('refuses a doctor every payment procedure, as the server does', () => {

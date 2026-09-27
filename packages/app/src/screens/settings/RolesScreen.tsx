@@ -49,6 +49,7 @@ type Issued = RouterOutput['device']['issue'];
 const STATUS: Record<Grant['status'], { label: string; tone: TagTone }> = {
     pending: { label: 'Waiting', tone: 'accent' },
     redeemed: { label: 'In use', tone: 'success' },
+    replaced: { label: 'Replaced', tone: 'muted' },
     expired: { label: 'Expired', tone: 'muted' },
     revoked: { label: 'Withdrawn', tone: 'danger' },
 };

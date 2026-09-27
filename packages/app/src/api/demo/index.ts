@@ -10,7 +10,7 @@ export { disableDemoMode, enableDemoMode, isDemoMode, useDemoMode } from './flag
 export { demoLink } from './link';
 
 import type { Role } from '@lustre/shared';
-import { forgetDemoCredential, grantCredential } from '../credential';
+import { credentialToken, forgetDemoCredential, grantCredential } from '../credential';
 import { noteDataReset } from '../dataReset';
 import { clearStored, setDb } from './db';
 import { provisionDemo } from './handlers/device';
@@ -36,5 +36,5 @@ export async function resetDemoData(): Promise<void> {
  */
 export async function becomeInDemo(role: Role): Promise<void> {
     await openDemoDb();
-    grantCredential(provisionDemo(role));
+    grantCredential(provisionDemo(role, credentialToken()));
 }

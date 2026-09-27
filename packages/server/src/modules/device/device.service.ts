@@ -61,7 +61,8 @@ interface DeviceIdentity {
     label: string;
 }
 
-type GrantStatus = 'pending' | 'redeemed' | 'expired' | 'revoked';
+/** `replaced`: used, and the phone it made has since scanned another code. */
+type GrantStatus = 'pending' | 'redeemed' | 'replaced' | 'expired' | 'revoked';
 
 interface GrantRecord {
     id: string;
@@ -94,9 +95,9 @@ export function tokenFrom(headers: Headers): string | null {
     return token.length > 0 ? token : null;
 }
 
-function statusOf(row: typeof roleGrants.$inferSelect, now: Date): GrantStatus {
+function statusOf(row: typeof roleGrants.$inferSelect, now: Date, deviceRetired = false): GrantStatus {
     if (row.revokedAt) return 'revoked';
-    if (row.redeemedAt) return 'redeemed';
+    if (row.redeemedAt) return deviceRetired ? 'replaced' : 'redeemed';
     if (row.expiresAt <= now) return 'expired';
     return 'pending';
 }
@@ -202,7 +203,13 @@ export const deviceService = {
      * UPDATE, so two phones scanning the same code at once cannot both get it.
      * When nothing is claimed the row is read again only to say why.
      */
-    async redeem(code: string): Promise<Redeemed> {
+    /**
+     * `previous` is the credential the phone sent with the scan, if it had one.
+     * A phone is one device: taking a new role retires the old credential, so
+     * the admin's list shows one live entry per phone rather than every code it
+     * ever scanned.
+     */
+    async redeem(code: string, previous: string | null = null): Promise<Redeemed> {
         const codeHash = hashOf(code);
         const token = randomToken();
 
@@ -231,7 +238,20 @@ export const deviceService = {
                 label: grant.label,
                 tokenHash: hashOf(token),
             });
-            return { grantId: grant.id, deviceId, role: grant.role, label: grant.label };
+            const retired = previous
+                ? await tx
+                      .update(devices)
+                      .set({ revokedAt: now })
+                      .where(and(eq(devices.tokenHash, hashOf(previous)), isNull(devices.revokedAt)))
+                      .returning({ id: devices.id })
+                : [];
+            return {
+                grantId: grant.id,
+                deviceId,
+                role: grant.role,
+                label: grant.label,
+                replaced: retired[0]?.id ?? null,
+            };
         });
 
         if (!redeemed) {
@@ -249,8 +269,15 @@ export const deviceService = {
             throw new AppError(ERROR_CODE.GRANT_INVALID, 'no such grant', 404);
         }
 
+        // The old credential's socket goes with it.
+        if (redeemed.replaced) disconnectDevice(redeemed.replaced);
         logger.info(
-            { grantId: redeemed.grantId, deviceId: redeemed.deviceId, role: redeemed.role },
+            {
+                grantId: redeemed.grantId,
+                deviceId: redeemed.deviceId,
+                role: redeemed.role,
+                replaced: redeemed.replaced,
+            },
             'role grant redeemed',
         );
         broadcast(WS_EVENT.DEVICES_UPDATED);
@@ -259,17 +286,17 @@ export const deviceService = {
 
     async grants(): Promise<GrantRecord[]> {
         const rows = await db
-            .select({ grant: roleGrants, deviceId: devices.id })
+            .select({ grant: roleGrants, deviceId: devices.id, deviceRevokedAt: devices.revokedAt })
             .from(roleGrants)
             .leftJoin(devices, eq(devices.grantId, roleGrants.id))
             .orderBy(desc(roleGrants.issuedAt));
 
         const now = new Date();
-        return rows.map(({ grant, deviceId }) => ({
+        return rows.map(({ grant, deviceId, deviceRevokedAt }) => ({
             id: grant.id,
             role: grant.role,
             label: grant.label,
-            status: statusOf(grant, now),
+            status: statusOf(grant, now, deviceRevokedAt !== null),
             issuedBy: grant.issuedBy,
             issuedAt: grant.issuedAt,
             expiresAt: grant.expiresAt,

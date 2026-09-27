@@ -89,6 +89,27 @@ describe('the credential', () => {
     });
 });
 
+describe('a new install', () => {
+    it('asks for a code until one is redeemed, across launches', async () => {
+        const store = await launch();
+        await store.markFresh();
+        expect(store.getSnapshot().refusal).toBe('new');
+
+        const next = await launch();
+        expect(next.getSnapshot().refusal).toBe('new');
+        next.grant(doctor);
+        expect(next.getSnapshot().refusal).toBe('none');
+        expect((await launch()).getSnapshot().refusal).toBe('none');
+    });
+
+    it('never marks a phone that already has a credential', async () => {
+        (await launch()).grant(doctor);
+        const store = createCredentialStore(() => demo);
+        await store.markFresh();
+        expect(store.getSnapshot()).toMatchObject({ credential: doctor, refusal: 'none' });
+    });
+});
+
 describe('reading a refusal off a response', () => {
     const error = (appCode: string) => ({ error: { data: { appCode } } });
 

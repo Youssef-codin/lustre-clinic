@@ -15,7 +15,9 @@ import { deviceService } from './device.service.ts';
 export const deviceRouter = router({
     me: publicProcedure.query(({ ctx }) => deviceService.me(ctx.token)),
 
-    redeem: publicProcedure.input(redeemGrantInput).mutation(({ input }) => deviceService.redeem(input.code)),
+    redeem: publicProcedure
+        .input(redeemGrantInput)
+        .mutation(({ input, ctx }) => deviceService.redeem(input.code, ctx.token)),
 
     grants: adminProcedure.query(() => deviceService.grants()),
 

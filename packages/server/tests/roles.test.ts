@@ -146,6 +146,22 @@ describe('the admin', () => {
         expect(await api.clientAs(secretary.token).device.me.query()).toBeNull();
     });
 
+    test('a phone that scans a new code gives up its old one, which the list shows as replaced', async () => {
+        const admin = await provisioned('admin');
+        const phone = await provisioned('secretary');
+        const grant = await deviceService.issue({ role: 'doctor', label: 'Surgery' }, null);
+
+        const next = await api.clientAs(phone.token).device.redeem.mutate({ code: codeOf(grant.payload) });
+
+        expect(next.role).toBe('doctor');
+        await expectTrpcError(ERROR_CODE.DEVICE_REVOKED, 401, () =>
+            api.clientAs(phone.token).settings.get.query(),
+        );
+        const listed = await api.clientAs(admin.token).device.grants.query();
+        expect(listed.find((g) => g.id === phone.grantId)?.status).toBe('replaced');
+        expect(listed.find((g) => g.id === grant.id)?.status).toBe('redeemed');
+    });
+
     test('cannot revoke its own role', async () => {
         const admin = await provisioned('admin');
         await expectTrpcError(ERROR_CODE.ROLE_FORBIDDEN, 403, () =>

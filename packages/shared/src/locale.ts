@@ -1291,6 +1291,10 @@ export const COPY_AR = {
         'فُتح Lustre برمز دور. استخدامه يمنح هذا الهاتف الدور الذي أُنشئ له.',
     'Use code': 'استخدام الرمز',
     'Day view': 'عرض اليوم',
+    'Scan your role code': 'امسح رمز دورك',
+    'Ask the clinic’s admin for a code for this phone, then scan it. It decides what this phone can do.':
+        'اطلب من مدير العيادة رمزًا لهذا الهاتف، ثم امسحه. هو ما يحدد ما يمكن لهذا الهاتف فعله.',
+    Replaced: 'استُبدل',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

@@ -17,7 +17,10 @@ import { isDemoMode } from './demo/flag';
 // withdrew its role (persisted, so a relaunch does not quietly fall back to the
 // access a phone with no role still has), `unprovisioned` when the clinic
 // requires a role and this phone has none (not persisted: turning the
-// requirement off again has to be enough).
+// requirement off again has to be enough), and `new` for a phone installed
+// since roles existed, which opens on the scanner rather than on the access a
+// phone with no role otherwise keeps (persisted until a code is redeemed).
+// Only the phones that predate roles skip that, which is the upgrade path.
 
 export interface Credential {
     token: string;
@@ -26,7 +29,7 @@ export interface Credential {
     label: string;
 }
 
-export type Refusal = 'none' | 'unprovisioned' | 'revoked';
+export type Refusal = 'none' | 'new' | 'unprovisioned' | 'revoked';
 
 export interface CredentialState {
     hydrated: boolean;
@@ -38,18 +41,23 @@ interface Slot {
     credential: Credential | null;
     revoked: boolean;
     unprovisioned: boolean;
+    fresh: boolean;
 }
 
 type SlotName = 'live' | 'demo';
 
 const KEYS: Record<SlotName, string> = { live: 'lustre.device', demo: 'lustre.demo.device' };
 
-const EMPTY: Slot = { credential: null, revoked: false, unprovisioned: false };
+const EMPTY: Slot = { credential: null, revoked: false, unprovisioned: false, fresh: false };
 
 function parseSlot(stored: string | null): Slot {
     if (!stored) return EMPTY;
     try {
-        const value = JSON.parse(stored) as Partial<{ credential: Credential | null; revoked: boolean }>;
+        const value = JSON.parse(stored) as Partial<{
+            credential: Credential | null;
+            revoked: boolean;
+            fresh: boolean;
+        }>;
         const credential = value.credential;
         const valid =
             credential &&
@@ -60,6 +68,7 @@ function parseSlot(stored: string | null): Slot {
             credential: valid ? credential : null,
             revoked: value.revoked === true,
             unprovisioned: false,
+            fresh: value.fresh === true,
         };
     } catch {
         return EMPTY;
@@ -91,7 +100,13 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
 
     function emit(): void {
         const slot = slots[current()];
-        const refusal: Refusal = slot.revoked ? 'revoked' : slot.unprovisioned ? 'unprovisioned' : 'none';
+        const refusal: Refusal = slot.revoked
+            ? 'revoked'
+            : slot.unprovisioned
+              ? 'unprovisioned'
+              : slot.fresh && !slot.credential
+                ? 'new'
+                : 'none';
         const next = { hydrated, credential: slot.credential, refusal };
         if (
             next.hydrated === snapshot.hydrated &&
@@ -110,7 +125,11 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
     function write(name: SlotName, slot: Slot): void {
         slots[name] = slot;
         touched.add(name);
-        const persisted = JSON.stringify({ credential: slot.credential, revoked: slot.revoked });
+        const persisted = JSON.stringify({
+            credential: slot.credential,
+            revoked: slot.revoked,
+            fresh: slot.fresh,
+        });
         void AsyncStorage.setItem(KEYS[name], persisted).catch(() => undefined);
         emit();
     }
@@ -146,7 +165,7 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
         hydrate,
         token: (): string | null => slots[current()].credential?.token ?? null,
         grant(credential: Credential): void {
-            write(current(), { credential, revoked: false, unprovisioned: false });
+            write(current(), { credential, revoked: false, unprovisioned: false, fresh: false });
         },
         /**
          * `sentWith` is the token the refused request carried. A refusal for a
@@ -158,7 +177,7 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
             const slot = slots[name];
             if ((slot.credential?.token ?? null) !== sentWith) return;
             if (kind === 'revoked') {
-                write(name, { credential: null, revoked: true, unprovisioned: false });
+                write(name, { credential: null, revoked: true, unprovisioned: false, fresh: false });
                 return;
             }
             if (slot.credential || slot.unprovisioned) return;
@@ -173,6 +192,13 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
         },
         forgetDemo(): void {
             write('demo', EMPTY);
+        },
+        /** Waits for storage, so a credential already on the phone is never mistaken for none. */
+        async markFresh(): Promise<void> {
+            await hydrate();
+            const slot = slots.live;
+            if (slot.credential || slot.fresh) return;
+            write('live', { ...slot, fresh: true });
         },
     };
 }
@@ -209,6 +235,14 @@ export function noteRefusal(kind: 'revoked' | 'unprovisioned', sentWith: string 
 export function retryProvisioning(): void {
     store.retry();
     noteDataReset();
+}
+
+/**
+ * This install has never known a clinic server (`shell/serverStore`): it was
+ * installed since roles existed, so it asks for a code before anything else.
+ */
+export function markFreshInstall(): Promise<void> {
+    return store.markFresh();
 }
 
 /** A reseeded demo has no devices, so the demo's credential goes with it. */

@@ -18,9 +18,9 @@ export interface DemoCaller {
 
 type GrantStatus = Dated<RouterOutput['device']['grants'][number]>['status'];
 
-function statusOf(row: RoleGrantRow, now: Date): GrantStatus {
+function statusOf(row: RoleGrantRow, now: Date, deviceRetired = false): GrantStatus {
     if (row.revokedAt) return 'revoked';
-    if (row.redeemedAt) return 'redeemed';
+    if (row.redeemedAt) return deviceRetired ? 'replaced' : 'redeemed';
     if (row.expiresAt <= now) return 'expired';
     return 'pending';
 }
@@ -63,7 +63,8 @@ function issue(role: Role, label: string, issuedBy: string | null) {
     return { row, code };
 }
 
-function redeem(code: string) {
+/** `previous`: the credential the phone had, which a new code retires (`deviceService.redeem`). */
+function redeem(code: string, previous: string | null = null) {
     const db = getDb();
     const now = new Date();
     const grant = db.roleGrants.find((row) => row.code === code);
@@ -83,6 +84,7 @@ function redeem(code: string) {
         createdAt: now,
         revokedAt: null,
     };
+    for (const old of db.devices) if (previous !== null && old.token === previous) old.revokedAt ??= now;
     db.devices.push(device);
     save();
     broadcast(WS_EVENT.DEVICES_UPDATED);
@@ -95,9 +97,9 @@ function redeem(code: string) {
  * rules after it are the same — the role lives on a device row, and the link
  * reads it back from the token on every request.
  */
-export function provisionDemo(role: Role): ReturnType<typeof redeem> {
+export function provisionDemo(role: Role, previous: string | null): ReturnType<typeof redeem> {
     const { code } = issue(role, `Demo ${role}`, null);
-    return redeem(code);
+    return redeem(code, previous);
 }
 
 export const deviceHandlers = {
@@ -106,8 +108,11 @@ export const deviceHandlers = {
         return device ? { deviceId: device.id, role: device.role, label: device.label } : null;
     },
 
-    redeem(input: RouterInput['device']['redeem']): Dated<RouterOutput['device']['redeem']> {
-        return redeem(input.code);
+    redeem(
+        input: RouterInput['device']['redeem'],
+        caller: DemoCaller,
+    ): Dated<RouterOutput['device']['redeem']> {
+        return redeem(input.code, caller.token);
     },
 
     grants(): Dated<RouterOutput['device']['grants']> {
@@ -115,18 +120,21 @@ export const deviceHandlers = {
         const now = new Date();
         return [...db.roleGrants]
             .sort((a, b) => b.issuedAt.getTime() - a.issuedAt.getTime())
-            .map((row) => ({
-                id: row.id,
-                role: row.role,
-                label: row.label,
-                status: statusOf(row, now),
-                issuedBy: row.issuedBy,
-                issuedAt: row.issuedAt,
-                expiresAt: row.expiresAt,
-                redeemedAt: row.redeemedAt,
-                revokedAt: row.revokedAt,
-                deviceId: db.devices.find((device) => device.grantId === row.id)?.id ?? null,
-            }));
+            .map((row) => {
+                const device = db.devices.find((candidate) => candidate.grantId === row.id);
+                return {
+                    id: row.id,
+                    role: row.role,
+                    label: row.label,
+                    status: statusOf(row, now, device?.revokedAt !== null && device !== undefined),
+                    issuedBy: row.issuedBy,
+                    issuedAt: row.issuedAt,
+                    expiresAt: row.expiresAt,
+                    redeemedAt: row.redeemedAt,
+                    revokedAt: row.revokedAt,
+                    deviceId: device?.id ?? null,
+                };
+            });
     },
 
     issue(input: RouterInput['device']['issue'], caller: DemoCaller): Dated<RouterOutput['device']['issue']> {

@@ -17,6 +17,18 @@ import { DeadEnd } from './DeadEnd';
 // out does not drift back in on the access a phone with no role still has.
 // Unprovisioned is not: the clinic turning the requirement off again has to be
 // enough, and Try again is how this phone finds out.
+const TITLE: Record<Exclude<Refusal, 'none'>, string> = {
+    new: 'Scan your role code',
+    unprovisioned: 'This phone needs a role code',
+    revoked: 'This phone’s role was withdrawn',
+};
+
+const BODY: Record<Exclude<Refusal, 'none'>, string> = {
+    new: 'Ask the clinic’s admin for a code for this phone, then scan it. It decides what this phone can do.',
+    unprovisioned: 'The clinic now asks every phone for a role code. Ask the admin for one, then scan it.',
+    revoked: 'An admin withdrew the role this phone had. Ask them for a new code, then scan it.',
+};
+
 export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'> }) {
     const t = useT();
     const [scanning, setScanning] = useState(false);
@@ -31,16 +43,8 @@ export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'>
         <View style={styles.root}>
             <DeadEnd
                 glyph={<GLYPH.scanCode size={22} color={color.ink2} strokeWidth={2} />}
-                title={t(
-                    refusal === 'revoked'
-                        ? 'This phone’s role was withdrawn'
-                        : 'This phone needs a role code',
-                )}
-                body={t(
-                    refusal === 'revoked'
-                        ? 'An admin withdrew the role this phone had. Ask them for a new code, then scan it.'
-                        : 'The clinic now asks every phone for a role code. Ask the admin for one, then scan it.',
-                )}
+                title={t(TITLE[refusal])}
+                body={t(BODY[refusal])}
             >
                 <Button
                     label="Scan a role code"

@@ -7,7 +7,7 @@ export { BUILD_VARIANT, serverAddresses, setServerAddresses } from './config';
 export type { AddressKind, ConnectionStatus } from './connection';
 export { getConnectionState, lastProbeRefused, reprobe } from './connection';
 export type { Credential, Refusal } from './credential';
-export { grantCredential, retryProvisioning, useCredential } from './credential';
+export { grantCredential, markFreshInstall, retryProvisioning, useCredential } from './credential';
 export { dataGeneration, subscribeToDataReset } from './dataReset';
 export { becomeInDemo, enableDemoMode, resetDemoData, useDemoMode } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
