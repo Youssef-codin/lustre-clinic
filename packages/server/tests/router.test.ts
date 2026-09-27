@@ -57,6 +57,12 @@ const EXPECTED = [
     'reminder.dismissToday',
     'stats.summary',
     'migration.progress',
+    'device.me',
+    'device.redeem',
+    'device.grants',
+    'device.issue',
+    'device.revoke',
+    'device.setRequireProvisioning',
 ];
 
 describe('appRouter', () => {

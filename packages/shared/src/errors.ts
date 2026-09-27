@@ -112,6 +112,25 @@ export const ERROR_CODE = {
      */
     IMPORTED_DATE_AFTER_CUTOFF: 'IMPORTED_DATE_AFTER_CUTOFF',
 
+    // --- devices and roles ---------------------------------------------------
+    /**
+     * This phone has no role credential and the clinic requires one
+     * (`settings.require_provisioning`). An admin's QR code is the way in.
+     */
+    DEVICE_NOT_PROVISIONED: 'DEVICE_NOT_PROVISIONED',
+    /** The credential this phone sent was revoked, or never existed. It needs a new code. */
+    DEVICE_REVOKED: 'DEVICE_REVOKED',
+    /** The role on this phone's credential may not do this. */
+    ROLE_FORBIDDEN: 'ROLE_FORBIDDEN',
+    /** The scanned code is not one this server issued. */
+    GRANT_INVALID: 'GRANT_INVALID',
+    /** The scanned code was issued, but too long ago. */
+    GRANT_EXPIRED: 'GRANT_EXPIRED',
+    /** The scanned code has already given a phone its role. Codes are single-use. */
+    GRANT_USED: 'GRANT_USED',
+    /** An admin withdrew the scanned code before it was used. */
+    GRANT_REVOKED: 'GRANT_REVOKED',
+
     // --- backups (§16) ------------------------------------------------------
     /** No Android OAuth client is configured, so the phone cannot run the consent step. */
     DRIVE_SIGN_IN_UNCONFIGURED: 'DRIVE_SIGN_IN_UNCONFIGURED',

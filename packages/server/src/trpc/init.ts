@@ -1,6 +1,7 @@
 /**
- * SPEC §4. The context is minimal: `{ db }`. There is no auth (§1), so there is
- * no session and no user on it.
+ * SPEC §4. The context is `{ db, token }`: the database, and the credential a
+ * provisioned phone sends (`device.service.ts`). There are still no accounts —
+ * the phone is the account, and its credential says which role it was granted.
  *
  * Services throw `AppError` and never import tRPC; the `errorMapper` middleware
  * is the one place that translates. It carries `code` through as
@@ -8,9 +9,14 @@
  * parsing `message` (§4). Expected domain failures are logged with IDs and codes
  * only (never patient data); anything else that escapes a procedure is logged
  * with its stack, reported (§17) with path and error name only, and returned to
- * the client as INTERNAL. There is exactly one procedure kind — access is
- * controlled by reachability on the tailnet (§1), so there is nothing for a
- * protected procedure to check.
+ * the client as INTERNAL.
+ *
+ * Tailscale is still the outer boundary (§1). Inside it there are four
+ * procedure kinds: `publicProcedure` for what a phone needs before it has a
+ * role (health, the APK, redeeming a code); `clinicProcedure` for everything
+ * else, which resolves the caller and refuses a revoked phone or, once the
+ * clinic requires it, an unprovisioned one; and on top of that
+ * `paymentProcedure`, which a doctor may not call, and `adminProcedure`.
  */
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
 import { initTRPC, TRPCError } from '@trpc/server';
@@ -18,16 +24,19 @@ import { ZodError } from 'zod';
 import { db } from '../db/index.ts';
 import { AppError, isAppError } from '../errors/AppError.ts';
 import { logger } from '../logger.ts';
+import { deviceService, tokenFrom } from '../modules/device/device.service.ts';
 import { alert } from '../monitoring/index.ts';
 
-export function createContext() {
-    return { db };
+export function createContext({ req }: { req: Request }) {
+    return { db, token: tokenFrom(req.headers) };
 }
 
 type Context = ReturnType<typeof createContext>;
 
 function trpcCodeFor(httpStatus: number): TRPCError['code'] {
     switch (httpStatus) {
+        case 401:
+            return 'UNAUTHORIZED';
         case 403:
             return 'FORBIDDEN';
         case 404:
@@ -103,3 +112,17 @@ const errorMapper = t.middleware(async ({ next, path }) => {
 export const router = t.router;
 
 export const publicProcedure = t.procedure.use(errorMapper);
+
+export const clinicProcedure = publicProcedure.use(async ({ ctx, next }) =>
+    next({ ctx: { caller: await deviceService.authorize(ctx.token) } }),
+);
+
+export const paymentProcedure = clinicProcedure.use(({ ctx, next }) => {
+    deviceService.assertSeesPayments(ctx.caller);
+    return next();
+});
+
+export const adminProcedure = clinicProcedure.use(({ ctx, next }) => {
+    deviceService.assertAdmin(ctx.caller);
+    return next();
+});

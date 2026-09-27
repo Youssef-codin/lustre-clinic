@@ -67,10 +67,13 @@ describe('migration 0016', () => {
         try {
             await cp(migrationsFolder, before, { recursive: true });
             const journalPath = join(before, 'meta', '_journal.json');
-            const journal = JSON.parse(await readFile(journalPath, 'utf8')) as { entries: { tag: string }[] };
-            journal.entries = journal.entries.filter(
-                (entry) => entry.tag !== '0016_appointment_quoted_price',
-            );
+            const journal = JSON.parse(await readFile(journalPath, 'utf8')) as {
+                entries: { tag: string; when: number }[];
+            };
+            // The database as it stood on 0020: without 0016, and without
+            // anything that shipped after 0016 did.
+            const shipped = journal.entries.find((entry) => entry.tag === '0016_appointment_quoted_price');
+            journal.entries = journal.entries.filter((entry) => shipped && entry.when < shipped.when);
             await writeFile(journalPath, JSON.stringify(journal));
 
             await withScratchDatabase(

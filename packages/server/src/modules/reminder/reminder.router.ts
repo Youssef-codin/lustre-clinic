@@ -1,21 +1,21 @@
-import { publicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, router } from '../../trpc/init.ts';
 import { dismissTodayInput, pendingRemindersInput, reminderIdInput } from './reminder.schema.ts';
 import { reminderService } from './reminder.service.ts';
 
 export const reminderRouter = router({
-    pending: publicProcedure
+    pending: clinicProcedure
         .input(pendingRemindersInput)
         .query(({ input }) => reminderService.pending(input)),
 
-    markSent: publicProcedure
+    markSent: clinicProcedure
         .input(reminderIdInput)
         .mutation(({ input }) => reminderService.markSent(input.id)),
 
-    markSkipped: publicProcedure
+    markSkipped: clinicProcedure
         .input(reminderIdInput)
         .mutation(({ input }) => reminderService.markSkipped(input.id)),
 
-    dismissToday: publicProcedure
+    dismissToday: clinicProcedure
         .input(dismissTodayInput)
         .mutation(({ input }) => reminderService.dismissToday(input)),
 });

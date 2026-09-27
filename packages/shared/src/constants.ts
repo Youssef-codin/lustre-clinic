@@ -120,6 +120,8 @@ export const WS_EVENT = {
     VISIT_COMPLETED: 'visit:completed',
     /** A patient has arrived and is checked in (`booked → checked_in`), walk-ins included. */
     APPOINTMENT_CHECKED_IN: 'appointment:checked_in',
+    /** A role code was issued, redeemed or revoked. Only the admin's list reads it. */
+    DEVICES_UPDATED: 'devices:updated',
 } as const;
 
 export type WsEvent = (typeof WS_EVENT)[keyof typeof WS_EVENT];

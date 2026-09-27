@@ -1,0 +1,310 @@
+/**
+ * Role grants and the phones that redeemed them.
+ *
+ * An admin issues a grant for a role; its code goes out as a QR and only the
+ * code's hash is kept. The phone that scans it redeems it once, inside its
+ * expiry, and is handed a credential — a random token, again kept only as a
+ * hash — that it sends on every request. `authorize` turns that header back into
+ * the role the server acts on, so what a phone may do is never the phone's say.
+ *
+ * A phone with no credential is the upgrade path: while the clinic has not
+ * turned `requireProvisioning` on it keeps today's access, and `role` is null
+ * for it. A credential that is revoked or unknown is refused either way, which
+ * is what makes revoking mean something before the switch is flipped.
+ *
+ * Codes and tokens are never logged. Grant and device IDs and roles are.
+ */
+import {
+    DEVICE_TOKEN_HEADER,
+    ERROR_CODE,
+    GRANT_TTL_MINUTES,
+    grantPayload,
+    type Role,
+    seesPayments,
+    WS_EVENT,
+} from '@lustre/shared';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
+import { db } from '../../db/index.ts';
+import { devices, roleGrants } from '../../db/schema.ts';
+import { AppError } from '../../errors/AppError.ts';
+import { logger } from '../../logger.ts';
+import { broadcast, disconnectDevice, disconnectUnprovisioned } from '../../ws/index.ts';
+import { settingsService } from '../settings/settings.service.ts';
+import type { IssueGrantInput } from './device.schema.ts';
+
+/** Who is asking. `role` null is a phone with no credential, let in because provisioning is not yet required. */
+export interface Caller {
+    deviceId: string | null;
+    role: Role | null;
+}
+
+interface IssuedGrant {
+    id: string;
+    role: Role;
+    label: string;
+    expiresAt: Date;
+    /** The QR's text. Returned once, here, and never again. */
+    payload: string;
+}
+
+interface Redeemed {
+    token: string;
+    deviceId: string;
+    role: Role;
+    label: string;
+}
+
+interface DeviceIdentity {
+    deviceId: string;
+    role: Role;
+    label: string;
+}
+
+type GrantStatus = 'pending' | 'redeemed' | 'expired' | 'revoked';
+
+interface GrantRecord {
+    id: string;
+    role: Role;
+    label: string;
+    status: GrantStatus;
+    /** Null when the server's CLI issued it. */
+    issuedBy: string | null;
+    issuedAt: Date;
+    expiresAt: Date;
+    redeemedAt: Date | null;
+    revokedAt: Date | null;
+    /** The phone it made, once redeemed. */
+    deviceId: string | null;
+}
+
+function randomToken(): string {
+    return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+}
+
+function hashOf(secret: string): string {
+    return new Bun.CryptoHasher('sha256').update(secret).digest('hex');
+}
+
+/** `Bearer <token>`, or a bare token. Anything else is no credential at all. */
+export function tokenFrom(headers: Headers): string | null {
+    const value = headers.get(DEVICE_TOKEN_HEADER)?.trim();
+    if (!value) return null;
+    const token = value.replace(/^Bearer\s+/i, '');
+    return token.length > 0 ? token : null;
+}
+
+function statusOf(row: typeof roleGrants.$inferSelect, now: Date): GrantStatus {
+    if (row.revokedAt) return 'revoked';
+    if (row.redeemedAt) return 'redeemed';
+    if (row.expiresAt <= now) return 'expired';
+    return 'pending';
+}
+
+async function deviceFor(token: string): Promise<typeof devices.$inferSelect | null> {
+    const [row] = await db
+        .select()
+        .from(devices)
+        .where(eq(devices.tokenHash, hashOf(token)))
+        .limit(1);
+    return row ?? null;
+}
+
+function notProvisioned(): AppError {
+    return new AppError(
+        ERROR_CODE.DEVICE_NOT_PROVISIONED,
+        'this phone has no role and the clinic requires one',
+        401,
+    );
+}
+
+function revoked(): AppError {
+    return new AppError(ERROR_CODE.DEVICE_REVOKED, 'this phone’s credential is revoked or unknown', 401);
+}
+
+function forbidden(what: string): AppError {
+    return new AppError(ERROR_CODE.ROLE_FORBIDDEN, `this role may not ${what}`, 403);
+}
+
+export const deviceService = {
+    /**
+     * The caller behind a request's credential header. Throws when the phone
+     * must not be let in: a credential that is not live, or none while the
+     * clinic requires one.
+     */
+    async authorize(token: string | null): Promise<Caller> {
+        if (token === null) {
+            if (await settingsService.requireProvisioning()) throw notProvisioned();
+            return { deviceId: null, role: null };
+        }
+        const device = await deviceFor(token);
+        if (!device || device.revokedAt) throw revoked();
+        return { deviceId: device.id, role: device.role };
+    },
+
+    /** Whether `/ws` may be opened with this credential. The same rule as `authorize`, without the error. */
+    async admitsSocket(token: string | null): Promise<{ deviceId: string | null } | null> {
+        try {
+            const caller = await this.authorize(token);
+            return { deviceId: caller.deviceId };
+        } catch {
+            return null;
+        }
+    },
+
+    assertAdmin(caller: Caller): void {
+        if (caller.role !== 'admin') throw forbidden('manage roles');
+    },
+
+    assertSeesPayments(caller: Caller): void {
+        if (!seesPayments(caller.role)) throw forbidden('see payments');
+    },
+
+    /** What this phone's credential says about it, or null when it has none that is live. Never throws for it. */
+    async me(token: string | null): Promise<DeviceIdentity | null> {
+        if (token === null) return null;
+        const device = await deviceFor(token);
+        if (!device || device.revokedAt) return null;
+        return { deviceId: device.id, role: device.role, label: device.label };
+    },
+
+    async issue(input: IssueGrantInput, issuedBy: string | null): Promise<IssuedGrant> {
+        const code = randomToken();
+        const id = Bun.randomUUIDv7();
+        const expiresAt = new Date(Date.now() + GRANT_TTL_MINUTES * 60_000);
+
+        await db.insert(roleGrants).values({
+            id,
+            role: input.role,
+            label: input.label,
+            codeHash: hashOf(code),
+            issuedBy,
+            expiresAt,
+        });
+
+        logger.info({ grantId: id, role: input.role, issuedBy }, 'role grant issued');
+        broadcast(WS_EVENT.DEVICES_UPDATED);
+        return { id, role: input.role, label: input.label, expiresAt, payload: grantPayload(code) };
+    },
+
+    /**
+     * Single-use under concurrency: the grant is claimed by one conditional
+     * UPDATE, so two phones scanning the same code at once cannot both get it.
+     * When nothing is claimed the row is read again only to say why.
+     */
+    async redeem(code: string): Promise<Redeemed> {
+        const codeHash = hashOf(code);
+        const token = randomToken();
+
+        const redeemed = await db.transaction(async (tx) => {
+            const now = new Date();
+            const [grant] = await tx
+                .update(roleGrants)
+                .set({ redeemedAt: now })
+                .where(
+                    and(
+                        eq(roleGrants.codeHash, codeHash),
+                        isNull(roleGrants.redeemedAt),
+                        isNull(roleGrants.revokedAt),
+                        gt(roleGrants.expiresAt, now),
+                    ),
+                )
+                .returning();
+
+            if (!grant) return null;
+
+            const deviceId = Bun.randomUUIDv7();
+            await tx.insert(devices).values({
+                id: deviceId,
+                grantId: grant.id,
+                role: grant.role,
+                label: grant.label,
+                tokenHash: hashOf(token),
+            });
+            return { grantId: grant.id, deviceId, role: grant.role, label: grant.label };
+        });
+
+        if (!redeemed) {
+            const [grant] = await db
+                .select()
+                .from(roleGrants)
+                .where(eq(roleGrants.codeHash, codeHash))
+                .limit(1);
+            const status = grant ? statusOf(grant, new Date()) : null;
+            logger.warn({ grantId: grant?.id ?? null, status }, 'role grant refused');
+            if (status === 'redeemed')
+                throw new AppError(ERROR_CODE.GRANT_USED, 'grant already redeemed', 409);
+            if (status === 'revoked') throw new AppError(ERROR_CODE.GRANT_REVOKED, 'grant revoked', 422);
+            if (status === 'expired') throw new AppError(ERROR_CODE.GRANT_EXPIRED, 'grant expired', 422);
+            throw new AppError(ERROR_CODE.GRANT_INVALID, 'no such grant', 404);
+        }
+
+        logger.info(
+            { grantId: redeemed.grantId, deviceId: redeemed.deviceId, role: redeemed.role },
+            'role grant redeemed',
+        );
+        broadcast(WS_EVENT.DEVICES_UPDATED);
+        return { token, deviceId: redeemed.deviceId, role: redeemed.role, label: redeemed.label };
+    },
+
+    async grants(): Promise<GrantRecord[]> {
+        const rows = await db
+            .select({ grant: roleGrants, deviceId: devices.id })
+            .from(roleGrants)
+            .leftJoin(devices, eq(devices.grantId, roleGrants.id))
+            .orderBy(desc(roleGrants.issuedAt));
+
+        const now = new Date();
+        return rows.map(({ grant, deviceId }) => ({
+            id: grant.id,
+            role: grant.role,
+            label: grant.label,
+            status: statusOf(grant, now),
+            issuedBy: grant.issuedBy,
+            issuedAt: grant.issuedAt,
+            expiresAt: grant.expiresAt,
+            redeemedAt: grant.redeemedAt,
+            revokedAt: grant.revokedAt,
+            deviceId,
+        }));
+    },
+
+    /**
+     * Withdraws a code, and the phone it made if it was already used. Revoking
+     * twice is not an error: the second admin to tap it wanted the same thing.
+     * A phone cannot revoke its own grant — that would lock the last admin out
+     * with nobody to let it back in but the server's CLI.
+     */
+    async revoke(grantId: string, caller: Caller): Promise<void> {
+        const [grant] = await db.select().from(roleGrants).where(eq(roleGrants.id, grantId)).limit(1);
+        if (!grant) throw AppError.notFound('grant');
+
+        const [device] = await db.select().from(devices).where(eq(devices.grantId, grantId)).limit(1);
+        if (device && device.id === caller.deviceId) throw forbidden('revoke its own role');
+
+        const now = new Date();
+        await db.transaction(async (tx) => {
+            await tx
+                .update(roleGrants)
+                .set({ revokedAt: now })
+                .where(and(eq(roleGrants.id, grantId), isNull(roleGrants.revokedAt)));
+            await tx
+                .update(devices)
+                .set({ revokedAt: now })
+                .where(and(eq(devices.grantId, grantId), isNull(devices.revokedAt)));
+        });
+
+        if (device) disconnectDevice(device.id);
+        logger.info(
+            { grantId, deviceId: device?.id ?? null, revokedBy: caller.deviceId },
+            'role grant revoked',
+        );
+        broadcast(WS_EVENT.DEVICES_UPDATED);
+    },
+
+    async setRequireProvisioning(required: boolean, caller: Caller) {
+        const settings = await settingsService.setRequireProvisioning(required);
+        if (required) disconnectUnprovisioned();
+        logger.info({ required, by: caller.deviceId }, 'provisioning requirement changed');
+        return settings;
+    },
+};

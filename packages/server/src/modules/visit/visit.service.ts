@@ -18,7 +18,7 @@
  * Checkout closes either `checked_in` (the chair) or `awaiting_payment` (the
  * desk), and zero paid is a valid checkout — the balance is derived (§10).
  */
-import { canTransition, ERROR_CODE, type Tooth, WS_EVENT } from '@lustre/shared';
+import { canTransition, ERROR_CODE, type Role, seesPayments, type Tooth, WS_EVENT } from '@lustre/shared';
 import { and, asc, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
@@ -71,12 +71,23 @@ interface VisitPayment {
     paidAt: Date;
 }
 
+/**
+ * The three payment fields are null for a viewer who may not see payments (a
+ * doctor): withheld, not zero, so no screen can mistake one for "nothing paid".
+ * The charge stays — a doctor sees prices.
+ */
 interface Visit extends VisitRow {
     procedures: VisitLine[];
-    payments: VisitPayment[];
-    paidTotal: number;
-    balance: number;
+    payments: VisitPayment[] | null;
+    paidTotal: number | null;
+    balance: number | null;
 }
+
+/**
+ * Who a returned visit is for. Omitted by callers inside the server, which see
+ * everything; a router passes the caller's role.
+ */
+type Viewer = Role | null | undefined;
 
 async function requireVisit(executor: Executor, id: string): Promise<VisitRow> {
     const [row] = await executor.select().from(visits).where(eq(visits.id, id)).limit(1);
@@ -298,7 +309,7 @@ export const visitService = {
         return visit;
     },
 
-    async byId(id: string): Promise<Visit> {
+    async byId(id: string, viewer?: Viewer): Promise<Visit> {
         const visit = await requireVisit(db, id);
 
         const lines = await db
@@ -328,17 +339,18 @@ export const visitService = {
             .where(eq(payments.visitId, id));
 
         const paidTotal = paymentRows.reduce((sum, p) => sum + p.amount, 0);
+        const shown = viewer === undefined || seesPayments(viewer);
 
         return {
             ...visit,
             procedures: lines.map((l) => ({ ...l, lineTotal: l.unitPrice * l.quantity })),
-            payments: paymentRows,
-            paidTotal,
-            balance: visit.chargedTotal - paidTotal,
+            payments: shown ? paymentRows : null,
+            paidTotal: shown ? paidTotal : null,
+            balance: shown ? visit.chargedTotal - paidTotal : null,
         };
     },
 
-    async setProcedures(input: SetProceduresInput): Promise<Visit> {
+    async setProcedures(input: SetProceduresInput, viewer?: Viewer): Promise<Visit> {
         const lines = await resolveProcedureLines(input.procedures);
 
         const resolved = lines.map((line, i) => ({
@@ -379,10 +391,10 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
-        return this.byId(input.visitId);
+        return this.byId(input.visitId, viewer);
     },
 
-    async setPrice(input: SetPriceInput): Promise<Visit> {
+    async setPrice(input: SetPriceInput, viewer?: Viewer): Promise<Visit> {
         const row = await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 
@@ -405,10 +417,10 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: row.id });
-        return this.byId(row.id);
+        return this.byId(row.id, viewer);
     },
 
-    async checkOut(input: CheckOutInput): Promise<Visit> {
+    async checkOut(input: CheckOutInput, viewer?: Viewer): Promise<Visit> {
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 
@@ -500,7 +512,7 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
-        return this.byId(input.visitId);
+        return this.byId(input.visitId, viewer);
     },
 
     /**
@@ -566,7 +578,7 @@ export const visitService = {
      * receipt is a fact; the visit reopens owing whatever is left after them,
      * which is what `amountDue` already reads.
      */
-    async reopen(input: ReopenInput): Promise<Visit> {
+    async reopen(input: ReopenInput, viewer?: Viewer): Promise<Visit> {
         await db.transaction(async (tx) => {
             const visit = await requireVisit(tx, input.visitId);
 
@@ -582,7 +594,7 @@ export const visitService = {
         });
 
         broadcast(WS_EVENT.VISIT_UPDATED, { id: input.visitId });
-        return this.byId(input.visitId);
+        return this.byId(input.visitId, viewer);
     },
 
     /**

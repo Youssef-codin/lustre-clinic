@@ -59,6 +59,7 @@ import {
     PAYMENT_METHODS,
     QUESTION_KINDS,
     REMINDER_STATUSES,
+    ROLES,
     TEETH,
     WHATSAPP_APPS,
 } from '@lustre/shared';
@@ -333,6 +334,10 @@ export const settings = pgTable(
         requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
         // Whether the doctor's Finish asks first if the procedures need editing.
         askToEditOnFinish: boolean('ask_to_edit_on_finish').notNull().default(true),
+        // Whether a phone with no role credential is refused. Off, so the
+        // phones installed before roles existed keep working until each has
+        // scanned a code; an admin turns it on once they all have.
+        requireProvisioning: boolean('require_provisioning').notNull().default(false),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
     (t) => [check('settings_single_row', sql`${t.id} = 1`)],
@@ -367,6 +372,46 @@ export const refEdits = pgTable(
     (t) => [index('ref_edits_entity_idx').on(t.entity, t.entityId, t.editedAt)],
 );
 
+/**
+ * A role, offered by QR code. `code_hash` is all that is kept of the code: the
+ * QR on the admin's screen is the only copy, so a leaked backup hands out no
+ * roles. Single-use, and dead after `expires_at` or once revoked.
+ *
+ * The row is also the audit trail the admin reads back: who issued it (a device,
+ * or null for the server's CLI), and — through `devices.grant_id` — which phone
+ * it made and when.
+ */
+export const roleGrants = pgTable('role_grants', {
+    id: uuid('id').primaryKey(),
+    role: text('role', { enum: ROLES }).notNull(),
+    label: text('label').notNull(),
+    codeHash: text('code_hash').notNull().unique(),
+    issuedBy: uuid('issued_by'),
+    issuedAt: timestamptz('issued_at').notNull().defaultNow(),
+    expiresAt: timestamptz('expires_at').notNull(),
+    redeemedAt: timestamptz('redeemed_at'),
+    revokedAt: timestamptz('revoked_at'),
+});
+
+/**
+ * A phone that redeemed a grant. `token_hash` is the hash of the credential it
+ * sends on every request; the role on this row is the only role the server
+ * believes it has. Revoking the grant revokes this too, and a revoked phone is
+ * refused whether or not the clinic requires provisioning.
+ */
+export const devices = pgTable('devices', {
+    id: uuid('id').primaryKey(),
+    grantId: uuid('grant_id')
+        .notNull()
+        .unique()
+        .references(() => roleGrants.id),
+    role: text('role', { enum: ROLES }).notNull(),
+    label: text('label').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    createdAt: timestamptz('created_at').notNull().defaultNow(),
+    revokedAt: timestamptz('revoked_at'),
+});
+
 export const schema = {
     branches,
     clinicDays,
@@ -380,5 +425,7 @@ export const schema = {
     customQuestions,
     reminders,
     refEdits,
+    roleGrants,
+    devices,
     settings,
 };

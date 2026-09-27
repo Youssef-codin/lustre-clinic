@@ -1,4 +1,4 @@
-import { publicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, router } from '../../trpc/init.ts';
 import {
     createCustomQuestionInput,
     listCustomQuestionInput,
@@ -8,19 +8,19 @@ import {
 import { customQuestionService } from './customQuestion.service.ts';
 
 export const customQuestionRouter = router({
-    list: publicProcedure
+    list: clinicProcedure
         .input(listCustomQuestionInput)
         .query(({ input }) => customQuestionService.list(input)),
 
-    create: publicProcedure
+    create: clinicProcedure
         .input(createCustomQuestionInput)
         .mutation(({ input }) => customQuestionService.create(input)),
 
-    update: publicProcedure
+    update: clinicProcedure
         .input(updateCustomQuestionInput)
         .mutation(({ input }) => customQuestionService.update(input)),
 
-    reorder: publicProcedure
+    reorder: clinicProcedure
         .input(reorderCustomQuestionsInput)
         .mutation(({ input }) => customQuestionService.reorder(input)),
 });

@@ -1,4 +1,4 @@
-import { publicProcedure, router } from '../../trpc/init.ts';
+import { clinicProcedure, router } from '../../trpc/init.ts';
 import { procedureHistoryService } from './procedure.history.ts';
 import {
     addHistoricalProceduresInput,
@@ -12,33 +12,33 @@ import {
 import { procedureService } from './procedure.service.ts';
 
 export const procedureRouter = router({
-    tree: publicProcedure.input(procedureTreeInput).query(({ input }) => procedureService.tree(input)),
+    tree: clinicProcedure.input(procedureTreeInput).query(({ input }) => procedureService.tree(input)),
 
-    list: publicProcedure.query(() => procedureService.selectableList()),
+    list: clinicProcedure.query(() => procedureService.selectableList()),
 
-    create: publicProcedure
+    create: clinicProcedure
         .input(createProcedureInput)
         .mutation(({ input }) => procedureService.create(input)),
 
-    createCategory: publicProcedure
+    createCategory: clinicProcedure
         .input(createCategoryInput)
         .mutation(({ input }) => procedureService.createCategory(input)),
 
-    update: publicProcedure
+    update: clinicProcedure
         .input(updateProcedureInput)
         .mutation(({ input }) => procedureService.update(input)),
 
-    reorder: publicProcedure
+    reorder: clinicProcedure
         .input(reorderProceduresInput)
         .mutation(({ input }) => procedureService.reorder(input)),
 
     /** Work a patient had done before this system knew about it. See `procedure.history.ts`. */
-    addHistorical: publicProcedure
+    addHistorical: clinicProcedure
         .input(addHistoricalProceduresInput)
         .mutation(({ input }) => procedureHistoryService.add(input)),
 
     /** A visit that happened on a day that has passed and was never typed in. */
-    addOldVisit: publicProcedure
+    addOldVisit: clinicProcedure
         .input(addOldVisitInput)
         .mutation(({ input }) => procedureHistoryService.addOldVisit(input)),
 });

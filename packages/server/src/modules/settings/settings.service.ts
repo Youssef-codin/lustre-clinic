@@ -57,6 +57,8 @@ interface Settings {
     requireGender: boolean;
     /** Whether the doctor's Finish asks first if the procedures need editing. */
     askToEditOnFinish: boolean;
+    /** Whether a phone with no role credential is refused. Changed only by an admin (`device.setRequireProvisioning`). */
+    requireProvisioning: boolean;
     updatedAt: Date;
 }
 
@@ -85,6 +87,7 @@ function toSettings(row: SettingsRow): Settings {
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
+        requireProvisioning: row.requireProvisioning,
         updatedAt: row.updatedAt,
     };
 }
@@ -331,6 +334,21 @@ export const settingsService = {
     async clearDay(weekday: number): Promise<void> {
         await db.delete(clinicDays).where(eq(clinicDays.weekday, weekday));
         broadcast(WS_EVENT.SETTINGS_UPDATED);
+    },
+
+    /** Read on every request from a phone without a credential, so without seeding: no row is the column default. */
+    async requireProvisioning(): Promise<boolean> {
+        const [row] = await db
+            .select({ requireProvisioning: settings.requireProvisioning })
+            .from(settings)
+            .where(eq(settings.id, 1))
+            .limit(1);
+        return row?.requireProvisioning ?? false;
+    },
+
+    async setRequireProvisioning(required: boolean): Promise<Settings> {
+        await readRow();
+        return writeRow({ requireProvisioning: required });
     },
 
     async dismissRemindersFor(date: string): Promise<Settings> {
