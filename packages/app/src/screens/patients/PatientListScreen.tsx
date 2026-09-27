@@ -35,7 +35,7 @@ import {
 } from '../../components/ui';
 import { useT } from '../../i18n';
 import { color, radius, size, space, Text } from '../../theme';
-import { PlusIcon, SearchIcon } from './components/icons';
+import { PatientsIcon, PlusIcon, RetryIcon, SearchIcon } from './components/icons';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
 import { useQuery } from './data/hooks';
@@ -177,6 +177,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                     <SkeletonRows count={7} ruled />
                 ) : list.error && !list.data ? (
                     <EmptyState
+                        icon={<RetryIcon size={22} stroke={color.ink2} />}
                         title="Could not reach the clinic"
                         body={errorText(list.error)}
                         actionLabel="Try again"
@@ -185,6 +186,15 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                     />
                 ) : rows.length === 0 ? (
                     <EmptyState
+                        icon={
+                            prefill ? (
+                                <PlusIcon size={22} stroke={color.ink2} />
+                            ) : searching ? (
+                                <SearchIcon size={22} stroke={color.ink2} />
+                            ) : (
+                                <PatientsIcon size={22} stroke={color.ink2} />
+                            )
+                        }
                         title={t(searching ? 'No patients found' : 'No patients yet')}
                         body={
                             searching
@@ -194,7 +204,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                         actionLabel={
                             prefill ? t('Add “{term}” as a new patient', { term: unmatched }) : undefined
                         }
-                        onAction={() => prefill && register(prefill)}
+                        onAction={prefill ? () => register(prefill) : undefined}
                         weight="panel"
                     />
                 ) : (

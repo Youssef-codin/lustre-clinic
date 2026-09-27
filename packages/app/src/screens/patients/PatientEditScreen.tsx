@@ -63,7 +63,7 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { AnswerEditor, ReadOnlyAnswer } from './components/AnswerEditor';
 import { BasicsCard } from './components/BasicsCard';
 import { displayAnswer, isEditable } from './components/customFields';
-import { CloseIcon } from './components/icons';
+import { CloseIcon, RetryIcon } from './components/icons';
 import { OldPatientRows } from './components/OldPatientCard';
 import { patientsApi } from './data/api';
 import { errorText } from './data/errors';
@@ -340,6 +340,7 @@ export function PatientEditScreen({
                 <SkeletonRows count={5} gutter={size.gutter} ruled />
             ) : failed && !form ? (
                 <EmptyState
+                    icon={<RetryIcon size={22} stroke={color.ink2} />}
                     title={creating ? 'Could not open the form' : 'Could not open this record'}
                     body={errorText(failed)}
                     actionLabel="Try again"

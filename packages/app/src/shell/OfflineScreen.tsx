@@ -2,6 +2,7 @@ import type { CopyVars } from '@lustre/shared';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT, useConnection } from '../api';
+import { GLYPH } from '../components/domain';
 import { Button } from '../components/ui';
 import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
@@ -31,9 +32,7 @@ export function OfflineScreen() {
         <View style={styles.root}>
             <View style={styles.card}>
                 <View style={styles.glyph}>
-                    <Text variant="title2" tone="muted">
-                        {'!'}
-                    </Text>
+                    <GLYPH.offline size={22} color={color.ink2} strokeWidth={2} />
                 </View>
 
                 <Text variant="title3">{t('No connection to the clinic')}</Text>

@@ -74,9 +74,6 @@ export function RoleSwitchSheet({
             onClose={onCancel}
             onClosed={onClosed}
             title={ASK[other]}
-            subtitle={t(
-                'Everyone signed in on this device shares one login. Switching changes what this app shows and what it lets you do.',
-            )}
             testID="settings-role-sheet"
             footer={
                 <>

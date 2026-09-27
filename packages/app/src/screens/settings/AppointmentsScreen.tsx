@@ -242,9 +242,7 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                             </Text>
                         </View>
                         <Text variant="footnote" tone="muted">
-                            {t(
-                                'Pre-filled when booking a new appointment. It must be one of the options above — pick another option first if you want to remove it.',
-                            )}
+                            {t('Pick another option first to remove it.')}
                         </Text>
                     </Card>
 

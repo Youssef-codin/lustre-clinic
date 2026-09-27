@@ -18,12 +18,12 @@
  * this is answers more questions than what the screen contains.
  */
 import type { ClientRole } from '@lustre/shared';
-import { Calendar, CreditCard, Headset, Stethoscope, Users } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../../i18n';
 import { border, color, radius, size, space, Text } from '../../theme';
 import { useKeyboardHeight } from '../ui';
+import { GLYPH, type Glyph } from './icons';
 
 export type TabKey = 'day' | 'patients' | 'money' | 'settings';
 
@@ -43,9 +43,9 @@ const STROKE = 2;
  * about the app that is true before you tap anything, and the tab is where it
  * belongs now that the role is no longer a tab of its own.
  */
-const ROLE_ICON: Record<ClientRole, typeof Calendar> = {
-    doctor: Stethoscope,
-    secretary: Headset,
+const ROLE_ICON: Record<ClientRole, Glyph> = {
+    doctor: GLYPH.procedure,
+    secretary: GLYPH.desk,
 };
 
 const ROLE_LABEL: Record<ClientRole, string> = {
@@ -53,10 +53,10 @@ const ROLE_LABEL: Record<ClientRole, string> = {
     secretary: 'Secretary',
 };
 
-const TAB_ICON: Record<Exclude<TabKey, 'settings'>, typeof Calendar> = {
-    day: Calendar,
-    patients: Users,
-    money: CreditCard,
+const TAB_ICON: Record<Exclude<TabKey, 'settings'>, Glyph> = {
+    day: GLYPH.day,
+    patients: GLYPH.patients,
+    money: GLYPH.money,
 };
 
 export function BottomTabBar({ active, role, onChange }: BottomTabBarProps) {

@@ -1,62 +1,21 @@
 /**
- * The day view's icons — `lucide-react-native`, wrapped. The wrapper is thin
- * and does two things: it names each icon after the job it does here rather
- * than after its shape, and it keeps `stroke`/`width` as props so the call
- * sites read the same as every other styled thing and the library stays
- * swappable from one file. The procedure icon is a stethoscope: the design
- * draws a molar, Lucide has no tooth, and a hand-traced one-off is how a
- * project ends up with two icon sets.
+ * The day view's icons, built from the shared set in `components/domain/icons`
+ * and named after the job each does here.
  */
-import {
-    ArrowLeft,
-    ArrowRight,
-    Calendar,
-    Check,
-    Clock,
-    Coins,
-    CreditCard,
-    Ellipsis,
-    FlaskConical,
-    Hourglass,
-    MapPin,
-    MessageCircle,
-    Plus,
-    Receipt,
-    Stethoscope,
-    Timer,
-    Trash2,
-    User,
-    X,
-    Zap,
-} from 'lucide-react-native';
+import { GLYPH, type IconProps, icon } from '../../../components/domain';
 import { useIsRTL } from '../../../i18n';
-import { color } from '../../../theme';
 
-type IconProps = {
-    size?: number;
-    stroke?: string;
-    width?: number;
-};
+export const PinIcon = icon(GLYPH.branch);
 
-type Glyph = typeof Clock;
+export const CalendarIcon = icon(GLYPH.day);
 
-function icon(Glyph: Glyph, defaultWidth = 2) {
-    return function Wrapped({ size = 15, stroke = color.muted, width = defaultWidth }: IconProps) {
-        return <Glyph size={size} color={stroke} strokeWidth={width} />;
-    };
-}
+export const ClockIcon = icon(GLYPH.time);
 
-export const PinIcon = icon(MapPin);
+export const ProcedureIcon = icon(GLYPH.procedure, { width: 1.8 });
 
-export const CalendarIcon = icon(Calendar);
+const ArrowLeftIcon = icon(GLYPH.back, { width: 2.2 });
 
-export const ClockIcon = icon(Clock);
-
-export const ProcedureIcon = icon(Stethoscope, 1.8);
-
-const ArrowLeftIcon = icon(ArrowLeft, 2.2);
-
-const ArrowRightIcon = icon(ArrowRight, 2.2);
+const ArrowRightIcon = icon(GLYPH.forward, { width: 2.2 });
 
 /** Earlier and later, which swap sides in Arabic — not left and right. */
 export function ArrowBackIcon(props: IconProps) {
@@ -67,40 +26,42 @@ export function ArrowForwardIcon(props: IconProps) {
     return useIsRTL() ? <ArrowLeftIcon {...props} /> : <ArrowRightIcon {...props} />;
 }
 
-export const ChatIcon = icon(MessageCircle);
+export const ChatIcon = icon(GLYPH.chat);
 
-export const CloseIcon = icon(X, 2.2);
+export const CloseIcon = icon(GLYPH.close, { width: 2.2 });
 
-export const CheckIcon = icon(Check, 2.4);
+export const CheckIcon = icon(GLYPH.check, { width: 2.4 });
 
-export const WaitingIcon = icon(Hourglass, 2.2);
+export const WaitingIcon = icon(GLYPH.waiting, { width: 2.2 });
 
 /** How long a booking runs. Not `WaitingIcon` — the hourglass is spoken for by
  * the patient who is waiting, and a duration is not a wait. */
-export const DurationIcon = icon(Timer);
+export const DurationIcon = icon(GLYPH.duration);
 
-export const PatientIcon = icon(User);
+export const PatientIcon = icon(GLYPH.patient);
 
 /** Work out at the lab — a crown, bridge or denture the visit waits on. */
-export const LabIcon = icon(FlaskConical, 2);
+export const LabIcon = icon(GLYPH.lab, { width: 2 });
 
-export const ChairIcon = icon(Stethoscope, 2);
+export const ChairIcon = icon(GLYPH.procedure, { width: 2 });
 
-export const PaymentIcon = icon(CreditCard, 2.2);
+export const PaymentIcon = icon(GLYPH.money, { width: 2.2 });
 
-export const PlusIcon = icon(Plus, 2.4);
+export const PlusIcon = icon(GLYPH.add, { width: 2.4 });
 
 /** The catalogue's remove — `CloseIcon` is a dismiss, this ends a line. */
-export const XIcon = icon(X, 2.2);
+export const XIcon = icon(GLYPH.close, { width: 2.2 });
 
-// The four ways the clinic is paid. `PaymentIcon` is the card already, so the
-// payment screen's Card tile reuses it rather than naming the same glyph twice.
-export const CashIcon = icon(Coins, 1.8);
+export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
 
-export const InstapayIcon = icon(Zap, 1.8);
+export const RetryIcon = icon(GLYPH.retry, { width: 2 });
 
-export const OtherMethodIcon = icon(Receipt, 1.8);
+export const TrashIcon = icon(GLYPH.delete, { width: 2 });
 
-export const MoreIcon = icon(Ellipsis, 2.2);
+// The appointment sheet's three actions. Cancel's calendar-with-a-cross is the
+// destructive one; the no-show is the patient who did not come.
+export const RescheduleIcon = icon(GLYPH.reschedule, { width: 2 });
 
-export const TrashIcon = icon(Trash2, 2);
+export const NoShowIcon = icon(GLYPH.noShow, { width: 2 });
+
+export const CancelAppointmentIcon = icon(GLYPH.cancelAppointment, { width: 2 });

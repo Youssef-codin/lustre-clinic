@@ -1,43 +1,36 @@
 /**
- * This cluster's icons — `lucide-react-native`, wrapped the same way the day
- * view wraps its own (`screens/day/components/icons.tsx`): named after the job,
- * with `stroke`/`width` as props so the library stays swappable from one file.
- * Cluster-local rather than shared because `domain/` does not exist yet; the two
- * wrappers are the same eight lines and belong together when it does.
+ * This cluster's icons, built from the shared set in `components/domain/icons`
+ * and named after the job each does here.
  *
  * WhatsApp is `MessageCircle`: Lucide carries no brand marks, and a traced logo
  * is how a project ends up with two icon sets and a trademark question.
  */
-import { Ellipsis, MessageCircle, Phone, Plus, Search, X } from 'lucide-react-native';
-import { color } from '../../../theme';
+import { GLYPH, icon } from '../../../components/domain';
 
-type IconProps = {
-    size?: number;
-    stroke?: string;
-    width?: number;
-};
-
-type Glyph = typeof Phone;
-
-function icon(Glyph: Glyph, defaultWidth = 2) {
-    return function Wrapped({ size = 15, stroke = color.muted, width = defaultWidth }: IconProps) {
-        return <Glyph size={size} color={stroke} strokeWidth={width} />;
-    };
-}
-
-export const WhatsAppIcon = icon(MessageCircle);
-export const CallIcon = icon(Phone);
+export const WhatsAppIcon = icon(GLYPH.chat);
+export const CallIcon = icon(GLYPH.call);
 
 // The list's three. `patients-list.html` draws them heavier than the record's
 // two — 2.2 on the magnifier, 2.4 on the plus and the row chevron — so the
 // default width is per-glyph rather than set at every call site.
-export const SearchIcon = icon(Search, 2.2);
-export const PlusIcon = icon(Plus, 2.4);
+export const SearchIcon = icon(GLYPH.search, { width: 2.2 });
+export const PlusIcon = icon(GLYPH.add, { width: 2.4 });
 
 // The editor's Cancel. `patient-edit.html` draws it at 2.4 in the same round
 // white button the record's back sits in — a cross and not a chevron, because
 // leaving an editor abandons an edit rather than walking back a step.
-export const CloseIcon = icon(X, 2.4);
+export const CloseIcon = icon(GLYPH.close, { width: 2.4 });
 
 // The record bar's menu — Edit, and Delete under the divider.
-export const MoreIcon = icon(Ellipsis, 2.2);
+export const RetryIcon = icon(GLYPH.retry, { width: 2 });
+export const PatientsIcon = icon(GLYPH.patients, { width: 2 });
+
+export const MoreIcon = icon(GLYPH.more, { width: 2.2 });
+
+// The record's actions: its two openers, the balance's Record payment, and the
+// menu's Edit and Delete.
+export const BookIcon = icon(GLYPH.book, { width: 2 });
+export const OldVisitIcon = icon(GLYPH.oldVisit, { width: 2 });
+export const PayIcon = icon(GLYPH.pay, { width: 2 });
+export const EditIcon = icon(GLYPH.edit, { width: 2 });
+export const DeleteIcon = icon(GLYPH.delete, { width: 2 });

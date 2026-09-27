@@ -34,13 +34,14 @@
 import type { LabStatus } from '@lustre/shared';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { MoneyValue, phoneText, StatusPill } from '../../../components/domain';
-import { Button, Callout, Sheet, Tag } from '../../../components/ui';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { MoneyValue, StatusPill } from '../../../components/domain';
+import { Button, Callout, Sheet, Switch, Tag } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { color, radius, size, space, Text } from '../../../theme';
 import {
     type Appointment,
+    type AppointmentProcedure,
     api,
     useLocalMutation,
     useLocalQuery,
@@ -49,8 +50,7 @@ import {
 } from '../data';
 import { describeError } from '../errors';
 import { dateKey, formatSpan, minutesOfDay, todayKey } from '../time';
-import { LabState, LabSwitch } from './LabWork';
-import { PlanSummary } from './PlanSummary';
+import { CancelAppointmentIcon, CheckIcon, LabIcon, NoShowIcon, RescheduleIcon } from './icons';
 
 export type AppointmentDetailSheetProps = {
     visible: boolean;
@@ -209,19 +209,23 @@ export function AppointmentDetailSheet({
                 <StatusPill status={appointment.status} inChair={inChair} withDot />
                 {appointment.channel === 'walk_in' ? <Tag tone="muted">WALK-IN</Tag> : null}
                 <Text variant="footnote" script="mono" weight="medium" tone="muted">
-                    {appointment.ref}
+                    {t('Patient #{ref}', { ref: appointment.patient.ref })}
                 </Text>
             </View>
 
-            {/* Above the phone number, because it is what a row is tapped to
-                find out. The sheet held the status, the phone, the note and the
-                money, and not the one thing the desk is asked across the counter
-                — what they are in for today. */}
-            <PlanSummary procedures={appointment.procedures} label="BOOKED FOR" />
-
+            {/* What they are in for, in one line: it is what the row was tapped
+                to find out. The note sits under it unlabelled — it is the only
+                prose on the sheet. */}
             <View style={styles.facts}>
-                <Fact label="Phone" value={phoneText(appointment.patient.phone)} mono />
-                {appointment.note ? <Note text={appointment.note} /> : null}
+                <Text variant="headline" weight="semibold">
+                    {planLine(appointment.procedures) ??
+                        t('Nothing planned — it will be decided in the chair.')}
+                </Text>
+                {appointment.note ? (
+                    <Text variant="subhead" tone="ink2">
+                        {appointment.note}
+                    </Text>
+                ) : null}
             </View>
 
             <LabPanel
@@ -299,7 +303,13 @@ function PrimaryAction({
             // Only on the appointment's own day. From another day's list it is a
             // mis-tap, and the server refuses it anyway.
             return dateKey(new Date(appointment.startsAt)) === todayKey() ? (
-                <Button label="Check in" block loading={checkingIn} onPress={onCheckIn} />
+                <Button
+                    label="Check in"
+                    block
+                    icon={<CheckIcon size={18} stroke={color.inverse} width={2.4} />}
+                    loading={checkingIn}
+                    onPress={onCheckIn}
+                />
             ) : null;
 
         case 'checked_in':
@@ -408,36 +418,63 @@ function SecondaryActions({
         );
     }
 
+    // Three tiles, not a stack: one row the width of the sheet, each a big
+    // target, with the destructive one the only red.
     return (
-        <Group>
-            {/* First, because it is the one of the three that keeps the
-                appointment: a patient who rings to move is the common case,
-                and cancelling and booking again loses the ref and the plan. */}
-            <Button
+        <View style={styles.tiles}>
+            <Tile
                 label="Reschedule"
-                variant="secondary"
-                size="md"
-                block
+                icon={<RescheduleIcon size={20} stroke={color.ink} />}
                 onPress={onReschedule}
                 testID="appointment-reschedule"
             />
-            <Button
-                label="Mark no-show"
-                variant="ghost"
-                size="md"
-                block
+            <Tile
+                label="No-show"
+                icon={<NoShowIcon size={20} stroke={color.ink2} />}
                 onPress={() => setConfirming('no-show')}
                 testID="appointment-no-show"
             />
-            <Button
-                label="Cancel appointment"
-                variant="dangerText"
-                size="md"
-                block
+            <Tile
+                label="Cancel"
+                accessibilityLabel="Cancel appointment"
+                danger
+                icon={<CancelAppointmentIcon size={20} stroke={color.dangerText} />}
                 onPress={() => setConfirming('cancel')}
                 testID="appointment-cancel"
             />
-        </Group>
+        </View>
+    );
+}
+
+function Tile({
+    label,
+    accessibilityLabel,
+    icon,
+    danger = false,
+    onPress,
+    testID,
+}: {
+    label: string;
+    accessibilityLabel?: string;
+    icon: ReactNode;
+    danger?: boolean;
+    onPress: () => void;
+    testID: string;
+}) {
+    const t = useT();
+    return (
+        <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t(accessibilityLabel ?? label)}
+            onPress={onPress}
+            testID={testID}
+            style={({ pressed }) => [styles.tile, danger && styles.tileDanger, pressed && styles.tilePressed]}
+        >
+            {icon}
+            <Text variant="subhead" weight="semibold" tone={danger ? 'danger' : 'ink'}>
+                {t(label)}
+            </Text>
+        </Pressable>
     );
 }
 
@@ -548,103 +585,101 @@ function LabPanel({
     onSwitch: (needsLab: boolean) => void;
     onReady: () => void;
 }) {
+    const t = useT();
     if (!editable && status === null) return null;
 
+    const tint = status === 'pending' ? styles.labPending : status === 'ready' ? styles.labReady : null;
+
     return (
-        <View style={styles.lab} testID="appointment-lab">
-            {editable ? (
-                <LabSwitch
-                    value={status !== null}
-                    onValueChange={onSwitch}
-                    disabled={disabled}
-                    testID="appointment-needs-lab"
+        <View style={[styles.lab, tint]} testID="appointment-lab">
+            <View style={styles.labRow}>
+                <LabIcon
+                    size={18}
+                    stroke={
+                        status === 'pending' ? color.due : status === 'ready' ? color.success : color.muted
+                    }
+                />
+                <View style={styles.labText}>
+                    <Text variant="callout" weight="semibold">
+                        {t('Needs lab')}
+                    </Text>
+                    <Text
+                        variant="footnote"
+                        weight={status ? 'semibold' : 'regular'}
+                        tone={status === 'pending' ? 'dueText' : status === 'ready' ? 'successText' : 'muted'}
+                    >
+                        {status === 'pending'
+                            ? t('Not back from the lab yet')
+                            : status === 'ready'
+                              ? t('Back from the lab')
+                              : t('A crown, bridge or denture')}
+                    </Text>
+                </View>
+                {editable ? (
+                    <Switch
+                        value={status !== null}
+                        onValueChange={onSwitch}
+                        disabled={disabled}
+                        accessibilityLabel="Needs lab"
+                        testID="appointment-needs-lab"
+                    />
+                ) : null}
+            </View>
+            {editable && status === 'pending' ? (
+                <Button
+                    label="Mark lab arrived"
+                    variant="inverse"
+                    size="md"
+                    block
+                    icon={<CheckIcon size={17} stroke={color.ink} width={2.4} />}
+                    loading={markingReady}
+                    disabled={disabled && !markingReady}
+                    onPress={onReady}
+                    testID="appointment-lab-arrived"
                 />
             ) : null}
-            {status ? (
-                <View style={styles.labState}>
-                    <LabState status={status} />
-                    {editable && status === 'pending' ? (
-                        <Button
-                            label="Lab arrived"
-                            variant="secondary"
-                            size="md"
-                            loading={markingReady}
-                            disabled={disabled && !markingReady}
-                            onPress={onReady}
-                            testID="appointment-lab-arrived"
-                        />
-                    ) : null}
-                </View>
-            ) : null}
         </View>
     );
 }
 
-/**
- * Label and value on one line, not a label column — a fixed column left the
- * phone number stranded in the middle of the sheet with nothing to align to.
- * The number is mono: it is read off the screen onto a keypad.
- */
-function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-    const t = useT();
-    return (
-        <View style={styles.fact}>
-            <Text variant="subhead" tone="muted">
-                {t(label)}
-            </Text>
-            <Text
-                variant="body"
-                weight={mono ? 'medium' : 'regular'}
-                script={mono ? 'mono' : undefined}
-                style={styles.factValue}
-                selectable
-            >
-                {value}
-            </Text>
-        </View>
-    );
-}
-
-/** The note is prose and gets the full width; a value column would ladder it. */
-function Note({ text }: { text: string }) {
-    const t = useT();
-    return (
-        <View style={styles.note}>
-            <Text variant="subhead" tone="muted">
-                {t('Note')}
-            </Text>
-            <Text variant="body" tone="ink2">
-                {text}
-            </Text>
-        </View>
-    );
+/** The booked procedures as one line — `Root canal · UL6, Consultation` — or null for none. */
+function planLine(procedures: readonly AppointmentProcedure[]): string | null {
+    if (procedures.length === 0) return null;
+    return procedures
+        .map((procedure) => {
+            const name =
+                procedure.quantity > 1 ? `${procedure.name} × ${procedure.quantity}` : procedure.name;
+            return procedure.tooth ? `${name} · ${procedure.tooth}` : name;
+        })
+        .join(', ');
 }
 
 const styles = StyleSheet.create({
     headline: { flexDirection: 'row', alignItems: 'center', gap: space[2], flexWrap: 'wrap' },
-    facts: { marginTop: space[1], gap: space[1] },
-    fact: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: space[4],
-        minHeight: size.row,
-    },
-    factValue: { flexShrink: 1 },
-    note: { paddingVertical: space[2.5], gap: space[1] },
+    facts: { gap: space[1.5] },
     lab: {
-        padding: space[3.5],
-        gap: space[3],
+        paddingVertical: space[3],
+        paddingHorizontal: space[3.5],
+        gap: space[2.5],
         backgroundColor: color.canvas,
-        borderRadius: radius.xl,
+        borderRadius: radius.lg,
     },
-    labState: {
-        flexDirection: 'row',
+    labPending: { backgroundColor: color.dueSoft },
+    labReady: { backgroundColor: color.successSoft },
+    labRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+    labText: { flex: 1, gap: space[0.5] },
+    tiles: { flexDirection: 'row', gap: space[2], marginTop: space[1] },
+    tile: {
+        flex: 1,
+        minHeight: 76,
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: space[3],
-        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: space[1.5],
+        borderRadius: radius.xl,
+        backgroundColor: color.surface2,
     },
+    tileDanger: { backgroundColor: color.dangerSoft },
+    tilePressed: { opacity: 0.72 },
     panel: {
         padding: space[3.5],
         gap: space[2],

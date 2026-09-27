@@ -23,6 +23,7 @@ import type {
 
 export interface EmbeddedPatient {
     id: string;
+    ref: string;
     name: string;
     phone: string;
 }

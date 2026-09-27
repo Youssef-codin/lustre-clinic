@@ -83,8 +83,7 @@ const PLAN_COPY: PlanCopy = {
     heading: 'WHAT WAS DONE',
     emptyHint: 'At least one',
     emptyTitle: 'Nothing added yet',
-    emptyBody:
-        'Add what was done that day — a tooth, then the procedure. It is charged like any other visit.',
+    emptyBody: 'It is charged like any other visit.',
     total: 'Total',
 };
 

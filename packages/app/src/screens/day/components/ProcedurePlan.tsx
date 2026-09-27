@@ -58,8 +58,7 @@ const BOOKING_COPY: PlanCopy = {
     heading: 'WHAT IS PLANNED',
     emptyHint: 'Optional',
     emptyTitle: 'Nothing planned yet',
-    emptyBody:
-        'Add what the visit is for — a tooth, then the procedure. It can be left empty and decided in the chair.',
+    emptyBody: 'Add what the visit is for — a tooth, then the procedure.',
     total: 'Estimated total',
 };
 

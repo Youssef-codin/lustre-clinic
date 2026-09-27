@@ -259,7 +259,7 @@ export function VisitScreen({
     // The waiver is a fact about the visit, so it is decided once over the whole
     // list and then applied to the groups — a subtotal struck under its own
     // group would leave the checkup charging for itself in the no-tooth group
-    // while the strip below had already dropped it.
+    // while the total below had already dropped it.
     const waived = checkupIsWaived(priced(lines));
     const subtotalOf = (rows: readonly DraftLine[]): number => chargeableTotal(priced(rows), waived);
 
@@ -485,22 +485,6 @@ export function VisitScreen({
                         <VisitStatusChip state={visitState(where, visit?.completedAt != null)} />
                     </View>
                 </View>
-            </View>
-
-            <View style={styles.strip}>
-                <View style={[styles.stripDot, empty ? styles.dotNeutral : styles.dotRunning]} />
-                <Text variant="subhead" tone="muted">
-                    {t(empty ? 'No procedures yet' : TOTAL[where])}
-                </Text>
-                <Text
-                    variant="headline"
-                    script="mono"
-                    weight="bold"
-                    tone={empty ? 'muted' : 'due'}
-                    style={styles.stripAmount}
-                >
-                    {empty ? '—' : formatMoney(total)}
-                </Text>
             </View>
 
             <ScrollView
@@ -736,10 +720,13 @@ export function VisitScreen({
                 </View>
 
                 <View style={[styles.total, empty && styles.totalIdle]}>
-                    <Text variant="subhead" tone="muted">
-                        {t(empty ? 'Total' : TOTAL[where])}
-                    </Text>
-                    <Text variant="headline" script="mono" weight="bold">
+                    <View style={styles.totalLabel}>
+                        <View style={[styles.totalDot, empty ? styles.dotNeutral : styles.dotRunning]} />
+                        <Text variant="subhead" tone="muted">
+                            {t(empty ? 'Total' : TOTAL[where])}
+                        </Text>
+                    </View>
+                    <Text variant="headline" script="mono" weight="bold" tone={empty ? 'muted' : 'due'}>
                         {empty ? '—' : formatMoney(total)}
                     </Text>
                 </View>
@@ -882,21 +869,10 @@ const styles = StyleSheet.create({
     // and keeps it from stretching the width of the column.
     chipRow: { flexDirection: 'row', marginTop: space[0.5] },
 
-    strip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[2.5],
-        marginHorizontal: size.gutter,
-        paddingVertical: space[3],
-        borderTopWidth: border.hair,
-        borderTopColor: color.hair,
-        borderBottomWidth: border.hair,
-        borderBottomColor: color.hair,
-    },
-    stripDot: { width: 7, height: 7, borderRadius: radius.full },
+    totalLabel: { flexDirection: 'row', alignItems: 'center', gap: space[2.5] },
+    totalDot: { width: 7, height: 7, borderRadius: radius.full },
     dotNeutral: { backgroundColor: color.line },
     dotRunning: { backgroundColor: color.due },
-    stripAmount: { marginStart: 'auto' },
 
     scroll: { flex: 1 },
     body: { paddingBottom: space[8] },

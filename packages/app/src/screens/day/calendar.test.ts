@@ -51,7 +51,9 @@ describe('calendar cell edges', () => {
     it('keeps the closed edge when the closed day is selected', async () => {
         const source = await cellSource();
 
-        expect(source).toContain('{closed ? <View pointerEvents="none" style={styles.closedEdge} /> : null}');
+        expect(source).toMatch(
+            /\{closed \? \(?\s*<View pointerEvents="none" style=\{styles\.closedEdge\} \/>\s*\)? : null\}/,
+        );
         expect(source).not.toMatch(/!picked\s*&&\s*closed/);
     });
 

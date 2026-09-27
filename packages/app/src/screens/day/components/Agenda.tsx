@@ -30,8 +30,9 @@ import {
     ArrowForwardIcon,
     ChairIcon,
     CheckIcon,
-    ClockIcon,
+    DurationIcon,
     PaymentIcon,
+    ProcedureIcon,
     WaitingIcon,
 } from './icons';
 import { LabTag } from './LabWork';
@@ -193,7 +194,7 @@ function RowBody({
                 </View>
 
                 <View style={styles.meta}>
-                    <ClockIcon size={13} />
+                    {procedure ? <ProcedureIcon size={13} /> : <DurationIcon size={13} />}
                     <Text variant="subhead" tone="muted" numberOfLines={1} style={styles.name}>
                         {procedure
                             ? t('{procedure} · {minutes} min', {

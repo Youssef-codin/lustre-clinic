@@ -162,7 +162,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                         <Card>
                             <TimingRow
                                 label="Remind before"
-                                hint="How long before the appointment a reminder becomes due. Changing it moves the reminders still waiting to be sent, for appointments still to come."
+                                hint="Moves reminders not yet sent."
                                 value={data.reminderLeadHours}
                                 min={1}
                                 max={96}
@@ -174,7 +174,6 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             <CardDivider />
                             <TimingRow
                                 label="Notify me at"
-                                hint="Daily notification time, if any reminders are pending"
                                 value={notifyAt}
                                 min={6 * 60}
                                 max={21 * 60}
@@ -187,7 +186,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             <CardDivider />
                             <TimingRow
                                 label="Repeat every"
-                                hint="How often the notification repeats while reminders are still pending. Stops when the list is cleared or dismissed for the day, and never runs overnight."
+                                hint="Stops when cleared, never overnight."
                                 value={data.reminderRepeatMinutes}
                                 min={15}
                                 max={120}
@@ -299,7 +298,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
 
 type TimingRowProps = {
     label: string;
-    hint: string;
+    hint?: string;
     value: number;
     min: number;
     max: number;
@@ -311,15 +310,18 @@ type TimingRowProps = {
 };
 
 function TimingRow({ label, hint, value, min, max, step, format, onChange, saving, testID }: TimingRowProps) {
+    const t = useT();
     return (
         <View style={styles.timing}>
             <View style={styles.timingText}>
                 <Text variant="callout" weight="semibold">
-                    {label}
+                    {t(label)}
                 </Text>
-                <Text variant="footnote" tone="muted">
-                    {hint}
-                </Text>
+                {hint ? (
+                    <Text variant="footnote" tone="muted">
+                        {t(hint)}
+                    </Text>
+                ) : null}
             </View>
 
             <Stepper

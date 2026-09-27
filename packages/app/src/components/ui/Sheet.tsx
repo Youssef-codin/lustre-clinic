@@ -335,6 +335,11 @@ export function Sheet({
             topInset={insets.top}
             enablePanDownToClose={dismissable}
             enableContentPanningGesture={dragFromBody}
+            // Only an up-or-down drag moves the sheet. Left to its default the
+            // body's pan claims any drag past 10pt in any direction, so a
+            // sideways swipe inside a sheet — paging the calendar — never
+            // reached the view it was meant for.
+            activeOffsetY={[-10, 10]}
             /*
              * A sheet opened from inside another stacks on top of it, rather
              * than taking it down on the way up.

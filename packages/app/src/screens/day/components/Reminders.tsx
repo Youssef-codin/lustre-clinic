@@ -30,7 +30,7 @@ import { api, type PendingReminder, type QueryResult } from '../data';
 import { describeError } from '../errors';
 import { dateKey, relativeDayLabel, time12 } from '../time';
 import { DaySkeleton } from './DayStates';
-import { CloseIcon, LabIcon } from './icons';
+import { CheckIcon, CloseIcon, LabIcon, RetryIcon } from './icons';
 
 export type RemindersProps = {
     query: QueryResult<PendingReminder[]>;
@@ -121,6 +121,7 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
         return (
             <RefreshView pull={pull}>
                 <EmptyState
+                    icon={<RetryIcon size={22} stroke={color.ink2} />}
                     title={described.title}
                     body={described.body}
                     actionLabel="Try again"
@@ -133,7 +134,11 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
     if (pending.length === 0) {
         return (
             <RefreshView pull={pull}>
-                <EmptyState title="Everyone has been messaged" body="No reminder is waiting to go out." />
+                <EmptyState
+                    icon={<CheckIcon size={22} stroke={color.ink2} />}
+                    title="Everyone has been messaged"
+                    body="No reminder is waiting to go out."
+                />
             </RefreshView>
         );
     }
@@ -157,12 +162,6 @@ export function Reminders({ query, pull, onOpenRecord }: RemindersProps) {
                 refreshControl={pull?.refreshControl}
                 {...pull?.scrollProps}
             >
-                <Text variant="body" tone="ink2" style={styles.lede}>
-                    {pending.length === 1
-                        ? t("1 patient hasn't been messaged yet.")
-                        : t("{count} patients haven't been messaged yet.", { count: pending.length })}
-                </Text>
-
                 {pending.map((reminder) => (
                     <ReminderRow
                         key={reminder.id}
@@ -324,7 +323,6 @@ function ReminderRow({
 const styles = StyleSheet.create({
     pane: { flex: 1 },
     list: { paddingHorizontal: size.gutter, paddingBottom: size.nav },
-    lede: { marginBottom: space[3.5] },
     item: {
         justifyContent: 'center',
         gap: space[3],

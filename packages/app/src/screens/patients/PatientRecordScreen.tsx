@@ -31,7 +31,7 @@
 // heading. Answers to deactivated questions are hidden but still on the record
 // (§7.8).
 import type { CopyVars } from '@lustre/shared';
-import { type RefObject, useMemo, useRef, useState } from 'react';
+import { type ReactNode, type RefObject, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { MoneyValue } from '../../components/domain';
 import {
@@ -53,7 +53,15 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { dateKey, formatMonth, todayKey } from '../day/time';
 import { CustomAnswerRow } from './components/CustomAnswerRow';
 import { HistoryRow } from './components/HistoryRow';
-import { MoreIcon } from './components/icons';
+import {
+    BookIcon,
+    DeleteIcon,
+    EditIcon,
+    MoreIcon,
+    OldVisitIcon,
+    PayIcon,
+    RetryIcon,
+} from './components/icons';
 import { paymentReceipt } from './components/money';
 import { PatientHeader } from './components/PatientHeader';
 import { RecordPaymentSheet } from './components/RecordPaymentSheet';
@@ -218,6 +226,7 @@ export function PatientRecordScreen({
             ) : record.error && !record.data ? (
                 <RefreshView pull={pull}>
                     <EmptyState
+                        icon={<RetryIcon size={22} stroke={color.ink2} />}
                         title="Could not open this record"
                         body={errorText(record.error)}
                         actionLabel="Try again"
@@ -312,6 +321,7 @@ export function PatientRecordScreen({
                     {
                         key: 'edit',
                         label: t('Edit patient'),
+                        icon: <EditIcon size={16} stroke={color.ink2} />,
                         onPress: () => {
                             setMenuOpen(false);
                             edit();
@@ -320,6 +330,7 @@ export function PatientRecordScreen({
                     {
                         key: 'delete',
                         label: t('Delete patient'),
+                        icon: <DeleteIcon size={16} stroke={color.danger} />,
                         danger: true,
                         onPress: () => {
                             setMenuOpen(false);
@@ -430,6 +441,7 @@ function Openers({
             <Button
                 label="Book appointment"
                 size="md"
+                icon={<BookIcon size={16} stroke={color.inverse} />}
                 onPress={() => onBook(patient)}
                 style={styles.opener}
             />
@@ -440,6 +452,7 @@ function Openers({
                 label="Old visit"
                 variant="secondary"
                 size="md"
+                icon={<OldVisitIcon size={16} stroke={color.ink} />}
                 onPress={onOldVisit}
                 style={styles.opener}
                 testID="patient-old-visit"
@@ -488,7 +501,12 @@ function Outstanding({ amount, onRecordPayment }: { amount: number; onRecordPaym
                 {t('Outstanding')}
             </Text>
             <MoneyValue piastres={amount} tone="due" variant="headline" weight="bold" showCurrency={false} />
-            <Pill label="Record payment" onPress={onRecordPayment} testID="record-payment" />
+            <Pill
+                label="Record payment"
+                icon={<PayIcon size={14} stroke={color.ink} />}
+                onPress={onRecordPayment}
+                testID="record-payment"
+            />
         </View>
     );
 }
@@ -498,7 +516,17 @@ function Outstanding({ amount, onRecordPayment }: { amount: number; onRecordPaym
  * smallest is `md` at 48px tall, which is right for something you commit to and
  * twice the height of a control that rides on the end of a line of type.
  */
-function Pill({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
+function Pill({
+    label,
+    icon,
+    onPress,
+    testID,
+}: {
+    label: string;
+    icon?: ReactNode;
+    onPress: () => void;
+    testID?: string;
+}) {
     const t = useT();
     return (
         <Pressable
@@ -508,6 +536,7 @@ function Pill({ label, onPress, testID }: { label: string; onPress: () => void; 
             style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
             testID={testID}
         >
+            {icon}
             <Text variant="footnote" weight="bold">
                 {t(label)}
             </Text>
@@ -710,12 +739,6 @@ function Details({ notes, answers, gaps, questions, onEdit }: DetailsProps) {
                 </View>
             )}
 
-            <Text variant="caption" tone="muted" style={styles.footnote}>
-                {t(
-                    'Answers follow the question set in Settings — deactivated questions keep their answers but stop showing.',
-                )}
-            </Text>
-
             {hidden > 0 && (
                 <View style={styles.gap}>
                     <Callout tone="note">
@@ -781,6 +804,9 @@ const styles = StyleSheet.create({
     stripDot: { width: 7, height: 7, borderRadius: radius.full, backgroundColor: color.due },
     stripLabel: { flex: 1 },
     pill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space[1],
         paddingHorizontal: space[3],
         paddingVertical: space[1.5],
         borderRadius: radius.full,
@@ -836,5 +862,4 @@ const styles = StyleSheet.create({
         borderBottomWidth: border.hair,
         borderBottomColor: color.line,
     },
-    footnote: { paddingHorizontal: size.gutter, paddingTop: space[3] },
 });

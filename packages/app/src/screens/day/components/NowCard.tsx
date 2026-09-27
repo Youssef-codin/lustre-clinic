@@ -15,7 +15,7 @@ import { slotProgress } from '../chair';
 import type { Appointment } from '../data';
 import { formatDuration, minutesOfDay, time12 } from '../time';
 import { ChairProgress } from './ChairProgress';
-import { CheckIcon, ClockIcon } from './icons';
+import { CheckIcon, ClockIcon, ProcedureIcon } from './icons';
 
 export type NowCardProps = {
     active: Appointment | null;
@@ -119,7 +119,7 @@ export function NowCard({
                 <Name appointment={active} onOpenRecord={onOpenRecord} />
 
                 <View style={styles.detail}>
-                    <ClockIcon />
+                    {active.note == null && procedure == null ? <ClockIcon /> : <ProcedureIcon />}
                     <Text variant="callout" tone="muted" numberOfLines={1} style={styles.detailText}>
                         {active.note ?? procedure ?? progress.window}
                     </Text>

@@ -2,10 +2,9 @@
  * What an empty day says, and what it offers.
  *
  * The day view is the one screen carrying a `BookFab` — an accent-filled 52px
- * circle holding a `+`. `EmptyState`'s ring is a 52px circle too, and its
- * default glyph is also a `+`, so the empty day used to draw the FAB twice and
- * wire up one of them. The copy here therefore never asks for a `+`: booking is
- * the FAB's job and the CTA's, and the ring only ever illustrates.
+ * circle holding a `+`. `EmptyState`'s ring is a 52px circle too, so the empty
+ * day draws a calendar in it rather than a second `+`. With a CTA the ring books
+ * like the CTA does; without one it is a flat tile and does nothing.
  *
  * Three states, not two. `canBook` is false on the doctor's screen, where
  * booking is the desk's job — that day is still clear, but telling the doctor to

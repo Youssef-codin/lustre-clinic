@@ -141,6 +141,7 @@ function withPatient(row: AppointmentRow): AppointmentWithPatient {
         ...row,
         patient: {
             id: row.patientId,
+            ref: patient?.ref ?? '',
             name: patient?.name ?? '',
             phone: patient?.phone ?? '',
         },

@@ -23,7 +23,7 @@ import { PAYMENT_METHODS, type PaymentMethod, PIASTRES_PER_POUND } from '@lustre
 import { useMemo, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { formatMoney } from '../../../components/domain';
+import { formatMoney, MethodIcon } from '../../../components/domain';
 import { Button, Callout, Chevron, Sheet, Toast, useKeyboardHeight } from '../../../components/ui';
 import { useIsRTL, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
@@ -31,7 +31,7 @@ import { type Appointment, api, closeVisit, useLocalMutation, useLocalQuery, typ
 import { describeError } from '../errors';
 import { amountDue, discountPercent, formatAmount, poundsEntry, procedureDiscount } from '../money';
 import { dateKey, formatLongDate, monthShort } from '../time';
-import { CashIcon, CheckIcon, InstapayIcon, OtherMethodIcon, PaymentIcon } from './icons';
+import { CheckIcon } from './icons';
 
 export type VisitPaymentScreenProps = {
     appointment: Appointment;
@@ -61,13 +61,6 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
     visa: 'Card',
     instapay: 'Instapay',
     other: 'Other',
-};
-
-const METHOD_ICON: Record<PaymentMethod, typeof CashIcon> = {
-    cash: CashIcon,
-    visa: PaymentIcon,
-    instapay: InstapayIcon,
-    other: OtherMethodIcon,
 };
 
 function toPiastres(pounds: string): number {
@@ -528,7 +521,6 @@ export function VisitPaymentScreen({
                     </Text>
                     <View style={styles.methods}>
                         {PAYMENT_METHODS.map((option) => {
-                            const Icon = METHOD_ICON[option];
                             const on = method === option;
 
                             return (
@@ -543,7 +535,11 @@ export function VisitPaymentScreen({
                                         pressed && styles.pressed,
                                     ]}
                                 >
-                                    <Icon size={20} stroke={on ? color.ink : color.ink2} />
+                                    <MethodIcon
+                                        method={option}
+                                        size={20}
+                                        stroke={on ? color.ink : color.ink2}
+                                    />
                                     <Text variant="callout" weight="medium">
                                         {t(METHOD_LABEL[option])}
                                     </Text>

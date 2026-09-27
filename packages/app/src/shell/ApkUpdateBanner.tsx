@@ -1,5 +1,5 @@
-import { X } from 'lucide-react-native';
 import { Linking, StyleSheet, View } from 'react-native';
+import { GLYPH } from '../components/domain';
 import { Banner, Button, IconButton } from '../components/ui';
 import { useT } from '../i18n';
 import { useApkUpdate } from '../screens/settings/data/appUpdate';
@@ -39,7 +39,7 @@ export function ApkUpdateBanner() {
                     />
                     <IconButton
                         accessibilityLabel="Dismiss"
-                        icon={<X size={16} strokeWidth={2.2} color={color.ink2} />}
+                        icon={<GLYPH.close size={16} strokeWidth={2.2} color={color.ink2} />}
                         variant="bare"
                         onPress={() => dismissApkUpdate(update.versionCode)}
                         testID="home-apk-dismiss"

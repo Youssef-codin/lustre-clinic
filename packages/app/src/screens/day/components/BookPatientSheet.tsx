@@ -37,7 +37,6 @@ export function BookPatientSheet({ visible, onClose, onPicked, onRegisterNew }: 
             visible={visible}
             onClose={onClose}
             title="Who is it for?"
-            subtitle="Search the patients on file, or register someone new."
             testID="book-patient-sheet"
             footer={
                 <Button

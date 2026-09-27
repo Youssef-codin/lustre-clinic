@@ -115,7 +115,6 @@ export function SetupScreen() {
                             value={lan}
                             onChangeText={setLan}
                             placeholder="192.168.1.20:3000"
-                            hint={t("The clinic computer's address on the local network.")}
                             autoCapitalize="none"
                             autoCorrect={false}
                             keyboardType="url"
@@ -129,13 +128,6 @@ export function SetupScreen() {
                         value={tailscale}
                         onChangeText={setTailscale}
                         placeholder="clinic-pc.tailnet.ts.net:3000"
-                        hint={
-                            LAN_ALLOWED
-                                ? t('Usually filled in by the clinic computer once connected. Leave blank.')
-                                : t(
-                                      "The clinic computer's Tailscale name, with the port. This phone must be signed in to Tailscale.",
-                                  )
-                        }
                         autoCapitalize="none"
                         autoCorrect={false}
                         keyboardType="url"
@@ -178,9 +170,6 @@ export function SetupScreen() {
                     sit two taps from a real day's work. */}
                 {DEMO_ALLOWED ? (
                     <View style={styles.demo}>
-                        <Text variant="footnote" tone="muted">
-                            {t('No clinic server to hand?')}
-                        </Text>
                         <Button
                             label="Run in demo mode"
                             onPress={() => void enableDemoMode()}
@@ -189,11 +178,6 @@ export function SetupScreen() {
                             block
                             disabled={testing}
                         />
-                        <Text variant="caption" tone="muted" style={styles.demoNote}>
-                            {t(
-                                'Sample patients and a made-up day, kept on this phone. Nothing is saved to a clinic.',
-                            )}
-                        </Text>
                     </View>
                 ) : null}
             </View>
@@ -220,5 +204,4 @@ const styles = StyleSheet.create({
     result: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[2] },
     resultDot: { paddingTop: space[0.5] },
     demo: { alignSelf: 'stretch', alignItems: 'center', gap: space[2], marginTop: space[8] },
-    demoNote: { textAlign: 'center' },
 });

@@ -7,18 +7,23 @@
  */
 import type { LabStatus } from '@lustre/shared';
 import { StyleSheet, View } from 'react-native';
-import { Switch, Tag } from '../../../components/ui';
+import { Switch } from '../../../components/ui';
 import { useT } from '../../../i18n';
-import { color, space, Text } from '../../../theme';
+import { color, radius, space, Text } from '../../../theme';
 import { LabIcon } from './icons';
 
-/** The agenda's tag. Nothing once the work is back, and nothing without a lab. */
+/**
+ * The agenda's mark: a flask, not words, so the name keeps its width. The flask
+ * already means lab on the booking switch and in Reminders, and the detail
+ * sheet says it in full. Nothing once the work is back, and nothing without a lab.
+ */
 export function LabTag({ status }: { status: LabStatus | null }) {
+    const t = useT();
     if (status !== 'pending') return null;
     return (
-        <Tag tone="due" variant="filled">
-            LAB PENDING
-        </Tag>
+        <View accessible accessibilityRole="image" accessibilityLabel={t('Lab pending')} style={styles.tag}>
+            <LabIcon size={13} stroke={color.due} width={2.2} />
+        </View>
     );
 }
 
@@ -53,22 +58,13 @@ export function LabSwitch({ value, onValueChange, disabled = false, testID }: La
     );
 }
 
-/** Where the work is, in words, for the detail sheet. */
-export function LabState({ status }: { status: LabStatus }) {
-    const t = useT();
-    const back = status === 'ready';
-    return (
-        <View style={styles.state}>
-            <LabIcon size={15} stroke={back ? color.success : color.due} />
-            <Text variant="subhead" weight="semibold" tone={back ? 'success' : 'due'}>
-                {back ? t('Back from the lab') : t('Not back from the lab yet')}
-            </Text>
-        </View>
-    );
-}
-
 const styles = StyleSheet.create({
+    tag: {
+        alignSelf: 'flex-start',
+        padding: space[1],
+        borderRadius: radius.sm,
+        backgroundColor: color.dueSoft,
+    },
     switchRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
     switchText: { flex: 1, gap: space[0.5] },
-    state: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
 });

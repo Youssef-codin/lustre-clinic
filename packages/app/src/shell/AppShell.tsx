@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
 import { useConnection } from '../api';
-import { BottomTabBar, type TabKey } from '../components/domain';
+import { BottomTabBar, GLYPH, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import {
     useArrivalNotices,
@@ -419,6 +419,7 @@ function Pane({
                 <ErrorBoundary
                     title="This tab stopped"
                     message="Something on this tab went wrong. The other tabs still work — reload this one to try again."
+                    icon={<GLYPH.problem size={22} color={color.ink2} strokeWidth={2} />}
                     resetKey={visible}
                     onError={renderErrorReporter(tab)}
                 >

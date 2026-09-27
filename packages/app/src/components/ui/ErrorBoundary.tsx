@@ -28,6 +28,8 @@ export type ErrorBoundaryProps = {
     title: string;
     message: string;
     actionLabel?: string;
+    /** The glyph over the headline, from the caller's icon set — `ui/` draws none. */
+    icon?: ReactNode;
     /**
      * Clears a boundary that has already tripped. Any value that changes when
      * the user navigates will do — a tripped boundary that stays tripped after
@@ -81,6 +83,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <Fallback
                 title={this.props.title}
                 message={this.props.message}
+                icon={this.props.icon}
                 actionLabel={this.props.actionLabel ?? 'Reload'}
                 onRetry={this.retry}
             />
@@ -95,11 +98,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 function Fallback({
     title,
     message,
+    icon,
     actionLabel,
     onRetry,
 }: {
     title: string;
     message: string;
+    icon?: ReactNode;
     actionLabel: string;
     onRetry: () => void;
 }) {
@@ -108,11 +113,7 @@ function Fallback({
     return (
         <View style={styles.root}>
             <View style={styles.card}>
-                <View style={styles.glyph}>
-                    <Text variant="title2" tone="muted">
-                        {'!'}
-                    </Text>
-                </View>
+                {icon ? <View style={styles.glyph}>{icon}</View> : null}
 
                 <Text variant="title3">{t(title)}</Text>
                 <Text variant="subhead" tone="muted" style={styles.body}>

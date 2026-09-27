@@ -45,6 +45,7 @@ import { useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { useBackHandler } from '../../shell/useBackHandler';
 import { color, radius, size, space, Text } from '../../theme';
+import { PlusIcon, PowerIcon } from './components/icons';
 import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { errorText } from './data/errors';
@@ -152,12 +153,6 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                     <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
                 }
             >
-                <Text variant="subhead" tone="muted" style={styles.intro}>
-                    {t(
-                        'These questions appear on every patient record, under the details the app always asks for. Changing them here changes the form for the whole clinic.',
-                    )}
-                </Text>
-
                 <FixedDetailsCard />
 
                 <RequirementsCard />
@@ -196,6 +191,7 @@ export function PatientFieldsScreen({ onBack }: { onBack: () => void }) {
                             {active.length === 0 ? (
                                 <EmptyState
                                     weight="panel"
+                                    icon={<PlusIcon size={22} stroke={color.ink2} width={2.2} />}
                                     title="No questions yet"
                                     body="Ask what you need on top of the built-in details — medical history, how they found you, anything."
                                     actionLabel="Add a question"
@@ -364,9 +360,7 @@ function RequirementsCard() {
             </Card>
 
             <Text variant="footnote" tone="muted" style={styles.note}>
-                {t(
-                    'Name and phone are always required. Once age or sex is required, a patient already on file without it is asked for it the next time the record is edited.',
-                )}
+                {t('A patient already on file is asked the next time their record is edited.')}
             </Text>
         </View>
     );
@@ -618,15 +612,15 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                     <TextField
                         value={label}
                         onChangeText={onChangeLabel}
+                        label="In English"
                         placeholder="Diabetic?"
-                        accessibilityLabel="Question in English"
                         error={labelError}
                     />
                     <TextField
                         value={labelAr}
                         onChangeText={setLabelAr}
+                        label="In Arabic"
                         placeholder="هل تعاني من السكري؟"
-                        accessibilityLabel="Question in Arabic"
                     />
                 </View>
             </View>
@@ -692,7 +686,7 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 <Card>
                     <View style={styles.flagRow}>
                         <Text variant="body" style={styles.rowText}>
-                            {required ? t('Must be answered') : t('Can be left blank')}
+                            {t('Required')}
                         </Text>
                         <Switch value={required} onValueChange={setRequired} accessibilityLabel="Required" />
                     </View>
@@ -706,6 +700,13 @@ function QuestionEditor({ question, nextSortOrder, onClose, onSaved }: QuestionE
                 <Button
                     label={question.active ? 'Deactivate question' : 'Reactivate question'}
                     variant={question.active ? 'danger' : 'secondary'}
+                    icon={
+                        <PowerIcon
+                            size={15}
+                            stroke={question.active ? color.danger : color.ink}
+                            width={2.2}
+                        />
+                    }
                     onPress={() => setConfirming(true)}
                     loading={write.pending && confirming}
                     block
@@ -753,7 +754,6 @@ const styles = StyleSheet.create({
     tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[1.5] },
     dimmed: { opacity: 0.5 },
     note: { paddingHorizontal: space[1] },
-    intro: { paddingHorizontal: space[0.5] },
     labelPair: { gap: space[2] },
     fixed: { gap: space[3] },
     chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
