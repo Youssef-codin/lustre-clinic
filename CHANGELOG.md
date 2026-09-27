@@ -11,6 +11,7 @@ listed.
 ### Changed
 
 - Settings → About opens a page with the version, APK and update details, which used to sit under Settings → App. The language switch is now on the Settings page itself, so it takes one tap, and Settings → App shows only the server connection.
+- Once Google Drive is linked, tapping Backups in Settings opens a page showing whether backups are up to date, when the last one ran, and which Google account the copy goes to. Until Drive is linked, it still opens the sign-in.
 
 ## [1.6.3] - 2026-09-27
 

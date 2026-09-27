@@ -47,6 +47,7 @@ import { color, size, space, Text } from '../../theme';
 import { AboutScreen } from './AboutScreen';
 import { AppointmentsScreen } from './AppointmentsScreen';
 import { AppScreen } from './AppScreen';
+import { BackupsScreen } from './BackupsScreen';
 import { BranchesScreen } from './BranchesScreen';
 import { ClinicScreen } from './ClinicScreen';
 import { DriveSignInSheet } from './components/DriveSignInSheet';
@@ -80,6 +81,7 @@ type Route =
     | 'about'
     | 'app'
     | 'appointments'
+    | 'backups'
     | 'reminders'
     | 'clinic'
     | 'branches'
@@ -354,7 +356,11 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     label="Backups"
                                     sub={backups?.sub ?? 'Checking…'}
                                     onPress={() => {
-                                        if (backups?.canSignIn) setLinkingDrive(true);
+                                        if (!backups) return;
+                                        // Nothing to report on until Drive is linked, so
+                                        // the sign-in comes first when it can be run here.
+                                        if (backups.canSignIn && !backups.linked) setLinkingDrive(true);
+                                        else routes.push('backups');
                                     }}
                                     testID="settings-backups"
                                 />
@@ -496,6 +502,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'about' ? <AboutScreen onBack={back} /> : null}
                     {pane === 'app' ? <AppScreen onBack={back} /> : null}
                     {pane === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
+                    {pane === 'backups' ? <BackupsScreen onBack={back} /> : null}
                     {pane === 'reminders' ? <RemindersScreen onBack={back} /> : null}
                     {pane === 'clinic' ? <ClinicScreen onBack={back} /> : null}
                     {pane === 'branches' ? <BranchesScreen onBack={back} /> : null}

@@ -46,6 +46,8 @@ export interface BackupView {
     account: string | null;
     /** The server has an Android client, so the row can open the sign-in. */
     canSignIn: boolean;
+    /** Drive holds a working grant, so there is nothing to sign in to. */
+    linked: boolean;
 }
 
 /**
@@ -91,7 +93,11 @@ export function backupView(
 ): BackupView {
     const last = lastLine(status.lastSuccessAt, now, t);
     const since = status.offsite.reauthorizationRequiredSince;
-    const link = { account: status.offsite.account, canSignIn: status.offsite.canSignIn };
+    const link = {
+        account: status.offsite.account,
+        canSignIn: status.offsite.canSignIn,
+        linked: status.offsite.configured && !since,
+    };
 
     if (since) {
         return {
@@ -125,4 +131,52 @@ function signInHint(canSignIn: boolean, days: number | null, t: Translate): stri
     return canSignIn
         ? t('{stopped} Open Backups below to sign in again.', { stopped })
         : t('{stopped} Ask whoever set up the clinic server to sign in to Google Drive again.', { stopped });
+}
+
+export type BackupDotTone = 'success' | 'due' | 'danger';
+
+export interface BackupDetails {
+    headline: string;
+    dot: BackupDotTone;
+    /** "3:00 AM · yesterday", or that there has never been one. */
+    last: string;
+    /** Where the off-site copy goes: the Drive account, or nowhere. */
+    offsite: string;
+    /** What is wrong, when something is; null when nothing is. */
+    note: string | null;
+}
+
+/**
+ * The Backups pane: the index row's answer with the clock time put back, and
+ * the account named. Built from the same status as the row, so the two cannot
+ * disagree about which of the three states the clinic is in.
+ */
+export function backupDetails(
+    status: BackupStatusData,
+    now: number = serverNow(),
+    t: Translate = english,
+    clock: (at: number) => string = (at) => new Date(at).toISOString().slice(11, 16),
+): BackupDetails {
+    const view = backupView(status, now, t);
+    const at = status.lastSuccessAt ? new Date(status.lastSuccessAt).getTime() : Number.NaN;
+    const days = status.lastSuccessAt ? ageInDays(status.lastSuccessAt, now) : null;
+    const last =
+        Number.isNaN(at) || days === null ? t('No backup yet') : `${clock(at)} · ${formatAge(days, t)}`;
+    const offsite = status.offsite.configured
+        ? (status.offsite.account ?? t('Google Drive'))
+        : t('On this machine only');
+
+    if (view.tone === 'reauthorize') {
+        return { headline: view.sub, dot: 'danger', last, offsite, note: view.detail };
+    }
+    if (view.tone === 'stale') {
+        return {
+            headline: t('Backups are behind'),
+            dot: 'due',
+            last,
+            offsite,
+            note: t('No backup in over {hours}h.', { hours: status.staleAfterHours }),
+        };
+    }
+    return { headline: t('Backups are up to date'), dot: 'success', last, offsite, note: null };
 }
