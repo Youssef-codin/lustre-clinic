@@ -130,9 +130,14 @@ async function cancelNudges(): Promise<void> {
  * Cancel what is armed and arm the plan. An empty plan is a cancel — that is the
  * whole of "stops when the list is cleared or dismissed for the day".
  *
- * With `alarm` the plan goes to `modules/lustre-alarm` instead, which rings
- * until stopped and fills the lock screen. Only one of the two is ever armed,
- * and emptying the plan also stops a ring that is going: the list was cleared.
+ * On Android the plan goes to `modules/lustre-alarm`, which asks the clinic
+ * server just before each one and stays quiet if the list has emptied since
+ * (`alarmCheck.ts`). With `alarm` each one rings until stopped and fills the
+ * lock screen; without, it is a plain notification. `expo-notifications` is
+ * only the fallback — iOS, or Android refusing an exact alarm — and cannot
+ * check, because it posts without waking any code. Only one of the two is ever
+ * armed, and emptying the plan also stops a ring that is going: the list was
+ * cleared.
  *
  * Returns what it did, so the caller can hold "notifications are off" without
  * this module reaching for a logger the app does not have. Nothing in
@@ -168,8 +173,11 @@ async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
         return 'refused';
     }
 
-    if (alarm && scheduleAlarms(plan.at, alarmCopy(), serverCheck())) return 'armed';
-    // Off, or Android refused the exact alarm: the ordinary nudge rather than none.
+    // The plain nudge posts on this channel from native code too.
+    if (!alarm) await ensureChannel();
+    if (scheduleAlarms(plan.at, alarmCopy(), serverCheck(), alarm)) return 'armed';
+    // No native side, or Android refused the exact alarm: the ordinary nudge,
+    // unchecked, rather than none.
     cancelAlarms();
     await ensureChannel();
 

@@ -32,7 +32,7 @@ export interface AlarmCheck {
 }
 
 interface LustreAlarmNative {
-    schedule(at: number[], copy: AlarmCopy, check: AlarmCheck | null): boolean;
+    schedule(at: number[], copy: AlarmCopy, check: AlarmCheck | null, rings: boolean): boolean;
     tryIn(ms: number, copy: AlarmCopy): boolean;
     cancel(): void;
     takeOpenRequest(): boolean;
@@ -44,13 +44,23 @@ const native = requireOptionalNativeModule<LustreAlarmNative>('LustreAlarm');
 
 export const alarmsAvailable = native !== null;
 
-/** Replaces whatever was armed. False when Android refused an exact alarm, or there is no native side. */
-export function scheduleAlarms(at: Date[], copy: AlarmCopy, check: AlarmCheck | null): boolean {
+/**
+ * Replaces whatever was armed. `rings` picks a ringing alarm or a plain
+ * notification; either way each one asks `check` first. False when Android
+ * refused an exact alarm, or there is no native side.
+ */
+export function scheduleAlarms(
+    at: Date[],
+    copy: AlarmCopy,
+    check: AlarmCheck | null,
+    rings: boolean,
+): boolean {
     return (
         native?.schedule(
             at.map((date) => date.getTime()),
             copy,
             check,
+            rings,
         ) ?? false
     );
 }

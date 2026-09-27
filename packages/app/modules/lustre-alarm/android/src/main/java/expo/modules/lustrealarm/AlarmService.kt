@@ -166,10 +166,6 @@ class AlarmService : Service() {
     }
   }
 
-  // The white "C" `expo-notifications` generates from assets/notification-icon.png.
-  private fun smallIcon(): Int =
-    resources.getIdentifier("notification_icon", "drawable", packageName).takeIf { it != 0 } ?: applicationInfo.icon
-
   /**
    * The ringing screen is up. Android also pins the notification over it as a
    * banner, for as long as it carries a full-screen intent, hiding the clock;
@@ -213,12 +209,12 @@ class AlarmService : Service() {
       Intent(this, AlarmActivity::class.java).setAction(AlarmActivity.ACTION_OPEN),
       flags,
     )
-    val icon = Icon.createWithResource(this, smallIcon())
+    val icon = Icon.createWithResource(this, smallIcon(this))
 
     // Public on the lock screen: the nudge names no patient.
     return builder
-      .setSmallIcon(smallIcon())
-      .setColor(ICON_COLOR)
+      .setSmallIcon(smallIcon(this))
+      .setColor(NudgeNotice.ICON_COLOR)
       .setContentTitle(copy.title)
       .setContentText(copy.body)
       .setCategory(Notification.CATEGORY_ALARM)
@@ -235,8 +231,6 @@ class AlarmService : Service() {
   companion object {
     private const val CHANNEL_ID = "reminders-ringing"
     private const val NOTIFICATION_ID = 7202
-    // `color.ink` in src/theme/tokens.ts.
-    private const val ICON_COLOR = 0xFF111114.toInt()
     // What the stock clock gives up after. The series rings again anyway.
     private const val RING_FOR_MS = 10 * 60 * 1000L
     private val VIBRATION = longArrayOf(0, 800, 800)

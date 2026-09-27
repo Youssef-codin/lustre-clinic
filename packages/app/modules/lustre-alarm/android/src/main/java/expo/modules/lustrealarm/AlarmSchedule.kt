@@ -15,17 +15,21 @@ data class AlarmCopy(
 )
 
 /**
- * The series JS last armed, kept on disk because what reads it — the alarm
- * firing, the phone booting — runs with no JS at all. Only the next ring is ever
- * with `AlarmManager`, and each ring arms the one after it, so the alarm icon in
- * the status bar shows the next ring rather than the last.
+ * The series JS last armed, kept on disk because what reads it — the nudge
+ * firing, the phone booting — runs with no JS at all. Only the next one is ever
+ * with `AlarmManager`, and each arms the one after it, so the alarm icon in the
+ * status bar shows the next ring rather than the last.
  *
- * `setAlarmClock` rather than an exact alarm: it is the one Doze never defers,
- * and the one that lets the ring start a foreground service from the background.
+ * A series either rings ([AlarmService]) or posts a plain notification
+ * ([NudgeNotice]). A ringing one is armed with `setAlarmClock`: the one Doze
+ * never defers, and the one that lets it start a foreground service from the
+ * background. A plain one with an exact alarm allowed while idle, which puts no
+ * alarm icon in the status bar for what is only a notification.
  */
 object AlarmSchedule {
   private const val PREFS = "lustre.alarm"
   private const val KEY_AT = "at"
+  private const val KEY_RINGS = "rings"
   private const val KEY_TITLE = "title"
   private const val KEY_BODY = "body"
   private const val KEY_SNOOZE = "snooze"
@@ -37,10 +41,11 @@ object AlarmSchedule {
   private const val KEY_CHECK_TODAY = "checkToday"
 
   /** False when Android refused the alarm: the exact-alarm permission revoked, on 12. */
-  fun replace(context: Context, at: List<Long>, copy: AlarmCopy, check: ReminderCheck.Check?): Boolean {
+  fun replace(context: Context, at: List<Long>, copy: AlarmCopy, check: ReminderCheck.Check?, rings: Boolean): Boolean {
     saveCopy(context, copy)
     prefs(context).edit()
       .putString(KEY_AT, at.sorted().joinToString(","))
+      .putBoolean(KEY_RINGS, rings)
       .putString(KEY_CHECK_BASES, check?.bases?.joinToString("\n"))
       .putString(KEY_CHECK_PENDING, check?.pendingPath)
       .putString(KEY_CHECK_SETTINGS, check?.settingsPath)
@@ -94,12 +99,22 @@ object AlarmSchedule {
       return true
     }
     return try {
-      manager.setAlarmClock(AlarmManager.AlarmClockInfo(next, showIntent(context)), ringIntent(context, next))
+      if (rings(context)) {
+        manager.setAlarmClock(AlarmManager.AlarmClockInfo(next, showIntent(context)), ringIntent(context, next))
+      } else {
+        manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, ringIntent(context, next))
+      }
       true
     } catch (_: SecurityException) {
       false
     }
   }
+
+  /** Whether a series is armed at all: `clear` empties the file. */
+  fun armed(context: Context): Boolean = prefs(context).contains(KEY_AT)
+
+  /** Whether the series rings like an alarm, or only posts the nudge. */
+  fun rings(context: Context): Boolean = prefs(context).getBoolean(KEY_RINGS, true)
 
   fun copy(context: Context): AlarmCopy {
     val prefs = prefs(context)

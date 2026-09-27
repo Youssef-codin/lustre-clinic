@@ -10,13 +10,18 @@ class AlarmReceiver : BroadcastReceiver() {
     when (intent.action) {
       ACTION_RING -> {
         AlarmSchedule.armNext(context, intent.getLongExtra(EXTRA_AT, System.currentTimeMillis()))
-        val check = AlarmSchedule.check(context) ?: return AlarmService.ring(context, trial = false)
+        val nudge = {
+          if (AlarmSchedule.rings(context)) AlarmService.ring(context, trial = false) else NudgeNotice.post(context)
+        }
+        val check = AlarmSchedule.check(context) ?: return nudge()
         // Off the main thread for the network, and held open until it answers.
-        // An empty list skips only this ring: more can fall due before the next.
+        // An empty list skips only this one: more can fall due before the next.
         val pending = goAsync()
         thread {
           try {
-            if (ReminderCheck.shouldRing(check)) AlarmService.ring(context, trial = false)
+            // The app can have cancelled the series while the server was
+            // being asked: the list cleared, the switch turned off.
+            if (ReminderCheck.shouldRing(check) && AlarmSchedule.armed(context)) nudge()
           } finally {
             pending.finish()
           }

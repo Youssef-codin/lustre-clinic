@@ -35,9 +35,9 @@ class LustreAlarmModule : Module() {
 
     // Replaces the whole series. A ring already going is left alone: the
     // series is re-armed on every foreground and every refetch.
-    Function("schedule") { at: List<Double>, copy: AlarmCopyRecord, check: AlarmCheckRecord? ->
+    Function("schedule") { at: List<Double>, copy: AlarmCopyRecord, check: AlarmCheckRecord?, rings: Boolean ->
       val context = appContext.reactContext ?: return@Function false
-      AlarmSchedule.replace(context, at.map { it.toLong() }, copy.toCopy(), check?.toCheck())
+      AlarmSchedule.replace(context, at.map { it.toLong() }, copy.toCopy(), check?.toCheck(), rings)
     }
 
     Function("tryIn") { ms: Double, copy: AlarmCopyRecord ->
