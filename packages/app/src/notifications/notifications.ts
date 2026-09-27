@@ -36,6 +36,15 @@ import { arrivalIdentifier, noticeIdentifier } from './visitNotice';
 
 const CHANNEL_ID = 'reminders';
 
+/**
+ * Its own channel rather than the plain one turned up: Android fixes a
+ * channel's importance and sound once it exists, so the ringing nudge could
+ * never live on `reminders` without every existing phone keeping the old
+ * behaviour. The sound is bundled by the `expo-notifications` plugin (app.json).
+ */
+const ALARM_CHANNEL_ID = 'reminders-alarm';
+const ALARM_SOUND = 'reminder_alarm.wav';
+
 /** Tags every nudge this module owns, so cancelling never touches a notification someone else scheduled. */
 const NUDGE_TAG = 'lustre.reminder.nudge';
 
@@ -70,6 +79,35 @@ async function ensureChannel(): Promise<void> {
         importance: Notifications.AndroidImportance.DEFAULT,
     });
     channelLocale = getLocale();
+}
+
+let alarmChannelLocale: Locale | null = null;
+
+/**
+ * The alarm stream, not the notification one: it rings with the ringer on
+ * silent, the way an alarm clock does, and uses the alarm volume. Do Not
+ * Disturb is still respected — bypassing it needs a policy grant a clinic
+ * phone should not be asked for. Public on the lock screen, which is safe
+ * only because the nudge carries no patient data (see the header).
+ */
+async function ensureAlarmChannel(): Promise<void> {
+    if (Platform.OS !== 'android' || alarmChannelLocale === getLocale()) return;
+
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    await Notifications.setNotificationChannelAsync(ALARM_CHANNEL_ID, {
+        name: t('Appointment reminders (alarm)'),
+        description: t('The daily nudge, ringing like an alarm.'),
+        importance: Notifications.AndroidImportance.MAX,
+        sound: ALARM_SOUND,
+        audioAttributes: {
+            usage: Notifications.AndroidAudioUsage.ALARM,
+            contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+        },
+        enableVibrate: true,
+        vibrationPattern: [0, 800, 400, 800, 400, 800],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+    alarmChannelLocale = getLocale();
 }
 
 /**
@@ -126,13 +164,17 @@ async function cancelNudges(): Promise<void> {
  * `packages/app` writes to a console, and a nudge that did not arm is a thing to
  * say on screen rather than into a log nobody reads.
  */
-export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' | 'refused'> {
+export async function armNudges(
+    plan: NudgePlan,
+    { alarm }: { alarm: boolean },
+): Promise<'armed' | 'disarmed' | 'refused'> {
     await cancelNudges();
 
     if (plan.at.length === 0) return 'disarmed';
     if (!(await ensurePermission())) return 'refused';
 
-    await ensureChannel();
+    if (alarm) await ensureAlarmChannel();
+    else await ensureChannel();
 
     for (const at of plan.at) {
         await Notifications.scheduleNotificationAsync({
@@ -140,11 +182,14 @@ export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' |
                 title: localizeCopy(getLocale(), TITLE),
                 body: localizeCopy(getLocale(), BODY),
                 data: { tag: NUDGE_TAG },
+                ...(alarm
+                    ? { sound: ALARM_SOUND, priority: Notifications.AndroidNotificationPriority.MAX }
+                    : {}),
             },
             trigger: {
                 type: Notifications.SchedulableTriggerInputTypes.DATE,
                 date: at,
-                channelId: CHANNEL_ID,
+                channelId: alarm ? ALARM_CHANNEL_ID : CHANNEL_ID,
             },
         });
     }

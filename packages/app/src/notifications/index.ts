@@ -4,6 +4,7 @@
 // their own paths where their rules are tested, because they are the only
 // files here with no `expo-notifications` in them.
 
+export { setReminderAlarm, useReminderAlarm } from './alarmStore';
 export { useArrivalNotices } from './useArrivalNotices';
 export { useNotificationsAllowed } from './useNotificationsAllowed';
 export { useRearmReminderNudges, useReminderNudges } from './useReminderNudges';

@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Reminders has a "Ring like an alarm" switch, off unless you turn it on. When it's on, this phone's daily reminder rings for about 20 seconds at the alarm volume, even with the phone on silent, and vibrates. Needs the new APK.
+
 ### Changed
 
 - Settings → About opens a page with the version, APK and update details, which used to sit under Settings → App. The language switch is now on the Settings page itself, so it takes one tap, and Settings → App shows only the server connection.

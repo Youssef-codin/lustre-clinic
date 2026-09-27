@@ -28,6 +28,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { api, useTRPC } from '../api';
 import { useLocale } from '../i18n';
+import { useReminderAlarm } from './alarmStore';
 import { armNudges } from './notifications';
 import { minutesOfClock, planNudges } from './schedule';
 
@@ -60,13 +61,19 @@ export function useReminderNudges(): void {
     const repeatMinutes = settings.data?.reminderRepeatMinutes;
     const dismissedOn = settings.data?.reminderDismissedOn ?? null;
     const pendingCount = pending.data?.length;
+    const alarm = useReminderAlarm();
 
     // biome-ignore lint/correctness/useExhaustiveDependencies: `foregrounded` and `locale` are triggers, not values — the arm reads the clock, the day, the OS permission and the language, none of which it is handed
     useEffect(() => {
         // Nothing is armed and nothing is cancelled until both answers are in.
         // Disarming on a missing answer would silence the nudge every time the
         // clinic PC is briefly unreachable, which is when it matters most.
-        if (notifyAt === undefined || repeatMinutes === undefined || pendingCount === undefined) {
+        if (
+            notifyAt === undefined ||
+            repeatMinutes === undefined ||
+            pendingCount === undefined ||
+            !alarm.hydrated
+        ) {
             return;
         }
 
@@ -82,8 +89,18 @@ export function useReminderNudges(): void {
                 today: todayKey(now),
                 now,
             }),
+            { alarm: alarm.enabled },
         );
-    }, [notifyAt, repeatMinutes, dismissedOn, pendingCount, foregrounded, locale]);
+    }, [
+        notifyAt,
+        repeatMinutes,
+        dismissedOn,
+        pendingCount,
+        foregrounded,
+        locale,
+        alarm.hydrated,
+        alarm.enabled,
+    ]);
 
     useEffect(() => {
         const subscription = AppState.addEventListener('change', (state) => {

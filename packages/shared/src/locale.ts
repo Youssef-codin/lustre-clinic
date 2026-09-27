@@ -578,6 +578,10 @@ export const COPY_AR = {
     'Repeat every': 'التكرار كل',
     'Moves reminders not yet sent.': 'ينقل التذكيرات التي لم تُرسل بعد.',
     'Stops when cleared, never overnight.': 'يتوقف عند مسح القائمة، ولا يعمل ليلًا.',
+    'ON THIS PHONE': 'على هذا الهاتف',
+    'Ring like an alarm': 'الرنين كمنبّه',
+    'Rings loudly at the alarm volume, even on silent.':
+        'يرنّ بصوت عالٍ بمستوى صوت المنبّه، حتى في الوضع الصامت.',
     'Sample patient — real values are filled per appointment.':
         'مريض تجريبي — تُملأ القيم الحقيقية مع كل موعد.',
     'Save & close visit': 'حفظ وإنهاء الزيارة',
@@ -1175,6 +1179,8 @@ export const COPY_AR = {
     'Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it.':
         'يُضاف إلى كل زيارة عند تسجيل الوصول، ويُلغى إذا أُجري أي عمل آخر. يمكن أن يحمل هذا الإعداد إجراء واحد فقط.',
     'Appointment reminders': 'تذكيرات المواعيد',
+    'Appointment reminders (alarm)': 'تذكيرات المواعيد (منبّه)',
+    'The daily nudge, ringing like an alarm.': 'التنبيه اليومي، يرنّ كمنبّه.',
     'The daily nudge that reminders are still waiting to be sent.':
         'تنبيه يومي بأن هناك تذكيرات لم تُرسل بعد.',
     'Reminders pending': 'تذكيرات معلّقة',

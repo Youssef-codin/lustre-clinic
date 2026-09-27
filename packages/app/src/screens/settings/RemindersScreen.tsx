@@ -42,12 +42,13 @@ import {
     Chip,
     SectionLabel,
     Stepper,
+    Switch,
     Textarea,
     usePendingAction,
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
-import { useNotificationsAllowed } from '../../notifications';
+import { setReminderAlarm, useNotificationsAllowed, useReminderAlarm } from '../../notifications';
 import { color, radius, space, Text } from '../../theme';
 import { PlusIcon, WhatsAppIcon } from './components/icons';
 import { Pane } from './components/Pane';
@@ -64,6 +65,7 @@ import {
 export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const t = useT();
     const allowed = useNotificationsAllowed();
+    const alarm = useReminderAlarm();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
@@ -196,6 +198,31 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                                 saving={timing.pending}
                                 testID="reminder-repeat"
                             />
+                        </Card>
+                    </View>
+
+                    {/* This phone's, not the clinic's: not written to the
+                        server, and applied to the next arm without a save. */}
+                    <View style={styles.section}>
+                        <SectionLabel inset={false}>ON THIS PHONE</SectionLabel>
+                        <Card>
+                            <View style={styles.timing}>
+                                <View style={styles.timingText}>
+                                    <Text variant="body" weight="medium">
+                                        {t('Ring like an alarm')}
+                                    </Text>
+                                    <Text variant="footnote" tone="muted">
+                                        {t('Rings loudly at the alarm volume, even on silent.')}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    value={alarm.enabled}
+                                    onValueChange={setReminderAlarm}
+                                    disabled={!alarm.hydrated}
+                                    accessibilityLabel={t('Ring like an alarm')}
+                                    testID="reminder-alarm"
+                                />
+                            </View>
                         </Card>
                     </View>
 
