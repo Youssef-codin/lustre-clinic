@@ -1283,6 +1283,9 @@ export const COPY_AR = {
     'The clinic now asks every phone for a role code. Ask the admin for one, then scan it.':
         'تطلب العيادة الآن رمز دور من كل هاتف. اطلب رمزًا من المدير، ثم امسحه.',
     'This phone’s role cannot do that.': 'دور هذا الهاتف لا يسمح بذلك.',
+    'That is more than they owe': 'هذا أكثر مما عليه',
+    'Part of this visit was already paid. Take the rest at the desk.':
+        'دُفع جزء من هذه الزيارة من قبل. خذ الباقي عند الاستقبال.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

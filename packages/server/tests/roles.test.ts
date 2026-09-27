@@ -283,6 +283,25 @@ describe('a doctor and payment data', () => {
         expect(read.payments).toBeNull();
     });
 
+    test('cannot take more at checkout than is still owed, which it cannot see', async () => {
+        const { visit, checkup } = await checkedInVisit();
+        await visitService.setProcedures({
+            visitId: visit.id,
+            procedures: [{ procedureId: checkup.id, quantity: 1 }],
+        });
+        await visitService.recordPayment({ visitId: visit.id, amount: 10_000, method: 'cash' });
+        const doctor = api.clientAs((await provisioned('doctor')).token);
+
+        await expectTrpcError(ERROR_CODE.PAYMENT_EXCEEDS_BALANCE, 422, () =>
+            doctor.visit.checkOut.mutate({
+                visitId: visit.id,
+                chargedTotal: CHECKUP_PRICE,
+                paidTotal: CHECKUP_PRICE,
+                method: 'cash',
+            }),
+        );
+    });
+
     test('cannot reopen a finished visit', async () => {
         const { visit } = await paidVisit();
         const doctor = api.clientAs((await provisioned('doctor')).token);

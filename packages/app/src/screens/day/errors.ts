@@ -117,6 +117,12 @@ function englishError(error: RequestError, context: ErrorContext): ErrorMessage 
         case ERROR_CODE.INVALID_AMOUNT:
             return { title: 'That amount is not allowed', body: 'Enter the amount in whole pounds.' };
 
+        case ERROR_CODE.PAYMENT_EXCEEDS_BALANCE:
+            return {
+                title: 'That is more than they owe',
+                body: 'Part of this visit was already paid. Take the rest at the desk.',
+            };
+
         case ERROR_CODE.PAYMENT_NOTE_REQUIRED:
             return {
                 title: 'Say how they paid',

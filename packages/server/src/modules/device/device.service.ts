@@ -27,7 +27,7 @@ import {
 import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import { db } from '../../db/index.ts';
 import { devices, roleGrants } from '../../db/schema.ts';
-import { AppError } from '../../errors/AppError.ts';
+import { AppError, isAppError } from '../../errors/AppError.ts';
 import { logger } from '../../logger.ts';
 import { broadcast, disconnectDevice, disconnectUnprovisioned } from '../../ws/index.ts';
 import { settingsService } from '../settings/settings.service.ts';
@@ -147,8 +147,14 @@ export const deviceService = {
         try {
             const caller = await this.authorize(token);
             return { deviceId: caller.deviceId };
-        } catch {
-            return null;
+        } catch (err) {
+            // A refusal is an answer; a database that did not answer is not,
+            // and goes to the server's error path like any other failure.
+            const refused =
+                isAppError(err) &&
+                (err.code === ERROR_CODE.DEVICE_REVOKED || err.code === ERROR_CODE.DEVICE_NOT_PROVISIONED);
+            if (refused) return null;
+            throw err;
         }
     },
 
@@ -280,14 +286,22 @@ export const deviceService = {
      * with nobody to let it back in but the server's CLI.
      */
     async revoke(grantId: string, caller: Caller): Promise<void> {
-        const [grant] = await db.select().from(roleGrants).where(eq(roleGrants.id, grantId)).limit(1);
-        if (!grant) throw AppError.notFound('grant');
+        // The grant row is locked first: `redeem` claims it with an UPDATE, so
+        // a scan landing mid-revoke either commits before this reads the
+        // device, or waits and finds the grant revoked.
+        const deviceId = await db.transaction(async (tx) => {
+            const [grant] = await tx
+                .select()
+                .from(roleGrants)
+                .where(eq(roleGrants.id, grantId))
+                .for('update')
+                .limit(1);
+            if (!grant) throw AppError.notFound('grant');
 
-        const [device] = await db.select().from(devices).where(eq(devices.grantId, grantId)).limit(1);
-        if (device && device.id === caller.deviceId) throw forbidden('revoke its own role');
+            const [device] = await tx.select().from(devices).where(eq(devices.grantId, grantId)).limit(1);
+            if (device && device.id === caller.deviceId) throw forbidden('revoke its own role');
 
-        const now = new Date();
-        await db.transaction(async (tx) => {
+            const now = new Date();
             await tx
                 .update(roleGrants)
                 .set({ revokedAt: now })
@@ -296,13 +310,11 @@ export const deviceService = {
                 .update(devices)
                 .set({ revokedAt: now })
                 .where(and(eq(devices.grantId, grantId), isNull(devices.revokedAt)));
+            return device?.id ?? null;
         });
 
-        if (device) disconnectDevice(device.id);
-        logger.info(
-            { grantId, deviceId: device?.id ?? null, revokedBy: caller.deviceId },
-            'role grant revoked',
-        );
+        if (deviceId) disconnectDevice(deviceId);
+        logger.info({ grantId, deviceId, revokedBy: caller.deviceId }, 'role grant revoked');
         broadcast(WS_EVENT.DEVICES_UPDATED);
     },
 

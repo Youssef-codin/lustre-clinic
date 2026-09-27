@@ -13,7 +13,7 @@
 import { ERROR_CODE, grantCodeOf, ROLES, type Role } from '@lustre/shared';
 import { useMutation } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { becomeInDemo, grantCredential, useDemoMode, useTRPC } from '../../api';
 import { Button, Callout, usePendingAction } from '../../components/ui';
@@ -46,11 +46,15 @@ export function ScanCodeScreen({ onBack, onGranted }: ScanCodeScreenProps) {
     // Closed from the first read until the person asks again, so one code
     // held up to the lens is one request, not one per frame.
     const [scanning, setScanning] = useState(true);
+    // The camera reports a code on every frame it sees it, faster than React
+    // commits `scanning`; this is what actually lets only the first through.
+    const latched = useRef(false);
 
     const redeem = useMutation(trpc.device.redeem.mutationOptions());
 
     async function scanned(data: string) {
-        if (!scanning) return;
+        if (latched.current) return;
+        latched.current = true;
         setScanning(false);
         const code = grantCodeOf(data);
         if (!code) {
@@ -72,6 +76,7 @@ export function ScanCodeScreen({ onBack, onGranted }: ScanCodeScreenProps) {
     });
 
     function again() {
+        latched.current = false;
         setProblem(null);
         setScanning(true);
     }

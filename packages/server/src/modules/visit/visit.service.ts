@@ -499,6 +499,19 @@ export const visitService = {
 
             const paidTotal = input.paidTotal ?? 0;
             if (paidTotal > 0) {
+                // The desk's phone clamps to what is owed; a doctor's is not
+                // shown what was already paid and cannot, so the rule is here.
+                const [taken] = await tx
+                    .select({ paid: sql<number>`COALESCE(SUM(${payments.amount}), 0)::int` })
+                    .from(payments)
+                    .where(eq(payments.visitId, visit.id));
+                if (paidTotal > input.chargedTotal - (taken?.paid ?? 0)) {
+                    throw new AppError(
+                        ERROR_CODE.PAYMENT_EXCEEDS_BALANCE,
+                        'the payment is more than is owed on this visit',
+                        422,
+                    );
+                }
                 await insertPayment(tx, visit.id, paidTotal, input.method, input.methodNote ?? null);
             }
 
