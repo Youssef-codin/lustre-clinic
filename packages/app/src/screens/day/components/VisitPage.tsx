@@ -13,6 +13,7 @@
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Banner, Button, PushView } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../../navigation';
 import { color, size, space, Text } from '../../../theme';
 import { api, useLocalQuery, type Visit } from '../data';
@@ -33,6 +34,7 @@ export type VisitPageProps = {
 type Route = 'treatment' | 'payment';
 
 export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitPageProps) {
+    const t = useT();
     // The reopened / repriced visit, once a write has moved it on from what was
     // read. Null means "still what the server first said".
     const [edited, setEdited] = useState<Visit | null>(null);
@@ -105,7 +107,7 @@ export function VisitPage({ appointmentId, visitId, onClose, onChanged }: VisitP
         return (
             <View style={styles.state}>
                 <Text variant="subhead" tone="muted">
-                    Reading the visit…
+                    {t('Reading the visit…')}
                 </Text>
             </View>
         );

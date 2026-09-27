@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Button, Chevron, Sheet } from '../../../components/ui';
+import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { ProcedureCategory, ProcedureRow, RequestError } from '../data';
 import { describeError } from '../errors';
@@ -51,6 +52,7 @@ export function ProcedureSheet({
     onRetry,
     tooth,
 }: ProcedureSheetProps) {
+    const t = useT();
     const [openId, setOpenId] = useState<string | null>(null);
 
     const offered = useMemo(() => offeredFor(categories, tooth !== null), [categories, tooth]);
@@ -72,7 +74,7 @@ export function ProcedureSheet({
         <Sheet
             visible={visible}
             onClose={onClose}
-            title={tooth ? `Add to ${tooth}` : 'Add a procedure'}
+            title={tooth ? t('Add to {name}', { name: tooth }) : 'Add a procedure'}
             subtitle={
                 tooth
                     ? 'Tap a category to choose a variant — most are picked directly.'
@@ -82,7 +84,7 @@ export function ProcedureSheet({
         >
             {loading ? (
                 <Text variant="subhead" tone="muted">
-                    Reading the catalogue…
+                    {t('Reading the catalogue…')}
                 </Text>
             ) : error ? (
                 <View style={styles.failure}>
@@ -93,16 +95,17 @@ export function ProcedureSheet({
                 </View>
             ) : categories.length === 0 ? (
                 <Text variant="subhead" tone="muted">
-                    The clinic has no procedures set up yet. Settings → Procedures.
+                    {t('The clinic has no procedures set up yet. Settings → Procedures.')}
                 </Text>
             ) : offered.length === 0 ? (
                 // Only reachable with a tooth. Without one the sheet offers the
                 // whole catalogue, so an empty list there is an empty
                 // catalogue — which the branch above has already said.
                 <Text variant="subhead" tone="muted">
-                    {`Nothing in the catalogue is done to a single tooth, so there is nothing to add to ${
-                        tooth ?? 'a tooth'
-                    }.`}
+                    {t(
+                        'Nothing in the catalogue is done to a single tooth, so there is nothing to add to {tooth}.',
+                        { tooth: tooth ?? t('a tooth') },
+                    )}
                 </Text>
             ) : (
                 <View style={styles.list}>
@@ -158,7 +161,7 @@ export function ProcedureSheet({
                                             screens telling the same story. */}
                                         {category.children.length === 0 ? (
                                             <Text variant="subhead" tone="muted" style={styles.emptyCategory}>
-                                                Nothing in this category yet. Settings → Procedures.
+                                                {t('Nothing in this category yet. Settings → Procedures.')}
                                             </Text>
                                         ) : null}
 

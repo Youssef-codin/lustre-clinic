@@ -11,21 +11,27 @@ listed.
 ### Added
 
 - Swiping left or right on the calendar moves to the next or previous month, the same way the arrows do, in Arabic as well as English.
+- Reminder messages can name the appointment's branch (`{{branch}}`) and quote its reference (`{{ref}}`).
 
 ### Changed
 
 - The appointment sheet is redesigned: the patient's number instead of the booking code, what they're in for on one line, and no phone number. Lab work has its own panel with a Needs lab switch and a large Mark lab arrived button. Reschedule, No-show and Cancel are three big buttons side by side, and Check in has a tick.
 - Less repeated text across the app: the reminder count above the list, the booking and payment hints, the patient record's settings footnote and a few settings notes are gone, and the visit screens show their total once, at the bottom.
-- Record payment shows an icon beside each payment method, and Deactivate question has the same power icon as Deactivate branch.
+- Record payment shows an icon beside each payment method, all four on one row, and Deactivate question has the same power icon as Deactivate branch.
 - Lab work still out shows as a small flask on the day list instead of "LAB PENDING", so names aren't cut short. The procedure line on the day list and the Now card uses the stethoscope rather than a clock.
 - The appointment sheet's Reschedule, Mark no-show and Cancel, the patient record's Book appointment, Old visit and Record payment, and the Edit / Delete menu items now carry icons.
-- The patients list shows age as "22 y" and a coin beside what's owed, and a screen reader now hears the phone, age and balance too. Finances shows how long a balance has been owed next to an hourglass instead of "Outstanding for" on every row.
+- The patients list shows age as "22 y" and a banknote beside what's owed, and a screen reader now hears the phone, age and balance too. Finances shows how long a balance has been owed next to an hourglass instead of "Outstanding for" on every row.
 - Shorter settings hints for reminder timing, WhatsApp app, patient fields and procedure switches. A question's switch now reads "Required", and its two inputs are labelled In English and In Arabic.
 - The role switch sheet and the setup screen are shorter: the setup screen drops its demo note and Tailscale hints.
 - Empty and error screens show a proper icon instead of a plain "+" or "!". Where the screen offers an action, tapping the round icon does it too.
 
 ### Fixed
 
+- In Arabic, the screens, sheets, toasts and messages that still showed English are now in Arabic, and so is the daily reminders notification.
+- In Arabic, phone numbers keep the + in front, lines that start with a patient's name or a procedure read right to left, and "before this" and "after this" point the right way.
+- Counts in Arabic read correctly: "4 أيام", not "4 يوم".
+- The language setting's note says what it changes. It no longer mentions printed receipts or a per-patient language.
+- Reminder messages built from the Settings chips reached patients with `{name}`, `{time}` and the like still in them. The chips now insert tokens the reminder fills in, messages already saved the old way are filled in too, and the preview shows exactly what the patient will get.
 - The closed-day message points to Settings → Working hours, the screen's real name.
 - The Lustre logo in the Settings header no longer reads backwards in Arabic.
 

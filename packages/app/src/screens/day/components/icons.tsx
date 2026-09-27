@@ -2,7 +2,8 @@
  * The day view's icons, built from the shared set in `components/domain/icons`
  * and named after the job each does here.
  */
-import { GLYPH, icon } from '../../../components/domain';
+import { GLYPH, type IconProps, icon } from '../../../components/domain';
+import { useIsRTL } from '../../../i18n';
 
 export const PinIcon = icon(GLYPH.branch);
 
@@ -12,9 +13,18 @@ export const ClockIcon = icon(GLYPH.time);
 
 export const ProcedureIcon = icon(GLYPH.procedure, { width: 1.8 });
 
-export const ArrowBackIcon = icon(GLYPH.back, { width: 2.2 });
+const ArrowLeftIcon = icon(GLYPH.back, { width: 2.2 });
 
-export const ArrowForwardIcon = icon(GLYPH.forward, { width: 2.2 });
+const ArrowRightIcon = icon(GLYPH.forward, { width: 2.2 });
+
+/** Earlier and later, which swap sides in Arabic — not left and right. */
+export function ArrowBackIcon(props: IconProps) {
+    return useIsRTL() ? <ArrowRightIcon {...props} /> : <ArrowLeftIcon {...props} />;
+}
+
+export function ArrowForwardIcon(props: IconProps) {
+    return useIsRTL() ? <ArrowLeftIcon {...props} /> : <ArrowRightIcon {...props} />;
+}
 
 export const ChatIcon = icon(GLYPH.chat);
 

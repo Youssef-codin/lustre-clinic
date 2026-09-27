@@ -5,6 +5,10 @@
  */
 import { describe, expect, it } from 'bun:test';
 import { setRuntimeLocale } from '../../i18n/runtime';
+
+/** The wording, without the isolates `localizeCopy` puts around each value in Arabic. */
+const plain = (text: string) => text.replace(/[\u2068\u2069]/g, '');
+
 import {
     clock12,
     formatClock12,
@@ -122,7 +126,7 @@ describe('a length of time', () => {
     it('takes the language from the caller, and reads the app otherwise', () => {
         setRuntimeLocale('ar');
         try {
-            expect(formatDuration(30)).toBe('30 دقيقة');
+            expect(plain(formatDuration(30))).toBe('30 دقيقة');
             expect(formatDuration(30, 'en')).toBe('30 min');
             expect(formatDuration(90, 'en')).toBe('1h 30m');
         } finally {

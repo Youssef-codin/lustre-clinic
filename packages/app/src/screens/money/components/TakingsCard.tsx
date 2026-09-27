@@ -92,6 +92,7 @@ export function TakingsCard({ takings, label }: TakingsCardProps) {
 }
 
 function MethodRow({ row, total, split }: { row: MethodTaking; total: number; split: boolean }) {
+    const t = useT();
     const share = methodShare(row.amount, total);
     const percent = Math.round(share * 100);
 
@@ -124,7 +125,9 @@ function MethodRow({ row, total, split }: { row: MethodTaking; total: number; sp
                         <View
                             style={styles.track}
                             accessibilityRole="progressbar"
-                            accessibilityLabel={`${methodLabel(row.method)} share of takings`}
+                            accessibilityLabel={t('{method} share of takings', {
+                                method: methodLabel(row.method),
+                            })}
                             accessibilityValue={{ min: 0, max: 100, now: percent }}
                         >
                             <Animated.View

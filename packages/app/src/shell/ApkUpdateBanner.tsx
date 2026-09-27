@@ -27,7 +27,7 @@ export function ApkUpdateBanner() {
     return (
         <Banner
             tone="info"
-            message={`${t('New version ready')} · Lustre ${update.version}`}
+            message={t('New version ready · Lustre {version}', { version: update.version })}
             action={
                 <View style={styles.actions}>
                     <Button

@@ -3,7 +3,9 @@
  * phone, and whether the clinic server has a newer APK than that (§15). Pure, so
  * `bun test` reaches it; `appUpdate.ts` supplies the native values.
  */
+import { type Locale, localizeCopy } from '@lustre/shared';
 import type { RouterOutput } from '../../../api';
+import { getLocale } from '../../../i18n/runtime';
 
 type LatestApk = NonNullable<RouterOutput['release']['latestApk']>;
 
@@ -43,21 +45,32 @@ export function newerApk(
     return latest;
 }
 
-export function versionLine({ version, build }: Pick<InstalledVersion, 'version' | 'build'>): string {
-    const name = `Lustre ${version ?? '0.0.0'}`;
-    return build ? `${name} (build ${build})` : name;
+export function versionLine(
+    { version, build }: Pick<InstalledVersion, 'version' | 'build'>,
+    locale: Locale = getLocale(),
+): string {
+    const vars = { version: version ?? '0.0.0', build: build ?? '' };
+    return localizeCopy(locale, build ? 'Lustre {version} (build {build})' : 'Lustre {version}', vars);
 }
 
 /** The installed APK, which an update runs on top of. */
-export function apkLabel({ apkVersion, build }: Pick<InstalledVersion, 'apkVersion' | 'build'>): string {
+export function apkLabel(
+    { apkVersion, build }: Pick<InstalledVersion, 'apkVersion' | 'build'>,
+    locale: Locale = getLocale(),
+): string {
     if (!apkVersion) return build ?? '—';
-    return build ? `${apkVersion} · build ${build}` : apkVersion;
+    return build
+        ? localizeCopy(locale, '{version} · build {build}', { version: apkVersion, build })
+        : apkVersion;
 }
 
 /** The JavaScript this launch runs: the bundle in the APK, or an update by its short id and day. */
-export function updateLabel({ updateId, updateCreatedAt, embedded }: InstalledVersion): string {
-    if (updateId === null) return 'Off in this build';
-    if (embedded) return 'Built in';
+export function updateLabel(
+    { updateId, updateCreatedAt, embedded }: InstalledVersion,
+    locale: Locale = getLocale(),
+): string {
+    if (updateId === null) return localizeCopy(locale, 'Off in this build');
+    if (embedded) return localizeCopy(locale, 'Built in');
     const day = updateCreatedAt ? ` · ${updateCreatedAt.toISOString().slice(0, 10)}` : '';
     return `${updateId.slice(0, 8)}${day}`;
 }

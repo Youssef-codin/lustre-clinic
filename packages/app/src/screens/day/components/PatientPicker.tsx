@@ -24,6 +24,7 @@
  * the walk-in contract is written against.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
+import { phoneText } from '../../../components/domain';
 import { Button, SearchField } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
@@ -108,7 +109,7 @@ function PatientResults({
     if (loading) {
         return (
             <Text variant="subhead" tone="muted">
-                Searching…
+                {t('Searching…')}
             </Text>
         );
     }
@@ -150,7 +151,7 @@ function PatientResults({
                         {patient.name}
                     </Text>
                     <Text variant="subhead" tone="muted">
-                        {patient.phone}
+                        {phoneText(patient.phone)}
                     </Text>
                 </Pressable>
             ))}

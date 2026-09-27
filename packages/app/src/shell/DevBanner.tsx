@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { BUILD_VARIANT, showsDevBanner, useConnection } from '../api';
+import { useT } from '../i18n';
 import { color, size, space, Text } from '../theme';
 import { DEV_LABEL, serverLabel } from './serverLabel';
 import { useServerSetup } from './serverStore';
@@ -18,6 +19,7 @@ import { useServerSetup } from './serverStore';
  * to be worth having is an overlay over a control.
  */
 export function DevBanner() {
+    const t = useT();
     const { baseUrl } = useConnection();
     const { addresses } = useServerSetup();
 
@@ -26,7 +28,11 @@ export function DevBanner() {
     const server = serverLabel(baseUrl, addresses);
 
     return (
-        <View accessible accessibilityLabel={`Development build, ${server}`} style={styles.strip}>
+        <View
+            accessible
+            accessibilityLabel={t('Development build, {server}', { server })}
+            style={styles.strip}
+        >
             <Text variant="eyebrow" tone="inverse">
                 {DEV_LABEL}
             </Text>

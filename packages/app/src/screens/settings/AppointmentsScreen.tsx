@@ -158,7 +158,9 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                                                 selected={isDefault}
                                                 onPress={() => onSetDefault(minutes)}
                                                 disabled={busy}
-                                                accessibilityLabel={`Make ${minutes} minutes the default`}
+                                                accessibilityLabel={t('Make {minutes} minutes the default', {
+                                                    minutes,
+                                                })}
                                                 testID={`duration-default-${minutes}`}
                                             />
 
@@ -175,7 +177,9 @@ export function AppointmentsScreen({ onBack }: { onBack: () => void }) {
                                                 {isDefault ? null : (
                                                     <Pressable
                                                         accessibilityRole="button"
-                                                        accessibilityLabel={`Remove ${minutes} minutes`}
+                                                        accessibilityLabel={t('Remove {minutes} minutes', {
+                                                            minutes,
+                                                        })}
                                                         onPress={() => onRemove(minutes)}
                                                         disabled={busy}
                                                         testID={`duration-remove-${minutes}`}
