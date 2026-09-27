@@ -20,15 +20,24 @@ class AlarmCopyRecord : Record {
   fun toCopy() = AlarmCopy(title, body, snooze, open, channelName)
 }
 
+class AlarmCheckRecord : Record {
+  @Field var bases: List<String> = emptyList()
+  @Field var pendingPath: String = ""
+  @Field var settingsPath: String = ""
+  @Field var today: String = ""
+
+  fun toCheck() = ReminderCheck.Check(bases, pendingPath, settingsPath, today)
+}
+
 class LustreAlarmModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("LustreAlarm")
 
     // Replaces the whole series. A ring already going is left alone: the
     // series is re-armed on every foreground and every refetch.
-    Function("schedule") { at: List<Double>, copy: AlarmCopyRecord ->
+    Function("schedule") { at: List<Double>, copy: AlarmCopyRecord, check: AlarmCheckRecord? ->
       val context = appContext.reactContext ?: return@Function false
-      AlarmSchedule.replace(context, at.map { it.toLong() }, copy.toCopy())
+      AlarmSchedule.replace(context, at.map { it.toLong() }, copy.toCopy(), check?.toCheck())
     }
 
     Function("tryIn") { ms: Double, copy: AlarmCopyRecord ->

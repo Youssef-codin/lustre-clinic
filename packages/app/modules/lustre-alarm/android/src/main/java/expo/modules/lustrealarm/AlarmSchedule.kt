@@ -31,11 +31,21 @@ object AlarmSchedule {
   private const val KEY_SNOOZE = "snooze"
   private const val KEY_OPEN = "open"
   private const val KEY_CHANNEL = "channelName"
+  private const val KEY_CHECK_BASES = "checkBases"
+  private const val KEY_CHECK_PENDING = "checkPending"
+  private const val KEY_CHECK_SETTINGS = "checkSettings"
+  private const val KEY_CHECK_TODAY = "checkToday"
 
   /** False when Android refused the alarm: the exact-alarm permission revoked, on 12. */
-  fun replace(context: Context, at: List<Long>, copy: AlarmCopy): Boolean {
+  fun replace(context: Context, at: List<Long>, copy: AlarmCopy, check: ReminderCheck.Check?): Boolean {
     saveCopy(context, copy)
-    prefs(context).edit().putString(KEY_AT, at.sorted().joinToString(",")).apply()
+    prefs(context).edit()
+      .putString(KEY_AT, at.sorted().joinToString(","))
+      .putString(KEY_CHECK_BASES, check?.bases?.joinToString("\n"))
+      .putString(KEY_CHECK_PENDING, check?.pendingPath)
+      .putString(KEY_CHECK_SETTINGS, check?.settingsPath)
+      .putString(KEY_CHECK_TODAY, check?.today)
+      .apply()
     return armNext(context, System.currentTimeMillis())
   }
 
@@ -99,6 +109,18 @@ object AlarmSchedule {
       snooze = prefs.getString(KEY_SNOOZE, null) ?: "Snooze",
       open = prefs.getString(KEY_OPEN, null) ?: "Open",
       channelName = prefs.getString(KEY_CHANNEL, null) ?: "Reminder alarm",
+    )
+  }
+
+  /** What to ask the server before a ring of the series, or null to ring without asking. */
+  fun check(context: Context): ReminderCheck.Check? {
+    val prefs = prefs(context)
+    val bases = prefs.getString(KEY_CHECK_BASES, null)?.split("\n")?.filter { it.isNotEmpty() } ?: return null
+    return ReminderCheck.Check(
+      bases = bases.ifEmpty { return null },
+      pendingPath = prefs.getString(KEY_CHECK_PENDING, null) ?: return null,
+      settingsPath = prefs.getString(KEY_CHECK_SETTINGS, null) ?: return null,
+      today = prefs.getString(KEY_CHECK_TODAY, null) ?: return null,
     )
   }
 

@@ -19,8 +19,20 @@ export interface AlarmCopy {
     channelName: string;
 }
 
+/**
+ * Asked of the clinic server just before each ring (`src/notifications/alarmCheck.ts`
+ * writes it). Null rings without asking.
+ */
+export interface AlarmCheck {
+    /** Tried in order, the one the app is on first. */
+    bases: string[];
+    pendingPath: string;
+    settingsPath: string;
+    today: string;
+}
+
 interface LustreAlarmNative {
-    schedule(at: number[], copy: AlarmCopy): boolean;
+    schedule(at: number[], copy: AlarmCopy, check: AlarmCheck | null): boolean;
     tryIn(ms: number, copy: AlarmCopy): boolean;
     cancel(): void;
     takeOpenRequest(): boolean;
@@ -33,11 +45,12 @@ const native = requireOptionalNativeModule<LustreAlarmNative>('LustreAlarm');
 export const alarmsAvailable = native !== null;
 
 /** Replaces whatever was armed. False when Android refused an exact alarm, or there is no native side. */
-export function scheduleAlarms(at: Date[], copy: AlarmCopy): boolean {
+export function scheduleAlarms(at: Date[], copy: AlarmCopy, check: AlarmCheck | null): boolean {
     return (
         native?.schedule(
             at.map((date) => date.getTime()),
             copy,
+            check,
         ) ?? false
     );
 }

@@ -7,7 +7,7 @@ export { BUILD_VARIANT, serverAddresses, setServerAddresses } from './config';
 export type { AddressKind, ConnectionStatus } from './connection';
 export { getConnectionState, lastProbeRefused, reprobe } from './connection';
 export { dataGeneration, subscribeToDataReset } from './dataReset';
-export { enableDemoMode, resetDemoData, useDemoMode } from './demo';
+export { enableDemoMode, isDemoMode, resetDemoData, useDemoMode } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
 export { onServerChange, onServerEvent } from './live';
 export { clockSample, noteServerClock, serverNow, serverToday } from './serverClock';

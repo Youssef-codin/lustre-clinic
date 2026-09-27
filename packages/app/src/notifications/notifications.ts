@@ -25,12 +25,20 @@
  * plan is cheap to recompute and a diff is how a phone ends up with two series
  * layered over each other, each buzzing on its own half-hour.
  */
-import { type Locale, localizeCopy } from '@lustre/shared';
+import { type Locale, localizeCopy, offsetForDate, todayKey } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { type AlarmCopy, cancelAlarms, scheduleAlarms, tryAlarm } from '../../modules/lustre-alarm';
+import {
+    type AlarmCheck,
+    type AlarmCopy,
+    cancelAlarms,
+    scheduleAlarms,
+    tryAlarm,
+} from '../../modules/lustre-alarm';
+import { getConnectionState, isDemoMode, serverAddresses } from '../api';
 import { getLocale } from '../i18n/runtime';
 import { withUpdatesHeld } from '../shell/updateGate';
+import { alarmCheck } from './alarmCheck';
 import type { NudgePlan } from './schedule';
 import { failureIdentifier } from './visitAction';
 import { arrivalIdentifier, noticeIdentifier } from './visitNotice';
@@ -160,7 +168,7 @@ async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
         return 'refused';
     }
 
-    if (alarm && scheduleAlarms(plan.at, alarmCopy())) return 'armed';
+    if (alarm && scheduleAlarms(plan.at, alarmCopy(), serverCheck())) return 'armed';
     // Off, or Android refused the exact alarm: the ordinary nudge rather than none.
     cancelAlarms();
     await ensureChannel();
@@ -190,6 +198,19 @@ async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
 export async function tryReminderAlarm(ms: number): Promise<boolean> {
     if (!(await ensurePermission())) return false;
     return tryAlarm(ms, alarmCopy());
+}
+
+function serverCheck(): AlarmCheck | null {
+    const { lan, tailscale } = serverAddresses();
+    const today = todayKey();
+    return alarmCheck({
+        demo: isDemoMode(),
+        current: getConnectionState().baseUrl,
+        lan,
+        tailscale,
+        today,
+        offsetMinutes: offsetForDate(today),
+    });
 }
 
 /** Worded now, in the app's language: the ring comes up with no JS running to word it. */
