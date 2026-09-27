@@ -105,9 +105,10 @@ export interface Visit {
     chargedTotal: number;
     createdAt: string;
     procedures: VisitLine[];
-    payments: VisitPayment[];
-    paidTotal: number;
-    balance: number;
+    /** The three are null on a phone whose role may not see payments (a doctor). */
+    payments: VisitPayment[] | null;
+    paidTotal: number | null;
+    balance: number | null;
 }
 
 export interface VisitRow {

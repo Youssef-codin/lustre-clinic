@@ -138,7 +138,10 @@ export function VisitViewScreen({
     // out of. The group subtotals have to be struck the same way or the lines
     // on this screen visibly do not add up to the total under them.
     const waived = checkupIsWaived(visit.procedures);
-    const settled = visit.balance <= 0;
+    // Null on a doctor's phone, which is not shown payments: the visit is its
+    // treatment only, and the payment panel is not offered at all.
+    const payments = visit.payments;
+    const settled = (visit.balance ?? 0) <= 0;
     const day = dateKey(new Date(appointment.startsAt));
 
     return (
@@ -188,24 +191,26 @@ export function VisitViewScreen({
                 </View>
             </View>
 
-            <View style={styles.tabs}>
-                <SegmentedControl<Panel>
-                    accessibilityLabel="Treatment or payment"
-                    value={panel}
-                    onChange={setPanel}
-                    segments={[
-                        { value: 'treatment', label: 'Treatment' },
-                        { value: 'payment', label: `${t('Payment')} · ${visit.payments.length}` },
-                    ]}
-                />
-            </View>
+            {payments ? (
+                <View style={styles.tabs}>
+                    <SegmentedControl<Panel>
+                        accessibilityLabel="Treatment or payment"
+                        value={panel}
+                        onChange={setPanel}
+                        segments={[
+                            { value: 'treatment', label: 'Treatment' },
+                            { value: 'payment', label: `${t('Payment')} · ${payments.length}` },
+                        ]}
+                    />
+                </View>
+            ) : null}
 
             <ScrollView
                 style={styles.scroll}
                 contentContainerStyle={styles.body}
                 showsVerticalScrollIndicator={false}
             >
-                {panel === 'treatment' ? (
+                {panel === 'treatment' || payments === null ? (
                     <>
                         <View style={styles.sectionHead}>
                             <Text variant="eyebrow" tone="muted">
@@ -319,13 +324,13 @@ export function VisitViewScreen({
                             </Text>
                             <Text variant="footnote" tone="muted">
                                 {t('{paid} of {charged}', {
-                                    paid: formatMoney(visit.paidTotal),
+                                    paid: formatMoney(visit.paidTotal ?? 0),
                                     charged: formatAmount(visit.chargedTotal),
                                 })}
                             </Text>
                         </View>
 
-                        {visit.payments.length === 0 ? (
+                        {payments.length === 0 ? (
                             <View style={styles.blank}>
                                 <Text variant="subhead" tone="muted">
                                     {t('Nothing has been paid on this visit yet.')}
@@ -333,7 +338,7 @@ export function VisitViewScreen({
                             </View>
                         ) : (
                             <View style={styles.payments}>
-                                {visit.payments.map((payment, index) => (
+                                {payments.map((payment, index) => (
                                     <View
                                         key={payment.id}
                                         style={[styles.dateRow, index > 0 && styles.dateRowDivided]}
@@ -389,7 +394,7 @@ export function VisitViewScreen({
                                 weight="bold"
                                 tone={settled ? 'success' : 'due'}
                             >
-                                {formatMoney(settled ? visit.chargedTotal : visit.balance)}
+                                {formatMoney(settled ? visit.chargedTotal : (visit.balance ?? 0))}
                             </Text>
                         </View>
                     </>
@@ -414,7 +419,7 @@ export function VisitViewScreen({
                             setMenuOpen(false);
                             // Refused by the server too; saying so here spares
                             // the confirm for something that cannot happen.
-                            if (visit.payments.length > 0) {
+                            if (payments && payments.length > 0) {
                                 setToast(
                                     t(
                                         'This visit has payments on it. Remove them first if they were entered by mistake.',

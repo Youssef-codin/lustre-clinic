@@ -30,6 +30,7 @@ const ROW_ICON = {
     about: icon(GLYPH.info, ROW),
     hours: icon(GLYPH.time, ROW),
     backups: icon(GLYPH.backups, ROW),
+    roles: icon(GLYPH.roles, ROW),
 } as const;
 
 export type SettingsGlyph = keyof typeof ROW_ICON;
@@ -49,8 +50,8 @@ export function SettingsIcon({ glyph, ...rest }: SettingsIconProps) {
  */
 export const DriveAlertIcon = icon(GLYPH.driveAlert, { size: 18, stroke: color.dueText, width: 2 });
 
-/** The identity card's "Switch role" — two arrows doubling back on each other. */
-export const SwitchRoleIcon = icon(GLYPH.switchRole, { size: 16, stroke: color.inverse, width: 2 });
+/** The identity card's "Scan a role code". */
+export const ScanCodeIcon = icon(GLYPH.scanCode, { size: 16, stroke: color.inverse, width: 2 });
 
 /** Re-probe, on the dark card and in the App pane's server card. */
 export const ReprobeIcon = icon(GLYPH.reprobe, { size: 14, stroke: color.ink, width: 2.2 });

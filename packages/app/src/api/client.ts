@@ -1,11 +1,12 @@
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
-import { TRPC_ENDPOINT } from '@lustre/shared';
+import { DEVICE_TOKEN_HEADER, TRPC_ENDPOINT } from '@lustre/shared';
 import { createTRPCClient, httpBatchLink, splitLink } from '@trpc/client';
 import { createTRPCOptionsProxy } from '@trpc/tanstack-react-query';
 // The trail, not the `reporting` barrel, which loads the SDK (see its index).
 import { noteApi } from '../reporting/trail';
 import { timing } from './config';
 import { markOffline, markOnline, resolveBaseUrl } from './connection';
+import { credentialToken, hydrateCredential, noteRefusal, refusalIn } from './credential';
 import { subscribeToDataReset } from './dataReset';
 import { demoLink, isDemoMode } from './demo';
 import { queryClient } from './queryClient';
@@ -50,6 +51,9 @@ async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promis
                 : await fetch(target, { ...init, signal });
         markOnline();
         noteApi(requested.pathname, response.status, Date.now() - started);
+        // 401 is only ever a phone the server will not let in; a batch that
+        // mixed it with answers comes back 207.
+        if (response.status === 401 || response.status === 207) void readRefusal(response.clone(), init);
         return response;
     } catch (error) {
         markOffline();
@@ -58,6 +62,24 @@ async function serverFetch(input: RequestInfo | URL, init?: RequestInit): Promis
     } finally {
         done();
     }
+}
+
+function sentToken(init: RequestInit | undefined): string | null {
+    const value = new Headers(init?.headers).get(DEVICE_TOKEN_HEADER);
+    return value ? value.replace(/^Bearer\s+/i, '') : null;
+}
+
+async function readRefusal(response: Response, init: RequestInit | undefined): Promise<void> {
+    const body: unknown = await response.json().catch(() => null);
+    const refusal = refusalIn(body);
+    if (refusal) noteRefusal(refusal, sentToken(init));
+}
+
+/** Read per request, after storage has answered: a provisioned phone must never send one bare. */
+async function credentialHeaders(): Promise<Record<string, string>> {
+    await hydrateCredential();
+    const token = credentialToken();
+    return token ? { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` } : {};
 }
 
 // The split is per request rather than per client, because demo mode can be
@@ -73,6 +95,7 @@ export const trpcClient = createTRPCClient<AppRouter>({
             false: httpBatchLink({
                 url: `${PLACEHOLDER_ORIGIN}${TRPC_ENDPOINT}`,
                 fetch: serverFetch,
+                headers: credentialHeaders,
             }),
         }),
     ],

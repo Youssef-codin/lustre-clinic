@@ -1,9 +1,18 @@
-import { CLIENT_ROLES, type ClientRole } from '@lustre/shared';
+import { CLIENT_ROLES, type ClientRole, type Role, viewOf } from '@lustre/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+import type { Credential } from '../api';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
-// Which of the two views this handset opens in (§1). It lived in `AppShell`'s
+// Which of the two views this handset opens in (§1), and who it is.
+//
+// A provisioned phone is whatever its credential says (`api/credential`), and
+// that is the only way a phone's role changes: an admin's code, redeemed. What
+// follows is the phone that has not scanned one yet — the view it was left on
+// before roles existed, read and never written, so it keeps opening where it
+// did until it is provisioned.
+//
+// That view lived in `AppShell`'s
 // `useState`, which made it a fact about the current mount rather than about
 // the phone: every cold launch put a secretary's handset back into the doctor's
 // day view, with the clinic's rows under it.
@@ -13,12 +22,11 @@ import { hydratingSubscribe } from './hydratingSubscribe';
 // import, so nothing touches the native module until something renders.
 const ROLE_KEY = 'lustre.role';
 
-// The safe end of the switch, and so the answer to every question storage
-// cannot settle — missing key, a value from a build that spelled the roles
+// The answer to every question storage cannot settle — missing key, a value from a build that spelled the roles
 // differently, a read that threw. The doctor's rows are the clinic's own
 // numbers and the phone at the desk is the one likely to be picked up by
-// somebody else, so an unknown role draws the secretary's screen and lets her
-// switch, rather than guessing its way into the doctor's.
+// somebody else, so an unknown role draws the secretary's screen rather than
+// guessing its way into the doctor's.
 const FALLBACK_ROLE: ClientRole = 'secretary';
 
 export interface RoleState {
@@ -45,14 +53,8 @@ export function createRoleStore() {
         for (const listener of listeners) listener();
     }
 
-    // A switch confirmed while the read was still out is this phone's answer,
-    // and the stored value is the question it just answered. Without this the
-    // read lands second and puts the old role back.
-    let chosen = false;
-
     async function hydrate(): Promise<void> {
         const stored = await AsyncStorage.getItem(ROLE_KEY).catch(() => null);
-        if (chosen) return;
         emit({ hydrated: true, role: isRole(stored) ? stored : FALLBACK_ROLE });
     }
 
@@ -61,24 +63,33 @@ export function createRoleStore() {
     return {
         subscribe,
         getSnapshot: (): RoleState => state,
-        // Applied before the write settles, for the reason `LocaleProvider` gives:
-        // the switch has to feel immediate, and a failed write costs one
-        // re-pick on the next launch rather than a wrong screen now.
-        set(next: ClientRole): void {
-            chosen = true;
-            if (next !== state.role || !state.hydrated) emit({ hydrated: true, role: next });
-            void AsyncStorage.setItem(ROLE_KEY, next).catch(() => undefined);
-        },
     };
 }
 
 const store = createRoleStore();
 
-export function useRole(): RoleState {
-    return useSyncExternalStore(store.subscribe, store.getSnapshot);
+export interface PhoneRole {
+    /** Nothing role-specific may draw before this: the alternative is a frame of the wrong view. */
+    hydrated: boolean;
+    /** Which day screen and which Settings rows. */
+    role: ClientRole;
+    /** The role an admin granted this phone. Null until it has scanned a code. */
+    granted: Role | null;
 }
 
-/** Only ever from a confirmed switch — see `RoleSwitchSheet` in settings. */
-export function setRole(next: ClientRole): void {
-    store.set(next);
+export function resolveRole(
+    legacy: RoleState,
+    credential: Credential | null,
+    credentialReady: boolean,
+): PhoneRole {
+    return {
+        hydrated: legacy.hydrated && credentialReady,
+        role: credential ? viewOf(credential.role) : legacy.role,
+        granted: credential?.role ?? null,
+    };
+}
+
+/** The view a phone with no credential was left on. `useRole` is what screens read. */
+export function useLegacyRole(): RoleState {
+    return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }

@@ -88,8 +88,9 @@ export interface PatientHistoryEntry {
     dateUnknown: boolean;
     computedTotal: number;
     chargedTotal: number;
-    paidTotal: number;
-    balance: number;
+    /** Null on a phone whose role may not see payments (a doctor). */
+    paidTotal: number | null;
+    balance: number | null;
     procedures: HistoryProcedure[];
 }
 

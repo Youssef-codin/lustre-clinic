@@ -112,7 +112,9 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
               ? IN_CHAIR
               : STATUS[entry.status];
     const came = entry.visitId !== null;
-    const due = entry.balance > 0;
+    // Null on a phone not shown payments: the row then shows the charge alone.
+    const owed = entry.balance ?? 0;
+    const due = owed > 0;
 
     // A row is a way into what it stands for: the visit behind a row that came,
     // or the booking itself while it is still to come. One with neither — a
@@ -176,7 +178,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                 {came && due ? (
                     <View style={styles.meaning}>
                         <MoneyValue
-                            piastres={entry.balance}
+                            piastres={owed}
                             variant="callout"
                             weight="bold"
                             showCurrency={false}
@@ -267,7 +269,7 @@ function Meaning({ entry }: { entry: PatientHistoryEntry }) {
         return null;
     }
 
-    if (entry.balance > 0) {
+    if ((entry.balance ?? 0) > 0) {
         return (
             <View style={styles.meaning}>
                 <Text variant="caption" tone="muted">

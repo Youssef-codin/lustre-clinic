@@ -1,9 +1,11 @@
+import { DEVICE_TOKEN_HEADER } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: opens the `/ws` socket and closes it on cleanup — the subscription case this hook exists for
 import { useEffect } from 'react';
 import { noteLive } from '../reporting/trail';
 import { api } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
+import { credentialToken, hydrateCredential } from './credential';
 import { subscribeToDemoEvents, useDemoMode } from './demo';
 import { queryClient } from './queryClient';
 import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
@@ -18,6 +20,13 @@ import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } fr
 // The cursor outlives the socket, so a reconnect resumes where the last one
 // stopped and the server replays what was missed (`serverEvents.ts`).
 const cursor = createEventCursor();
+
+/** React Native's socket takes headers as a third argument; the DOM type it is checked against does not. */
+const HeaderedWebSocket = WebSocket as unknown as new (
+    url: string,
+    protocols: null,
+    options: { headers: Record<string, string> } | null,
+) => WebSocket;
 
 const changeListeners = new Set<(areas: ReadonlySet<Area> | 'all') => void>();
 
@@ -89,7 +98,14 @@ function connect(): () => void {
         }
         if (closed) return;
 
-        const next = new WebSocket(`${wsUrl(base)}${cursor.resumeQuery()}`);
+        await hydrateCredential();
+        if (closed) return;
+        const token = credentialToken();
+        const next = new HeaderedWebSocket(
+            `${wsUrl(base)}${cursor.resumeQuery()}`,
+            null,
+            token ? { headers: { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` } } : null,
+        );
         socket = next;
 
         next.onopen = () => {

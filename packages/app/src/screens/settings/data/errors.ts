@@ -25,6 +25,7 @@ const TEXT: Partial<Record<ErrorCode, string>> = {
     [ERROR_CODE.PATIENT_REF_BELOW_EXISTING]:
         'A patient already has that number, or a higher one. Numbering has to carry on above it.',
     [ERROR_CODE.DB_UNAVAILABLE]: "Couldn't reach the clinic computer.",
+    [ERROR_CODE.ROLE_FORBIDDEN]: 'This phone’s role cannot do that.',
 };
 
 export function errorText(error: unknown, overrides: Partial<Record<ErrorCode, string>> = {}): string {

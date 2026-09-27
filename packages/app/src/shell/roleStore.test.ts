@@ -1,8 +1,8 @@
 /**
  * The role decides which day screen and which Settings rows a handset draws, so
  * a launch that forgets it is a secretary's phone opening on the doctor's view
- * of the clinic. What is checked here is the launch, not the switch: a store
- * built fresh against seeded storage is what a cold start actually does.
+ * of the clinic. A store built fresh against seeded storage is what a cold
+ * start actually does.
  */
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
@@ -20,7 +20,7 @@ mock.module('@react-native-async-storage/async-storage', () => ({
     },
 }));
 
-const { createRoleStore } = await import('./roleStore');
+const { createRoleStore, resolveRole } = await import('./roleStore');
 
 /** A cold launch: a store that has never read storage, subscribed to as the shell subscribes. */
 async function launch() {
@@ -92,43 +92,23 @@ describe('the role a launch opens in', () => {
     });
 });
 
-describe('switching role', () => {
-    it('survives the remount that a cold launch is', async () => {
-        const first = await launch();
-        first.store.set('doctor');
+describe('a provisioned phone', () => {
+    const legacy = { hydrated: true, role: 'secretary' as const };
+    const credential = { token: 't', deviceId: 'd', role: 'admin' as const, label: 'Owner' };
 
-        const second = await launch();
-
-        expect(second.store.getSnapshot().role).toBe('doctor');
+    it('draws the view of the role it was granted, whatever it was left on', () => {
+        expect(resolveRole(legacy, credential, true)).toEqual({
+            hydrated: true,
+            role: 'doctor',
+            granted: 'admin',
+        });
     });
 
-    it('takes effect before the write settles', async () => {
-        const { store } = await launch();
-
-        store.set('doctor');
-
-        expect(store.getSnapshot().role).toBe('doctor');
+    it('keeps the view it was left on until it scans a code', () => {
+        expect(resolveRole(legacy, null, true)).toEqual({ hydrated: true, role: 'secretary', granted: null });
     });
 
-    it('keeps the chosen role when the write fails, rather than crashing', async () => {
-        const { store } = await launch();
-        writeFails = true;
-
-        store.set('doctor');
-        await Promise.resolve();
-
-        expect(store.getSnapshot().role).toBe('doctor');
-    });
-
-    it('is not undone by a slower read that was already in flight', async () => {
-        stored.set('lustre.role', 'secretary');
-
-        const store = createRoleStore();
-        store.subscribe(() => {});
-        store.set('doctor');
-        await Promise.resolve();
-        await Promise.resolve();
-
-        expect(store.getSnapshot().role).toBe('doctor');
+    it('holds nothing role-specific until the credential has been read too', () => {
+        expect(resolveRole(legacy, null, false).hydrated).toBe(false);
     });
 });
