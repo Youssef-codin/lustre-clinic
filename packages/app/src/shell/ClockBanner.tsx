@@ -7,7 +7,9 @@ import { clockSample, noteServerClock, trpcClient } from '../api';
 import { formatDuration } from '../components/domain/clock';
 import { Banner, Button } from '../components/ui';
 import { useT } from '../i18n';
+import { clockBannerSnooze, useSnooze } from './bannerSnoozeStore';
 import { type ClockProblem, clockProblem, clockSkew } from './clockCheck';
+import { SnoozeActions } from './SnoozeActions';
 
 const RECHECK_MS = 5 * 60_000;
 
@@ -31,22 +33,25 @@ function restartForNewZone(): void {
 
 /**
  * The strip over the day that says this phone's time cannot be trusted
- * (`clockCheck.ts`). Not dismissable: until it is fixed every booking made
- * here can land an hour out, and the chair's timer is wrong for everyone who
- * looks at it. The button goes straight to Android's date and time settings,
- * and coming back from them restarts the app, so turning on automatic time
- * clears it.
+ * (`clockCheck.ts`). Snoozed, never dismissed (`bannerSnoozeStore`): until it
+ * is fixed every booking made here can land an hour out, and the chair's timer
+ * is wrong for everyone who looks at it. The button goes straight to Android's
+ * date and time settings, and coming back from them restarts the app, so a
+ * fixed zone or clock clears it. It does not say how to fix it: "turn on
+ * automatic time" put phones with old zone data an hour out (Egypt's DST came
+ * back in 2023), so the right setting is left to whoever holds the phone.
  */
 export function ClockBanner() {
     const t = useT();
     const problem = useClockProblem();
+    const snooze = useSnooze(clockBannerSnooze);
 
-    if (!problem) return null;
+    if (!problem || !snooze.hydrated || snooze.snoozed) return null;
 
     const message =
         problem.kind === 'zone'
-            ? t("This phone's time zone doesn't match the clinic's. Turn on automatic date and time.")
-            : t("This phone's clock is off by {duration}. Turn on automatic date and time.", {
+            ? t("This phone's time zone doesn't match the clinic's.")
+            : t("This phone's clock is off by {duration}.", {
                   duration: formatDuration(problem.offByMinutes),
               });
 
@@ -55,18 +60,20 @@ export function ClockBanner() {
             tone="warning"
             message={message}
             action={
-                <Button
-                    label="Open settings"
-                    variant="text"
-                    size="md"
-                    onPress={() => {
-                        sentToSettings = true;
-                        void Linking.sendIntent('android.settings.DATE_SETTINGS').catch(() => {
-                            sentToSettings = false;
-                        });
-                    }}
-                    testID="home-clock-settings"
-                />
+                <SnoozeActions store={clockBannerSnooze} testID="home-clock-dismiss">
+                    <Button
+                        label="Open settings"
+                        variant="text"
+                        size="md"
+                        onPress={() => {
+                            sentToSettings = true;
+                            void Linking.sendIntent('android.settings.DATE_SETTINGS').catch(() => {
+                                sentToSettings = false;
+                            });
+                        }}
+                        testID="home-clock-settings"
+                    />
+                </SnoozeActions>
             }
         />
     );

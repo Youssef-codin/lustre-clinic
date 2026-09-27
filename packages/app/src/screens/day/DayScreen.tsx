@@ -155,9 +155,18 @@ type DayScreenProps = {
      * branch stay where they were — they are what the desk chose, not a route.
      */
     goHome?: number;
+    /** Bumped when the ringing alarm's Open reminders brings the app up: home, but on the Reminders tab. */
+    showReminders?: number;
 };
 
-function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome = 0 }: DayScreenProps = {}) {
+function DayScreenView({
+    onBookingChange,
+    onOpenRecord,
+    open,
+    onReturn,
+    goHome = 0,
+    showReminders = 0,
+}: DayScreenProps = {}) {
     const t = useT();
     const [dateKey, setDateKey] = useState(todayKey);
     const [tab, setTab] = useState<DayTab>('day');
@@ -178,6 +187,7 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
     // the other one has already opened and closed.
     const [seenOpen, setSeenOpen] = useState(open?.seq ?? 0);
     const [seenHome, setSeenHome] = useState(goHome);
+    const [seenReminders, setSeenReminders] = useState(showReminders);
     const [selected, setSelected] = useState<{ appointment: Appointment | null; open: boolean }>({
         appointment: null,
         open: false,
@@ -280,9 +290,12 @@ function DayScreenView({ onBookingChange, onOpenRecord, open, onReturn, goHome =
     // the editor mid-save leaves `onSaved` to land on whatever is on top by
     // then, replacing a route it was never opened over. `seenHome` is left
     // alone so the tap is answered as soon as the save finishes.
-    if (goHome !== seenHome && !registering && !paying) {
+    const homeAsked = goHome !== seenHome;
+    const remindersAsked = showReminders !== seenReminders;
+    if ((homeAsked || remindersAsked) && !registering && !paying) {
         setSeenHome(goHome);
-        setTab('day');
+        setSeenReminders(showReminders);
+        setTab(remindersAsked ? 'reminders' : 'day');
         routes.popToRoot();
         setBookNextOpen(false);
         setBooking((current) => ({ ...current, open: false }));

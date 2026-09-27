@@ -6,6 +6,7 @@ import { useConnection, useCredential } from '../api';
 import { BottomTabBar, GLYPH, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import {
+    useAlarmOpen,
     useArrivalNotices,
     useReminderNudges,
     useVisitCompletedNotices,
@@ -118,6 +119,8 @@ export function AppShell() {
     // Tapping the tab you are already on. One counter per tab, bumped up here
     // and read down there, because only the cluster knows what its home is.
     const [home, setHome] = useState<HomeSignals>(NO_HOME);
+    // Open reminders on the ringing alarm, the same kind of counter as `home`.
+    const [remindersAsked, setRemindersAsked] = useState(0);
     // A toast for something that happened on one tab and finishes on another.
     // A cluster's own toast draws inside its pane, and the pane is hidden the
     // moment the route lands somewhere else — so a check-in that ends on the
@@ -193,6 +196,14 @@ export function AppShell() {
         }
         reveal(next);
     }
+
+    // Whatever was last on screen, the alarm asked for the list it is about.
+    const openReminders = useCallback(() => {
+        setBooking(false);
+        reveal('day');
+        setRemindersAsked((n) => n + 1);
+    }, [reveal]);
+    useAlarmOpen(openReminders, roleReady);
 
     const openRecord = useCallback(
         (patientId: string, backLabel?: string, said?: string) => {
@@ -328,6 +339,7 @@ export function AppShell() {
                             key="secretary"
                             open={booked}
                             goHome={home.day}
+                            showReminders={remindersAsked}
                             onBookingChange={setBooking}
                             onOpenRecord={openFromDay}
                             onReturn={returnToRecord}

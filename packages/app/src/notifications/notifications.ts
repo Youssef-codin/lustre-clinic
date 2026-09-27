@@ -25,11 +25,20 @@
  * plan is cheap to recompute and a diff is how a phone ends up with two series
  * layered over each other, each buzzing on its own half-hour.
  */
-import { type Locale, localizeCopy } from '@lustre/shared';
+import { type Locale, localizeCopy, offsetForDate, todayKey } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import {
+    type AlarmCheck,
+    type AlarmCopy,
+    cancelAlarms,
+    scheduleAlarms,
+    tryAlarm,
+} from '../../modules/lustre-alarm';
+import { getConnectionState, isDemoMode, serverAddresses } from '../api';
 import { getLocale } from '../i18n/runtime';
 import { withUpdatesHeld } from '../shell/updateGate';
+import { alarmCheck } from './alarmCheck';
 import type { NudgePlan } from './schedule';
 import { failureIdentifier } from './visitAction';
 import { arrivalIdentifier, noticeIdentifier } from './visitNotice';
@@ -121,17 +130,55 @@ async function cancelNudges(): Promise<void> {
  * Cancel what is armed and arm the plan. An empty plan is a cancel — that is the
  * whole of "stops when the list is cleared or dismissed for the day".
  *
+ * On Android the plan goes to `modules/lustre-alarm`, which asks the clinic
+ * server just before each one and stays quiet if the list has emptied since
+ * (`alarmCheck.ts`). With `alarm` each one rings until stopped and fills the
+ * lock screen; without, it is a plain notification. `expo-notifications` is
+ * only the fallback — iOS, or Android refusing an exact alarm — and cannot
+ * check, because it posts without waking any code. Only one of the two is ever
+ * armed, and emptying the plan also stops a ring that is going: the list was
+ * cleared.
+ *
  * Returns what it did, so the caller can hold "notifications are off" without
  * this module reaching for a logger the app does not have. Nothing in
  * `packages/app` writes to a console, and a nudge that did not arm is a thing to
  * say on screen rather than into a log nobody reads.
+ *
+ * One arm at a time. The effect can ask again — the alarm switch flipped, a
+ * refetch landed — while the last arm is still between its cancel and its
+ * schedule, and two arms interleaved that way each cancel before either
+ * schedules, which leaves both series armed.
  */
-export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' | 'refused'> {
+export function armNudges(plan: NudgePlan, { alarm }: { alarm: boolean }): Promise<ArmResult> {
+    const next = arming.then(() => arm(plan, alarm));
+    arming = next.catch(() => undefined);
+    return next;
+}
+
+type ArmResult = 'armed' | 'disarmed' | 'refused';
+
+let arming: Promise<unknown> = Promise.resolve();
+
+async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
     await cancelNudges();
 
-    if (plan.at.length === 0) return 'disarmed';
-    if (!(await ensurePermission())) return 'refused';
+    if (plan.at.length === 0) {
+        cancelAlarms();
+        return 'disarmed';
+    }
+    // The ring's screen and its Snooze both hang off its notification: no
+    // notifications, no way to stop it.
+    if (!(await ensurePermission())) {
+        cancelAlarms();
+        return 'refused';
+    }
 
+    // The plain nudge posts on this channel from native code too.
+    if (!alarm) await ensureChannel();
+    if (scheduleAlarms(plan.at, alarmCopy(), serverCheck(), alarm)) return 'armed';
+    // No native side, or Android refused the exact alarm: the ordinary nudge,
+    // unchecked, rather than none.
+    cancelAlarms();
     await ensureChannel();
 
     for (const at of plan.at) {
@@ -150,6 +197,40 @@ export async function armNudges(plan: NudgePlan): Promise<'armed' | 'disarmed' |
     }
 
     return 'armed';
+}
+
+/**
+ * Demo mode's "Try the alarm": one real ring `ms` from now, long enough to lock
+ * the phone and see it fill the lock screen. Beside the day's series, not in it.
+ */
+export async function tryReminderAlarm(ms: number): Promise<boolean> {
+    if (!(await ensurePermission())) return false;
+    return tryAlarm(ms, alarmCopy());
+}
+
+function serverCheck(): AlarmCheck | null {
+    const { lan, tailscale } = serverAddresses();
+    const today = todayKey();
+    return alarmCheck({
+        demo: isDemoMode(),
+        current: getConnectionState().baseUrl,
+        lan,
+        tailscale,
+        today,
+        offsetMinutes: offsetForDate(today),
+    });
+}
+
+/** Worded now, in the app's language: the ring comes up with no JS running to word it. */
+function alarmCopy(): AlarmCopy {
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    return {
+        title: t(TITLE),
+        body: t(BODY),
+        snooze: t('Snooze'),
+        open: t('Open reminders'),
+        channelName: t('Appointment reminders (ringing)'),
+    };
 }
 
 const VISIT_CHANNEL_ID = 'visits';

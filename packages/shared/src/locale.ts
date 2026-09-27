@@ -163,10 +163,8 @@ export const COPY_AR = {
     'Back to the clinic the demo opens on': 'العودة إلى بيانات العيادة التجريبية الأصلية',
     'Connect to the clinic server instead': 'الاتصال بخادم العيادة بدلًا من ذلك',
     'New version ready': 'يتوفر إصدار جديد',
-    "This phone's time zone doesn't match the clinic's. Turn on automatic date and time.":
-        'المنطقة الزمنية لهذا الهاتف لا تطابق العيادة. فعّل ضبط التاريخ والوقت تلقائيًا.',
-    "This phone's clock is off by {duration}. Turn on automatic date and time.":
-        'ساعة هذا الهاتف غير مضبوطة بفارق {duration}. فعّل ضبط التاريخ والوقت تلقائيًا.',
+    "This phone's time zone doesn't match the clinic's.": 'المنطقة الزمنية لهذا الهاتف لا تطابق العيادة.',
+    "This phone's clock is off by {duration}.": 'ساعة هذا الهاتف غير مضبوطة بفارق {duration}.',
     'Open settings': 'فتح الإعدادات',
     'Sends your last taps, never patient details': 'يرسل آخر النقرات دون بيانات المرضى',
     'Off on this build': 'متوقف في هذا الإصدار',
@@ -574,6 +572,18 @@ export const COPY_AR = {
     'Repeat every': 'التكرار كل',
     'Moves reminders not yet sent.': 'ينقل التذكيرات التي لم تُرسل بعد.',
     'Stops when cleared, never overnight.': 'يتوقف عند مسح القائمة، ولا يعمل ليلًا.',
+    'ON THIS PHONE': 'على هذا الهاتف',
+    'Ring like an alarm': 'الرنين كمنبّه',
+    'Rings at the alarm volume until you stop it, even on silent, and fills the lock screen.':
+        'يرنّ بمستوى صوت المنبّه حتى تُوقفه، حتى في الوضع الصامت، ويملأ شاشة القفل.',
+    "The alarm can't fill the lock screen": 'لا يمكن للمنبّه أن يملأ شاشة القفل',
+    'Android is set to show it as a banner instead. It still rings.':
+        'أندرويد مضبوط على عرضه كإشعار منبثق بدلًا من ذلك. سيظل يرنّ.',
+    'Allow in Android settings': 'السماح من إعدادات أندرويد',
+    'Try the alarm': 'جرّب المنبّه',
+    'Rings in 5 seconds…': 'سيرنّ بعد 5 ثوانٍ…',
+    'Lock the phone to see it fill the lock screen.': 'اقفل الهاتف لتراه يملأ شاشة القفل.',
+    'Turn on notifications for Lustre Clinic first.': 'فعّل الإشعارات لتطبيق Lustre Clinic أولًا.',
     'Sample patient — real values are filled per appointment.':
         'مريض تجريبي — تُملأ القيم الحقيقية مع كل موعد.',
     'Save & close visit': 'حفظ وإنهاء الزيارة',
@@ -1167,6 +1177,9 @@ export const COPY_AR = {
     'Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it.':
         'يُضاف إلى كل زيارة عند تسجيل الوصول، ويُلغى إذا أُجري أي عمل آخر. يمكن أن يحمل هذا الإعداد إجراء واحد فقط.',
     'Appointment reminders': 'تذكيرات المواعيد',
+    'Appointment reminders (ringing)': 'تذكيرات المواعيد (رنين)',
+    Snooze: 'غفوة',
+    'Open reminders': 'فتح التذكيرات',
     'The daily nudge that reminders are still waiting to be sent.':
         'تنبيه يومي بأن هناك تذكيرات لم تُرسل بعد.',
     'Reminders pending': 'تذكيرات معلّقة',
