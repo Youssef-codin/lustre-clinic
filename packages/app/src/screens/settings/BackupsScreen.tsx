@@ -1,13 +1,14 @@
 /**
  * Settings → Backups: whether last night's backup ran and where its copy went.
  * Opened only once Drive is linked — until then the row opens the sign-in
- * instead, because there is nothing to report on yet.
+ * instead, because there is nothing to report on yet. Changing the account is
+ * the same sign-in, so the index owns it and this pane only asks for it.
  */
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, View } from 'react-native';
 import { serverNow, useTRPC } from '../../api';
 import { formatStamp } from '../../components/domain';
-import { Card, Dot, SectionLabel } from '../../components/ui';
+import { Button, Card, Dot, SectionLabel } from '../../components/ui';
 import { useLocale, useT } from '../../i18n';
 import { color, space, Text } from '../../theme';
 import { Pane } from './components/Pane';
@@ -17,9 +18,11 @@ import { errorText } from './data/errors';
 
 export type BackupsScreenProps = {
     onBack: () => void;
+    /** Absent when this server cannot run the sign-in from the phone. */
+    onChangeAccount?: () => void;
 };
 
-export function BackupsScreen({ onBack }: BackupsScreenProps) {
+export function BackupsScreen({ onBack, onChangeAccount }: BackupsScreenProps) {
     const t = useT();
     const locale = useLocale();
     const trpc = useTRPC();
@@ -64,6 +67,17 @@ export function BackupsScreen({ onBack }: BackupsScreenProps) {
                             {details.note}
                         </Text>
                     ) : null}
+
+                    {onChangeAccount ? (
+                        <Button
+                            label="Change account"
+                            variant="secondary"
+                            size="md"
+                            onPress={onChangeAccount}
+                            style={styles.change}
+                            testID="settings-backups-change"
+                        />
+                    ) : null}
                 </View>
             ) : null}
         </Pane>
@@ -98,4 +112,5 @@ const styles = StyleSheet.create({
     row: { flexDirection: 'row', justifyContent: 'space-between', gap: space[3] },
     value: { flexShrink: 1 },
     note: { paddingHorizontal: space[0.5] },
+    change: { alignSelf: 'flex-start', marginTop: space[2] },
 });

@@ -457,13 +457,6 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 )}
             </ScrollView>
 
-            <Toast
-                visible={toast !== null}
-                message={toast ?? ''}
-                onDismiss={() => setToast(null)}
-                testID="settings-toast"
-            />
-
             <DriveSignInSheet
                 visible={linkingDrive}
                 account={backups?.account ?? null}
@@ -502,7 +495,12 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'about' ? <AboutScreen onBack={back} /> : null}
                     {pane === 'app' ? <AppScreen onBack={back} /> : null}
                     {pane === 'appointments' ? <AppointmentsScreen onBack={back} /> : null}
-                    {pane === 'backups' ? <BackupsScreen onBack={back} /> : null}
+                    {pane === 'backups' ? (
+                        <BackupsScreen
+                            onBack={back}
+                            onChangeAccount={backups?.canSignIn ? () => setLinkingDrive(true) : undefined}
+                        />
+                    ) : null}
                     {pane === 'reminders' ? <RemindersScreen onBack={back} /> : null}
                     {pane === 'clinic' ? <ClinicScreen onBack={back} /> : null}
                     {pane === 'branches' ? <BranchesScreen onBack={back} /> : null}
@@ -511,6 +509,15 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     {pane === 'patientFields' ? <PatientFieldsScreen onBack={back} /> : null}
                 </PushView>
             ))}
+
+            {/* After the panes: a Drive sign-in started from the Backups pane
+                reports here, and a toast under the pane would never be seen. */}
+            <Toast
+                visible={toast !== null}
+                message={toast ?? ''}
+                onDismiss={() => setToast(null)}
+                testID="settings-toast"
+            />
         </View>
     );
 }
