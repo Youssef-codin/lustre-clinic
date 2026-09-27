@@ -28,6 +28,7 @@
 import { type Locale, localizeCopy } from '@lustre/shared';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { type AlarmCopy, cancelAlarms, scheduleAlarms, tryAlarm } from '../../modules/lustre-alarm';
 import { getLocale } from '../i18n/runtime';
 import { withUpdatesHeld } from '../shell/updateGate';
 import type { NudgePlan } from './schedule';
@@ -35,15 +36,6 @@ import { failureIdentifier } from './visitAction';
 import { arrivalIdentifier, noticeIdentifier } from './visitNotice';
 
 const CHANNEL_ID = 'reminders';
-
-/**
- * Its own channel rather than the plain one turned up: Android fixes a
- * channel's importance and sound once it exists, so the ringing nudge could
- * never live on `reminders` without every existing phone keeping the old
- * behaviour. The sound is bundled by the `expo-notifications` plugin (app.json).
- */
-const ALARM_CHANNEL_ID = 'reminders-alarm';
-const ALARM_SOUND = 'reminder_alarm.wav';
 
 /** Tags every nudge this module owns, so cancelling never touches a notification someone else scheduled. */
 const NUDGE_TAG = 'lustre.reminder.nudge';
@@ -79,35 +71,6 @@ async function ensureChannel(): Promise<void> {
         importance: Notifications.AndroidImportance.DEFAULT,
     });
     channelLocale = getLocale();
-}
-
-let alarmChannelLocale: Locale | null = null;
-
-/**
- * The alarm stream, not the notification one: it rings with the ringer on
- * silent, the way an alarm clock does, and uses the alarm volume. Do Not
- * Disturb is still respected — bypassing it needs a policy grant a clinic
- * phone should not be asked for. Public on the lock screen, which is safe
- * only because the nudge carries no patient data (see the header).
- */
-async function ensureAlarmChannel(): Promise<void> {
-    if (Platform.OS !== 'android' || alarmChannelLocale === getLocale()) return;
-
-    const t = (copy: string) => localizeCopy(getLocale(), copy);
-    await Notifications.setNotificationChannelAsync(ALARM_CHANNEL_ID, {
-        name: t('Appointment reminders (alarm)'),
-        description: t('The daily nudge, ringing like an alarm.'),
-        importance: Notifications.AndroidImportance.MAX,
-        sound: ALARM_SOUND,
-        audioAttributes: {
-            usage: Notifications.AndroidAudioUsage.ALARM,
-            contentType: Notifications.AndroidAudioContentType.SONIFICATION,
-        },
-        enableVibrate: true,
-        vibrationPattern: [0, 800, 400, 800, 400, 800],
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-    });
-    alarmChannelLocale = getLocale();
 }
 
 /**
@@ -159,22 +122,48 @@ async function cancelNudges(): Promise<void> {
  * Cancel what is armed and arm the plan. An empty plan is a cancel — that is the
  * whole of "stops when the list is cleared or dismissed for the day".
  *
+ * With `alarm` the plan goes to `modules/lustre-alarm` instead, which rings
+ * until stopped and fills the lock screen. Only one of the two is ever armed,
+ * and emptying the plan also stops a ring that is going: the list was cleared.
+ *
  * Returns what it did, so the caller can hold "notifications are off" without
  * this module reaching for a logger the app does not have. Nothing in
  * `packages/app` writes to a console, and a nudge that did not arm is a thing to
  * say on screen rather than into a log nobody reads.
+ *
+ * One arm at a time. The effect can ask again — the alarm switch flipped, a
+ * refetch landed — while the last arm is still between its cancel and its
+ * schedule, and two arms interleaved that way each cancel before either
+ * schedules, which leaves both series armed.
  */
-export async function armNudges(
-    plan: NudgePlan,
-    { alarm }: { alarm: boolean },
-): Promise<'armed' | 'disarmed' | 'refused'> {
+export function armNudges(plan: NudgePlan, { alarm }: { alarm: boolean }): Promise<ArmResult> {
+    const next = arming.then(() => arm(plan, alarm));
+    arming = next.catch(() => undefined);
+    return next;
+}
+
+type ArmResult = 'armed' | 'disarmed' | 'refused';
+
+let arming: Promise<unknown> = Promise.resolve();
+
+async function arm(plan: NudgePlan, alarm: boolean): Promise<ArmResult> {
     await cancelNudges();
 
-    if (plan.at.length === 0) return 'disarmed';
-    if (!(await ensurePermission())) return 'refused';
+    if (plan.at.length === 0) {
+        cancelAlarms();
+        return 'disarmed';
+    }
+    // The ring's screen and its Snooze both hang off its notification: no
+    // notifications, no way to stop it.
+    if (!(await ensurePermission())) {
+        cancelAlarms();
+        return 'refused';
+    }
 
-    if (alarm) await ensureAlarmChannel();
-    else await ensureChannel();
+    if (alarm && scheduleAlarms(plan.at, alarmCopy())) return 'armed';
+    // Off, or Android refused the exact alarm: the ordinary nudge rather than none.
+    cancelAlarms();
+    await ensureChannel();
 
     for (const at of plan.at) {
         await Notifications.scheduleNotificationAsync({
@@ -182,19 +171,37 @@ export async function armNudges(
                 title: localizeCopy(getLocale(), TITLE),
                 body: localizeCopy(getLocale(), BODY),
                 data: { tag: NUDGE_TAG },
-                ...(alarm
-                    ? { sound: ALARM_SOUND, priority: Notifications.AndroidNotificationPriority.MAX }
-                    : {}),
             },
             trigger: {
                 type: Notifications.SchedulableTriggerInputTypes.DATE,
                 date: at,
-                channelId: alarm ? ALARM_CHANNEL_ID : CHANNEL_ID,
+                channelId: CHANNEL_ID,
             },
         });
     }
 
     return 'armed';
+}
+
+/**
+ * Demo mode's "Try the alarm": one real ring `ms` from now, long enough to lock
+ * the phone and see it fill the lock screen. Beside the day's series, not in it.
+ */
+export async function tryReminderAlarm(ms: number): Promise<boolean> {
+    if (!(await ensurePermission())) return false;
+    return tryAlarm(ms, alarmCopy());
+}
+
+/** Worded now, in the app's language: the ring comes up with no JS running to word it. */
+function alarmCopy(): AlarmCopy {
+    const t = (copy: string) => localizeCopy(getLocale(), copy);
+    return {
+        title: t(TITLE),
+        body: t(BODY),
+        snooze: t('Snooze'),
+        open: t('Open reminders'),
+        channelName: t('Appointment reminders (ringing)'),
+    };
 }
 
 const VISIT_CHANNEL_ID = 'visits';

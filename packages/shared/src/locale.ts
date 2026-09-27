@@ -580,8 +580,16 @@ export const COPY_AR = {
     'Stops when cleared, never overnight.': 'يتوقف عند مسح القائمة، ولا يعمل ليلًا.',
     'ON THIS PHONE': 'على هذا الهاتف',
     'Ring like an alarm': 'الرنين كمنبّه',
-    'Rings loudly at the alarm volume, even on silent.':
-        'يرنّ بصوت عالٍ بمستوى صوت المنبّه، حتى في الوضع الصامت.',
+    'Rings at the alarm volume until you stop it, even on silent, and fills the lock screen.':
+        'يرنّ بمستوى صوت المنبّه حتى تُوقفه، حتى في الوضع الصامت، ويملأ شاشة القفل.',
+    "The alarm can't fill the lock screen": 'لا يمكن للمنبّه أن يملأ شاشة القفل',
+    'Android is set to show it as a banner instead. It still rings.':
+        'أندرويد مضبوط على عرضه كإشعار منبثق بدلًا من ذلك. سيظل يرنّ.',
+    'Allow in Android settings': 'السماح من إعدادات أندرويد',
+    'Try the alarm': 'جرّب المنبّه',
+    'Rings in 5 seconds…': 'سيرنّ بعد 5 ثوانٍ…',
+    'Lock the phone to see it fill the lock screen.': 'اقفل الهاتف لتراه يملأ شاشة القفل.',
+    'Turn on notifications for Lustre Clinic first.': 'فعّل الإشعارات لتطبيق Lustre Clinic أولًا.',
     'Sample patient — real values are filled per appointment.':
         'مريض تجريبي — تُملأ القيم الحقيقية مع كل موعد.',
     'Save & close visit': 'حفظ وإنهاء الزيارة',
@@ -1179,8 +1187,9 @@ export const COPY_AR = {
     'Added to every visit at check-in, and waived when any other work is done. Only one procedure can hold it.':
         'يُضاف إلى كل زيارة عند تسجيل الوصول، ويُلغى إذا أُجري أي عمل آخر. يمكن أن يحمل هذا الإعداد إجراء واحد فقط.',
     'Appointment reminders': 'تذكيرات المواعيد',
-    'Appointment reminders (alarm)': 'تذكيرات المواعيد (منبّه)',
-    'The daily nudge, ringing like an alarm.': 'التنبيه اليومي، يرنّ كمنبّه.',
+    'Appointment reminders (ringing)': 'تذكيرات المواعيد (رنين)',
+    Snooze: 'غفوة',
+    'Open reminders': 'فتح التذكيرات',
     'The daily nudge that reminders are still waiting to be sent.':
         'تنبيه يومي بأن هناك تذكيرات لم تُرسل بعد.',
     'Reminders pending': 'تذكيرات معلّقة',

@@ -32,7 +32,7 @@ import { REMINDER_TOKENS } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTRPC } from '../../api';
+import { useDemoMode, useTRPC } from '../../api';
 import { formatClock12 } from '../../components/domain';
 import {
     Button,
@@ -48,7 +48,15 @@ import {
     usePullToRefresh,
 } from '../../components/ui';
 import { useT } from '../../i18n';
-import { setReminderAlarm, useNotificationsAllowed, useReminderAlarm } from '../../notifications';
+import {
+    alarmsAvailable,
+    openLockScreenSettings,
+    setReminderAlarm,
+    tryReminderAlarm,
+    useLockScreenAllowed,
+    useNotificationsAllowed,
+    useReminderAlarm,
+} from '../../notifications';
 import { color, radius, space, Text } from '../../theme';
 import { PlusIcon, WhatsAppIcon } from './components/icons';
 import { Pane } from './components/Pane';
@@ -62,10 +70,11 @@ import {
     timeFromMinutes,
 } from './data/reminders';
 
+const TRY_ALARM_MS = 5000;
+
 export function RemindersScreen({ onBack }: { onBack: () => void }) {
     const t = useT();
     const allowed = useNotificationsAllowed();
-    const alarm = useReminderAlarm();
     const trpc = useTRPC();
     const queryClient = useQueryClient();
 
@@ -202,29 +211,9 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                     </View>
 
                     {/* This phone's, not the clinic's: not written to the
-                        server, and applied to the next arm without a save. */}
-                    <View style={styles.section}>
-                        <SectionLabel inset={false}>ON THIS PHONE</SectionLabel>
-                        <Card>
-                            <View style={styles.timing}>
-                                <View style={styles.timingText}>
-                                    <Text variant="body" weight="medium">
-                                        {t('Ring like an alarm')}
-                                    </Text>
-                                    <Text variant="footnote" tone="muted">
-                                        {t('Rings loudly at the alarm volume, even on silent.')}
-                                    </Text>
-                                </View>
-                                <Switch
-                                    value={alarm.enabled}
-                                    onValueChange={setReminderAlarm}
-                                    disabled={!alarm.hydrated}
-                                    accessibilityLabel={t('Ring like an alarm')}
-                                    testID="reminder-alarm"
-                                />
-                            </View>
-                        </Card>
-                    </View>
+                        server, and applied to the next arm without a save.
+                        Only where the native alarm is built in. */}
+                    {alarmsAvailable ? <AlarmSection /> : null}
 
                     <View style={styles.section}>
                         <SectionLabel
@@ -320,6 +309,86 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                 </>
             ) : null}
         </Pane>
+    );
+}
+
+function AlarmSection() {
+    const t = useT();
+    const alarm = useReminderAlarm();
+    const lockScreen = useLockScreenAllowed();
+    const { enabled: demo } = useDemoMode();
+    const [trying, setTrying] = useState<'waiting' | 'refused' | null>(null);
+
+    async function tryAlarm() {
+        const armed = await tryReminderAlarm(TRY_ALARM_MS);
+        setTrying(armed ? 'waiting' : 'refused');
+        if (armed) setTimeout(() => setTrying(null), TRY_ALARM_MS);
+    }
+
+    return (
+        <View style={styles.section}>
+            <SectionLabel inset={false}>ON THIS PHONE</SectionLabel>
+            <Card>
+                <View style={styles.timing}>
+                    <View style={styles.timingText}>
+                        <Text variant="body" weight="medium">
+                            {t('Ring like an alarm')}
+                        </Text>
+                        <Text variant="footnote" tone="muted">
+                            {t(
+                                'Rings at the alarm volume until you stop it, even on silent, and fills the lock screen.',
+                            )}
+                        </Text>
+                    </View>
+                    <Switch
+                        value={alarm.enabled}
+                        onValueChange={setReminderAlarm}
+                        disabled={!alarm.hydrated}
+                        accessibilityLabel={t('Ring like an alarm')}
+                        testID="reminder-alarm"
+                    />
+                </View>
+            </Card>
+
+            {/* Android 14 can take full-screen alarms away. It still rings, as
+                a banner, so this is a warning and not a block. */}
+            {alarm.enabled && lockScreen === 'blocked' ? (
+                <>
+                    <Callout tone="warning" title="The alarm can't fill the lock screen">
+                        Android is set to show it as a banner instead. It still rings.
+                    </Callout>
+                    <Button
+                        label="Allow in Android settings"
+                        variant="secondary"
+                        onPress={openLockScreenSettings}
+                        block
+                        testID="reminder-alarm-lock-screen"
+                    />
+                </>
+            ) : null}
+
+            {/* Rings whether or not the switch is on: it is how someone decides
+                whether to turn it on. */}
+            {demo ? (
+                <>
+                    <Button
+                        label={trying === 'waiting' ? 'Rings in 5 seconds…' : 'Try the alarm'}
+                        variant="secondary"
+                        onPress={() => void tryAlarm()}
+                        disabled={trying === 'waiting'}
+                        block
+                        testID="reminder-alarm-try"
+                    />
+                    <Text variant="footnote" tone="muted">
+                        {t(
+                            trying === 'refused'
+                                ? 'Turn on notifications for Lustre Clinic first.'
+                                : 'Lock the phone to see it fill the lock screen.',
+                        )}
+                    </Text>
+                </>
+            ) : null}
+        </View>
     );
 }
 
