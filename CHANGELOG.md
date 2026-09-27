@@ -12,7 +12,7 @@ listed.
 
 ### Changed
 
-- Updates arrive without closing the app. The phone downloads a new version quietly while it's open and switches to it the next time you come back to the app: from WhatsApp, from the lock screen, or opening it again after swiping it away.
+- Updates arrive without closing the app. The phone downloads a new version quietly while it's open and switches to it the next time you come back to the app: from WhatsApp, from the lock screen, or opening it again after swiping it away. An update that finishes downloading within seconds of opening the app is switched to straight away, instead of waiting for the next time. An update that finishes downloading within seconds of opening the app is switched to straight away, instead of waiting for the next time.
 
 ## [1.6.2] - 2026-09-27
 

@@ -52,8 +52,8 @@ export const CHECK_EVERY_MS = 15 * 60_000;
 /**
  * Whether the app, back on screen for `msSinceReturn`, should restart into a
  * downloaded update. Any return counts, a hop to WhatsApp included: that is the
- * moment nothing is half-typed. `null` is never having come back, the first
- * launch, which expo-updates already started on the newest bundle it had.
+ * moment nothing is half-typed. Opening the app counts as a return. `null` is
+ * before the app has drawn at all.
  */
 export function reloadOnReturn(updatePending: boolean, msSinceReturn: number | null, held: boolean): boolean {
     return updatePending && !held && msSinceReturn !== null && msSinceReturn < RELOAD_WINDOW_MS;

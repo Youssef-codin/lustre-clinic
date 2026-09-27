@@ -72,7 +72,7 @@ export function UpdateScreen() {
  */
 let drawnBefore = false;
 let checking = false;
-/** When the app last came back on screen, or null before any return. */
+/** When the app was last opened or came back on screen. */
 let returnedAt: number | null = null;
 
 /** Looks for an update and downloads it, without a screen. A minor then takes the screen above. */
@@ -112,7 +112,11 @@ function useQuietUpdates(updatePending: boolean) {
 
     useEffect(() => {
         if (!Updates.isEnabled) return;
+        // A cold start counts as a return too: it opens on the bundle it has and
+        // downloads in the background, and one that lands straight away should
+        // not wait for the next launch.
         if (drawnBefore) onReturn(pending.current);
+        else returnedAt = Date.now();
         drawnBefore = true;
 
         let away = false;

@@ -360,7 +360,7 @@ A patch never shows a screen. The phone downloads it on launch, every 15
 minutes while the app is open, and on each return to the app. It switches to
 it the next time the app comes back on screen, from WhatsApp, the lock screen or
 a reopen after a swipe away, and also when one finishes downloading within 10
-seconds of that return (`packages/app/src/shell/updateGate.ts`). Google's
+seconds of that return or of a cold start (`packages/app/src/shell/updateGate.ts`). Google's
 sign-in and the notification permission dialog hold it off, since they leave the
 app and need it unchanged when they come back. Swiping the app away does not
 end it (the listener service keeps the process), so the app notices the reopen
