@@ -12,6 +12,7 @@ listed.
 
 - Settings → About opens a page with the version, APK and update details, which used to sit under Settings → App. The language switch is now on the Settings page itself, so it takes one tap, and Settings → App shows only the server connection.
 - Once Google Drive is linked, tapping Backups in Settings opens a page showing whether backups are up to date, when the last one ran, and which Google account the copy goes to, with a Change account button. Until Drive is linked, it still opens the sign-in.
+- The warnings about the phone's time zone or clock being wrong, and about notifications being off, can be closed with the X. They come back after 4 hours if the problem hasn't been fixed. The time warning no longer tells you to turn on automatic date and time, which set some phones an hour out.
 
 ## [1.6.3] - 2026-09-27
 
