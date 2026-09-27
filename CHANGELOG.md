@@ -10,7 +10,7 @@ listed.
 
 ### Added
 
-- Settings → Reminders has a "Ring like an alarm" switch, off unless you turn it on. When it's on, this phone's daily reminder rings like an alarm clock: it keeps ringing and vibrating at the alarm volume, even on silent, until you tap Snooze or Open reminders, and it fills the lock screen. It still comes back at the next "Repeat every" until the list is cleared. Needs the new APK.
+- Settings → Reminders has a "Ring like an alarm" switch, off unless you turn it on. When it's on, this phone's daily reminder rings like an alarm clock: it keeps ringing and vibrating at the alarm volume, even on silent, until you tap Snooze or Open reminders, and it fills the lock screen. Open reminders goes straight to the list of who to remind. It still comes back at the next "Repeat every" until the list is cleared. Needs the new APK.
 
 ### Changed
 

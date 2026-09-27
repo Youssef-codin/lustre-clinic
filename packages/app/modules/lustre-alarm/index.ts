@@ -23,6 +23,7 @@ interface LustreAlarmNative {
     schedule(at: number[], copy: AlarmCopy): boolean;
     tryIn(ms: number, copy: AlarmCopy): boolean;
     cancel(): void;
+    takeOpenRequest(): boolean;
     canFullScreen(): boolean;
     openFullScreenSettings(): void;
 }
@@ -49,6 +50,11 @@ export function tryAlarm(ms: number, copy: AlarmCopy): boolean {
 /** Disarms the series and stops a ring that is going. */
 export function cancelAlarms(): void {
     native?.cancel();
+}
+
+/** Whether Open reminders was tapped since the last ask. Asking clears it. */
+export function takeOpenRequest(): boolean {
+    return native?.takeOpenRequest() ?? false;
 }
 
 /** Whether a ring may take over the lock screen. Android 14 lets the user switch that off. */

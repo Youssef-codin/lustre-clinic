@@ -36,6 +36,12 @@ class LustreAlarmModule : Module() {
       AlarmSchedule.tryAt(context, System.currentTimeMillis() + ms.toLong(), copy.toCopy())
     }
 
+    Function("takeOpenRequest") {
+      val requested = AlarmActivity.openRequested
+      AlarmActivity.openRequested = false
+      requested
+    }
+
     Function("cancel") {
       val context = appContext.reactContext ?: return@Function Unit
       AlarmSchedule.clear(context)

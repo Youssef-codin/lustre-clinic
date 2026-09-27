@@ -68,7 +68,7 @@ class AlarmActivity : Activity() {
     val launch = packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val keyguard = getSystemService(KeyguardManager::class.java)
     if (launch == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !keyguard.isKeyguardLocked) {
-      launch?.let { startActivity(it) }
+      launch?.let { openApp(it) }
       finish()
       return
     }
@@ -76,7 +76,7 @@ class AlarmActivity : Activity() {
       this,
       object : KeyguardManager.KeyguardDismissCallback() {
         override fun onDismissSucceeded() {
-          startActivity(launch)
+          openApp(launch)
           finish()
         }
 
@@ -85,6 +85,13 @@ class AlarmActivity : Activity() {
         override fun onDismissError() = finish()
       },
     )
+  }
+
+  // The app reads the flag when it comes up, and goes to the reminders list
+  // rather than wherever it was left.
+  private fun openApp(launch: Intent) {
+    openRequested = true
+    startActivity(launch)
   }
 
   private fun dp(value: Int): Int =
@@ -149,6 +156,10 @@ class AlarmActivity : Activity() {
 
   companion object {
     const val ACTION_OPEN = "expo.modules.lustrealarm.OPEN"
+
+    /** Open reminders was tapped and the app has not taken it yet. Same process, so memory is enough. */
+    @Volatile
+    var openRequested = false
     // `color.inkDeep`, `color.accent` and `color.muted` in src/theme/tokens.ts.
     private const val INK_DEEP = 0xFF0E1116.toInt()
     private const val ACCENT = 0xFF2F5BFF.toInt()
