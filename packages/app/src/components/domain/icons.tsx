@@ -13,6 +13,7 @@ import {
     AppWindow,
     ArrowLeft,
     ArrowRight,
+    Banknote,
     Bell,
     Calendar,
     CalendarClock,
@@ -26,7 +27,6 @@ import {
     Clock,
     CloudAlert,
     CloudOff,
-    Coins,
     CreditCard,
     DatabaseBackup,
     Ellipsis,
@@ -114,7 +114,7 @@ export const GLYPH = {
     noShow: UserX,
     offline: CloudOff,
     oldVisit: History,
-    pay: Coins,
+    pay: Banknote,
     patient: User,
     patients: Users,
     problem: TriangleAlert,
@@ -134,7 +134,7 @@ export const GLYPH = {
 
 /** The four ways the clinic is paid, drawn the same wherever a method shows. */
 export const METHOD_GLYPH: Record<PaymentMethod, Glyph> = {
-    cash: Coins,
+    cash: Banknote,
     visa: CreditCard,
     instapay: Zap,
     other: Receipt,

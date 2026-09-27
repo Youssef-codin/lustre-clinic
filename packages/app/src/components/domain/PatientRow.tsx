@@ -15,7 +15,7 @@
  * they are one fact about the person, and a third `·` reads as a third field.
  * The `y` is what stops a bare age reading as the tail of the phone number.
  *
- * `balance` is piastres and renders bare, no `EGP`, behind a coin that says it
+ * `balance` is piastres and renders bare, no `EGP`, behind a banknote that says it
  * is money. It is a flag that something is owed, not a statement of the
  * balance — that is read in full on the record. It is not a failure state
  * either: partial payment is normal (PRD), and nothing here presents it as an

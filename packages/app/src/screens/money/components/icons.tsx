@@ -1,7 +1,7 @@
 /**
  * The money cluster's icons, built from the shared set in
  * `components/domain/icons`. The payment methods are the shared `MethodIcon`,
- * so cash is the same coins here as at the desk.
+ * so cash is the same banknote here as at the desk.
  */
 import { GLYPH, icon } from '../../../components/domain';
 import { color } from '../../../theme';
