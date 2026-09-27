@@ -94,21 +94,58 @@ describe('the role a launch opens in', () => {
 
 describe('a provisioned phone', () => {
     const legacy = { hydrated: true, role: 'secretary' as const };
+    const admin = { hydrated: true, role: 'doctor' as const };
     const credential = { token: 't', deviceId: 'd', role: 'admin' as const, label: 'Owner' };
 
     it('draws the view of the role it was granted, whatever it was left on', () => {
-        expect(resolveRole(legacy, credential, true)).toEqual({
+        expect(resolveRole(legacy, admin, credential, true)).toEqual({
             hydrated: true,
             role: 'doctor',
             granted: 'admin',
         });
     });
 
+    it('lets the admin look at the desk’s day, still as the admin', () => {
+        const desk = { hydrated: true, role: 'secretary' as const };
+        expect(resolveRole(legacy, desk, credential, true)).toEqual({
+            hydrated: true,
+            role: 'secretary',
+            granted: 'admin',
+        });
+    });
+
+    it('does not let anyone but the admin choose', () => {
+        const doctor = { ...credential, role: 'doctor' as const };
+        const desk = { hydrated: true, role: 'secretary' as const };
+        expect(resolveRole(legacy, desk, doctor, true).role).toBe('doctor');
+    });
+
     it('keeps the view it was left on until it scans a code', () => {
-        expect(resolveRole(legacy, null, true)).toEqual({ hydrated: true, role: 'secretary', granted: null });
+        expect(resolveRole(legacy, admin, null, true)).toEqual({
+            hydrated: true,
+            role: 'secretary',
+            granted: null,
+        });
     });
 
     it('holds nothing role-specific until the credential has been read too', () => {
-        expect(resolveRole(legacy, null, false).hydrated).toBe(false);
+        expect(resolveRole(legacy, admin, null, false).hydrated).toBe(false);
+    });
+});
+
+describe('the admin’s view', () => {
+    it('opens on the doctor’s day, and remembers a switch', async () => {
+        const first = createRoleStore('lustre.admin.view', 'doctor');
+        first.subscribe(() => {});
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(first.getSnapshot().role).toBe('doctor');
+
+        first.set('secretary');
+        const second = createRoleStore('lustre.admin.view', 'doctor');
+        second.subscribe(() => {});
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(second.getSnapshot().role).toBe('secretary');
     });
 });

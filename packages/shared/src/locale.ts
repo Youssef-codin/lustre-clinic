@@ -1290,6 +1290,7 @@ export const COPY_AR = {
     'Lustre was opened with a role code. Using it gives this phone the role it was made for.':
         'فُتح Lustre برمز دور. استخدامه يمنح هذا الهاتف الدور الذي أُنشئ له.',
     'Use code': 'استخدام الرمز',
+    'Day view': 'عرض اليوم',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

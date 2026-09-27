@@ -13,7 +13,7 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import { managesClinic, type Role } from '@lustre/shared';
+import { type ClientRole, managesClinic, type Role } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
@@ -34,6 +34,7 @@ import {
     PushView,
     ScreenHeader,
     SectionLabel,
+    SegmentedControl,
     Toast,
     usePendingAction,
 } from '../../components/ui';
@@ -42,6 +43,7 @@ import {
 import { setLocale, useLocale, useT } from '../../i18n';
 import { isOpen, rendered, useRouteStack } from '../../navigation';
 import { CRASH_REPORTS_ON, reportProblem } from '../../reporting';
+import { setAdminView } from '../../shell/roleStore';
 import { useRole } from '../../shell/useRole';
 import { color, size, space, Text } from '../../theme';
 import { AppointmentsScreen } from './AppointmentsScreen';
@@ -290,7 +292,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             />
                             {/* The desk's work: the doctor's and the admin's
                                 phones have no reminders. */}
-                            {isDoctor ? null : (
+                            {isDoctor || granted === 'admin' ? null : (
                                 <>
                                     <CardDivider />
                                     <SettingsRow
@@ -373,6 +375,26 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
 
                         {granted === 'admin' ? (
                             <Group title={t('ADMIN')}>
+                                {/* Which day this phone shows. Screens only: the
+                                    server still treats it as the admin, so Money
+                                    and these settings stay either way. */}
+                                <View style={styles.viewRow}>
+                                    <Text variant="body" weight="semibold">
+                                        {t('Day view')}
+                                    </Text>
+                                    <SegmentedControl<ClientRole>
+                                        segments={[
+                                            { value: 'doctor', label: 'Doctor' },
+                                            { value: 'secretary', label: 'Secretary' },
+                                        ]}
+                                        value={role}
+                                        onChange={setAdminView}
+                                        accessibilityLabel="Day view"
+                                        size="sm"
+                                        testID="settings-admin-view"
+                                    />
+                                </View>
+                                <CardDivider />
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="roles" />}
                                     label="Phones & role codes"
@@ -616,6 +638,7 @@ const styles = StyleSheet.create({
         gap: space[4.5],
     },
     group: { gap: space[2] },
+    viewRow: { gap: space[2.5], padding: space[3.5] },
     version: { textAlign: 'center' },
     backupAlert: {
         flexDirection: 'row',

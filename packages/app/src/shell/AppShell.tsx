@@ -129,7 +129,7 @@ export function AppShell() {
     // the background, and the day cluster is unmounted for neither of those but
     // is the wrong owner for something the whole app has.
     // Only on the desk's phone, and not before the role is known.
-    useReminderNudges(roleReady && role === 'secretary');
+    useReminderNudges(roleReady && role === 'secretary' && granted !== 'admin');
     // The doctor finishing (`visit:completed`), on the desk's phone only.
     useVisitCompletedNotices(roleReady ? role : null);
     // And its other half: Finish from the doctor's notification shade.
