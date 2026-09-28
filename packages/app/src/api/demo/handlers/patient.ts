@@ -252,11 +252,11 @@ export const patientHandlers = {
     },
 
     /**
-     * `patientService.updateRef`. Same two gates in the same order: the shape
-     * a patient ref takes — both of them, the plain
-     * number and the code a patient from before numbering carries — and a
-     * number the sequence has still to hand out. Re-typing the ref a record
-     * already has changes nothing and is not audited.
+     * `patientService.updateRef`. Same three gates in the same order: the shape
+     * a patient ref takes — both of them, the plain number and the code a
+     * patient from before numbering carries — then a number the sequence has
+     * still to hand out, then a ref another patient already has. Re-typing the
+     * ref a record already has changes nothing and is not audited.
      */
     updateRef(input: RouterInput['patient']['updateRef']): Patient {
         const next = input.ref.trim().toUpperCase();
@@ -272,10 +272,6 @@ export const patientHandlers = {
         const current = requirePatient(input.id);
         if (current.ref === next) return toPatient(current);
 
-        if (db.patients.some((patient) => patient.ref === next)) {
-            throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
-        }
-
         const counter = db.settings.patientRefNext;
         if (/^\d+$/.test(next) && Number(next) >= counter) {
             throw new DemoError(
@@ -283,6 +279,10 @@ export const patientHandlers = {
                 `${next} is at or above the next patient number (${counter}) and is not yet a patient's`,
                 422,
             );
+        }
+
+        if (db.patients.some((patient) => patient.ref === next)) {
+            throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
         }
 
         db.refEdits.push({
