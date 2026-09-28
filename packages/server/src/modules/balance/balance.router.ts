@@ -1,9 +1,17 @@
 import { paymentProcedure, router } from '../../trpc/init.ts';
-import { balanceSummaryInput, balanceTakingsInput, byPatientInput, settleInput } from './balance.schema.ts';
+import {
+    balanceSummaryInput,
+    balanceTakingsInput,
+    byPatientInput,
+    outstandingInput,
+    settleInput,
+} from './balance.schema.ts';
 import { balanceService } from './balance.service.ts';
 
 export const balanceRouter = router({
-    outstanding: paymentProcedure.query(() => balanceService.outstanding()),
+    outstanding: paymentProcedure
+        .input(outstandingInput)
+        .query(({ input }) => balanceService.outstanding(input?.patientIds)),
 
     byPatient: paymentProcedure
         .input(byPatientInput)

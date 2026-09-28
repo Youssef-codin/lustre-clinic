@@ -57,6 +57,22 @@ describe('manifestFor', () => {
             extra: { expoClient: { name: 'Lustre Clinic', version: '1.0.1' } },
         });
     });
+
+    test('marks a --screen patch, and leaves every other update unmarked', () => {
+        expect(manifest.metadata).toEqual({ version: '1.0.1' });
+        const screen = manifestFor({
+            id: ID,
+            createdAt: new Date('2026-09-14T10:00:00Z'),
+            runtimeVersion: '3f1c0de4',
+            version: '1.0.1',
+            screen: true,
+            serverUrl: 'http://clinic.tail.ts.net:3000/',
+            bundle: { path: 'index.hbc', ext: 'hbc', bytes: bytes('bundle') },
+            assets: [],
+            expoClient: {},
+        });
+        expect(screen.metadata).toEqual({ version: '1.0.1', screen: 'true' });
+    });
 });
 
 describe('signManifest', () => {

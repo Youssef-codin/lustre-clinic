@@ -17,11 +17,12 @@ One command ships everything: `bun ship`. There are no other release commands.
 |---|---|
 | to release what's on `main` (the usual) | `bun ship` |
 | a release the phones take right away (download screen, restart) | `bun ship --minor` |
+| a patch the phones take right away, without moving to a minor | `bun ship --screen` |
 | a new APK: native dependency, `app.json`, config plugin, a baked-in env var | `bun ship --apk` |
 | a breaking change the server and app must ship together | `bun ship --apk --major` |
 | to see the next number without changing anything | `bun ship --dry-run` |
 | to retry only the deploy, after `bun ship` failed at the sudo prompt or the play | `bun ship deploy` |
-| a test build on the dev stack (any branch, no changelog, no push) | `bun ship:dev` (`--apk` for a new dev APK) |
+| a test build on the dev stack (any branch, no changelog, no push) | `bun ship:dev` (`--apk` for a new dev APK, `--screen` or `--minor` to test the download screen) |
 
 If `bun ship` needs an APK (it says "something native changed"), use `bun ship --apk`.
 
@@ -40,6 +41,7 @@ Running it again after a failure picks up where it stopped. A changelog already 
 
 - **Patch** (`bun ship`): no screen. Phones download it quietly (every 15 minutes while open, and on each return to the app) and switch to it the next time the app comes back on screen: from WhatsApp, the lock screen, or reopened after a swipe away. Phones on 1.6.2 or older still need two trips of 5+ minutes away, or a cold start (restart the phone).
 - **Minor** (`bun ship --minor`): phones on 1.6.0 or later show a download screen and restart into it.
+- **Patch with the screen** (`bun ship --screen`): the same download screen and restart, keeping the patch number. Only phones already running a release that knows the flag honour it; older ones take it as a quiet patch.
 - **APK** (`bun ship --apk`): phones show an install banner on the home screen and in Settings.
 
 ## Environment

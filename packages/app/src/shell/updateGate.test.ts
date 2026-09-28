@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
     isMinorUpdate,
     manifestVersion,
+    manifestWantsScreen,
     RELOAD_WINDOW_MS,
     reloadOnReturn,
     updatesHeld,
@@ -41,6 +42,18 @@ describe('manifestVersion', () => {
         expect(manifestVersion({ id: 'x', metadata: {} })).toBeNull();
         expect(manifestVersion({ id: 'x' })).toBeNull();
         expect(manifestVersion(undefined)).toBeNull();
+    });
+});
+
+describe('manifestWantsScreen', () => {
+    it('takes the screen for a patch shipped with --screen', () => {
+        expect(manifestWantsScreen({ metadata: { version: '1.7.1', screen: 'true' } })).toBe(true);
+    });
+
+    it('stays quiet for any other manifest', () => {
+        expect(manifestWantsScreen({ metadata: { version: '1.7.1' } })).toBe(false);
+        expect(manifestWantsScreen({ metadata: { screen: true } })).toBe(false);
+        expect(manifestWantsScreen(undefined)).toBe(false);
     });
 });
 

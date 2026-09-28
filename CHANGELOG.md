@@ -10,6 +10,8 @@ listed.
 
 ### Changed
 
+- When saving a patient fails, the message saying why stays pinned to the top of the screen while you scroll down to Save, instead of scrolling away.
+- The Patients list now shows every patient, not only the 25 newest: more load as you scroll down, and searches go past 25 results the same way. If the next batch can't load, the patients already shown stay on screen with a Try again button.
 - The calendar slides between months. The month follows your finger as you swipe, then the next or previous month slides in from the side you swiped toward; a short swipe springs back to the month you were on. The arrows use the same slide, and in Arabic it goes the way the arrows point.
 
 ## [1.7.0] - 2026-09-27

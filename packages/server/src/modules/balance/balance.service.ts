@@ -21,7 +21,7 @@
  * above keeps working unchanged and no balance is ever stored.
  */
 import { ERROR_CODE, type PaymentMethod, WS_EVENT } from '@lustre/shared';
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, patients, payments, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
@@ -198,7 +198,9 @@ function unsettledVisits(executor: Executor, patientId: string): Promise<VisitBa
 }
 
 export const balanceService = {
-    async outstanding(): Promise<OutstandingReport> {
+    async outstanding(patientIds?: string[]): Promise<OutstandingReport> {
+        if (patientIds?.length === 0) return { total: 0, patients: [] };
+
         const paid = paidPerVisit();
         const balance = sql<string>`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0))::bigint`;
 
@@ -214,6 +216,7 @@ export const balanceService = {
             .innerJoin(appointments, eq(visits.appointmentId, appointments.id))
             .innerJoin(patients, eq(appointments.patientId, patients.id))
             .leftJoin(paid, eq(paid.visitId, visits.id))
+            .where(patientIds ? inArray(patients.id, patientIds) : undefined)
             .groupBy(patients.id, patients.name, patients.phone)
             .having(sql`SUM(${visits.chargedTotal} - COALESCE(${paid.paidTotal}, 0)) > 0`)
             .orderBy(desc(balance));

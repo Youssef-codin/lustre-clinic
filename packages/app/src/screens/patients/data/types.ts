@@ -143,9 +143,8 @@ export interface SettleReport {
 }
 
 /**
- * The page the list opens on. `total` is the whole register, not `patients.length`
- * — the heading's count is "how many patients has this clinic", and the page is
- * capped at the query limit.
+ * One page of the register. `total` is the whole register, not `patients.length`
+ * — the heading's count is "how many patients has this clinic".
  */
 export interface RecentPatients {
     patients: Patient[];

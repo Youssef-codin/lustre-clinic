@@ -6,15 +6,23 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { ProgressBar } from '../components/ui';
 import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
-import { CHECK_EVERY_MS, isMinorUpdate, manifestVersion, reloadOnReturn, updatesHeld } from './updateGate';
+import {
+    CHECK_EVERY_MS,
+    isMinorUpdate,
+    manifestVersion,
+    manifestWantsScreen,
+    reloadOnReturn,
+    updatesHeld,
+} from './updateGate';
 
-// A minor OTA update, taken over the whole screen (`updateGate.ts` says which).
+// A minor OTA update, or a patch shipped with `--screen`, taken over the whole
+// screen (`updateGate.ts` says which).
 // expo-updates checks on every launch and downloads in the background
-// (`app.config.ts`); this only watches it. While a minor one downloads it
+// (`app.config.ts`); this only watches it. While such an update downloads it
 // covers the app with its progress, and once it is on the phone it restarts
 // into it, so nobody has to close and reopen the app until it takes.
 //
-// A patch never takes the screen. It downloads quietly (`useQuietUpdates`) and
+// Any other patch never takes the screen. It downloads quietly (`useQuietUpdates`) and
 // runs the next time the app comes back on screen, from WhatsApp, from the
 // lock screen, or reopened after being swiped away.
 //
@@ -34,15 +42,16 @@ export function UpdateScreen() {
 
     useQuietUpdates(isUpdatePending);
 
-    const incoming = manifestVersion((downloadedUpdate ?? availableUpdate)?.manifest);
-    const minor = isMinorUpdate(Constants.expoConfig?.version, incoming);
-    const restarting = minor && isUpdatePending;
+    const manifest = (downloadedUpdate ?? availableUpdate)?.manifest;
+    const incoming = manifestVersion(manifest);
+    const screen = isMinorUpdate(Constants.expoConfig?.version, incoming) || manifestWantsScreen(manifest);
+    const restarting = screen && isUpdatePending;
 
     useEffect(() => {
         if (restarting) void Updates.reloadAsync().catch(() => undefined);
     }, [restarting]);
 
-    if (!minor || downloadError || !(isDownloading || isUpdatePending)) return null;
+    if (!screen || downloadError || !(isDownloading || isUpdatePending)) return null;
 
     return (
         <View style={styles.root} testID="update-screen">
@@ -75,7 +84,7 @@ let checking = false;
 /** When the app was last opened or came back on screen. */
 let returnedAt: number | null = null;
 
-/** Looks for an update and downloads it, without a screen. A minor then takes the screen above. */
+/** Looks for an update and downloads it, without a screen. A minor or `--screen` patch then takes the screen above. */
 function fetchQuietly() {
     if (checking) return;
     checking = true;

@@ -2,10 +2,11 @@
  * The whole release, from `main` to the clinic (infra/RELEASING.md).
  *
  *   bun ship [--minor]          an OTA update: a quiet patch, or a minor the phones take now
+ *   bun ship --screen           a patch the phones take now, behind the download screen
  *   bun ship --apk [--major]    a new APK, for a native change
  *   bun ship --dry-run          prints the number and changes nothing
  *   bun ship deploy             the deploy step alone, for the release at HEAD
- *   bun ship:dev [--apk]        the dev track, to the dev stack
+ *   bun ship:dev [--apk|--screen]  the dev track, to the dev stack
  *
  * In order: checks `main` is clean and not behind origin, asks `release.ts` for
  * the number, moves `[Unreleased]` in CHANGELOG.md under it and commits, builds
@@ -32,11 +33,12 @@ const deployOnly = args[0] === 'deploy';
 const dev = args.includes('--dev');
 const apk = args.includes('--apk');
 const dryRun = args.includes('--dry-run');
-const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--dry-run'];
+const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--screen', '--dry-run'];
 const unknown = args.filter((arg) => !known.includes(arg));
 if (unknown.length) fail(`unknown ${unknown.join(' ')}. See the top of scripts/ship.ts.`);
 if (args.includes('--major') && !apk) fail('--major is for an APK: bun ship --apk --major');
 if (args.includes('--minor') && apk) fail('--minor is for an update. An APK is always at least a minor.');
+if (args.includes('--screen') && apk) fail('--screen is for an update. An APK shows its own install banner.');
 
 const stack = dev ? 'dev' : 'prod';
 const tagPrefix = dev ? 'dev-v' : 'v';
@@ -173,7 +175,10 @@ if (dryRun) {
     process.exit(0);
 }
 
-const releaseArgs = [apk ? 'apk' : 'update', ...args.filter((arg) => arg === '--major' || arg === '--minor')];
+const releaseArgs = [
+    apk ? 'apk' : 'update',
+    ...args.filter((arg) => arg === '--major' || arg === '--minor' || arg === '--screen'),
+];
 if (!(await run(['bun', RELEASE, ...releaseArgs], { ...trackEnv, LUSTRE_EXPECT_VERSION: version }))) {
     fail(`the ${version} build failed. Nothing was tagged or deployed. Fix it and run \`bun ship\` again.`);
 }
