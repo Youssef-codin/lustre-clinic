@@ -40,3 +40,31 @@ export function renderReminderTemplate(template: string, values: Record<string, 
         },
     );
 }
+
+/**
+ * The latest `dueAt` that `reminder.pending`'s `dueOnly` list includes, used by
+ * the server and the demo alike. Before the clinic's notify time it is `now`.
+ * From the notify time on, or with `throughToday`, it is the end of the clinic's
+ * local day: a reminder is due `reminderLeadHours` before its appointment, so at
+ * a 17:00 notify time with a 24 h lead tomorrow's evening patients are not due
+ * yet, and the alarm brought them up one per repeat as each crossed the line.
+ *
+ * `notifyAt` is `HH:MM` (or `HH:MM:SS`) in clinic local time; `offsetMinutes` is
+ * the client's UTC offset, which is what places `now` in the clinic's day.
+ */
+export function reminderDueCutoff(input: {
+    now: Date;
+    notifyAt: string;
+    offsetMinutes: number;
+    throughToday?: boolean;
+}): Date {
+    const { now, offsetMinutes } = input;
+    const local = new Date(now.getTime() + offsetMinutes * 60_000);
+    const [hours = 0, minutes = 0] = input.notifyAt.split(':').map(Number);
+
+    const localMinutes = local.getUTCHours() * 60 + local.getUTCMinutes();
+    if (!input.throughToday && localMinutes < hours * 60 + minutes) return now;
+
+    const nextMidnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + 1);
+    return new Date(nextMidnight - offsetMinutes * 60_000 - 1);
+}

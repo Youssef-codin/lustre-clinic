@@ -11,7 +11,13 @@
  * times are shifted into the clinic's local day before formatting, because
  * `startsAt` is UTC. An unknown `{{placeholder}}` is left visible, not dropped.
  */
-import { type LabStatus, renderReminderTemplate, type WhatsAppApp, WS_EVENT } from '@lustre/shared';
+import {
+    type LabStatus,
+    reminderDueCutoff,
+    renderReminderTemplate,
+    type WhatsAppApp,
+    WS_EVENT,
+} from '@lustre/shared';
 import { and, asc, eq, gt, lte, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import { appointments, branches, patients, reminders } from '../../db/schema.ts';
@@ -97,6 +103,12 @@ export const reminderService = {
         input: PendingRemindersInput = { dueOnly: true, limit: 100, offsetMinutes: 0 },
     ): Promise<PendingReminder[]> {
         const settings = await settingsService.get();
+        const cutoff = reminderDueCutoff({
+            now: new Date(),
+            notifyAt: settings.reminderNotifyAt,
+            offsetMinutes: input.offsetMinutes,
+            throughToday: input.throughToday,
+        });
 
         const rows = await db
             .select({
@@ -121,7 +133,7 @@ export const reminderService = {
                 and(
                     eq(reminders.status, 'pending'),
                     eq(appointments.status, 'booked'),
-                    ...(input.dueOnly ? [lte(reminders.dueAt, new Date())] : []),
+                    ...(input.dueOnly ? [lte(reminders.dueAt, cutoff)] : []),
                 ),
             )
             .orderBy(asc(reminders.dueAt))

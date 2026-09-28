@@ -30,7 +30,10 @@ export function alarmCheck(input: AlarmCheckInput): AlarmCheck | null {
     // It rings only if `reminder.pending` returns a row and `settings.get`'s
     // `reminderDismissedOn` is not `today`: the day view's badge, cut to one
     // row. The row is counted and dropped, never kept or logged.
-    const pending = { dueOnly: true, limit: 1, offsetMinutes: input.offsetMinutes };
+    // `throughToday` because every ring is at or after the notify time, where
+    // the badge already counts the rest of the day; asking for it outright keeps
+    // a server clock a few seconds behind the phone from silencing the first ring.
+    const pending = { dueOnly: true, limit: 1, offsetMinutes: input.offsetMinutes, throughToday: true };
 
     return {
         bases,

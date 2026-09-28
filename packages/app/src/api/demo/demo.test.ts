@@ -42,6 +42,7 @@ const { resolve, hasHandler } = await import('./handlers');
 const { DemoError } = await import('./rules');
 const accessModule = await import('./access');
 const { provisionDemo } = await import('./handlers/device');
+const { nudgePendingInput, planNudges } = await import('../../notifications/schedule');
 
 function today(): string {
     const now = new Date();
@@ -1051,5 +1052,97 @@ describe('roles', () => {
         resolve('device.revoke', { grantId: issued.id }, admin);
 
         expect(() => admit('settings.get', doctor.token)).toThrow(DemoError);
+    });
+});
+
+/**
+ * As `packages/server/tests/reminder-cutoff.test.ts`: from the notify time the
+ * due list is the rest of the clinic day, and the arm counts that list from the
+ * morning so the notify time is not left silent.
+ */
+describe('the reminders due from the notify time', () => {
+    const HOUR = 3_600_000;
+    // Past the seed's appointments and the other describes' bookings.
+    const DAY = (() => {
+        const at = new Date();
+        at.setUTCDate(at.getUTCDate() + 40);
+        at.setUTCHours(0, 0, 0, 0);
+        return at.getTime();
+    })();
+    const onDay = (hours: number) => new Date(DAY + hours * HOUR);
+
+    let morning = '';
+    let evening = '';
+    let booked: string[] = [];
+
+    function book(startsAt: Date): string {
+        const db = getDb();
+        const branch = db.branches[0];
+        const patient = db.patients[1];
+        if (!branch || !patient) throw new Error('the seed is missing its fixtures');
+
+        return appointmentHandlers.create({
+            patient: { kind: 'existing', patientId: patient.id },
+            branchId: branch.id,
+            startsAt: startsAt.toISOString(),
+            durationMinutes: 30,
+            offsetMinutes: 0,
+        }).id;
+    }
+
+    function dueAt(now: Date, input: { offsetMinutes: number; throughToday?: boolean }): string[] {
+        setSystemTime(now);
+        try {
+            return reminderHandlers
+                .pending({ dueOnly: true, limit: 200, ...input })
+                .map((row) => row.appointmentId)
+                .filter((id) => booked.includes(id));
+        } finally {
+            setSystemTime();
+        }
+    }
+
+    beforeEach(() => {
+        settingsHandlers.update({ reminderLeadHours: 24, reminderNotifyAt: '17:00' });
+        for (const reminder of getDb().reminders) reminder.status = 'skipped';
+        // Due today at 10:00 and 20:00, and tomorrow at 01:00.
+        morning = book(onDay(24 + 10));
+        evening = book(onDay(24 + 20));
+        booked = [morning, evening, book(onDay(48 + 1))];
+    });
+
+    afterEach(() => {
+        setSystemTime();
+    });
+
+    it('lists only what is due by now before the notify time', () => {
+        expect(dueAt(onDay(11), { offsetMinutes: 0 })).toEqual([morning]);
+    });
+
+    it('lists the rest of the day from the notify time, and stops at midnight', () => {
+        expect(dueAt(onDay(17), { offsetMinutes: 0 })).toEqual([morning, evening]);
+    });
+
+    it('reads the day from offsetMinutes', () => {
+        expect(dueAt(onDay(13 + 59 / 60), { offsetMinutes: 180 })).toEqual([morning]);
+        expect(dueAt(onDay(14), { offsetMinutes: 180 })).toEqual([morning, evening]);
+    });
+
+    it('arms the notify time from the morning, before anything is due', () => {
+        expect(dueAt(onDay(9), { offsetMinutes: 0 })).toEqual([]);
+
+        const pendingCount = dueAt(onDay(9), nudgePendingInput(0)).length;
+        expect(pendingCount).toBe(2);
+
+        const plan = planNudges({
+            notifyAt: 17 * 60,
+            repeatMinutes: 30,
+            pendingCount,
+            dismissedOn: null,
+            today: '2026-09-28',
+            now: new Date(2026, 8, 28, 9, 0),
+        });
+        expect(plan.silent).toBe('pending');
+        expect(plan.at[0]).toEqual(new Date(2026, 8, 28, 17, 0));
     });
 });

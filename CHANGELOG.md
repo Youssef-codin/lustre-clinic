@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Fixed
+
+- At the "Notify me at" time the daily reminder now brings up everyone who needs a reminder today, all at once. It used to leave out the patients whose reminder wasn't due yet, so a 5 pm notify time with evening patients tomorrow first went off at 8 pm, and each repeat added one more. Before the notify time, the list still shows only the reminders already due.
+
 ## [1.7.0] - 2026-09-27
 
 ### Added

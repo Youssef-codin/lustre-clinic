@@ -39,7 +39,7 @@ export type NudgeInput = {
     notifyAt: number;
     /** `reminder_repeat_minutes`. */
     repeatMinutes: number;
-    /** How many reminders `reminder.pending` returned. Zero arms nothing. */
+    /** How many reminders are left today (`nudgePendingInput`). Zero arms nothing. */
     pendingCount: number;
     /** `reminder_dismissed_on`, a `YYYY-MM-DD` or null. */
     dismissedOn: string | null;
@@ -47,6 +47,16 @@ export type NudgeInput = {
     today: string;
     now: Date;
 };
+
+/**
+ * What the arm asks `reminder.pending` for. The rest of today, not what is due by
+ * now: opened in the morning, nothing is due yet, and a count of zero would arm
+ * nothing and leave the notify time silent. Each ring still asks the server
+ * first (`alarmCheck`), so an armed slot with nothing left to send stays quiet.
+ */
+export function nudgePendingInput(offsetMinutes: number) {
+    return { dueOnly: true, limit: 100, offsetMinutes, throughToday: true };
+}
 
 export function planNudges(input: NudgeInput): NudgePlan {
     const { notifyAt, repeatMinutes, pendingCount, dismissedOn, today, now } = input;

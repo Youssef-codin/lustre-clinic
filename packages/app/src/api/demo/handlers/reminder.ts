@@ -7,7 +7,7 @@
  * the row is the record that no message was owed, and one reminder belongs to
  * one appointment, so a later reinstatement reuses it.
  */
-import { renderReminderTemplate } from '@lustre/shared';
+import { reminderDueCutoff, renderReminderTemplate } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { type AppointmentRow, getDb, type ReminderRow, save } from '../db';
 import { DemoError, toWhatsAppNumber, uuidv7 } from '../rules';
@@ -79,11 +79,16 @@ export const reminderHandlers = {
         const dueOnly = input?.dueOnly ?? true;
         const limit = input?.limit ?? 100;
         const offsetMinutes = input?.offsetMinutes ?? 0;
-        const now = new Date();
+        const cutoff = reminderDueCutoff({
+            now: new Date(),
+            notifyAt: settings.reminderNotifyAt,
+            offsetMinutes,
+            throughToday: input?.throughToday,
+        });
 
         return db.reminders
             .filter((reminder) => reminder.status === 'pending')
-            .filter((reminder) => !dueOnly || reminder.dueAt <= now)
+            .filter((reminder) => !dueOnly || reminder.dueAt <= cutoff)
             .map((reminder) => ({
                 reminder,
                 appointment: db.appointments.find((row) => row.id === reminder.appointmentId),
