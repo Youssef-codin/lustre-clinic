@@ -12,6 +12,10 @@ listed.
 
 - When saving a patient fails, the message saying why stays pinned to the top of the screen while you scroll down to Save, instead of scrolling away.
 
+### Fixed
+
+- The secretary can now correct a patient's ref (for example an old card typed as 719 that should be 713). Before, only the doctor could. Every correction is still recorded with the role that made it.
+
 ## [1.7.0] - 2026-09-27
 
 ### Added
