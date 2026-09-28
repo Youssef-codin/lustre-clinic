@@ -85,14 +85,21 @@ export const updatePatientInput = z.object({
     legacyRef: legacyRef.nullish(),
 });
 
+/**
+ * Offset rather than a cursor so `search` keeps answering a bare array, which the
+ * booking typeahead and app builds already in the field read.
+ */
+const page = {
+    limit: z.number().int().min(1).max(100).default(25),
+    offset: z.number().int().min(0).max(1_000_000).default(0),
+};
+
 export const searchPatientInput = z.object({
     q: z.string().trim().max(120),
-    limit: z.number().int().min(1).max(100).default(25),
+    ...page,
 });
 
-export const recentPatientsInput = z.object({
-    limit: z.number().int().min(1).max(100).default(25),
-});
+export const recentPatientsInput = z.object(page);
 
 export const patientByIdInput = z.object({ id: z.uuid() });
 
@@ -123,6 +130,8 @@ export type CreatePatientInput = z.infer<typeof createPatientInput>;
 export type OldPatientInput = z.infer<typeof oldPatientInput>;
 export type UpdatePatientInput = z.infer<typeof updatePatientInput>;
 export type UpdatePatientRefInput = z.infer<typeof updatePatientRefInput>;
-export type SearchPatientInput = z.infer<typeof searchPatientInput>;
-export type RecentPatientsInput = z.infer<typeof recentPatientsInput>;
+/** A direct service caller may leave `offset` out and read the first page, as the router's default does. */
+type FirstPageByDefault<T extends { offset: number }> = Omit<T, 'offset'> & { offset?: number };
+export type SearchPatientInput = FirstPageByDefault<z.infer<typeof searchPatientInput>>;
+export type RecentPatientsInput = FirstPageByDefault<z.infer<typeof recentPatientsInput>>;
 export type PatientByPhoneInput = z.infer<typeof patientByPhoneInput>;

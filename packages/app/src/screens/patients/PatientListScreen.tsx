@@ -14,18 +14,19 @@
 //
 // The list opens on `patient.recent` and switches to `patient.search` once
 // something is typed: `search` answers `[]` for an empty term by design, so
-// browsing is its own procedure. Capped at the query limit (25), so a plain
-// ScrollView beats a FlatList. Balances are a separate query so a money failure
-// costs only the row's amount. A refresh that failed over an existing list
-// leaves it up — stale, not gone (§7.14). The search is debounced because it
-// runs over Tailscale; stale answers are dropped by `useQuery`.
+// browsing is its own procedure. Both are paged, and the next page loads as the
+// end of the list nears. Balances are one query per loaded page, so a money
+// failure costs only those rows' amounts. A refresh or a next page that failed
+// leaves what is loaded up — stale, not gone (§7.14). The search is debounced
+// because it runs over Tailscale; stale answers are dropped by the query key.
 import { seesPayments } from '@lustre/shared';
-// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollTo` on the ScrollView ref when the tab is re-tapped, and the search debounce's `setTimeout`
+// biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollToOffset` on the FlatList ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { PatientRow } from '../../components/domain';
 import {
     Banner,
+    Button,
     EmptyState,
     SearchField,
     SectionLabel,
@@ -38,9 +39,10 @@ import { useT } from '../../i18n';
 import { useRole } from '../../shell/useRole';
 import { color, radius, size, space, Text } from '../../theme';
 import { PatientsIcon, PlusIcon, RetryIcon, SearchIcon } from './components/icons';
-import { patientsApi } from './data/api';
+import { PAGE_SIZE, patientsApi } from './data/api';
 import { errorText } from './data/errors';
-import { useQuery } from './data/hooks';
+import { usePagedQuery, useQueryEach } from './data/hooks';
+import type { Patient } from './data/types';
 import { type PatientPrefill, prefillOf } from './patientForm';
 
 export type PatientListScreenProps = {
@@ -82,40 +84,60 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     // Idle, the search resolves to `undefined` rather than `[]` — `[]` is an
     // answer, and the first keystroke would spend the round trip showing "No
     // patients found" instead of the skeleton.
-    const recent = useQuery(['recent'], () => patientsApi.recent());
-    const results = useQuery(['search', query], () => patientsApi.search(query), {
-        enabled: searching,
-    });
+    const recent = usePagedQuery(
+        ['recent'],
+        (offset) => patientsApi.recent(offset),
+        (page, offset) =>
+            page.patients.length === PAGE_SIZE && offset + PAGE_SIZE < page.total
+                ? offset + PAGE_SIZE
+                : undefined,
+    );
+    const results = usePagedQuery(
+        ['search', query],
+        (offset) => patientsApi.search(query, offset),
+        (page, offset) => (page.length === PAGE_SIZE ? offset + PAGE_SIZE : undefined),
+        { enabled: searching },
+    );
+
+    const list = searching ? results : recent;
+    const pages = searching ? results.pages : recent.pages?.map((page) => page.patients);
+    const rows = distinct(pages?.flat() ?? []);
 
     // A doctor's phone is refused balances by the server, so it does not ask.
     const { granted } = useRole();
-    const balances = useQuery(['outstanding'], () => patientsApi.outstanding(), {
-        enabled: seesPayments(granted),
-    });
-    const dueByPatient = new Map((balances.data ?? []).map((row) => [row.patientId, row.balance]));
+    const balances = useQueryEach(
+        (pages ?? [])
+            .map((page) => page.map((patient) => patient.id))
+            .filter((ids) => ids.length > 0)
+            .map((ids) => ({ key: ['outstanding', ids], run: () => patientsApi.outstanding(ids) })),
+        { enabled: seesPayments(granted) },
+    );
+    const dueByPatient = new Map(
+        balances.flatMap((page) => page.data ?? []).map((row) => [row.patientId, row.balance]),
+    );
 
-    const list = searching ? results : recent;
-    const rows = searching ? (results.data ?? []) : (recent.data?.patients ?? []);
-
-    // Both queries, and no further than that: the record behind a row is read
-    // when it is opened, and the other tabs are refreshed by their own pull. A
-    // refresh while searching re-runs the search, not the whole list — the term
-    // is the query key, so this is the list on screen.
-    const pull = usePullToRefresh(() => {
-        list.refetch();
-        if (seesPayments(granted)) balances.refetch();
-    }, list.loading || balances.loading);
+    // The list on screen and its balances, and no further than that: the record
+    // behind a row is read when it is opened, and the other tabs are refreshed by
+    // their own pull. A refresh while searching re-runs the search, not the whole
+    // list — the term is the query key.
+    const pull = usePullToRefresh(
+        () => {
+            list.refetch();
+            if (seesPayments(granted)) for (const page of balances) page.refetch();
+        },
+        list.loading || balances.some((page) => page.loading),
+    );
 
     // An effect because scrolling is imperative and there is nothing to derive:
     // the signal is a number that says a tap happened, and the answer is a call
     // on the view. It is skipped on mount — a list that has just been mounted is
     // already at the top, and animating there would be a jolt for nothing.
-    const scroller = useRef<ScrollView>(null);
+    const scroller = useRef<FlatList<Patient>>(null);
     const shown = useRef(goHome);
     useEffect(() => {
         if (shown.current === goHome) return;
         shown.current = goHome;
-        scroller.current?.scrollTo({ y: 0, animated: true });
+        scroller.current?.scrollToOffset({ offset: 0, animated: true });
     }, [goHome]);
 
     // `keyboardShouldPersistTaps="handled"` below is what lets a result be
@@ -138,95 +160,87 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
     const register = onNewPatient ?? (() => setToast('Registering a patient is not wired up here yet.'));
 
     // The term the empty answer was for — `query`, not `term`, so the button
-    // never names something typed since that has not been searched yet. Offered
-    // only here: the empty register and the error state have nothing typed to
-    // carry over.
+    // never names something typed since that has not been searched yet.
     const unmatched = searching ? query.trim() : '';
-    const prefill = prefillOf(unmatched);
 
     return (
         <View style={styles.screen}>
-            {/* The search field is at the top of this scroll, so it is never
+            {/* The search field is at the top of this list, so it is never
                 under the keyboard — but the results it is filtering are. The
                 window does not shrink around the keys (`ui/useKeyboardHeight`),
-                so without this the last few matches cannot be scrolled clear of
-                them: the content simply ends behind the keyboard. */}
-            <ScrollView
+                so without the padding the last few matches cannot be scrolled
+                clear of them: the content simply ends behind the keyboard. */}
+            <FlatList
                 ref={scroller}
-                contentContainerStyle={[styles.content, { paddingBottom: space[12] + keyboard }]}
+                data={rows}
+                keyExtractor={(patient) => patient.id}
+                extraData={dueByPatient}
+                renderItem={({ item }) => (
+                    <PatientRow
+                        patient={item}
+                        balance={dueByPatient.get(item.id) ?? 0}
+                        onPress={() => openPatient(item.id)}
+                    />
+                )}
+                onEndReached={() => {
+                    if (!list.moreError) list.loadMore();
+                }}
+                onEndReachedThreshold={0.5}
+                contentContainerStyle={{ paddingBottom: space[12] + keyboard }}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={pull.refreshControl}
                 {...pull.scrollProps}
-            >
-                <ListHeader total={recent.data?.total} onNewPatient={() => register()} />
+                ListHeaderComponent={
+                    <>
+                        <ListHeader total={recent.pages?.[0]?.total} onNewPatient={() => register()} />
 
-                <View style={styles.search}>
-                    <SearchField
-                        value={term}
-                        onChangeText={setTerm}
-                        onClear={() => setTerm('')}
-                        placeholder="Name or phone number"
-                        leading={<SearchIcon size={17} stroke={color.muted} />}
-                        autoCorrect={false}
-                        returnKeyType="search"
-                        testID="patient-search"
-                    />
-                </View>
-
-                {list.error && list.data && (
-                    <View style={styles.inset}>
-                        <Banner tone="warning" message="Could not refresh. Showing the last results." />
-                    </View>
-                )}
-
-                {list.loading && !list.data ? (
-                    <SkeletonRows count={7} ruled />
-                ) : list.error && !list.data ? (
-                    <EmptyState
-                        icon={<RetryIcon size={22} stroke={color.ink2} />}
-                        title="Could not reach the clinic"
-                        body={errorText(list.error)}
-                        actionLabel="Try again"
-                        onAction={list.refetch}
-                        weight="panel"
-                    />
-                ) : rows.length === 0 ? (
-                    <EmptyState
-                        icon={
-                            prefill ? (
-                                <PlusIcon size={22} stroke={color.ink2} />
-                            ) : searching ? (
-                                <SearchIcon size={22} stroke={color.ink2} />
-                            ) : (
-                                <PatientsIcon size={22} stroke={color.ink2} />
-                            )
-                        }
-                        title={t(searching ? 'No patients found' : 'No patients yet')}
-                        body={
-                            searching
-                                ? t('Nothing matches that name or number.')
-                                : t('Patients appear here as they are registered.')
-                        }
-                        actionLabel={
-                            prefill ? t('Add “{term}” as a new patient', { term: unmatched }) : undefined
-                        }
-                        onAction={prefill ? () => register(prefill) : undefined}
-                        weight="panel"
-                    />
-                ) : (
-                    <View>
-                        <SectionLabel>{t(searching ? 'RESULTS' : 'RECENT')}</SectionLabel>
-                        {rows.map((patient) => (
-                            <PatientRow
-                                key={patient.id}
-                                patient={patient}
-                                balance={dueByPatient.get(patient.id) ?? 0}
-                                onPress={() => openPatient(patient.id)}
+                        <View style={styles.search}>
+                            <SearchField
+                                value={term}
+                                onChangeText={setTerm}
+                                onClear={() => setTerm('')}
+                                placeholder="Name or phone number"
+                                leading={<SearchIcon size={17} stroke={color.muted} />}
+                                autoCorrect={false}
+                                returnKeyType="search"
+                                testID="patient-search"
                             />
-                        ))}
-                    </View>
-                )}
-            </ScrollView>
+                        </View>
+
+                        {list.error && pages && (
+                            <View style={styles.inset}>
+                                <Banner
+                                    tone="warning"
+                                    message="Could not refresh. Showing the last results."
+                                />
+                            </View>
+                        )}
+
+                        {rows.length > 0 && (
+                            <SectionLabel>{t(searching ? 'RESULTS' : 'RECENT')}</SectionLabel>
+                        )}
+                    </>
+                }
+                ListEmptyComponent={
+                    list.loading && !pages ? (
+                        <SkeletonRows count={7} ruled />
+                    ) : list.error && !pages ? (
+                        <EmptyState
+                            icon={<RetryIcon size={22} stroke={color.ink2} />}
+                            title="Could not reach the clinic"
+                            body={errorText(list.error)}
+                            actionLabel="Try again"
+                            onAction={list.refetch}
+                            weight="panel"
+                        />
+                    ) : (
+                        <NoPatients searching={searching} unmatched={unmatched} onRegister={register} />
+                    )
+                }
+                ListFooterComponent={
+                    <MoreFooter error={list.moreError} loading={list.loadingMore} onRetry={list.loadMore} />
+                }
+            />
 
             <Toast visible={toast !== null} message={toast ?? ''} onDismiss={() => setToast(null)} />
         </View>
@@ -234,11 +248,67 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 }
 
 /**
+ * An empty answer. A search that found nobody offers them as the patient to
+ * register; the empty register and the error state have nothing typed to carry over.
+ */
+function NoPatients({
+    searching,
+    unmatched,
+    onRegister,
+}: {
+    searching: boolean;
+    unmatched: string;
+    onRegister: (prefill?: PatientPrefill) => void;
+}) {
+    const t = useT();
+    const prefill = prefillOf(unmatched);
+    return (
+        <EmptyState
+            icon={
+                prefill ? (
+                    <PlusIcon size={22} stroke={color.ink2} />
+                ) : searching ? (
+                    <SearchIcon size={22} stroke={color.ink2} />
+                ) : (
+                    <PatientsIcon size={22} stroke={color.ink2} />
+                )
+            }
+            title={t(searching ? 'No patients found' : 'No patients yet')}
+            body={
+                searching
+                    ? t('Nothing matches that name or number.')
+                    : t('Patients appear here as they are registered.')
+            }
+            actionLabel={prefill ? t('Add “{term}” as a new patient', { term: unmatched }) : undefined}
+            onAction={prefill ? () => onRegister(prefill) : undefined}
+            weight="panel"
+        />
+    );
+}
+
+function MoreFooter({ error, loading, onRetry }: { error?: Error; loading: boolean; onRetry: () => void }) {
+    if (error) {
+        return (
+            <Banner
+                tone="warning"
+                message="Could not load more patients."
+                action={<Button label="Try again" variant="text" size="md" onPress={onRetry} />}
+            />
+        );
+    }
+    return loading ? <SkeletonRows count={2} ruled /> : null;
+}
+
+/** A registration between two page reads shifts every offset by one, which repeats a row at the seam. */
+function distinct(patients: Patient[]): Patient[] {
+    const seen = new Set<string>();
+    return patients.filter((patient) => !seen.has(patient.id) && seen.add(patient.id));
+}
+
+/**
  * The design's heading: the word, the size of the register on its baseline, and
- * `New patient` opposite. The count is the clinic's total, not the length of the
- * page on screen — a list capped at 25 saying `25` next to `Patients` would read
- * as the whole register. It is absent until the number is known rather than
- * animating up from zero.
+ * `New patient` opposite. The count is the clinic's total, not the rows loaded so
+ * far. It is absent until the number is known rather than animating up from zero.
  */
 function ListHeader({ total, onNewPatient }: { total?: number; onNewPatient: () => void }) {
     const t = useT();
@@ -304,8 +374,6 @@ function useDebounced(value: string, ms: number): string {
 
 const styles = StyleSheet.create({
     screen: { flex: 1, backgroundColor: color.canvas },
-    // `paddingBottom` is supplied inline — it carries the keyboard.
-    content: {},
 
     header: {
         flexDirection: 'row',

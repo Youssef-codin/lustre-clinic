@@ -72,6 +72,16 @@ export function createMinimalPatient(input: MinimalPatientInput): PatientRow {
     return row;
 }
 
+/** The server's order: newest first, the id breaking ties so a page boundary is stable. */
+function newestFirst(a: PatientRow, b: PatientRow): number {
+    return b.createdAt.getTime() - a.createdAt.getTime() || (b.id < a.id ? -1 : b.id > a.id ? 1 : 0);
+}
+
+function pageOf(input: { limit?: number; offset?: number }): [number, number] {
+    const offset = input.offset ?? 0;
+    return [offset, offset + (input.limit ?? 25)];
+}
+
 export const patientHandlers = {
     search(input: RouterInput['patient']['search']): Patient[] {
         const term = input.q.trim();
@@ -91,8 +101,8 @@ export const patientHandlers = {
                     row.ref.toLowerCase().includes(needle) ||
                     (row.legacyRef ?? '').toLowerCase().includes(needle),
             )
-            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .slice(0, input.limit ?? 25)
+            .sort(newestFirst)
+            .slice(...pageOf(input))
             .map(toPatient);
     },
 
@@ -116,10 +126,10 @@ export const patientHandlers = {
     },
 
     recent(input: RouterInput['patient']['recent']): Dated<RouterOutput['patient']['recent']> {
-        const rows = [...getDb().patients].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        const rows = [...getDb().patients].sort(newestFirst);
 
         return {
-            patients: rows.slice(0, input.limit ?? 25).map(toPatient),
+            patients: rows.slice(...pageOf(input)).map(toPatient),
             total: rows.length,
         };
     },

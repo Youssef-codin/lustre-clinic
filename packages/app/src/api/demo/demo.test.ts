@@ -224,6 +224,44 @@ describe('the seeded day', () => {
     });
 });
 
+describe('the Patients list, a page at a time', () => {
+    it('walks the whole register once, in the order a single page would give', () => {
+        const everyone = patientHandlers.recent({ limit: 100 });
+        const seen: string[] = [];
+        for (let offset = 0; offset < everyone.total; offset += 4) {
+            const page = patientHandlers.recent({ limit: 4, offset });
+            expect(page.total).toBe(everyone.total);
+            seen.push(...page.patients.map((row) => row.id));
+        }
+
+        expect(seen).toEqual(everyone.patients.map((row) => row.id));
+        expect(patientHandlers.recent({ limit: 4, offset: everyone.total }).patients).toEqual([]);
+    });
+
+    it('pages a search the same way', () => {
+        const term = getDb().patients[0]?.phone.slice(-2) ?? '';
+        const all = patientHandlers.search({ q: term, limit: 100 });
+        const paged = [
+            ...patientHandlers.search({ q: term, limit: 2 }),
+            ...patientHandlers.search({ q: term, limit: 100, offset: 2 }),
+        ];
+
+        expect(paged.map((row) => row.id)).toEqual(all.map((row) => row.id));
+    });
+
+    it('answers balances for the page asked about only', () => {
+        const owing = balanceHandlers.outstanding().patients;
+        const first = owing[0];
+        if (!first) throw new Error('the seed has nobody owing');
+
+        const page = balanceHandlers.outstanding({ patientIds: [first.patientId] });
+
+        expect(page.patients).toEqual([first]);
+        expect(page.total).toBe(first.balance);
+        expect(balanceHandlers.outstanding({ patientIds: [] }).patients).toEqual([]);
+    });
+});
+
 describe('a visit, end to end', () => {
     it('books, checks in, prices and settles', () => {
         const db = getDb();

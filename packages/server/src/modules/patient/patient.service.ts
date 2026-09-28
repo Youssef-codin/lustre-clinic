@@ -129,7 +129,7 @@ interface PatientDetail {
 }
 
 /**
- * The page the list opens on, and how many there are in total. `total` counts
+ * One page of the register, and how many there are in total. `total` counts
  * the register, not the page — the list draws it beside its heading, so a second
  * round trip for one integer would be a wasted call over Tailscale.
  */
@@ -399,6 +399,9 @@ async function requireRow(id: string): Promise<PatientRow> {
     return row;
 }
 
+/** The id breaks ties on `created_at`, so a page boundary never repeats or drops a row. */
+const newestFirst = [desc(patients.createdAt), desc(patients.id)];
+
 export const patientService = {
     /**
      * Name, phone, or the number on the file. The ref is in here because an old
@@ -431,8 +434,9 @@ export const patientService = {
                     ilike(patients.legacyRef, `%${term}%`),
                 ),
             )
-            .orderBy(desc(patients.createdAt))
-            .limit(input.limit);
+            .orderBy(...newestFirst)
+            .limit(input.limit)
+            .offset(input.offset ?? 0);
 
         return rows.map(toPatient);
     },
@@ -474,7 +478,12 @@ export const patientService = {
      * matches everybody.
      */
     async recent(input: RecentPatientsInput): Promise<RecentPatients> {
-        const rows = await db.select().from(patients).orderBy(desc(patients.createdAt)).limit(input.limit);
+        const rows = await db
+            .select()
+            .from(patients)
+            .orderBy(...newestFirst)
+            .limit(input.limit)
+            .offset(input.offset ?? 0);
 
         const [counted] = await db.select({ total: sql<number>`COUNT(*)::int` }).from(patients);
 
