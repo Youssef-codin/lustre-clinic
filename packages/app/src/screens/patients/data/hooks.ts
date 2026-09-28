@@ -26,6 +26,9 @@
  * localizes from the code and never parses the server's message (§4, §14).
  */
 import {
+    type UseQueryResult,
+    useInfiniteQuery,
+    useQueries,
     useQueryClient,
     useMutation as useTanstackMutation,
     useQuery as useTanstackQuery,
@@ -55,11 +58,77 @@ export function useQuery<T>(
         enabled: options.enabled ?? true,
     });
 
+    return resultOf(query);
+}
+
+function resultOf<T>(query: UseQueryResult<T, Error>): QueryResult<T> {
     return {
         data: query.data,
         error: query.error ?? undefined,
         loading: query.isLoading,
         refetch: () => void query.refetch(),
+    };
+}
+
+/** One query per entry, in order — a read that has to be made once per loaded page. */
+export function useQueryEach<T>(
+    queries: readonly { key: readonly unknown[]; run: () => Promise<T> }[],
+    options: { enabled?: boolean } = {},
+): QueryResult<T>[] {
+    const results = useQueries({
+        queries: queries.map((query) => ({
+            queryKey: [PATIENTS_KEY, ...query.key],
+            queryFn: query.run,
+            enabled: options.enabled ?? true,
+        })),
+    });
+    return results.map(resultOf);
+}
+
+export interface PagedResult<T> {
+    pages: T[] | undefined;
+    /** The first page, or a refresh, failed. */
+    error: Error | undefined;
+    /** Only the next page failed; the pages already loaded stand. */
+    moreError: Error | undefined;
+    loading: boolean;
+    loadingMore: boolean;
+    hasMore: boolean;
+    refetch: () => void;
+    loadMore: () => void;
+}
+
+/**
+ * Offset-paged reads. `nextOffset` answers `undefined` once `page` was the last.
+ * A refetch re-reads every loaded page, so the list keeps its length and place.
+ */
+export function usePagedQuery<T>(
+    key: readonly unknown[],
+    run: (offset: number) => Promise<T>,
+    nextOffset: (page: T, offset: number) => number | undefined,
+    options: { enabled?: boolean } = {},
+): PagedResult<T> {
+    const query = useInfiniteQuery({
+        queryKey: [PATIENTS_KEY, ...key],
+        queryFn: ({ pageParam }) => run(pageParam),
+        initialPageParam: 0,
+        getNextPageParam: (page, _pages, offset) => nextOffset(page, offset),
+        enabled: options.enabled ?? true,
+    });
+    const moreFailed = query.isFetchNextPageError;
+
+    return {
+        pages: query.data?.pages,
+        error: moreFailed ? undefined : (query.error ?? undefined),
+        moreError: moreFailed ? (query.error ?? undefined) : undefined,
+        loading: query.isLoading,
+        loadingMore: query.isFetchingNextPage,
+        hasMore: query.hasNextPage,
+        refetch: () => void query.refetch(),
+        // Not while a refresh is running: `fetchNextPage` would cancel it.
+        loadMore: () => {
+            if (query.hasNextPage && !query.isFetching) void query.fetchNextPage();
+        },
     };
 }
 

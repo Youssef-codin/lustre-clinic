@@ -77,6 +77,9 @@ export async function chairToday(appointmentId: string): Promise<string | null> 
     return arrivalQueue(branch, checkedInAt).chair?.id ?? null;
 }
 
+/** Rows per `search`/`recent` call. The server takes at most 100. */
+export const PAGE_SIZE = 50;
+
 interface OutstandingRow {
     patientId: string;
     balance: number;
@@ -106,22 +109,23 @@ export const patientsApi = {
      * design. Browsing is `recent`, which the list calls instead of searching
      * for nothing.
      */
-    search(q: string, limit = 25): Promise<Patient[]> {
-        return wrap(() => trpcClient.patient.search.query({ q: q.trim(), limit }));
+    search(q: string, offset = 0, limit = PAGE_SIZE): Promise<Patient[]> {
+        return wrap(() => trpcClient.patient.search.query({ q: q.trim(), limit, offset }));
     },
 
     /** Newest first, plus the size of the whole register for the heading's count. */
-    recent(limit = 25): Promise<RecentPatients> {
-        return wrap(() => trpcClient.patient.recent.query({ limit }));
+    recent(offset = 0, limit = PAGE_SIZE): Promise<RecentPatients> {
+        return wrap(() => trpcClient.patient.recent.query({ limit, offset }));
     },
 
     byId(id: string): Promise<PatientDetail> {
         return wrap(() => trpcClient.patient.byId.query({ id }));
     },
 
-    async outstanding(): Promise<PatientBalance[]> {
+    /** Only `patientIds`' balances — the list asks once per page it has loaded. */
+    async outstanding(patientIds: string[]): Promise<PatientBalance[]> {
         const report = await wrap<{ patients: OutstandingRow[] }>(() =>
-            trpcClient.balance.outstanding.query(),
+            trpcClient.balance.outstanding.query({ patientIds }),
         );
         return report.patients.map((row) => ({ patientId: row.patientId, balance: row.balance }));
     },
