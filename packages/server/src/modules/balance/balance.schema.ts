@@ -7,6 +7,9 @@ import { z } from 'zod';
 
 export const byPatientInput = z.object({ patientId: z.uuid() });
 
+/** Absent, every patient who owes; given, only those — one page of the Patients list. */
+export const outstandingInput = z.object({ patientIds: z.array(z.uuid()).max(100).optional() }).optional();
+
 /**
  * One payment against a patient, not against a visit. The service spreads it
  * over their unsettled visits oldest-first; nothing here names a visit, which

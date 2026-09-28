@@ -84,13 +84,15 @@ function unsettledVisits(patientId: string): VisitBalance[] {
 }
 
 export const balanceHandlers = {
-    outstanding(): OutstandingReport {
+    outstanding(input?: RouterInput['balance']['outstanding']): OutstandingReport {
         const db = getDb();
+        const only = input?.patientIds ? new Set(input.patientIds) : null;
         const byPatient = new Map<string, { balance: number; oldestUnpaidAt: Date | null }>();
 
         for (const visit of db.visits) {
             const appointment = db.appointments.find((row) => row.id === visit.appointmentId);
             if (!appointment) continue;
+            if (only && !only.has(appointment.patientId)) continue;
 
             const balance = visit.chargedTotal - paidFor(visit.id);
             const entry = byPatient.get(appointment.patientId) ?? { balance: 0, oldestUnpaidAt: null };
