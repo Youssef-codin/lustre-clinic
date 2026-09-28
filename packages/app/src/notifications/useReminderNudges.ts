@@ -30,7 +30,7 @@ import { api, useTRPC } from '../api';
 import { useLocale } from '../i18n';
 import { useReminderAlarm } from './alarmStore';
 import { armNudges } from './notifications';
-import { minutesOfClock, planNudges } from './schedule';
+import { minutesOfClock, nudgePendingInput, planNudges } from './schedule';
 
 /**
  * `enabled` is the desk's phone: reminders are the secretary's job, and the
@@ -55,14 +55,7 @@ export function useReminderNudges(enabled: boolean): void {
 
     const settings = useQuery(trpc.settings.get.queryOptions(undefined, { enabled }));
     const pending = useQuery(
-        trpc.reminder.pending.queryOptions(
-            {
-                dueOnly: true,
-                limit: 100,
-                offsetMinutes: offsetForDate(todayKey()),
-            },
-            { enabled },
-        ),
+        trpc.reminder.pending.queryOptions(nudgePendingInput(offsetForDate(todayKey())), { enabled }),
     );
 
     const notifyAt = settings.data?.reminderNotifyAt;
