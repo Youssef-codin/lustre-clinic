@@ -7,6 +7,7 @@
  *   bun ship --dry-run          prints the number and changes nothing
  *   bun ship deploy             the deploy step alone, for the release at HEAD
  *   bun ship:dev [--apk|--screen]  the dev track, to the dev stack
+ *   bun ship:dev --fast         the same, but copies only the releases (scripts/pushReleases.ts)
  *
  * In order: checks `main` is clean and not behind origin, asks `release.ts` for
  * the number, moves `[Unreleased]` in CHANGELOG.md under it and commits, builds
@@ -33,11 +34,13 @@ const deployOnly = args[0] === 'deploy';
 const dev = args.includes('--dev');
 const apk = args.includes('--apk');
 const dryRun = args.includes('--dry-run');
-const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--screen', '--dry-run'];
+const fast = args.includes('--fast');
+const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--screen', '--dry-run', '--fast'];
 const unknown = args.filter((arg) => !known.includes(arg));
 if (unknown.length) fail(`unknown ${unknown.join(' ')}. See the top of scripts/ship.ts.`);
 if (args.includes('--major') && !apk) fail('--major is for an APK: bun ship --apk --major');
 if (args.includes('--minor') && apk) fail('--minor is for an update. An APK is always at least a minor.');
+if (fast && !args.includes('--dev')) fail('--fast is for the dev track: bun ship:dev --fast');
 if (args.includes('--screen') && apk) fail('--screen is for an update. An APK shows its own install banner.');
 
 const stack = dev ? 'dev' : 'prod';
@@ -98,6 +101,13 @@ async function nextVersion(): Promise<string> {
 async function preflight(): Promise<void> {
     if (await git('status', '--porcelain')) {
         fail('the working tree has uncommitted changes. Commit or stash them first.');
+    }
+    if (fast) {
+        const last = await releaseTagAt('HEAD');
+        if (!last) fail('--fast needs a dev release on the server already. Run `bun ship:dev` once.');
+        if (!(await gitSucceeds('diff', '--quiet', last, 'HEAD', '--', ...SERVER_PATHS))) {
+            fail(`the server code changed since ${last}, and --fast never deploys it. Run \`bun ship:dev\`.`);
+        }
     }
     if (dev) return;
 
@@ -192,5 +202,10 @@ if (!dev) {
     }
 }
 
-await deploy();
+if (fast) {
+    say(`Copying the releases to ${stack}. The server is left as it is.`);
+    if (!(await run(['bun', 'scripts/pushReleases.ts']))) deployFailed(tag);
+} else {
+    await deploy();
+}
 say(`${tag} is out.`);

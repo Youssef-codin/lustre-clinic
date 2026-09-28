@@ -25,6 +25,7 @@
         "play": "scripts/play.sh",
         "ship": "bun scripts/ship.ts",
         "ship:dev": "bun scripts/ship.ts --dev",
+        "ship:dev:fast": "bun scripts/ship.ts --dev --fast",
         "emu": "bun run --cwd packages/app emu",
         "emu:build": "bun run --cwd packages/app emu:build",
         "emu:start": "bun run --cwd packages/app emu:start",

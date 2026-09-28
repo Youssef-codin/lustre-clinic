@@ -23,6 +23,7 @@ One command ships everything: `bun ship`. There are no other release commands.
 | to see the next number without changing anything | `bun ship --dry-run` |
 | to retry only the deploy, after `bun ship` failed at the sudo prompt or the play | `bun ship deploy` |
 | a test build on the dev stack (any branch, no changelog, no push) | `bun ship:dev` (`--apk` for a new dev APK, `--screen` or `--minor` to test the download screen) |
+| the same, quickly, when only the app changed (copies the new releases, leaves the dev server as it is) | `bun ship:dev:fast` |
 
 If `bun ship` needs an APK (it says "something native changed"), use `bun ship --apk`.
 
