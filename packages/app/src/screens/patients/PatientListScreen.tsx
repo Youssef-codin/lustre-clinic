@@ -22,7 +22,7 @@
 import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: two of them, both external — the imperative `scrollToOffset` on the FlatList ref when the tab is re-tapped, and the search debounce's `setTimeout`
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { PatientRow } from '../../components/domain';
 import {
     Banner,
@@ -192,7 +192,7 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
                 onEndReached={() => {
                     if (!list.moreError) list.loadMore();
                 }}
-                onEndReachedThreshold={0.5}
+                onEndReachedThreshold={2}
                 contentContainerStyle={{ paddingBottom: space[12] + keyboard }}
                 keyboardShouldPersistTaps="handled"
                 refreshControl={pull.refreshControl}
@@ -294,6 +294,7 @@ function NoPatients({
 }
 
 function MoreFooter({ error, loading, onRetry }: { error?: Error; loading: boolean; onRetry: () => void }) {
+    const t = useT();
     if (error) {
         return (
             <Banner
@@ -303,7 +304,15 @@ function MoreFooter({ error, loading, onRetry }: { error?: Error; loading: boole
             />
         );
     }
-    return loading ? <SkeletonRows count={2} ruled /> : null;
+    return loading ? (
+        <View style={styles.more}>
+            <ActivityIndicator
+                size="small"
+                color={color.ink}
+                accessibilityLabel={t('Loading more patients')}
+            />
+        </View>
+    ) : null;
 }
 
 /** A registration between two page reads shifts every offset by one, which repeats a row at the seam. */
@@ -405,4 +414,5 @@ const styles = StyleSheet.create({
 
     search: { paddingHorizontal: size.gutter, paddingBottom: space[3] },
     inset: { paddingHorizontal: size.gutter, paddingBottom: space[2] },
+    more: { alignItems: 'center', paddingVertical: space[5] },
 });

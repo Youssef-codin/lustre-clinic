@@ -358,6 +358,7 @@ export const COPY_AR = {
         'تعذر تحميل ساعات العمل — تُعرض الساعات المعتادة.',
     'Could not refresh. Showing the last results.': 'تعذر التحديث. تُعرض آخر النتائج.',
     'Could not load more patients.': 'تعذر تحميل المزيد من المرضى.',
+    'Loading more patients': 'جارٍ تحميل المزيد من المرضى',
     'Could not refresh this record. Showing what was last read.': 'تعذر تحديث الملف. تُعرض آخر بيانات محفوظة.',
     'This is a different patient': 'هذا مريض آخر',
     'Add what was done first': 'أضف الإجراء الذي تم أولًا',
