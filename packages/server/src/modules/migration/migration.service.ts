@@ -1,8 +1,7 @@
 /**
  * What a patient who predates the cutoff brings with them: the money they
- * already owed, and whatever the paper file records they had done. It is
- * written by `patient.create` when the **Old patient** switch is on, and
- * nothing else writes it — the separate Settings → Data entry screen and its
+ * already owed. It is written by `patient.create` when the **Old patient**
+ * switch is on, and nothing else writes it — the separate Settings → Data entry screen and its
  * `migration.enter` procedure are gone, because two ways to register an old
  * patient is how one of them ends up allocating a fresh number to someone who
  * already has one.
@@ -11,33 +10,13 @@
  *
  * `branch_id` is NOT NULL and a date has to be something. Both are the day of
  * registration in the clinic's zone, at the clinic's first active branch — the
- * same branch an old visit falls back to. They used to come from a migration
- * cutoff set in Settings → Clinic, which refused an old patient with a balance
- * until someone had set it. Past work is now an old visit, entered whenever it
- * surfaces, so the only thing registration carries over is what they owe, and
- * that is owed from the day it is entered. The settings columns are left in
- * place and no longer read.
+ * same branch an old visit falls back to. Past work is an old visit, entered
+ * whenever it surfaces, so the only thing registration carries over is what
+ * they owe, and that is owed from the day it is entered.
  *
- * ## Noon, and why these dates alone are not bounded by an offset
- *
- * Every other date this API takes arrives with an `offsetMinutes` and is turned
- * into a day's bounds, because the question is always "which local day does
- * this instant fall in" (§12, `dates.ts`). These rows ask the opposite: they
- * carry a day the clinic wrote on a paper file years ago, and all that has to
- * survive is the day being *read back*.
- *
- * Local midnight cannot do that. Egypt keeps DST, so an instant stored as
- * midnight under one offset is 23:00 the previous day under another — a
- * procedure dated 14 March 2024 and stamped with a summer offset reads as the
- * 13th. Getting it right would need the offset in force on each of those dates,
- * and the registration form has no way to know the one in force on a cutoff it
- * never sees.
- *
- * So they are stamped at **noon UTC** on the day they name, which reads back as
- * that same day at every offset strictly between −12 and +12 — Egypt is +2 or
- * +3, and only the date line's own zones fall outside that.
- * Nothing rounds these rows into a day's bounds, because nothing counts them:
- * the day view, revenue and statistics all exclude them by flag.
+ * The row is stamped at **noon UTC** on that day, which reads back as the same
+ * day at every offset strictly between −12 and +12 — Egypt is +2 or +3, and
+ * keeps DST, so local midnight would not.
  *
  * ## Opening balances
  *
@@ -50,119 +29,58 @@
  * it, but nothing was billed and nobody sat in the chair, so `balance.summary`,
  * `stats.summary` and the day view leave it out.
  *
- * ## Imported procedures
- *
- * Work the old system recorded is an appointment with planned procedures and
- * **no visit at all**, flagged `is_imported`. No visit is the whole trick: a
- * visit is where money lives, so a row without one cannot charge anything, owe
- * anything or be paid — it appears in the record's history and in no total. The
- * single figure a patient carries over is **Owes**, and it is the opening
- * balance.
- *
- * Lines are grouped by the day they were done, so a file recording three
- * procedures on one afternoon reads as one afternoon. Lines the file does not
- * date go into one row dated at the cutoff and flagged `date_unknown`, which
- * the record draws as *before migration* rather than reading the cutoff out as
- * though it were the day.
- *
- * Both synthetic appointments are `done` rather than `booked`. `done` does not
- * hold a slot, so four hundred of them at the same instant on the cutoff date
- * do not trip `appointments_no_overlap` — which is the only reason this fits
- * inside the existing model at all.
+ * The synthetic appointment is `done` rather than `booked`. `done` does not
+ * hold a slot, so any number of them at the same instant do not trip
+ * `appointments_no_overlap`.
  *
  * Every part of this is written in the caller's transaction. A patient on file
  * owing nothing they actually owe is a wrong number told to them at the desk
  * months later, so if any of it cannot be written none of it is, the patient
  * included, and the row is typed again.
  */
-import { ERROR_CODE, type Role, seesPayments } from '@lustre/shared';
+import { type Role, seesPayments } from '@lustre/shared';
 import { count, eq, sql } from 'drizzle-orm';
 import { config } from '../../config.ts';
 import { db, type Executor } from '../../db/index.ts';
-import { appointmentProcedures, appointments, patients, visits } from '../../db/schema.ts';
+import { appointments, patients, visits } from '../../db/schema.ts';
 import { AppError } from '../../errors/AppError.ts';
 import { assertAmount } from '../../util/money.ts';
 import { branchService } from '../branch/branch.service.ts';
 import type { OldPatientInput } from '../patient/patient.schema.ts';
-import type { ResolvedLine } from '../procedure/procedure.rules.ts';
-import { resolveProcedureLines } from '../procedure/procedure.rules.ts';
 
 /** Nominal. Nobody attended and the day view never draws these, but the column is NOT NULL and checked positive. */
 const SYNTHETIC_DURATION_MINUTES = 5;
 
 /** English, for logs and for the appointment detail screen if anyone ever opens one of these. */
 const OPENING_BALANCE_NOTE = 'Opening balance carried over from the old system';
-const IMPORTED_NOTE = 'Recorded by the old system before the migration';
 
-/** One day off the paper file, or — when it does not say — everything it does not date. */
-interface OldHistoryDay {
-    performedOn: string | null;
-    lines: ResolvedLine[];
-}
-
-/**
- * Everything the write needs, resolved and checked, before a transaction is
- * open. The catalogue reads and the configuration read are about the request
- * rather than the write, so they happen first — the same order booking uses.
- */
-export interface OldPatientPlan {
+/** Everything the write needs, resolved and checked before a transaction is open. */
+interface OldPatientPlan {
     branchId: string;
-    /** The day undated lines and the opening balance are stamped on: registration day, the clinic's. */
+    /** The day the opening balance is stamped on: registration day, the clinic's. */
     cutoffDate: string;
-    openingBalance?: number;
-    days: OldHistoryDay[];
+    openingBalance: number;
 }
 
-/**
- * Midday on the day this names, in UTC. Read back through any offset strictly
- * between −12 and +12 it is still that day — which is the whole requirement
- * for a row that carries a date rather than occupying a slot. See the note at
- * the top.
- */
 function noonUtc(date: string): Date {
     return new Date(`${date}T12:00:00.000Z`);
-}
-
-export interface OldPatientWrite {
-    /** The synthetic visit carrying the opening balance, or null when they owed nothing. */
-    openingBalanceVisitId: string | null;
-    importedAppointmentIds: string[];
 }
 
 /**
  * Resolves what an old patient brings with them, and refuses it here if it
  * cannot be written — before the patient row exists, so there is nothing to
- * roll back.
- *
- * Nothing is written when they arrive owing nothing and with an empty file: that
- * is a patient with an old number and no history, which is most of them.
+ * roll back. Null when they arrive owing nothing, which is most of them.
  */
 export async function planOldPatientHistory(
-    old: Pick<OldPatientInput, 'openingBalance' | 'procedures'>,
+    old: Pick<OldPatientInput, 'openingBalance'>,
 ): Promise<OldPatientPlan | null> {
-    if (old.openingBalance === undefined && old.procedures.length === 0) return null;
-
-    if (old.openingBalance !== undefined) assertAmount(old.openingBalance, 'opening balance');
-
-    const today = clinicToday();
-
-    // Work that has not happened yet is not a record of anything. Only a phone
-    // from before old procedures left registration still sends any; ISO dates
-    // compare as strings.
-    const future = old.procedures.find((line) => line.performedOn != null && line.performedOn > today);
-    if (future) {
-        throw new AppError(
-            ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF,
-            `an old procedure is dated ${future.performedOn}, which has not happened yet`,
-            422,
-        );
-    }
+    if (old.openingBalance === undefined) return null;
+    assertAmount(old.openingBalance, 'opening balance');
 
     return {
         branchId: await defaultBranchId(),
-        cutoffDate: today,
-        ...(old.openingBalance === undefined ? {} : { openingBalance: old.openingBalance }),
-        days: await resolveDays(old.procedures),
+        cutoffDate: clinicToday(),
+        openingBalance: old.openingBalance,
     };
 }
 
@@ -184,38 +102,6 @@ export async function defaultBranchId(): Promise<string> {
 }
 
 /**
- * Grouped by the day the file gives, in the order the lines were typed. §5's
- * once-per-list rule is applied per day, which is what it means here: the same
- * tooth extracted on two different days is two real lines, and twice on one day
- * is the file being typed twice.
- */
-async function resolveDays(procedures: OldPatientInput['procedures']): Promise<OldHistoryDay[]> {
-    const byDay = new Map<string | null, OldPatientInput['procedures']>();
-
-    for (const line of procedures) {
-        const day = line.performedOn ?? null;
-        const bucket = byDay.get(day);
-        if (bucket) bucket.push(line);
-        else byDay.set(day, [line]);
-    }
-
-    const days: OldHistoryDay[] = [];
-    for (const [performedOn, lines] of byDay) {
-        days.push({
-            performedOn,
-            lines: await resolveProcedureLines(
-                lines.map((line) => ({
-                    procedureId: line.procedureId,
-                    quantity: line.quantity,
-                    tooth: line.tooth ?? null,
-                })),
-            ),
-        });
-    }
-    return days;
-}
-
-/**
  * Writes the plan against a patient that already exists, in the caller's
  * transaction. `insertWithRef` is imported here rather than at the top of the
  * file: `patient.create` calls into this module and `appointment.service`
@@ -226,83 +112,41 @@ export async function writeOldPatientHistory(
     tx: Executor,
     patientId: string,
     plan: OldPatientPlan,
-): Promise<OldPatientWrite> {
+): Promise<void> {
     const { insertWithRef } = await import('../appointment/appointment.service.ts');
 
     const cutoffAt = noonUtc(plan.cutoffDate);
 
-    let openingBalanceVisitId: string | null = null;
+    const appointment = await insertWithRef(
+        tx,
+        {
+            patientId,
+            branchId: plan.branchId,
+            startsAt: cutoffAt,
+            durationMinutes: SYNTHETIC_DURATION_MINUTES,
+            status: 'done',
+            isOpeningBalance: true,
+            note: OPENING_BALANCE_NOTE,
+        },
+        0,
+    );
 
-    if (plan.openingBalance !== undefined) {
-        const appointment = await insertWithRef(
-            tx,
-            {
-                patientId,
-                branchId: plan.branchId,
-                startsAt: cutoffAt,
-                durationMinutes: SYNTHETIC_DURATION_MINUTES,
-                status: 'done',
-                isOpeningBalance: true,
-                note: OPENING_BALANCE_NOTE,
-            },
-            0,
-        );
+    const [visit] = await tx
+        .insert(visits)
+        .values({
+            id: Bun.randomUUIDv7(),
+            appointmentId: appointment.id,
+            checkedInAt: cutoffAt,
+            // Settled from the moment it exists: there is nothing here
+            // to price, and the amount is whatever the old system said.
+            pricedAt: cutoffAt,
+            completedAt: cutoffAt,
+            computedTotal: plan.openingBalance,
+            chargedTotal: plan.openingBalance,
+        })
+        .returning();
 
-        const [visit] = await tx
-            .insert(visits)
-            .values({
-                id: Bun.randomUUIDv7(),
-                appointmentId: appointment.id,
-                checkedInAt: cutoffAt,
-                // Settled from the moment it exists: there is nothing here
-                // to price, and the amount is whatever the old system said.
-                pricedAt: cutoffAt,
-                completedAt: cutoffAt,
-                computedTotal: plan.openingBalance,
-                chargedTotal: plan.openingBalance,
-            })
-            .returning();
-
-        if (!visit) throw AppError.internal('opening balance visit insert returned nothing');
-        openingBalanceVisitId = visit.id;
-    }
-
-    const importedAppointmentIds: string[] = [];
-
-    for (const day of plan.days) {
-        const at = day.performedOn ? noonUtc(day.performedOn) : cutoffAt;
-
-        const appointment = await insertWithRef(
-            tx,
-            {
-                patientId,
-                branchId: plan.branchId,
-                startsAt: at,
-                durationMinutes: SYNTHETIC_DURATION_MINUTES,
-                status: 'done',
-                isImported: true,
-                dateUnknown: day.performedOn === null,
-                note: IMPORTED_NOTE,
-            },
-            0,
-        );
-
-        await tx.insert(appointmentProcedures).values(
-            day.lines.map((line, sortOrder) => ({
-                id: Bun.randomUUIDv7(),
-                appointmentId: appointment.id,
-                procedureId: line.procedure.id,
-                quantity: line.quantity,
-                tooth: line.tooth,
-                note: line.note,
-                sortOrder,
-            })),
-        );
-
-        importedAppointmentIds.push(appointment.id);
-    }
-
-    return { openingBalanceVisitId, importedAppointmentIds };
+    if (!visit) throw AppError.internal('opening balance visit insert returned nothing');
 }
 
 /** How far the changeover has got. Settings → Clinic draws it beside the cutoff it is dated at. */

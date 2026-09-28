@@ -446,8 +446,6 @@ function emptyDb(): DemoDb {
             // paper file would be refused as one the sequence still owes. A
             // clinic that has moved over has set it above its old numbers.
             patientRefNext: 1001,
-            migrationBranchId: null,
-            migrationCutoffDate: null,
             requireAge: DEFAULT_REQUIRE_AGE,
             requireGender: DEFAULT_REQUIRE_GENDER,
             askToEditOnFinish: true,

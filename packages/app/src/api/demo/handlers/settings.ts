@@ -27,8 +27,6 @@ function toSettings(row: SettingsRow): Settings {
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
         patientRefNext: row.patientRefNext,
-        migrationBranchId: row.migrationBranchId,
-        migrationCutoffDate: row.migrationCutoffDate,
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
@@ -53,10 +51,6 @@ export const settingsHandlers = {
 
     update(input: RouterInput['settings']['update']): Settings {
         const current = getDb().settings;
-
-        // A branch the demo has dropped would otherwise be stored and then
-        // refuse every old-patient registration with nothing saying why.
-        if (input.migrationBranchId) branchHandlers.byId(input.migrationBranchId);
 
         const durationOptions = input.durationOptions
             ? [...new Set(input.durationOptions)].sort((a, b) => a - b)
