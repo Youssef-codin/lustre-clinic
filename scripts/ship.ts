@@ -8,6 +8,7 @@
  *   bun ship deploy             the deploy step alone, for the release at HEAD
  *   bun ship:dev [--apk|--screen]  the dev track, to the dev stack
  *   bun ship:dev --fast         the same, but copies only the releases (scripts/pushReleases.ts)
+ *                               [--keep-server] when a server change since the last dev tag doesn't matter
  *
  * In order: checks `main` is clean and not behind origin, asks `release.ts` for
  * the number, moves `[Unreleased]` in CHANGELOG.md under it and commits, builds
@@ -35,11 +36,23 @@ const dev = args.includes('--dev');
 const apk = args.includes('--apk');
 const dryRun = args.includes('--dry-run');
 const fast = args.includes('--fast');
-const known = ['deploy', '--dev', '--apk', '--major', '--minor', '--screen', '--dry-run', '--fast'];
+const keepServer = args.includes('--keep-server');
+const known = [
+    'deploy',
+    '--dev',
+    '--apk',
+    '--major',
+    '--minor',
+    '--screen',
+    '--dry-run',
+    '--fast',
+    '--keep-server',
+];
 const unknown = args.filter((arg) => !known.includes(arg));
 if (unknown.length) fail(`unknown ${unknown.join(' ')}. See the top of scripts/ship.ts.`);
 if (args.includes('--major') && !apk) fail('--major is for an APK: bun ship --apk --major');
 if (args.includes('--minor') && apk) fail('--minor is for an update. An APK is always at least a minor.');
+if (keepServer && !fast) fail('--keep-server goes with --fast: bun ship:dev:fast --keep-server');
 if (fast && !args.includes('--dev')) fail('--fast is for the dev track: bun ship:dev --fast');
 if (args.includes('--screen') && apk) fail('--screen is for an update. An APK shows its own install banner.');
 
@@ -105,8 +118,10 @@ async function preflight(): Promise<void> {
     if (fast) {
         const last = await releaseTagAt('HEAD');
         if (!last) fail('--fast needs a dev release on the server already. Run `bun ship:dev` once.');
-        if (await serverChangedSince(last)) {
-            fail(`the server code changed since ${last}, and --fast never deploys it. Run \`bun ship:dev\`.`);
+        if (!keepServer && (await serverChangedSince(last))) {
+            fail(
+                `the server code changed since ${last}, and --fast never deploys it. Run \`bun ship:dev\`, or add --keep-server if the server doesn't need it.`,
+            );
         }
     }
     if (dev) return;
