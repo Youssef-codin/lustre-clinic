@@ -26,6 +26,8 @@ export interface ManifestInput {
     runtimeVersion: string;
     /** The release number (`releaseVersion.ts`), kept so the next update can count on from it. */
     version: string;
+    /** `bun ship --screen`: a patch the phones take behind the download screen, like a minor. */
+    screen?: boolean;
     serverUrl: string;
     bundle: ExportedFile;
     assets: ExportedFile[];
@@ -74,7 +76,8 @@ export function manifestFor(input: ManifestInput) {
         assets: input.assets.map((asset) =>
             describe(asset, CONTENT_TYPES[asset.ext] ?? 'application/octet-stream', `.${asset.ext}`),
         ),
-        metadata: { version: input.version },
+        // Strings only: the protocol's metadata is a string map.
+        metadata: input.screen ? { version: input.version, screen: 'true' } : { version: input.version },
         extra: { expoClient: input.expoClient },
     };
 }

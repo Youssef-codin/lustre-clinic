@@ -8,6 +8,9 @@ listed.
 
 ## [Unreleased]
 
+### Changed
+
+- When saving a patient fails, the message saying why stays pinned to the top of the screen while you scroll down to Save, instead of scrolling away.
 - The Patients list now shows every patient, not only the 25 newest: more load as you scroll down, and searches go past 25 results the same way. If the next batch can't load, the patients already shown stay on screen with a Try again button.
 
 ## [1.7.0] - 2026-09-27
