@@ -3,7 +3,7 @@
  * Run by `bun ship` (scripts/ship.ts), not by hand.
  *
  *   release.ts apk [--major]    prebuild, build and sign the release APK
- *   release.ts update [--minor] export the JavaScript and sign it as an OTA update, and
+ *   release.ts update [--minor] [--screen] export the JavaScript and sign it as an OTA update, and
  *                               rebuild the APK with it so a fresh install starts on it.
  *                               A patch applies quietly on the next launch; --minor
  *                               makes phones stop, download it and restart now.
@@ -418,7 +418,7 @@ async function releaseApk(major: boolean): Promise<void> {
     await tagRelease(next, `Lustre ${built.version}, APK build ${built.versionCode}`);
 }
 
-async function publishUpdate(minor: boolean): Promise<void> {
+async function publishUpdate(minor: boolean, screen: boolean): Promise<void> {
     const url = updatesUrl();
     // Not used here, but checked: the DSN is hashed into the runtime fingerprint, so
     // an update published without the one the APK was built with resolves a runtime
@@ -440,7 +440,7 @@ async function publishUpdate(minor: boolean): Promise<void> {
     const version = formatVersion(next);
     // What `Constants.expoConfig.version` reads on a phone running this update.
     const env = { ...process.env, LUSTRE_VERSION: version };
-    say(`Publishing Lustre ${version}`);
+    say(`Publishing Lustre ${version}${screen ? ', behind the download screen' : ''}`);
 
     // The APK a fresh install downloads, rebuilt with this update's JavaScript in
     // it, so a new phone starts on the latest patch instead of waiting for an
@@ -475,7 +475,17 @@ async function publishUpdate(minor: boolean): Promise<void> {
     const id = randomUUID();
     const createdAt = new Date();
     const body = JSON.stringify(
-        manifestFor({ id, createdAt, runtimeVersion, version, serverUrl: url, bundle, assets, expoClient }),
+        manifestFor({
+            id,
+            createdAt,
+            runtimeVersion,
+            version,
+            screen,
+            serverUrl: url,
+            bundle,
+            assets,
+            expoClient,
+        }),
     );
 
     const target = join(OUT_DIR, 'updates', runtimeVersion, id);
@@ -500,8 +510,12 @@ async function publishUpdate(minor: boolean): Promise<void> {
 const [command, kind] = process.argv.slice(2);
 const major = process.argv.includes('--major');
 const minor = process.argv.includes('--minor');
+const screen = process.argv.includes('--screen');
 if (command === 'apk') await releaseApk(major);
-else if (command === 'update') await publishUpdate(minor);
+else if (command === 'update') await publishUpdate(minor, screen);
 else if (command === 'next' && kind === 'apk') say(formatVersion(await nextApk(major)));
 else if (command === 'next' && kind === 'update') say(formatVersion((await nextUpdate(minor)).next));
-else fail('usage: bun packages/app/scripts/release.ts [next] apk [--major] | [next] update [--minor]');
+else
+    fail(
+        'usage: bun packages/app/scripts/release.ts [next] apk [--major] | [next] update [--minor] [--screen]',
+    );
