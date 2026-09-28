@@ -145,34 +145,15 @@ describe('editing a ref', () => {
 });
 
 describe('who may edit', () => {
-    test('refuses a role that is not approved', async () => {
-        const row = await patient();
-
-        await expectAppError(ERROR_CODE.REF_EDIT_FORBIDDEN, () =>
-            patientService.updateRef({ id: row.id, ref: 'W5F5', editedBy: 'secretary' }),
-        );
-
-        expect((await patientService.byId(row.id)).patient.ref).toBe(row.ref);
-    });
-
-    test('refuses before it validates, so a bad role never reveals the ref is taken', async () => {
+    test('lets the secretary correct a ref and records her role', async () => {
         await counterAt(5000);
-        const first = await patient('Nadia Hassan');
-        const second = await patient('Omar Fathy');
-
-        await expectAppError(ERROR_CODE.REF_EDIT_FORBIDDEN, () =>
-            patientService.updateRef({ id: second.id, ref: first.ref, editedBy: 'secretary' }),
-        );
-    });
-
-    test('writes nothing to the audit trail when it refuses', async () => {
         const row = await patient();
 
-        await expectAppError(ERROR_CODE.REF_EDIT_FORBIDDEN, () =>
-            patientService.updateRef({ id: row.id, ref: 'W5F5', editedBy: 'secretary' }),
-        );
+        const moved = await patientService.updateRef({ id: row.id, ref: '713', editedBy: 'secretary' });
 
-        expect(await patientService.refHistory(row.id)).toEqual([]);
+        expect(moved.ref).toBe('713');
+        const [entry] = await patientService.refHistory(row.id);
+        expect(entry?.editedBy).toBe('secretary');
     });
 });
 
@@ -305,9 +286,6 @@ describe('over the API', () => {
             custom: {},
         });
 
-        await expectTrpcError(ERROR_CODE.REF_EDIT_FORBIDDEN, 403, () =>
-            api.client.patient.updateRef.mutate({ id: row.id, ref: '910', editedBy: 'secretary' }),
-        );
         await expectTrpcError(ERROR_CODE.PATIENT_REF_INVALID, 422, () =>
             api.client.patient.updateRef.mutate({ id: row.id, ref: '007', editedBy: 'doctor' }),
         );

@@ -176,23 +176,6 @@ export function managesClinic(role: Role | null): boolean {
     return role === null || role === 'admin';
 }
 
-/**
- * The roles allowed to edit a ref that is already on a record.
- *
- * A ref is written at the top of a paper file and read back off it for years,
- * so changing one is a supervisory correction rather than desk work — the
- * secretary who typed it wrong says so, the doctor makes the change, and the
- * audit trail records which role did.
- *
- * The server checks it against the view of the phone's credential, and only
- * falls back to what the client claims for a phone that has none yet.
- */
-export const REF_EDIT_ROLES = ['doctor'] as const satisfies readonly ClientRole[];
-
-export function canEditRef(role: ClientRole): boolean {
-    return (REF_EDIT_ROLES as readonly ClientRole[]).includes(role);
-}
-
 /** §14. English is primary; Arabic mirrors the layout. */
 export const LOCALES = ['en', 'ar'] as const;
 export const localeSchema = z.enum(LOCALES);

@@ -24,14 +24,9 @@
 // white — the design keeps one ground from the status bar down and lets the
 // rule do the separating.
 //
-// Correcting the number a record is known by goes by its own call. It is gated
-// by role and leaves an audit row, so the server gives it a procedure of its
-// own. The
-// row is drawn read-only for a role that may not edit, because the number is
-// worth reading whoever is holding the phone, and it is absent entirely on a
-// registration, where the counter hands it out. `canEditRef` is the same rule
-// the server enforces; the screen asking it first is a correct screen, not the
-// protection.
+// Correcting the number a record is known by goes by its own call, because it
+// leaves an audit row stamped with the role. Every role may make it; the row is
+// absent on a registration, where the counter hands the number out.
 //
 // An edit can therefore make two calls — ref, then patch — and the order is
 // not arbitrary. See `onSave`.
@@ -45,7 +40,7 @@
 // Expo SDK 54+ default: the app is laid out behind the IME, the window never
 // gets shorter, and the footer sat under the keys with the last fields of the
 // form. See `ui/useKeyboardHeight` for the whole of it.
-import { canEditRef, resolveLabel } from '@lustre/shared';
+import { resolveLabel } from '@lustre/shared';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
@@ -152,12 +147,12 @@ export function PatientEditScreen({
     const saving = save.pending || editRef.pending;
 
     // `hydrated` matters: the store falls back to secretary until storage
-    // answers, and drawing an editable row for a beat and then taking it away
-    // is worse than drawing the locked one a beat late.
+    // answers, and the audit row is stamped with the role, so the row stays
+    // locked until the real one is known.
     const { role, hydrated } = useRole();
     // Never on a registration — the counter hands out the number, so there is
     // nothing on screen to correct.
-    const refMode = creating ? 'hidden' : hydrated && canEditRef(role) ? 'editable' : 'locked';
+    const refMode = creating ? 'hidden' : hydrated ? 'editable' : 'locked';
 
     // Only the kinds with a control. A `date` answer already on the record is
     // drawn below, read-only, and is never in the form.
@@ -213,11 +208,8 @@ export function PatientEditScreen({
     const missing = form ? missingRequired(form, editable) : [];
     const answered = form ? answeredCount(form, editable) : 0;
 
-    // Only the doctor's row can be wrong: every other role is reading a value it
-    // cannot change, and marking it `due` would be telling them off for a
-    // record they cannot correct here. And only a ref being *changed* is
-    // judged — an old patient's number is their old system's and need not be
-    // one this app would issue. See `refEditError`.
+    // Only a ref being *changed* is judged — an old patient's number is their
+    // old system's and need not be one this app would issue. See `refEditError`.
     const refMessage =
         form && refBaseline && refMode === 'editable'
             ? (refEditError(form, refBaseline) ?? undefined)
@@ -279,8 +271,7 @@ export function PatientEditScreen({
 
         // The number, if it moved from the last one on file — the record's, or
         // the one an earlier partial save already wrote. Its own call:
-        // `patient.update` cannot write a ref, and this one is refused for a
-        // role that may not.
+        // `patient.update` cannot write a ref.
         const ref = refMode === 'editable' && refBaseline ? refEditOf(form, refBaseline) : null;
 
         // Nothing moved. Closing beats spending a round trip to write the record
@@ -296,7 +287,7 @@ export function PatientEditScreen({
         // only what is still owed left to send.
         //
         // The ref goes first because it is the one most likely to be refused —
-        // a role, a number already taken, one not yet handed out — and the
+        // a number already taken, one not yet handed out — and the
         // number is usually what the desk opened this editor to correct. Writing
         // the rest and then refusing that would be a half-done save reported as
         // done; refused first, the record is left exactly as it was. Sending it

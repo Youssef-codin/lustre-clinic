@@ -472,13 +472,18 @@ describe('a doctor and payment data', () => {
 });
 
 describe('ref edits', () => {
-    test('a secretary’s phone cannot claim to be the doctor', async () => {
+    test('a secretary’s phone edits a ref and is recorded as the secretary, whatever it claims', async () => {
         const { patient } = await checkedInVisit();
         const secretary = api.clientAs((await provisioned('secretary')).token);
 
-        await expectTrpcError(ERROR_CODE.REF_EDIT_FORBIDDEN, 403, () =>
-            secretary.patient.updateRef.mutate({ id: patient.id, ref: '999', editedBy: 'doctor' }),
-        );
+        const moved = await secretary.patient.updateRef.mutate({
+            id: patient.id,
+            ref: 'K7MX',
+            editedBy: 'doctor',
+        });
+        expect(moved.ref).toBe('K7MX');
+        const [entry] = await secretary.patient.refHistory.query({ id: patient.id });
+        expect(entry?.editedBy).toBe('secretary');
     });
 
     test('an admin edits as the doctor it draws', async () => {
