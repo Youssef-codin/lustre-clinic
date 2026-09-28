@@ -105,7 +105,7 @@ async function preflight(): Promise<void> {
     if (fast) {
         const last = await releaseTagAt('HEAD');
         if (!last) fail('--fast needs a dev release on the server already. Run `bun ship:dev` once.');
-        if (!(await gitSucceeds('diff', '--quiet', last, 'HEAD', '--', ...SERVER_PATHS))) {
+        if (await serverChangedSince(last)) {
             fail(`the server code changed since ${last}, and --fast never deploys it. Run \`bun ship:dev\`.`);
         }
     }
@@ -124,6 +124,17 @@ async function preflight(): Promise<void> {
     if (!(await gitSucceeds('merge-base', '--is-ancestor', 'origin/main', 'HEAD'))) {
         fail('main is behind origin/main. Pull first, so the release has everything already merged.');
     }
+}
+
+/** A new root `scripts` entry changes no server, so --fast looks past it. */
+async function serverChangedSince(tag: string): Promise<boolean> {
+    const paths = SERVER_PATHS.filter((path) => path !== 'package.json');
+    if (!(await gitSucceeds('diff', '--quiet', tag, 'HEAD', '--', ...paths))) return true;
+    const manifest = async (ref: string) => {
+        const { scripts: _, ...rest } = JSON.parse(await git('show', `${ref}:package.json`));
+        return JSON.stringify(rest);
+    };
+    return (await manifest(tag)) !== (await manifest('HEAD'));
 }
 
 /** Opens the release in CHANGELOG.md and commits it, so the tag carries its notes. */
