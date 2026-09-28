@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Changed
+
+- The calendar slides between months. The month follows your finger as you swipe, then the next or previous month slides in from the side you swiped toward; a short swipe springs back to the month you were on. The arrows use the same slide, and in Arabic it goes the way the arrows point.
+
 ## [1.7.0] - 2026-09-27
 
 ### Added
