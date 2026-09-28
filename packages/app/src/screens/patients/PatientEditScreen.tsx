@@ -359,9 +359,15 @@ export function PatientEditScreen({
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                         showsVerticalScrollIndicator={false}
+                        // A save that failed is said at the top of the form, and
+                        // Save is at the bottom — so the sentence is pinned to the
+                        // top edge once scrolled past, and settles back into its
+                        // place on the way up. It is the first child only while
+                        // there is one: a `false` child is not counted.
+                        stickyHeaderIndices={saveError !== undefined ? [0] : undefined}
                     >
                         {saveError !== undefined && (
-                            <View style={styles.callout}>
+                            <View style={[styles.callout, styles.sticky]}>
                                 <Callout
                                     tone="warning"
                                     title={saveFailureTitle(editRef.error !== undefined, savedRef !== null)}
@@ -676,6 +682,8 @@ const styles = StyleSheet.create({
     pressed: { opacity: 0.6 },
 
     callout: { paddingBottom: space[3] },
+    // Opaque, or the fields scrolling under the pinned error show through it.
+    sticky: { backgroundColor: color.canvas, paddingTop: space[1] },
     eyebrow: { paddingBottom: space[1.5] },
 
     section: { paddingTop: space[4] },

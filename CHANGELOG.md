@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Changed
+
+- When saving a patient fails, the message saying why stays pinned to the top of the screen while you scroll down to Save, instead of scrolling away.
+
 ## [1.7.0] - 2026-09-27
 
 ### Added
