@@ -11,7 +11,6 @@ import { assignDefined, computeTotal, DemoError, resolveProcedureLines, uuidv7 }
 import type { Dated } from '../wire';
 import { insertAppointment } from './appointmentRow';
 import { branchHandlers } from './branch';
-import { planOldPatientHistory, writeOldPatientHistory } from './migration';
 import { requirePatient } from './patient';
 
 type Procedure = Dated<RouterOutput['procedure']['list'][number]>;
@@ -163,33 +162,10 @@ export const procedureHandlers = {
     },
 
     /**
-     * `server/src/modules/procedure/procedure.history.ts` — work a patient had
-     * done before this system knew about it, added from their record rather
-     * than at registration. It goes through the migration write, so it is the
-     * same imported appointment with no visit behind it: history, and no money.
-     */
-    addHistorical(input: RouterInput['procedure']['addHistorical']): { appointmentIds: string[] } {
-        requirePatient(input.patientId);
-
-        const before = getDb().appointments.length;
-        const plan = planOldPatientHistory({ procedures: input.procedures });
-        if (!plan) return { appointmentIds: [] };
-
-        writeOldPatientHistory(input.patientId, plan);
-        save();
-
-        return {
-            appointmentIds: getDb()
-                .appointments.slice(before)
-                .map((row) => row.id),
-        };
-    },
-
-    /**
      * `server/src/modules/procedure/procedure.history.ts` — a visit that
-     * happened on a day that has passed and was never typed in. Unlike a
-     * historical procedure this one carries money: it is an ordinary completed
-     * visit, charged, and paid in cash on the day unless corrected afterwards.
+     * happened on a day that has passed and was never typed in. It carries
+     * money: it is an ordinary completed visit, charged, and paid in cash on
+     * the day unless corrected afterwards.
      */
     addOldVisit(input: RouterInput['procedure']['addOldVisit']): {
         appointmentId: string;

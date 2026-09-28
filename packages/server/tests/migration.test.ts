@@ -13,7 +13,7 @@ import { type Clinic, expectAppError, clinic as fixtures } from './helpers/facto
 /**
  * Registering someone the clinic already had. There is one registration screen
  * and one procedure behind it — `patient.create` with its `old` block — and
- * three things about it are worth asserting; the rest is `patient.create` under
+ * two things about it are worth asserting; the rest is `patient.create` under
  * another name.
  *
  * 1. The number on the paper file is the number the record carries. Entering
@@ -25,35 +25,26 @@ import { type Clinic, expectAppError, clinic as fixtures } from './helpers/facto
  *    wrong in either direction and either the doctor sees a fortune billed on a
  *    day the clinic was shut, or a patient is told they owe nothing when they
  *    owe 800.
- * 3. Imported work is history and nothing else. It has no visit, so it cannot
- *    charge, owe or be paid — and the tests below check that from the readers'
- *    side rather than from the schema's, because "no visit" is an implementation
- *    detail and "does not move the money" is the promise.
  *
  * Atomicity is asserted through the failures rather than the successes: a
- * refused branch, a refused ref, a refused catalogue line. Each has to leave the
+ * refused ref, a refused answer, a failed write. Each has to leave the
  * register exactly as it found it, patient included.
  */
 
-const CUTOFF = '2026-08-01';
-/** Where the server now dates an old patient's balance and undated lines: the clinic's today. */
+/** Where the server dates an old patient's balance: the clinic's today. */
 const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo' }).format(new Date());
-const TOMORROW = new Date(Date.parse(`${TODAY}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 const OWED = 80_000;
 
 /**
- * The clinic, set up the way Settings → Clinic sets it before a migration: the
- * branch and date an old patient's history hangs on, and a next patient number
- * above every number the old system used. That last one is the premise of the
- * whole cutoff, and `PATIENT_REF_RESERVED` below is what happens without it.
+ * The clinic, set up the way Settings → Clinic sets it before a migration: a
+ * next patient number above every number the old system used.
+ * `PATIENT_REF_RESERVED` below is what happens without it.
  */
 const NEXT_REF = 900;
 
 async function migrating(): Promise<Clinic> {
     const clinic = await fixtures();
     await settingsService.update({
-        migrationBranchId: clinic.branch.id,
-        migrationCutoffDate: CUTOFF,
         patientRefNext: NEXT_REF,
     });
     return clinic;
@@ -71,7 +62,7 @@ describe('registering an old patient', () => {
             phone: '01098765432',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '710', procedures: [] },
+            old: { ref: '710' },
         });
 
         expect(entered.ref).toBe('710');
@@ -90,7 +81,7 @@ describe('registering an old patient', () => {
             phone: '01000000710',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '710', procedures: [] },
+            old: { ref: '710' },
         });
 
         expect(entered.ref).toBe('710');
@@ -109,14 +100,14 @@ describe('registering an old patient', () => {
             phone: '01000000701',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '701', procedures: [] },
+            old: { ref: '701' },
         });
         await patientService.create({
             name: 'Old Two',
             phone: '01000000702',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '702', procedures: [] },
+            old: { ref: '702' },
         });
 
         const fresh = await patientService.create({
@@ -136,7 +127,7 @@ describe('registering an old patient', () => {
             phone: '01077777777',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '710', procedures: [] },
+            old: { ref: '710' },
         });
 
         const found = await patientService.search({ q: '710', limit: 25 });
@@ -154,7 +145,7 @@ describe('registering an old patient', () => {
             phone: '01088888888',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: 'A/1991-07', procedures: [] },
+            old: { ref: 'A/1991-07' },
         });
 
         expect(entered.ref).toBe('A/1991-07');
@@ -171,7 +162,7 @@ describe('registering an old patient', () => {
             phone: '01000000601',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '601', procedures: [] },
+            old: { ref: '601' },
         });
 
         await expectAppError(ERROR_CODE.PATIENT_REF_TAKEN, () =>
@@ -180,7 +171,7 @@ describe('registering an old patient', () => {
                 phone: '01000000602',
                 birthDate: '1990-01-01',
                 custom: {},
-                old: { ref: '601', procedures: [] },
+                old: { ref: '601' },
             }),
         );
 
@@ -200,7 +191,7 @@ describe('registering an old patient', () => {
                 phone: '01000009100',
                 birthDate: '1990-01-01',
                 custom: {},
-                old: { ref: '9100', procedures: [] },
+                old: { ref: '9100' },
             }),
         );
 
@@ -218,7 +209,7 @@ describe('registering an old patient', () => {
                 phone: '01000000500',
                 birthDate: '1990-01-01',
                 custom: {},
-                old: { ref: '500', procedures: [] },
+                old: { ref: '500' },
             }),
         );
 
@@ -245,7 +236,7 @@ describe('what an old patient brings with them', () => {
             phone: '01011110000',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: 'F-12', procedures: [] },
+            old: { ref: 'F-12' },
         });
 
         const { history } = await patientService.byId(entered.id);
@@ -263,7 +254,7 @@ describe('what an old patient brings with them', () => {
             phone: '01011110001',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '410', openingBalance: OWED, procedures: [] },
+            old: { ref: '410', openingBalance: OWED },
         });
 
         const [row] = (await patientService.byId(entered.id)).history;
@@ -280,7 +271,7 @@ describe('what an old patient brings with them', () => {
             phone: '01234567890',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '311', openingBalance: OWED, procedures: [] },
+            old: { ref: '311', openingBalance: OWED },
         });
 
         // Owed: the desk has to be able to ask for it.
@@ -307,7 +298,7 @@ describe('what an old patient brings with them', () => {
             phone: '01234500000',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '312', procedures: [] },
+            old: { ref: '312' },
         });
 
         const { history } = await patientService.byId(entered.id);
@@ -323,7 +314,7 @@ describe('what an old patient brings with them', () => {
             phone: '01333333333',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '313', openingBalance: OWED, procedures: [] },
+            old: { ref: '313', openingBalance: OWED },
         });
 
         const { history } = await patientService.byId(entered.id);
@@ -335,18 +326,14 @@ describe('what an old patient brings with them', () => {
     });
 
     test('the day it was entered draws an empty schedule', async () => {
-        const clinic = await migrating();
+        await migrating();
 
         await patientService.create({
             name: 'Yasmin Adel',
             phone: '01222222222',
             birthDate: '1990-01-01',
             custom: {},
-            old: {
-                ref: '314',
-                openingBalance: OWED,
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
-            },
+            old: { ref: '314', openingBalance: OWED },
         });
 
         expect(await appointmentService.byDate({ date: TODAY, offsetMinutes: 0 })).toHaveLength(0);
@@ -363,7 +350,7 @@ describe('what an old patient brings with them', () => {
                 phone: `0100000${String(i).padStart(4, '0')}`,
                 birthDate: '1990-01-01',
                 custom: {},
-                old: { ref: `M${i}`, openingBalance: 1_000 + i, procedures: [] },
+                old: { ref: `M${i}`, openingBalance: 1_000 + i },
             });
         }
 
@@ -372,305 +359,6 @@ describe('what an old patient brings with them', () => {
         expect(progress.oldPatients).toBe(25);
         // The fixture patient is on file too, and did not come across.
         expect(progress.patients).toBe(26);
-    });
-});
-
-describe('imported procedures', () => {
-    beforeAll(setupDatabase);
-    beforeEach(truncateAll);
-
-    test('appear in the record as history, marked, with the date off the file', async () => {
-        const clinic = await migrating();
-
-        const entered = await patientService.create({
-            name: 'Had Work Done',
-            phone: '01044440001',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '201',
-                procedures: [
-                    { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' },
-                    {
-                        procedureId: clinic.extraction.id,
-                        quantity: 1,
-                        tooth: 'UL6',
-                        performedOn: '2024-03-14',
-                    },
-                ],
-            },
-        });
-
-        const { history } = await patientService.byId(entered.id);
-        expect(history).toHaveLength(1);
-
-        const [row] = history;
-        expect(row?.isImported).toBe(true);
-        expect(row?.dateUnknown).toBe(false);
-        // Noon UTC on the day the file names, so it reads back as that day
-        // whatever offset the phone is on — see `migration.service`.
-        expect(row?.startsAt.toISOString()).toBe('2024-03-14T12:00:00.000Z');
-        expect(row?.procedures.map((p) => p.name)).toEqual(['Checkup', 'Extraction']);
-        expect(row?.procedures[1]?.tooth).toBe('UL6');
-    });
-
-    test('one row per day the file records, so an afternoon reads as an afternoon', async () => {
-        const clinic = await migrating();
-
-        const entered = await patientService.create({
-            name: 'Two Visits',
-            phone: '01044440002',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '202',
-                procedures: [
-                    { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' },
-                    { procedureId: clinic.rootCanal.id, quantity: 1, performedOn: '2024-03-14' },
-                    { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2025-01-09' },
-                ],
-            },
-        });
-
-        const { history } = await patientService.byId(entered.id);
-        expect(history).toHaveLength(2);
-        // Newest first, the way the record reads.
-        expect(history[0]?.procedures).toHaveLength(1);
-        expect(history[1]?.procedures).toHaveLength(2);
-    });
-
-    test('an undated line says so rather than borrowing the cutoff', async () => {
-        const clinic = await migrating();
-
-        const entered = await patientService.create({
-            name: 'Date Unknown',
-            phone: '01044440003',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '203',
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1 }],
-            },
-        });
-
-        const { history } = await patientService.byId(entered.id);
-        expect(history).toHaveLength(1);
-        expect(history[0]?.dateUnknown).toBe(true);
-        expect(history[0]?.isImported).toBe(true);
-    });
-
-    test('zero entries is a patient with no history and no rows', async () => {
-        await migrating();
-
-        const entered = await patientService.create({
-            name: 'No Work',
-            phone: '01044440004',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: { ref: '204', procedures: [] },
-        });
-
-        expect((await patientService.byId(entered.id)).history).toEqual([]);
-    });
-
-    test('create no money: no revenue, no balance, no total of any kind', async () => {
-        const clinic = await migrating();
-
-        const entered = await patientService.create({
-            name: 'Expensive History',
-            phone: '01044440005',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '205',
-                procedures: [
-                    { procedureId: clinic.rootCanal.id, quantity: 1, performedOn: '2024-03-14' },
-                    {
-                        procedureId: clinic.extraction.id,
-                        quantity: 1,
-                        tooth: 'LR7',
-                        performedOn: '2024-03-14',
-                    },
-                ],
-            },
-        });
-
-        const { history } = await patientService.byId(entered.id);
-        expect(history[0]?.visitId).toBeNull();
-        expect(history[0]?.chargedTotal).toBe(0);
-        expect(history[0]?.balance).toBe(0);
-
-        expect((await balanceService.outstanding()).total).toBe(0);
-
-        const summary = await balanceService.summary({
-            from: '2024-03-14',
-            to: '2024-03-14',
-            offsetMinutes: 0,
-        });
-        expect(summary.charged).toBe(0);
-        expect(summary.collected).toBe(0);
-
-        const stats = await statsService.summary({
-            from: '2024-03-14',
-            to: '2024-03-14',
-            offsetMinutes: 0,
-        });
-        expect(stats.appointments.total).toBe(0);
-        expect(stats.visits.charged).toBe(0);
-
-        expect(entered.id).toBeTruthy();
-    });
-
-    test('never reach the day view, dated or not', async () => {
-        const clinic = await migrating();
-
-        await patientService.create({
-            name: 'Not On The Schedule',
-            phone: '01044440006',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '206',
-                procedures: [
-                    { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' },
-                    { procedureId: clinic.checkup.id, quantity: 1 },
-                ],
-            },
-        });
-
-        expect(await appointmentService.byDate({ date: '2024-03-14', offsetMinutes: 0 })).toHaveLength(0);
-        expect(await appointmentService.byDate({ date: TODAY, offsetMinutes: 0 })).toHaveLength(0);
-    });
-
-    test('raise no reminder', async () => {
-        const clinic = await migrating();
-
-        await patientService.create({
-            name: 'No Reminder',
-            phone: '01044440007',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '207',
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' }],
-            },
-        });
-
-        const [counted] = await sql`SELECT COUNT(*)::int AS total FROM reminders`;
-        expect(counted?.total).toBe(0);
-    });
-
-    test('are refused by the same catalogue rules a visit is, before anything is written', async () => {
-        const clinic = await migrating();
-
-        // A tooth-specific procedure filed against no tooth (§5).
-        await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
-            patientService.create({
-                name: 'Bad Line',
-                phone: '01044440008',
-                birthDate: '1990-01-01',
-                custom: {},
-                old: {
-                    ref: '208',
-                    procedures: [
-                        { procedureId: clinic.extraction.id, quantity: 1, performedOn: '2024-03-14' },
-                    ],
-                },
-            }),
-        );
-
-        expect(await patientService.byPhone({ phone: '01044440008' })).toHaveLength(0);
-    });
-
-    // Work done after the cutoff was done here. Filing it as imported would
-    // hide it from the day view, the money and the statistics — every view
-    // that should be counting it.
-    test('refuse a day that has not happened, before anything is written', async () => {
-        const clinic = await migrating();
-
-        await expectAppError(ERROR_CODE.IMPORTED_DATE_AFTER_CUTOFF, () =>
-            patientService.create({
-                name: 'Too Recent',
-                phone: '01044440011',
-                birthDate: '1990-01-01',
-                custom: {},
-                old: {
-                    ref: '211',
-                    procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: TOMORROW }],
-                },
-            }),
-        );
-        expect(await patientService.byPhone({ phone: '01044440011' })).toHaveLength(0);
-
-        // Today has happened.
-        const onTheDay = await patientService.create({
-            name: 'On The Day',
-            phone: '01044440012',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '212',
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: TODAY }],
-            },
-        });
-        expect((await patientService.byId(onTheDay.id)).history).toHaveLength(1);
-    });
-
-    // The rule is per list, and a day is the list: the same tooth extracted on
-    // two different days is two real lines.
-    test('allow the same work on two different days and refuse it twice on one', async () => {
-        const clinic = await migrating();
-
-        const entered = await patientService.create({
-            name: 'Twice',
-            phone: '01044440009',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '209',
-                procedures: [
-                    {
-                        procedureId: clinic.extraction.id,
-                        quantity: 1,
-                        tooth: 'UL6',
-                        performedOn: '2024-03-14',
-                    },
-                    {
-                        procedureId: clinic.extraction.id,
-                        quantity: 1,
-                        tooth: 'UL6',
-                        performedOn: '2025-01-09',
-                    },
-                ],
-            },
-        });
-        expect((await patientService.byId(entered.id)).history).toHaveLength(2);
-
-        await expectAppError(ERROR_CODE.PROCEDURE_DUPLICATE, () =>
-            patientService.create({
-                name: 'Typed Twice',
-                phone: '01044440010',
-                birthDate: '1990-01-01',
-                custom: {},
-                old: {
-                    ref: '210',
-                    procedures: [
-                        {
-                            procedureId: clinic.extraction.id,
-                            quantity: 1,
-                            tooth: 'UL6',
-                            performedOn: '2024-03-14',
-                        },
-                        {
-                            procedureId: clinic.extraction.id,
-                            quantity: 1,
-                            tooth: 'UL6',
-                            performedOn: '2024-03-14',
-                        },
-                    ],
-                },
-            }),
-        );
     });
 });
 
@@ -700,9 +388,7 @@ describe('an old-patient registration is all or nothing', () => {
      * patient row and its number are already written when the opening balance
      * is refused, and only a real `ROLLBACK` takes them back.
      */
-    async function failNextInsertInto(
-        table: 'patients' | 'visits' | 'appointment_procedures',
-    ): Promise<void> {
+    async function failNextInsertInto(table: 'patients' | 'visits'): Promise<void> {
         await sql.unsafe(`
             CREATE OR REPLACE FUNCTION test_refuse() RETURNS trigger AS $$
             BEGIN RAISE EXCEPTION 'refused by the test'; END $$ LANGUAGE plpgsql;
@@ -711,7 +397,7 @@ describe('an old-patient registration is all or nothing', () => {
         `);
     }
 
-    async function stopRefusing(table: 'patients' | 'visits' | 'appointment_procedures'): Promise<void> {
+    async function stopRefusing(table: 'patients' | 'visits'): Promise<void> {
         await sql.unsafe(`DROP TRIGGER IF EXISTS test_refuse_insert ON ${table}`);
     }
 
@@ -727,7 +413,7 @@ describe('an old-patient registration is all or nothing', () => {
                     phone: '01555555555',
                     birthDate: '1990-01-01',
                     custom: {},
-                    old: { ref: '801', openingBalance: OWED, procedures: [] },
+                    old: { ref: '801', openingBalance: OWED },
                 }),
             ).rejects.toThrow();
         } finally {
@@ -739,36 +425,6 @@ describe('an old-patient registration is all or nothing', () => {
         // Nothing was allocated, because an old patient allocates nothing — and
         // the number a new patient is owed is still theirs.
         expect((await settingsService.get()).patientRefNext).toBe(NEXT_REF);
-    });
-
-    test('a failed history write takes the opening balance and the patient with it', async () => {
-        const clinic = await migrating();
-        const before = await rowCounts();
-
-        await failNextInsertInto('appointment_procedures');
-        try {
-            await expect(
-                patientService.create({
-                    name: 'Half Written',
-                    phone: '01555555556',
-                    birthDate: '1990-01-01',
-                    custom: {},
-                    old: {
-                        ref: '805',
-                        openingBalance: OWED,
-                        procedures: [
-                            { procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' },
-                        ],
-                    },
-                }),
-            ).rejects.toThrow();
-        } finally {
-            await stopRefusing('appointment_procedures');
-        }
-
-        // The balance appointment and its visit were written before the line
-        // that failed. None of them survives.
-        expect(await rowCounts()).toEqual(before);
     });
 
     // A *new* patient, with no `old` block: the number is taken off the counter
@@ -801,15 +457,15 @@ describe('an old-patient registration is all or nothing', () => {
         expect(fresh.ref).toBe(String(NEXT_REF));
     });
 
-    test('a refused ref rolls back the balance and the history with the patient', async () => {
-        const clinic = await migrating();
+    test('a refused ref rolls back the balance with the patient', async () => {
+        await migrating();
 
         await patientService.create({
             name: 'Holds The Number',
             phone: '01555550001',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '802', procedures: [] },
+            old: { ref: '802' },
         });
 
         const before = await rowCounts();
@@ -820,11 +476,7 @@ describe('an old-patient registration is all or nothing', () => {
                 phone: '01555550002',
                 birthDate: '1990-01-01',
                 custom: {},
-                old: {
-                    ref: '802',
-                    openingBalance: OWED,
-                    procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' }],
-                },
+                old: { ref: '802', openingBalance: OWED },
             }),
         );
 
@@ -844,32 +496,11 @@ describe('an old-patient registration is all or nothing', () => {
                 phone: '01555550003',
                 birthDate: '1990-01-01',
                 custom: {},
-                old: { ref: '803', openingBalance: OWED, procedures: [] },
+                old: { ref: '803', openingBalance: OWED },
             }),
         );
 
         expect(await rowCounts()).toEqual(before);
-    });
-
-    test('the opening balance and the history land together or not at all', async () => {
-        const clinic = await migrating();
-
-        const entered = await patientService.create({
-            name: 'Both Halves',
-            phone: '01555550004',
-            birthDate: '1990-01-01',
-            custom: {},
-            old: {
-                ref: '804',
-                openingBalance: OWED,
-                procedures: [{ procedureId: clinic.checkup.id, quantity: 1, performedOn: '2024-03-14' }],
-            },
-        });
-
-        const { history } = await patientService.byId(entered.id);
-        expect(history.filter((row) => row.isOpeningBalance)).toHaveLength(1);
-        expect(history.filter((row) => row.isImported)).toHaveLength(1);
-        expect(history).toHaveLength(2);
     });
 });
 
@@ -992,7 +623,7 @@ describe('repairing the records the old flow wrote', () => {
             phone: '01000000711',
             birthDate: '1990-01-01',
             custom: {},
-            old: { ref: '711', procedures: [] },
+            old: { ref: '711' },
         });
 
         const report = await repairPatientRefs({ apply: true });

@@ -1,7 +1,6 @@
 import { clinicProcedure, router, setupProcedure } from '../../trpc/init.ts';
 import { procedureHistoryService } from './procedure.history.ts';
 import {
-    addHistoricalProceduresInput,
     addOldVisitInput,
     createCategoryInput,
     createProcedureInput,
@@ -31,11 +30,6 @@ export const procedureRouter = router({
     reorder: setupProcedure
         .input(reorderProceduresInput)
         .mutation(({ input }) => procedureService.reorder(input)),
-
-    /** Work a patient had done before this system knew about it. See `procedure.history.ts`. */
-    addHistorical: clinicProcedure
-        .input(addHistoricalProceduresInput)
-        .mutation(({ input }) => procedureHistoryService.add(input)),
 
     /** A visit that happened on a day that has passed and was never typed in. */
     addOldVisit: clinicProcedure

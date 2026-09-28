@@ -1,25 +1,6 @@
 /**
- * Work a patient had done before this system recorded it, added from their own
- * record instead of at registration.
- *
- * It writes exactly what the **Old patient** block writes — an appointment
- * flagged `is_imported`, carrying planned procedures and **no visit at all** —
- * by calling `migration.service`'s own plan and write rather than reimplementing
- * them. That is the whole point of living here: the module comment on
- * `migration.service` is about what happens when there are two ways to record
- * one thing, and a second grouping-and-cutoff implementation would be one.
- *
- * No visit is what satisfies "none of it affects checkout": a visit is where
- * money lives, so a row without one cannot be charged, owed or paid, and the
- * day view, revenue and statistics all exclude it by flag. It appears in the
- * record's history and in no total.
- *
- * The branch and the cutoff come from the clinic's migration configuration for
- * the same reason the registration block takes them from there — `branch_id` is
- * NOT NULL and neither is a fact the desk can answer per patient — and a line
- * dated after the cutoff is refused here too. Work done at this clinic since
- * the changeover belongs to a visit that charges for it, not to a row nothing
- * counts.
+ * A visit that happened on a day that has passed and was never typed in: past
+ * work entered from the patient's record rather than at registration.
  */
 import { ERROR_CODE, WS_EVENT } from '@lustre/shared';
 import { db } from '../../db/index.ts';
@@ -28,21 +9,17 @@ import { AppError } from '../../errors/AppError.ts';
 import { computeTotal } from '../../util/money.ts';
 import { broadcast } from '../../ws/index.ts';
 import { branchService } from '../branch/branch.service.ts';
-import {
-    defaultBranchId,
-    planOldPatientHistory,
-    writeOldPatientHistory,
-} from '../migration/migration.service.ts';
+import { defaultBranchId } from '../migration/migration.service.ts';
 import { patientService } from '../patient/patient.service.ts';
 import { settingsService } from '../settings/settings.service.ts';
 import { resolveProcedureLines } from './procedure.rules.ts';
-import type { AddHistoricalProceduresInput, AddOldVisitInput } from './procedure.schema.ts';
+import type { AddOldVisitInput } from './procedure.schema.ts';
 
 /** English, for logs and for the appointment detail screen if anyone opens one. */
 const OLD_VISIT_NOTE = 'Entered after the day it happened';
 
 /**
- * Midday on the day this names, in UTC — the same stamp the imported rows use
+ * Midday on the day this names, in UTC — the same stamp an opening balance uses
  * and for the same reason: an old visit records *which day*, not which slot, so
  * it has to read back as that day from any offset. See `migration.service`.
  */
@@ -50,43 +27,18 @@ function noonUtc(date: string): Date {
     return new Date(`${date}T12:00:00.000Z`);
 }
 
-export interface AddedOldVisit {
+interface AddedOldVisit {
     appointmentId: string;
     visitId: string;
     /** What the visit was charged, in piastres — and paid, in cash, on the day. */
     chargedTotal: number;
 }
 
-export interface AddedHistoricalProcedures {
-    /** One per day the lines were grouped into — the file's afternoons, not its lines. */
-    appointmentIds: string[];
-}
-
 export const procedureHistoryService = {
-    /**
-     * The patient is resolved before anything is planned, so a bad id answers
-     * `NOT_FOUND` rather than a catalogue or configuration error about a record
-     * that does not exist.
-     */
-    async add(input: AddHistoricalProceduresInput): Promise<AddedHistoricalProcedures> {
-        await patientService.requireExists(input.patientId);
-
-        const plan = await planOldPatientHistory({ procedures: input.procedures });
-        // `min(1)` on the input means the only way here is an empty plan, which
-        // cannot happen; the guard is for the type, not for a case.
-        if (!plan) return { appointmentIds: [] };
-
-        const write = await db.transaction((tx) => writeOldPatientHistory(tx, input.patientId, plan));
-
-        broadcast(WS_EVENT.PATIENT_UPDATED, { id: input.patientId });
-        return { appointmentIds: write.importedAppointmentIds };
-    },
-
     /**
      * A visit that happened on a day that has passed and never got typed in.
      *
-     * This is **not** a historical procedure, and the difference is money. The
-     * work was done here, so it lands as an ordinary completed visit: it is
+     * The work was done here, so it lands as an ordinary completed visit: it is
      * charged, the patient owes it, and the day it names counts it. The only
      * thing it does not have is a time of day, because the desk is recording
      * which day it was rather than which slot.

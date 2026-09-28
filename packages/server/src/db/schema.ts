@@ -321,11 +321,6 @@ export const settings = pgTable(
         // once cannot share one. An old patient keeps their own number and
         // never touches this.
         patientRefNext: integer('patient_ref_next').notNull().default(1),
-        // Where an old patient's carried-over money and history are dated, and
-        // which branch carries them. Null until the clinic says (§12), and a
-        // registration that needs them is refused rather than inventing either.
-        migrationBranchId: uuid('migration_branch_id').references(() => branches.id),
-        migrationCutoffDate: date('migration_cutoff_date'),
         // Whether a registration needs an age, and a sex. Checked by the
         // patient service, not by a constraint on `patients`: turning one off
         // has to be possible, and turning one on must not break the records

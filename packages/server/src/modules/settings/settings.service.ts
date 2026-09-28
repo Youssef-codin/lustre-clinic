@@ -50,9 +50,6 @@ interface Settings {
     reminderTemplate: string;
     /** The number the next new patient is given — handed out as it stands, not one more. */
     patientRefNext: number;
-    /** Where an old patient's carried-over money and history are dated. Null until the clinic says. */
-    migrationBranchId: string | null;
-    migrationCutoffDate: string | null;
     /** A registration is refused without an age. Records already on file without one are left alone. */
     requireAge: boolean;
     /** The same for a sex. */
@@ -77,8 +74,6 @@ const CLINIC_FIELDS = [
     'clinicName',
     'clinicPhone',
     'patientRefNext',
-    'migrationBranchId',
-    'migrationCutoffDate',
     'requireAge',
     'requireGender',
 ] as const satisfies readonly (keyof UpdateSettingsInput)[];
@@ -95,8 +90,6 @@ function toSettings(row: SettingsRow): Settings {
         reminderDismissedOn: row.reminderDismissedOn,
         reminderTemplate: row.reminderTemplate,
         patientRefNext: row.patientRefNext,
-        migrationBranchId: row.migrationBranchId,
-        migrationCutoffDate: row.migrationCutoffDate,
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
@@ -278,10 +271,6 @@ export const settingsService = {
                 422,
             );
         }
-
-        // A branch that is not on file would otherwise reach the client as a
-        // foreign-key violation instead of a localizable NOT_FOUND.
-        if (input.migrationBranchId) await branchService.byId(input.migrationBranchId);
 
         // Neither the reminders nor the ref counter is in play, so there is
         // nothing the row lock below would protect.
