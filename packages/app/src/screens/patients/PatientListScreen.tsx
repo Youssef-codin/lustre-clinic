@@ -105,16 +105,23 @@ export function PatientListScreen({ onNewPatient, onOpen, goHome = 0 }: PatientL
 
     // A doctor's phone is refused balances by the server, so it does not ask.
     const { granted } = useRole();
+    const pageIds = (pages ?? [])
+        .map((page) => page.map((patient) => patient.id))
+        .filter((ids) => ids.length > 0);
     const balances = useQueryEach(
-        (pages ?? [])
-            .map((page) => page.map((patient) => patient.id))
-            .filter((ids) => ids.length > 0)
-            .map((ids) => ({ key: ['outstanding', ids], run: () => patientsApi.outstanding(ids) })),
+        pageIds.map((ids) => ({ key: ['outstanding', ids], run: () => patientsApi.outstanding(ids) })),
         { enabled: seesPayments(granted) },
     );
-    const dueByPatient = new Map(
-        balances.flatMap((page) => page.data ?? []).map((row) => [row.patientId, row.balance]),
-    );
+
+    // A page whose rows shifted is a new query with no answer yet, so each row
+    // keeps the balance last read for it rather than blinking to nothing owed.
+    const lastDue = useRef(new Map<string, number>());
+    balances.forEach((page, index) => {
+        if (!page.data) return;
+        for (const id of pageIds[index] ?? []) lastDue.current.set(id, 0);
+        for (const row of page.data) lastDue.current.set(row.patientId, row.balance);
+    });
+    const dueByPatient = seesPayments(granted) ? new Map(lastDue.current) : new Map<string, number>();
 
     // The list on screen and its balances, and no further than that: the record
     // behind a row is read when it is opened, and the other tabs are refreshed by
