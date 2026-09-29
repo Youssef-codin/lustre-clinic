@@ -14,6 +14,11 @@ listed.
 - The Patients list now shows every patient, not only the 25 newest: more load as you scroll down, and searches go past 25 results the same way. If the next batch can't load, the patients already shown stay on screen with a Try again button.
 - The calendar slides between months. The month follows your finger as you swipe, then the next or previous month slides in from the side you swiped toward; a short swipe springs back to the month you were on. The arrows use the same slide, and in Arabic it goes the way the arrows point.
 
+### Fixed
+
+- The secretary can now correct a patient's ref (for example an old card typed as 719 that should be 713). Before, only the doctor could. Every correction is still recorded with the role that made it.
+- At the "Notify me at" time the daily reminder now brings up everyone who needs a reminder today, all at once. It used to leave out the patients whose reminder wasn't due yet, so a 5 pm notify time with evening patients tomorrow first went off at 8 pm, and each repeat added one more. Before the notify time, the list still shows only the reminders already due.
+
 ## [1.7.0] - 2026-09-27
 
 ### Added

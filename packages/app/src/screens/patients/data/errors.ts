@@ -38,13 +38,9 @@ const TEXT: Record<string, string> = {
     PATIENT_REF_TAKEN: 'Another patient already has that number. Check the old ref and try again.',
     PATIENT_REF_RESERVED:
         'That number has not been given out yet. Check the old ref, or raise the next patient number in Settings → Clinic.',
-    // The two a ref correction can come back with. Format is caught before the
-    // call, so this only shows if the two disagree; the role is the server's
-    // word and the phone cannot know it in advance.
+    // Format is caught before the call, so this only shows if the two disagree.
     PATIENT_REF_INVALID:
         'That is not a patient number. Use 910, or the four-character code on an older file.',
-    REF_EDIT_FORBIDDEN:
-        'Only the doctor can change a patient number. Switch roles in Settings to make this change.',
     MIGRATION_NOT_CONFIGURED:
         'The clinic server needs updating before it can take what an old patient owes. Register them without it for now.',
     IMPORTED_DATE_AFTER_CUTOFF:

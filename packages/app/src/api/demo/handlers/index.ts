@@ -58,7 +58,6 @@ const handlers = {
     'procedure.createCategory': procedureHandlers.createCategory,
     'procedure.update': procedureHandlers.update,
     'procedure.reorder': procedureHandlers.reorder,
-    'procedure.addHistorical': procedureHandlers.addHistorical,
     'procedure.addOldVisit': procedureHandlers.addOldVisit,
 
     'patient.search': patientHandlers.search,

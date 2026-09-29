@@ -148,6 +148,13 @@
       "when": 1791200000000,
       "tag": "0021_device_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0022_drop_migration_settings",
+      "breakpoints": true
     }
   ]
 }

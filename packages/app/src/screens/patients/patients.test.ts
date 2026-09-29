@@ -4,7 +4,6 @@
 // would fail silently.
 
 import { describe, expect, it } from 'bun:test';
-import { canEditRef } from '@lustre/shared';
 import { setRuntimeLocale } from '../../i18n/runtime';
 import {
     displayAnswer,
@@ -895,22 +894,8 @@ describe('the ref', () => {
         });
     });
 
-    describe('who may edit', () => {
-        it('lets the doctor', () => {
-            expect(canEditRef('doctor')).toBe(true);
-        });
-
-        it('does not let the secretary', () => {
-            expect(canEditRef('secretary')).toBe(false);
-        });
-    });
-
     describe('what a refusal says', () => {
         const refusal = (code: string) => errorText(new PatientsRequestError(code as never, 'server text'));
-
-        it('names the role that can make the change', () => {
-            expect(refusal('REF_EDIT_FORBIDDEN')).toContain('doctor');
-        });
 
         it('names both shapes when the format is refused', () => {
             expect(refusal('PATIENT_REF_INVALID')).toContain('four-character');

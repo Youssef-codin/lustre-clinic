@@ -574,6 +574,7 @@ export const COPY_AR = {
     'Repeat every': 'التكرار كل',
     'Moves reminders not yet sent.': 'ينقل التذكيرات التي لم تُرسل بعد.',
     'Stops when cleared, never overnight.': 'يتوقف عند مسح القائمة، ولا يعمل ليلًا.',
+    'Lists everyone to remind today, all at once.': 'يعرض كل من يجب تذكيره اليوم دفعة واحدة.',
     'ON THIS PHONE': 'على هذا الهاتف',
     'Ring like an alarm': 'الرنين كمنبّه',
     'Rings at the alarm volume until you stop it, even on silent, and fills the lock screen.':

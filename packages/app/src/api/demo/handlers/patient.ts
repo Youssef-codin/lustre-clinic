@@ -8,7 +8,7 @@
  * when the patient reached the chair — those carry the price actually billed —
  * and from the booking when they did not.
  */
-import { canEditRef, ERROR_CODE, PATIENT_REF_PATTERN, REF_EDIT_ROLES, WS_EVENT } from '@lustre/shared';
+import { ERROR_CODE, PATIENT_REF_PATTERN, WS_EVENT } from '@lustre/shared';
 import type { RouterInput, RouterOutput } from '../../types';
 import { getDb, type PatientRow, save } from '../db';
 import { broadcast } from '../events';
@@ -262,21 +262,13 @@ export const patientHandlers = {
     },
 
     /**
-     * `patientService.updateRef`. Same three gates in the same order: the role
-     * that may edit, the shape a patient ref takes — both of them, the plain
-     * number and the code a patient from before numbering carries — and a
-     * number the sequence has still to hand out. Re-typing the ref a record
-     * already has changes nothing and is not audited.
+     * `patientService.updateRef`. Same three gates in the same order: the shape
+     * a patient ref takes — both of them, the plain number and the code a
+     * patient from before numbering carries — then a number the sequence has
+     * still to hand out, then a ref another patient already has. Re-typing the
+     * ref a record already has changes nothing and is not audited.
      */
     updateRef(input: RouterInput['patient']['updateRef']): Patient {
-        if (!canEditRef(input.editedBy)) {
-            throw new DemoError(
-                ERROR_CODE.REF_EDIT_FORBIDDEN,
-                `a ref may only be edited by: ${REF_EDIT_ROLES.join(', ')}`,
-                403,
-            );
-        }
-
         const next = input.ref.trim().toUpperCase();
         if (!PATIENT_REF_PATTERN.test(next)) {
             throw new DemoError(
@@ -290,10 +282,6 @@ export const patientHandlers = {
         const current = requirePatient(input.id);
         if (current.ref === next) return toPatient(current);
 
-        if (db.patients.some((patient) => patient.ref === next)) {
-            throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
-        }
-
         const counter = db.settings.patientRefNext;
         if (/^\d+$/.test(next) && Number(next) >= counter) {
             throw new DemoError(
@@ -301,6 +289,10 @@ export const patientHandlers = {
                 `${next} is at or above the next patient number (${counter}) and is not yet a patient's`,
                 422,
             );
+        }
+
+        if (db.patients.some((patient) => patient.ref === next)) {
+            throw new DemoError(ERROR_CODE.PATIENT_REF_TAKEN, 'another patient already has that number', 409);
         }
 
         db.refEdits.push({

@@ -35,15 +35,7 @@
  * in `ref_edits` every time it does.
  */
 import type { AppointmentStatus } from '@lustre/shared';
-import {
-    canEditRef,
-    ERROR_CODE,
-    REF_EDIT_ROLES,
-    type Role,
-    seesPayments,
-    viewOf,
-    WS_EVENT,
-} from '@lustre/shared';
+import { ERROR_CODE, type Role, seesPayments, viewOf, WS_EVENT } from '@lustre/shared';
 import { and, asc, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db, type Executor } from '../../db/index.ts';
 import {
@@ -643,14 +635,9 @@ export const patientService = {
      * Correct the number a record is already known by.
      *
      * A ref goes at the top of a paper file and is read back off it for years,
-     * so a wrong one is not something to live with — but it is also not desk
-     * work. Three things stand between a typo and the column:
-     *
-     * **Who.** `REF_EDIT_ROLES` decides. The role is the client's own word for
-     * itself and not a session — there are no accounts (§1) — so this is a
-     * guard rail rather than authentication, and it is checked on the server
-     * anyway: the rule then lives in one place for when there are accounts, and
-     * the audit row is stamped with what was claimed instead of nothing.
+     * so a wrong one is not something to live with. Any role may correct it —
+     * the secretary is the one typing in the old paper cards — and two things
+     * stand between a typo and the column:
      *
      * **What.** Both patient ref shapes stay valid, the plain number and the
      * four-character code a patient from before numbering carries, because that
@@ -675,13 +662,6 @@ export const patientService = {
         // A provisioned phone is the role on its credential, whatever it
         // claims; only a phone with none is still taken at its word.
         const editedBy = caller ? viewOf(caller) : claimed;
-        if (!canEditRef(editedBy)) {
-            throw new AppError(
-                ERROR_CODE.REF_EDIT_FORBIDDEN,
-                `a ref may only be edited by: ${REF_EDIT_ROLES.join(', ')}`,
-                403,
-            );
-        }
 
         const next = normalizeRef(ref);
         if (!isPatientRef(next)) {

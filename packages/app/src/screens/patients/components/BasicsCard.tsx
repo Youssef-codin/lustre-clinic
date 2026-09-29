@@ -54,12 +54,8 @@ export type BasicsCardProps = {
      * What this handset may do with the record's number.
      *
      * `hidden` is a registration: the counter hands out the number and the desk
-     * has nothing to type. `locked` draws it and nothing else, which is what
-     * every role but the doctor sees — the number is worth reading off the
-     * screen even when it cannot be changed here. `editable` is the doctor's.
-     *
-     * The server enforces the same thing (`REF_EDIT_ROLES`), so a locked row is
-     * a correct screen and not the protection.
+     * has nothing to type. `locked` draws it read-only while the phone's role
+     * is still loading, since the audit row records it. `editable` otherwise.
      */
     ref?: 'hidden' | 'locked' | 'editable';
     /** A ref typed and wrong. Shown under the row once it has been left, like the rest. */

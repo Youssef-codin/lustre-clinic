@@ -185,6 +185,7 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             <CardDivider />
                             <TimingRow
                                 label="Notify me at"
+                                hint="Lists everyone to remind today, all at once."
                                 value={notifyAt}
                                 min={6 * 60}
                                 max={21 * 60}

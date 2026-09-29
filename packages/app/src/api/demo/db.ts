@@ -198,8 +198,6 @@ export interface SettingsRow {
     reminderDismissedOn: string | null;
     reminderTemplate: string;
     patientRefNext: number;
-    migrationBranchId: string | null;
-    migrationCutoffDate: string | null;
     requireAge: boolean;
     requireGender: boolean;
     askToEditOnFinish: boolean;

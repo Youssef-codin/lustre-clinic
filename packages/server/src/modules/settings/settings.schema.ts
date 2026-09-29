@@ -38,11 +38,6 @@ export const updateSettingsInput = z
         // be. At or below a ref already on file is refused by the service,
         // which is the only side that can see the patients.
         patientRefNext: z.number().int().min(1).max(MAX_PATIENT_REF),
-        // Where an old patient's carried-over money and history are dated.
-        // Nullable: a clinic that never migrated anything has no cutoff, and
-        // clearing them is how it says so.
-        migrationBranchId: z.uuid().nullable(),
-        migrationCutoffDate: z.iso.date().nullable(),
         requireAge: z.boolean(),
         requireGender: z.boolean(),
         askToEditOnFinish: z.boolean(),
