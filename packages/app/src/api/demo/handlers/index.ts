@@ -118,6 +118,7 @@ const handlers = {
 
     'device.me': deviceHandlers.me,
     'device.redeem': deviceHandlers.redeem,
+    'device.devRole': deviceHandlers.devRole,
     'device.grants': deviceHandlers.grants,
     'device.issue': deviceHandlers.issue,
     'device.revoke': deviceHandlers.revoke,

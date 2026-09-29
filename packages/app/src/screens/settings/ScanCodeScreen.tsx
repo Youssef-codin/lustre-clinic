@@ -9,13 +9,16 @@
  * In demo mode there is no second phone to show a code, so the demo offers its
  * roles as buttons instead (`becomeInDemo`). The rules the demo then applies are
  * the server's, checked against the role those buttons give it.
+ *
+ * A dev build has the same buttons above the camera, asking the dev server for
+ * the role (`device.devRole`) so a developer needs no second phone either.
  */
 import { ERROR_CODE, grantCodeOf, ROLES, type Role } from '@lustre/shared';
 import { useMutation } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { becomeInDemo, grantCredential, useDemoMode, useTRPC } from '../../api';
+import { BUILD_VARIANT, becomeInDemo, grantCredential, picksDevRole, useDemoMode, useTRPC } from '../../api';
 import { Button, Callout, usePendingAction } from '../../components/ui';
 import { useT } from '../../i18n';
 import { color, radius, space, Text } from '../../theme';
@@ -31,6 +34,8 @@ export const REFUSED = {
     [ERROR_CODE.GRANT_REVOKED]: 'This code was withdrawn. Ask for a new one.',
     [ERROR_CODE.LAST_ADMIN]: 'This is the clinic’s only admin phone. Make another phone an admin first.',
 };
+
+const DEV_ROLES = picksDevRole(BUILD_VARIANT);
 
 export type ScanCodeScreenProps = {
     onBack: () => void;
@@ -52,6 +57,7 @@ export function ScanCodeScreen({ onBack, onGranted }: ScanCodeScreenProps) {
     const latched = useRef(false);
 
     const redeem = useMutation(trpc.device.redeem.mutationOptions());
+    const devRole = useMutation(trpc.device.devRole.mutationOptions());
 
     async function scanned(data: string) {
         if (latched.current) return;
@@ -76,6 +82,17 @@ export function ScanCodeScreen({ onBack, onGranted }: ScanCodeScreenProps) {
         onGranted(role);
     });
 
+    const pick = usePendingAction(async (role: Role) => {
+        setProblem(null);
+        try {
+            const granted = await devRole.mutateAsync({ role });
+            grantCredential(granted);
+            onGranted(granted.role);
+        } catch (error) {
+            setProblem(errorText(error, REFUSED));
+        }
+    });
+
     function again() {
         latched.current = false;
         setProblem(null);
@@ -89,6 +106,26 @@ export function ScanCodeScreen({ onBack, onGranted }: ScanCodeScreenProps) {
                     'An admin makes a code for this phone in Settings → Phones & role codes. Hold it inside the frame.',
                 )}
             </Text>
+
+            {DEV_ROLES && !demo.enabled ? (
+                <View style={styles.demo}>
+                    <Callout tone="info" title="Dev build">
+                        {t('Pick a role from the dev server, or scan a code below.')}
+                    </Callout>
+                    {ROLES.map((role) => (
+                        <Button
+                            key={role}
+                            label={ROLE_NAME[role]}
+                            variant="secondary"
+                            size="lg"
+                            block
+                            loading={pick.pending}
+                            onPress={() => pick.run(role)}
+                            testID={`scan-dev-${role}`}
+                        />
+                    ))}
+                </View>
+            ) : null}
 
             {demo.enabled ? (
                 <View style={styles.demo}>

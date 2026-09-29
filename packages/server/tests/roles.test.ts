@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { ERROR_CODE, grantCodeOf, type Role } from '@lustre/shared';
-import { deviceService } from '../src/modules/device/device.service.ts';
+import { databaseEnvironment } from '../src/db/environment.ts';
+import { allowsDevRole, deviceService } from '../src/modules/device/device.service.ts';
 import { visitService } from '../src/modules/visit/visit.service.ts';
 import { setupDatabase, sql, truncateAll } from './helpers/db.ts';
 import { CHECKUP_PRICE, checkedInVisit } from './helpers/factories.ts';
@@ -241,6 +242,28 @@ describe('the admin', () => {
         await expectTrpcError(ERROR_CODE.ROLE_FORBIDDEN, 403, () =>
             api.client.device.issue.mutate({ role: 'admin', label: 'Me' }),
         );
+    });
+});
+
+describe('devRole', () => {
+    test('only a development server on a development database gives a role away', () => {
+        expect(allowsDevRole('development', 'development')).toBe(true);
+        expect(allowsDevRole('development', 'unmarked')).toBe(false);
+        expect(allowsDevRole('development', 'production')).toBe(false);
+        expect(allowsDevRole('production', 'development')).toBe(false);
+    });
+
+    test('hands the phone the role it asked for, or is refused, as this database says', async () => {
+        await requireProvisioning();
+        if ((await databaseEnvironment(sql)) === 'development') {
+            const redeemed = await api.client.device.devRole.mutate({ role: 'doctor' });
+            const me = await api.clientAs(redeemed.token).device.me.query();
+            expect(me?.role).toBe('doctor');
+        } else {
+            await expectTrpcError(ERROR_CODE.ROLE_FORBIDDEN, 403, () =>
+                api.client.device.devRole.mutate({ role: 'admin' }),
+            );
+        }
     });
 });
 

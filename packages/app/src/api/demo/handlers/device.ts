@@ -124,6 +124,11 @@ export const deviceHandlers = {
         return redeem(input.code, caller.token);
     },
 
+    /** The demo is no development server, so it refuses as the clinic's would. */
+    devRole(): Dated<RouterOutput['device']['devRole']> {
+        throw new DemoError(ERROR_CODE.ROLE_FORBIDDEN, 'this role may not pick a role without a code', 403);
+    },
+
     grants(): Dated<RouterOutput['device']['grants']> {
         purge(new Date());
         const db = getDb();

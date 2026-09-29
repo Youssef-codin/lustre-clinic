@@ -17,4 +17,4 @@ export type { Area } from './serverEvents';
 export type { RouterOutput } from './types';
 export { useConnection } from './useConnection';
 export type { BuildVariant } from './variant';
-export { allowsDemo, allowsLan, isTailnetAddress, showsDevBanner } from './variant';
+export { allowsDemo, allowsLan, isTailnetAddress, picksDevRole, showsDevBanner } from './variant';

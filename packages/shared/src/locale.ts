@@ -1239,6 +1239,8 @@ export const COPY_AR = {
     CODES: 'الرموز',
     Role: 'الدور',
     'Demo mode': 'الوضع التجريبي',
+    'Dev build': 'نسخة التطوير',
+    'Enter demo mode': 'ادخل الوضع التجريبي',
     'Turn on': 'تفعيل',
     Withdraw: 'سحب',
     'In use': 'قيد الاستخدام',
@@ -1260,6 +1262,8 @@ export const COPY_AR = {
     'That is not a Lustre role code.': 'هذا ليس رمز دور من Lustre.',
     'An admin makes a code for this phone in Settings → Phones & role codes. Hold it inside the frame.':
         'ينشئ المدير رمزًا لهذا الهاتف من الإعدادات ← الهواتف ورموز الأدوار. ضعه داخل الإطار.',
+    'Pick a role from the dev server, or scan a code below.':
+        'اختر دورًا من خادم التطوير، أو امسح رمزًا بالأسفل.',
     'There is no second phone in the demo. Pick the role this phone should have.':
         'لا يوجد هاتف ثانٍ في الوضع التجريبي. اختر الدور الذي يأخذه هذا الهاتف.',
     'This code was not made by this clinic’s server.': 'هذا الرمز لم ينشئه خادم هذه العيادة.',

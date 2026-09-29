@@ -18,6 +18,7 @@ import {
     DEVICE_TOKEN_HEADER,
     ERROR_CODE,
     GRANT_TTL_MINUTES,
+    grantCodeOf,
     grantPayload,
     managesClinic,
     type Role,
@@ -25,7 +26,9 @@ import {
     WS_EVENT,
 } from '@lustre/shared';
 import { and, desc, eq, gt, isNotNull, isNull, lte, notExists, or } from 'drizzle-orm';
-import { db, type Executor } from '../../db/index.ts';
+import { serverEnvironment } from '../../config.ts';
+import { type DatabaseEnvironment, databaseEnvironment } from '../../db/environment.ts';
+import { db, type Executor, sql } from '../../db/index.ts';
 import { devices, roleGrants } from '../../db/schema.ts';
 import { AppError, isAppError } from '../../errors/AppError.ts';
 import { logger } from '../../logger.ts';
@@ -172,6 +175,11 @@ function revoked(): AppError {
 
 function forbidden(what: string): AppError {
     return new AppError(ERROR_CODE.ROLE_FORBIDDEN, `this role may not ${what}`, 403);
+}
+
+/** Whether `devRole` may hand out a role: only when the process and its database both say development. */
+export function allowsDevRole(server: 'production' | 'development', database: DatabaseEnvironment): boolean {
+    return server === 'development' && database === 'development';
 }
 
 export const deviceService = {
@@ -337,6 +345,23 @@ export const deviceService = {
         );
         broadcast(WS_EVENT.DEVICES_UPDATED);
         return { token, deviceId: redeemed.deviceId, role: redeemed.role, label: redeemed.label };
+    },
+
+    /**
+     * A dev server hands a phone any role it asks for, so a developer is not
+     * scanning codes from a second phone to test the first. The same issue and
+     * redeem an admin's code goes through, so the phone ends up a device like
+     * any other. Refused unless both the process and its database say
+     * development: the clinic's server must never give a role away.
+     */
+    async devRole(role: Role, previous: string | null = null): Promise<Redeemed> {
+        if (!allowsDevRole(serverEnvironment, await databaseEnvironment(sql))) {
+            throw forbidden('pick a role without a code outside development');
+        }
+        const grant = await this.issue({ role, label: `Dev ${role}` }, null);
+        const code = grantCodeOf(grant.payload);
+        if (!code) throw new Error('issued payload is not a grant');
+        return this.redeem(code, previous);
     },
 
     async grants(): Promise<GrantRecord[]> {

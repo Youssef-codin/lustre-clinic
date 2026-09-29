@@ -1,10 +1,12 @@
 /**
  * `redeem` and `me` are public: they are how a phone with no role gets one, and
- * how a phone finds out its credential was revoked. Everything else is the
+ * how a phone finds out its credential was revoked. `devRole` is public too, and
+ * refused by any server that is not a development one. Everything else is the
  * admin's.
  */
 import { adminProcedure, publicProcedure, router } from '../../trpc/init.ts';
 import {
+    devRoleInput,
     issueGrantInput,
     redeemGrantInput,
     revokeGrantInput,
@@ -18,6 +20,10 @@ export const deviceRouter = router({
     redeem: publicProcedure
         .input(redeemGrantInput)
         .mutation(({ input, ctx }) => deviceService.redeem(input.code, ctx.token)),
+
+    devRole: publicProcedure
+        .input(devRoleInput)
+        .mutation(({ input, ctx }) => deviceService.devRole(input.role, ctx.token)),
 
     grants: adminProcedure.query(() => deviceService.grants()),
 

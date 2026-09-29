@@ -41,6 +41,13 @@ export function acceptsServer(variant: BuildVariant, environment: unknown): bool
     return variant !== 'dev' || environment === 'development';
 }
 
+// A dev build picks its role from the dev server instead of scanning a code
+// (`device.devRole`). The server refuses it anywhere but development too; this
+// only keeps the buttons off the builds that could never use them.
+export function picksDevRole(variant: BuildVariant): boolean {
+    return variant === 'dev';
+}
+
 // The DEV strip (`shell/DevBanner.tsx`). A demo build does not get one: it is
 // handed to someone across a table and its own screens say what it is, while
 // this says "you are looking at a server", which a demo has none of.
