@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-29
+
 ### Changed
 
 - When saving a patient fails, the message saying why stays pinned to the top of the screen while you scroll down to Save, instead of scrolling away.
@@ -224,7 +226,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.3...v1.7.0
 [1.6.3]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.1...v1.6.2
