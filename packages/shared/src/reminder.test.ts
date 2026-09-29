@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { reminderDueCutoff } from './reminder.ts';
+import { leadDaysOf, leadHoursOf, REMINDER_LEAD_MAX_DAYS, reminderDueCutoff } from './reminder.ts';
 
 // Cairo in summer: 17:00 local is 14:00 UTC.
 const CAIRO = 180;
@@ -66,5 +66,21 @@ describe('reminderDueCutoff', () => {
             offsetMinutes: -240,
         });
         expect(cutoff.toISOString()).toBe('2026-09-29T03:59:59.999Z');
+    });
+});
+
+describe('lead days', () => {
+    test('shows the stored hours as whole days, between one and the maximum', () => {
+        expect(leadDaysOf(24)).toBe(1);
+        expect(leadDaysOf(48)).toBe(2);
+        expect(leadDaysOf(6)).toBe(1);
+        expect(leadDaysOf(0)).toBe(1);
+        expect(leadDaysOf(40)).toBe(2);
+        expect(leadDaysOf(24 * 14)).toBe(REMINDER_LEAD_MAX_DAYS);
+    });
+
+    test('writes days back as hours', () => {
+        expect(leadHoursOf(1)).toBe(24);
+        expect(leadHoursOf(3)).toBe(72);
     });
 });

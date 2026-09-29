@@ -13,7 +13,7 @@
  * screen loads all six summaries up front and shows skeleton rows rather than
  * drawing labels with empty subs under them.
  */
-import { type ClientRole, managesClinic, type Role } from '@lustre/shared';
+import { type ClientRole, leadDaysOf, managesClinic, type Role } from '@lustre/shared';
 import { useQuery } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
@@ -321,10 +321,15 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     <SettingsRow
                                         icon={<SettingsIcon glyph="reminders" />}
                                         label="Reminders"
-                                        sub={t('Due {hours}h before · notify {time}', {
-                                            hours: summary.data.leadHours,
-                                            time: formatClock12(summary.data.notifyAt, locale),
-                                        })}
+                                        sub={t(
+                                            leadDaysOf(summary.data.leadHours) === 1
+                                                ? 'Due 1 day before · notify {time}'
+                                                : 'Due {days} days before · notify {time}',
+                                            {
+                                                days: leadDaysOf(summary.data.leadHours),
+                                                time: formatClock12(summary.data.notifyAt, locale),
+                                            },
+                                        )}
                                         onPress={() => routes.push('reminders')}
                                         testID="settings-reminders-row"
                                     />

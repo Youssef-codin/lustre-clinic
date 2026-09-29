@@ -68,3 +68,19 @@ export function reminderDueCutoff(input: {
     const nextMidnight = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() + 1);
     return new Date(nextMidnight - offsetMinutes * 60_000 - 1);
 }
+
+/**
+ * The reminder lead as the settings show it: whole days before the
+ * appointment. The column stays in hours (`reminderLeadHours`), written as
+ * days × 24, so the server and the due times it computes do not change. A lead
+ * set in hours by an older build reads as the nearest day, never below one.
+ */
+export const REMINDER_LEAD_MAX_DAYS = 7;
+
+export function leadDaysOf(hours: number): number {
+    return Math.min(REMINDER_LEAD_MAX_DAYS, Math.max(1, Math.round(hours / 24)));
+}
+
+export function leadHoursOf(days: number): number {
+    return days * 24;
+}

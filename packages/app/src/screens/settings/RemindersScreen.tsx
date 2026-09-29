@@ -2,7 +2,7 @@
  * Settings → Reminders. Three timings and one message.
  *
  * The two halves answer different questions and the mockup keeps them apart:
- * "Remind before" is about the patient — how long before an appointment the
+ * "Remind before" is about the patient — how many days before an appointment the
  * reminder becomes due — while "Notify me at" and "Repeat every" are about this
  * phone, the daily nudge that the pending list still has things in it. Mixing
  * them is how a clinic ends up messaging patients at 6 AM.
@@ -28,7 +28,7 @@
  * a `time`, and the 320-character limit is the mockup's, tighter than the 1000
  * the server accepts.
  */
-import { REMINDER_TOKENS } from '@lustre/shared';
+import { leadDaysOf, leadHoursOf, REMINDER_LEAD_MAX_DAYS, REMINDER_TOKENS } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -174,11 +174,13 @@ export function RemindersScreen({ onBack }: { onBack: () => void }) {
                             <TimingRow
                                 label="Remind before"
                                 hint="Moves reminders not yet sent."
-                                value={data.reminderLeadHours}
+                                value={leadDaysOf(data.reminderLeadHours)}
                                 min={1}
-                                max={96}
-                                format={(hours) => `${hours} h`}
-                                onChange={(reminderLeadHours) => write({ reminderLeadHours })}
+                                max={REMINDER_LEAD_MAX_DAYS}
+                                format={(days) =>
+                                    days === 1 ? t('1 day') : t('{count} days', { count: days })
+                                }
+                                onChange={(days) => write({ reminderLeadHours: leadHoursOf(days) })}
                                 saving={timing.pending}
                                 testID="reminder-lead"
                             />
