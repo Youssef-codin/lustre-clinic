@@ -63,6 +63,10 @@ The first run is split so each risky step can be checked before the next; after
 that, `bun play` runs it all and changes nothing on a machine that is already
 set up.
 
+In a terminal the play shows one live progress bar and prints only what
+changed or failed; `-v`, a piped run, or `ANSIBLE_STDOUT_CALLBACK=default`
+gives the stock per-task output (`ansible/callback_plugins/progress.py`).
+
 The SSH and firewall steps end by opening a fresh connection. If either fails,
 the session that ran the play has already been closed; get back in over the LAN
 (`ssh` to the LAN IP from `lan_cidr`) or at the keyboard.
