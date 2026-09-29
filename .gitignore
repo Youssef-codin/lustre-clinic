@@ -22,3 +22,6 @@ releases/
 packages/app/android/
 packages/app/ios/
 
+
+# python bytecode (ansible callback plugins)
+__pycache__/
