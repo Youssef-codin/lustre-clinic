@@ -169,7 +169,8 @@ export function SetupScreen() {
                     </View>
                 ) : null}
 
-                {/* The way in to demo mode, and the only one. It is here rather
+                {/* The way in to demo mode (the role-code screen offers it too, to a
+                    dev or demo build). It is here rather
                     than anywhere inside the app because this is the screen a
                     phone with no clinic behind it lands on, and because a
                     control that swaps the register for a fake one should not

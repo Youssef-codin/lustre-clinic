@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { type Refusal, retryProvisioning } from '../api';
+import { allowsDemo, BUILD_VARIANT, enableDemoMode, type Refusal, retryProvisioning } from '../api';
 import { GLYPH } from '../components/domain';
 import { Button, PushView, useHardwareBack } from '../components/ui';
 import { useT } from '../i18n';
@@ -17,11 +17,17 @@ import { DeadEnd } from './DeadEnd';
 // out does not drift back in on the access a phone with no role still has.
 // Unprovisioned is not: the clinic turning the requirement off again has to be
 // enough, and Try again is how this phone finds out.
+//
+// A dev or demo build has a second way out, the demo (`api/variant.ts`): a
+// developer whose dev server asks for a code has nobody to issue one, and the
+// demo has its own roles. A prod build never shows it.
 const TITLE: Record<Exclude<Refusal, 'none'>, string> = {
     new: 'Scan your role code',
     unprovisioned: 'This phone needs a role code',
     revoked: 'This phone’s role was withdrawn',
 };
+
+const DEMO_ALLOWED = allowsDemo(BUILD_VARIANT);
 
 const BODY: Record<Exclude<Refusal, 'none'>, string> = {
     new: 'Ask the clinic’s admin for a code for this phone, then scan it. It decides what this phone can do.',
@@ -66,6 +72,18 @@ export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'>
                         testID="provision-retry"
                     />
                 ) : null}
+
+                {DEMO_ALLOWED ? (
+                    <Button
+                        label="Enter demo mode"
+                        onPress={() => void enableDemoMode()}
+                        variant="ghost"
+                        size="md"
+                        block
+                        style={styles.demo}
+                        testID="provision-demo"
+                    />
+                ) : null}
             </DeadEnd>
 
             <PushView visible={scanning} testID="provision-scan-pane">
@@ -78,5 +96,6 @@ export function ProvisionScreen({ refusal }: { refusal: Exclude<Refusal, 'none'>
 const styles = StyleSheet.create({
     root: { flex: 1 },
     action: { marginTop: space[4] },
+    demo: { marginTop: space[2] },
     retry: { marginTop: space[2], alignSelf: 'center' },
 });
