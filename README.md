@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Youssef-codin/lustre-clinic/actions/workflows/ci.yml"><img src="https://github.com/Youssef-codin/lustre-clinic/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/Youssef-codin/lustre-clinic?filter=v*&label=release&color=14110F" alt="Release"></a>
+  <a href="https://github.com/lustre-systems/lustre-clinic/actions/workflows/ci.yml"><img src="https://github.com/lustre-systems/lustre-clinic/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/github/v/tag/lustre-systems/lustre-clinic?filter=v*&label=release&color=14110F" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-source--available-55504A" alt="License: source-available"></a>
   <br>
   <img src="https://img.shields.io/badge/Android-Expo_57-14110F?logo=expo&logoColor=white" alt="Android, Expo 57">
@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Youssef-codin/lustre-clinic/wiki">Wiki</a> ·
+  <a href="https://github.com/lustre-systems/lustre-clinic/wiki">Wiki</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="PRODUCT.md">Product</a> ·
   <a href="infra/README.md">Server setup</a> ·
