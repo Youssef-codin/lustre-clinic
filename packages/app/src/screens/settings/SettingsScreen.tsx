@@ -20,10 +20,12 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import {
     allowsDemo,
     BUILD_VARIANT,
+    disableLocalMode,
     type RouterOutput,
     resetDemoData,
     serverNow,
     useDemoMode,
+    useDeviceBackend,
     useTRPC,
 } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
@@ -126,6 +128,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     }
 
     const demo = useDemoMode();
+    // A clinic on this phone alone: no server to connect, no other phone to
+    // give a role, no backup job, and this phone is the desk.
+    const local = useDeviceBackend().backend === 'local';
 
     // From the store rather than from a prop, like the locale below it: the
     // shell holds neither, and this screen is where both are changed.
@@ -299,7 +304,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             <SettingsRow
                                 icon={<SettingsIcon glyph="app" />}
                                 label="App"
-                                sub={t('Server connection')}
+                                sub={t(local ? 'On this phone only' : 'Server connection')}
                                 onPress={() => routes.push('app')}
                                 testID="settings-app-row"
                             />
@@ -315,7 +320,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             />
                             {/* The desk's work: the doctor's and the admin's
                                 phones have no reminders. */}
-                            {isDoctor || granted === 'admin' ? null : (
+                            {(isDoctor || granted === 'admin') && !local ? null : (
                                 <>
                                     <CardDivider />
                                     <SettingsRow
@@ -366,20 +371,22 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
-                                <CardDivider />
-                                <SettingsRow
-                                    icon={<SettingsIcon glyph="backups" />}
-                                    label="Backups"
-                                    sub={backups?.sub ?? 'Checking…'}
-                                    onPress={() => {
-                                        if (!backups) return;
-                                        // Nothing to report on until Drive is linked, so
-                                        // the sign-in comes first when it can be run here.
-                                        if (backups.canSignIn && !backups.linked) setLinkingDrive(true);
-                                        else routes.push('backups');
-                                    }}
-                                    testID="settings-backups"
-                                />
+                                {local ? null : <CardDivider />}
+                                {local ? null : (
+                                    <SettingsRow
+                                        icon={<SettingsIcon glyph="backups" />}
+                                        label="Backups"
+                                        sub={backups?.sub ?? 'Checking…'}
+                                        onPress={() => {
+                                            if (!backups) return;
+                                            // Nothing to report on until Drive is linked, so
+                                            // the sign-in comes first when it can be run here.
+                                            if (backups.canSignIn && !backups.linked) setLinkingDrive(true);
+                                            else routes.push('backups');
+                                        }}
+                                        testID="settings-backups"
+                                    />
+                                )}
                                 <CardDivider />
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="procedures" />}
@@ -426,14 +433,18 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                         testID="settings-admin-view"
                                     />
                                 </View>
-                                <CardDivider />
-                                <SettingsRow
-                                    icon={<SettingsIcon glyph="roles" />}
-                                    label="Phones & role codes"
-                                    sub={t('Give a phone its role, or withdraw it')}
-                                    onPress={() => routes.push('roles')}
-                                    testID="settings-roles"
-                                />
+                                {local ? null : (
+                                    <>
+                                        <CardDivider />
+                                        <SettingsRow
+                                            icon={<SettingsIcon glyph="roles" />}
+                                            label="Phones & role codes"
+                                            sub={t('Give a phone its role, or withdraw it')}
+                                            onPress={() => routes.push('roles')}
+                                            testID="settings-roles"
+                                        />
+                                    </>
+                                )}
                             </Group>
                         ) : null}
 
@@ -443,7 +454,21 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             reports the reseed to `api/dataReset`, which is what
                             drops the clinic the query cache and the day view's
                             own hooks are still holding. */}
-                        {demo.enabled ? (
+                        {local ? (
+                            /* The way back to the setup screen. The clinic is
+                               not touched: entering again opens it as it was. */
+                            <Group title={t('THIS PHONE ONLY')}>
+                                <SettingsRow
+                                    icon={<LeaveDemoIcon />}
+                                    label="Connect to a server"
+                                    sub={t('The clinic on this phone stays here for when you come back')}
+                                    onPress={() => {
+                                        void disableLocalMode();
+                                    }}
+                                    testID="settings-leave-local"
+                                />
+                            </Group>
+                        ) : demo.enabled ? (
                             <Group title={t('DEMO')}>
                                 <SettingsRow
                                     icon={<ResetDemoIcon />}

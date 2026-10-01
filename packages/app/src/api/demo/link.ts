@@ -24,6 +24,11 @@
  * anyone sees the transition. This is a fifth of the realistic worst case,
  * which is enough for those states to read as intended without the demo feeling
  * slow.
+ *
+ * Local mode answers through the same handlers, as a real clinic: no delay, and
+ * a write is on file before it is answered (`./local`). One that cannot be
+ * written is refused, and the rows go back to what the file holds, so nothing
+ * is shown as saved that was not.
  */
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
 import { ERROR_CODE, type ErrorCode } from '@lustre/shared';
@@ -31,8 +36,10 @@ import { TRPCClientError, type TRPCLink } from '@trpc/client';
 import { observable } from '@trpc/server/observable';
 import { credentialToken, noteRefusal } from '../credential';
 import { admit, inputFor, shownTo } from './access';
-import { getDb, isOpen, loadStored, setDb } from './db';
+import { getDb, isOpen, loadStored, setDb, takeDirty } from './db';
+import { type DeviceBackend, deviceBackend } from './flag';
 import { hasHandler, resolve } from './handlers';
+import { commitLocal, openLocalDb, rollbackLocal } from './local';
 import { DemoError } from './rules';
 import { seedDemoDb } from './seed';
 
@@ -71,10 +78,15 @@ let opening: Promise<void> | null = null;
 
 /**
  * Opened once, on the first request rather than at import: a seed that runs
- * during module evaluation runs on every launch of the real app too.
+ * during module evaluation runs on every launch of the real app too. Opened
+ * again when the phone moves between the demo and its own clinic.
  */
-export function openDemoDb(): Promise<void> {
-    if (isOpen()) return Promise.resolve();
+export function openDeviceDb(backend: DeviceBackend = deviceBackend() ?? 'demo'): Promise<void> {
+    if (backend === 'local') {
+        if (!isOpen('local')) openLocalDb();
+        return Promise.resolve();
+    }
+    if (isOpen('demo')) return Promise.resolve();
     if (opening) return opening;
 
     opening = loadStored()
@@ -88,20 +100,37 @@ export function openDemoDb(): Promise<void> {
     return opening;
 }
 
+/** What a local request answered, once anything it wrote is on file. */
+function settleLocal(answer: () => unknown, writes: boolean): unknown {
+    try {
+        const output = answer();
+        if (takeDirty()) commitLocal();
+        return output;
+    } catch (error) {
+        if (takeDirty() || writes) rollbackLocal();
+        if (error instanceof DemoError) throw error;
+        throw new DemoError(ERROR_CODE.INTERNAL, 'this phone did not save it', 500);
+    }
+}
+
 export const demoLink: TRPCLink<AppRouter> = () => {
     return ({ op }) =>
         observable((observer) => {
             let cancelled = false;
 
             const run = async () => {
-                await openDemoDb();
+                const backend = deviceBackend() ?? 'demo';
+                await openDeviceDb(backend);
 
-                const wait = op.type === 'mutation' ? LATENCY_MS.mutation : LATENCY_MS.query;
-                await new Promise((done) => setTimeout(done, wait));
+                if (backend === 'demo') {
+                    const wait = op.type === 'mutation' ? LATENCY_MS.mutation : LATENCY_MS.query;
+                    await new Promise((done) => setTimeout(done, wait));
+                }
 
                 if (cancelled || op.signal?.aborted) return;
 
-                if (!hasHandler(op.path)) {
+                const path = op.path;
+                if (!hasHandler(path)) {
                     throw new DemoError(ERROR_CODE.NOT_FOUND, `${op.path} is not answered in demo mode`, 404);
                 }
 
@@ -114,7 +143,9 @@ export const demoLink: TRPCLink<AppRouter> = () => {
                 const token = credentialToken();
                 try {
                     const caller = admit(op.path, token, op.input);
-                    const output = resolve(op.path, inputFor(op.path, op.input, caller), caller);
+                    const answer = () => resolve(path, inputFor(path, op.input, caller), caller);
+                    const output =
+                        backend === 'local' ? settleLocal(answer, op.type === 'mutation') : answer();
                     return toWire(shownTo(op.path, output, caller));
                 } catch (error) {
                     if (error instanceof DemoError && error.code === ERROR_CODE.DEVICE_REVOKED) {

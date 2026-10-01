@@ -106,8 +106,12 @@ function redeem(code: string, previous: string | null = null) {
  * rules after it are the same — the role lives on a device row, and the link
  * reads it back from the token on every request.
  */
-export function provisionDemo(role: Role, previous: string | null): ReturnType<typeof redeem> {
-    const { code } = issue(role, `Demo ${role}`, null);
+export function provisionDemo(
+    role: Role,
+    previous: string | null,
+    label = `Demo ${role}`,
+): ReturnType<typeof redeem> {
+    const { code } = issue(role, label, null);
     return redeem(code, previous);
 }
 

@@ -1,6 +1,6 @@
 // biome-ignore lint/style/noRestrictedImports: a timer and a `/ws` subscription, both outside React
 import { useEffect } from 'react';
-import { onServerChange, serverAddresses, useConnection, useDemoMode } from '../../api';
+import { onServerChange, serverAddresses, useConnection, useDeviceBackend } from '../../api';
 import { api } from './data';
 import { serverIdentity, takeSchedule } from './savedSchedule';
 import { saveSchedule } from './savedScheduleStore';
@@ -20,12 +20,13 @@ const AFTER_CHANGE_MS = 5_000;
  * copy would be lost at the moment it is needed.
  *
  * Off in a demo, which has no clinic to lose and must not leave invented
- * patients on disk under a real server's name.
+ * patients on disk under a real server's name, and in local mode, whose clinic
+ * is on the phone already and never goes offline.
  */
 export function useSavedScheduleWriter(enabled: boolean): void {
     const { status } = useConnection();
-    const demo = useDemoMode();
-    const active = enabled && status === 'online' && demo.hydrated && !demo.enabled;
+    const device = useDeviceBackend();
+    const active = enabled && status === 'online' && device.hydrated && device.backend === null;
 
     useEffect(() => {
         if (!active) return;

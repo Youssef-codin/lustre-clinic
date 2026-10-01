@@ -10,7 +10,7 @@
 import type { ClientRole } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: subscribes to the `/ws` event stream, outside React
 import { useEffect } from 'react';
-import { onServerEvent, serverNow, trpcClient, useDemoMode } from '../api';
+import { onServerEvent, serverNow, trpcClient, useDeviceBackend } from '../api';
 import { presentArrivalNotice } from './notifications';
 import { arrivalToAnnounce } from './visitNotice';
 
@@ -25,11 +25,11 @@ async function announce(appointmentId: string, stillWanted: () => boolean): Prom
 
 /** `role` is null until the stored role has been read, so a desk phone never subscribes for a frame. */
 export function useArrivalNotices(role: ClientRole | null): void {
-    // Demo mode has no socket, and no desk phone to check anyone in.
-    const { enabled: demo } = useDemoMode();
+    // Demo and local mode have no socket, and no desk phone to check anyone in.
+    const onDevice = useDeviceBackend().backend !== null;
 
     useEffect(() => {
-        if (role !== 'doctor' || demo) return;
+        if (role !== 'doctor' || onDevice) return;
         let active = true;
         const unsubscribe = onServerEvent((event) => {
             const appointmentId = arrivalToAnnounce(event, role, serverNow());
@@ -39,5 +39,5 @@ export function useArrivalNotices(role: ClientRole | null): void {
             active = false;
             unsubscribe();
         };
-    }, [role, demo]);
+    }, [role, onDevice]);
 }
