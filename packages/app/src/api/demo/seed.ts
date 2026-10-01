@@ -414,7 +414,7 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
     });
 }
 
-export function emptyDb(): DemoDb {
+function emptyDb(): DemoDb {
     return {
         branches: [],
         clinicDays: [],
@@ -449,7 +449,6 @@ export function emptyDb(): DemoDb {
             requireAge: DEFAULT_REQUIRE_AGE,
             requireGender: DEFAULT_REQUIRE_GENDER,
             askToEditOnFinish: true,
-            generalProcedures: false,
             requireProvisioning: false,
             updatedAt: new Date(),
         },

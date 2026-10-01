@@ -35,7 +35,7 @@ import {
     scheduleAlarms,
     tryAlarm,
 } from '../../modules/lustre-alarm';
-import { getConnectionState, isDemoMode, isLocalMode, serverAddresses } from '../api';
+import { getConnectionState, isDemoMode, serverAddresses } from '../api';
 import { getLocale } from '../i18n/runtime';
 import { withUpdatesHeld } from '../shell/updateGate';
 import { alarmCheck } from './alarmCheck';
@@ -212,7 +212,7 @@ function serverCheck(): AlarmCheck | null {
     const { lan, tailscale } = serverAddresses();
     const today = todayKey();
     return alarmCheck({
-        demo: isDemoMode() || isLocalMode(),
+        demo: isDemoMode(),
         current: getConnectionState().baseUrl,
         lan,
         tailscale,

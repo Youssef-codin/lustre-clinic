@@ -12,13 +12,12 @@
  */
 import type { Locale } from '@lustre/shared';
 import { useRef } from 'react';
-import { serverAddresses, useConnection, useDeviceBackend } from '../../../api';
+import { serverAddresses, useConnection } from '../../../api';
 import { formatClock12 } from '../../../components/domain';
 import type { DotTone } from '../../../components/ui';
 import { useLocale, useT } from '../../../i18n';
 
-/** `device`: no server at all — the demo, or a clinic kept on this phone. */
-export type ConnectionKind = 'wifi' | 'remote' | 'offline' | 'device';
+export type ConnectionKind = 'wifi' | 'remote' | 'offline';
 
 export interface ConnectionView {
     kind: ConnectionKind;
@@ -39,14 +38,12 @@ const LABEL: Record<ConnectionKind, string> = {
     wifi: 'Clinic wifi',
     remote: 'Remote',
     offline: 'Offline',
-    device: 'This phone',
 };
 
 const TONE: Record<ConnectionKind, DotTone> = {
     wifi: 'wa',
     remote: 'accent',
     offline: 'due',
-    device: 'accent',
 };
 
 // Remote is the steady one: it is working, just over the internet. The other
@@ -56,20 +53,18 @@ const PULSE: Record<ConnectionKind, boolean> = {
     wifi: true,
     remote: false,
     offline: true,
-    device: false,
 };
 
 export function useConnectionView(): ConnectionView {
     const { status, address, lastOnlineAt, retry } = useConnection();
     const t = useT();
     const locale = useLocale();
-    const onDevice = useDeviceBackend().backend !== null;
 
     const settled = useRef<ConnectionKind>('offline');
     if (status === 'online') settled.current = address === 'tailscale' ? 'remote' : 'wifi';
     else if (status === 'offline') settled.current = 'offline';
 
-    const kind = onDevice ? 'device' : settled.current;
+    const kind = settled.current;
     const { lan, tailscale } = serverAddresses();
 
     return {
@@ -77,8 +72,8 @@ export function useConnectionView(): ConnectionView {
         label: LABEL[kind],
         tone: TONE[kind],
         pulse: PULSE[kind],
-        serverName: t(onDevice ? 'No server' : 'Clinic server'),
-        serverAddress: onDevice ? '—' : ((kind === 'remote' ? tailscale : lan) ?? lan ?? tailscale ?? '—'),
+        serverName: t('Clinic server'),
+        serverAddress: (kind === 'remote' ? tailscale : lan) ?? lan ?? tailscale ?? '—',
         stamp:
             lastOnlineAt === null
                 ? undefined

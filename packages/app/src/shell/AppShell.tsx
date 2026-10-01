@@ -2,7 +2,7 @@ import { seesPayments } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: schedules the tab warm-up through `InteractionManager` and cancels it on cleanup — work deliberately deferred past the first paint
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { InteractionManager, StyleSheet, View } from 'react-native';
-import { useConnection, useCredential, useDeviceBackend } from '../api';
+import { useConnection, useCredential } from '../api';
 import { BottomTabBar, GLYPH, type TabKey } from '../components/domain';
 import { ErrorBoundary, Toast, useHardwareBack } from '../components/ui';
 import {
@@ -131,10 +131,8 @@ export function AppShell() {
     // day cluster: it has to stay armed while the app sits on another tab or in
     // the background, and the day cluster is unmounted for neither of those but
     // is the wrong owner for something the whole app has.
-    // Only on the desk's phone, and not before the role is known. A clinic on
-    // this phone alone has no other phone to be the desk, so its admin is.
-    const local = useDeviceBackend().backend === 'local';
-    useReminderNudges(roleReady && role === 'secretary' && (granted !== 'admin' || local));
+    // Only on the desk's phone, and not before the role is known.
+    useReminderNudges(roleReady && role === 'secretary' && granted !== 'admin');
     // The doctor finishing (`visit:completed`), on the desk's phone only.
     useVisitCompletedNotices(roleReady ? role : null);
     // And its other half: Finish from the doctor's notification shade.

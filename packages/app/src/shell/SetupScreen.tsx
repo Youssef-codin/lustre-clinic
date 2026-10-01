@@ -11,7 +11,6 @@ import {
     lastProbeRefused,
     reprobe,
     serverAddresses,
-    startLocalMode,
 } from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
@@ -19,7 +18,6 @@ import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_DEV_SERVER, NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
 import { usePendingJoin } from './joinLink';
-import { setAdminView } from './roleStore';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
 // First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
@@ -63,22 +61,6 @@ export function SetupScreen() {
     const [tailscale, setTailscale] = useState(current.tailscale ?? (onTailnet ? suggested : ''));
     const [testing, setTesting] = useState(false);
     const [attempt, setAttempt] = useState<Attempt | null>(null);
-    const [startingLocal, setStartingLocal] = useState(false);
-    const [localFailed, setLocalFailed] = useState(false);
-
-    // The shell replaces this screen once the flag flips, so success has
-    // nothing to draw. The phone is the desk too, so it opens on the desk's day.
-    async function runLocally() {
-        setLocalFailed(false);
-        setStartingLocal(true);
-        try {
-            await startLocalMode();
-            setAdminView('secretary');
-        } catch {
-            setLocalFailed(true);
-            setStartingLocal(false);
-        }
-    }
 
     async function connect() {
         const candidate = toCandidate({ lan, tailscale }, LAN_ALLOWED);
@@ -187,32 +169,6 @@ export function SetupScreen() {
                     </View>
                 ) : null}
 
-                {/* A clinic with no PC to run the server on. Its records live
-                    on this phone and nowhere else, which the note says before
-                    the button does anything. */}
-                <View style={styles.local}>
-                    <Text variant="footnote" tone="muted" style={styles.localNote}>
-                        {t(
-                            'No clinic server? Keep the clinic on this phone instead. Nothing leaves it, so nothing else has a copy: uninstalling the app deletes it.',
-                        )}
-                    </Text>
-                    <Button
-                        label="Use on this phone only"
-                        onPress={() => void runLocally()}
-                        variant="secondary"
-                        size="md"
-                        block
-                        loading={startingLocal}
-                        disabled={testing}
-                        testID="setup-local"
-                    />
-                    {localFailed ? (
-                        <Text variant="footnote" tone="danger" style={styles.localNote}>
-                            {t('This phone could not open its clinic. Nothing was changed.')}
-                        </Text>
-                    ) : null}
-                </View>
-
                 {/* The way in to demo mode (the role-code screen offers it too, to a
                     dev or demo build). It is here rather
                     than anywhere inside the app because this is the screen a
@@ -254,7 +210,5 @@ const styles = StyleSheet.create({
     action: { marginTop: space[6] },
     result: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[2] },
     resultDot: { paddingTop: space[0.5] },
-    local: { alignSelf: 'stretch', alignItems: 'center', gap: space[3], marginTop: space[8] },
-    localNote: { textAlign: 'center' },
     demo: { alignSelf: 'stretch', alignItems: 'center', gap: space[2], marginTop: space[8] },
 });

@@ -1,7 +1,7 @@
 import { AppState, type NativeEventSubscription } from 'react-native';
 import { noteConnection } from '../reporting/trail';
 import { BUILD_VARIANT, serverAddresses, timing, trpcUrl } from './config';
-import { deviceBackend } from './demo';
+import { isDemoMode } from './demo';
 import { acceptsServer } from './variant';
 
 // Connection state is a record of real traffic, not a poller: every request
@@ -70,9 +70,7 @@ function armStaleTimer(): void {
     staleTimer = setTimeout(() => emit({ isStale: true }), timing.staleAfterMs);
 }
 
-const onDevice = (): boolean => deviceBackend() !== null;
-
-// Demo and local mode have no clinic server to be reachable, and the shell's disconnected route
+// Demo mode has no clinic to be reachable, and the shell's disconnected route
 // is entered on this state alone — so it is answered rather than probed. A
 // frozen object, not one built per call: `useConnection` reads it through
 // `useSyncExternalStore`, which requires the same snapshot until something
@@ -86,7 +84,7 @@ const DEMO_STATE: ConnectionState = {
 };
 
 export function getConnectionState(): ConnectionState {
-    return onDevice() ? DEMO_STATE : state;
+    return isDemoMode() ? DEMO_STATE : state;
 }
 
 export function subscribeToConnection(listener: () => void): () => void {
@@ -179,10 +177,8 @@ export function resolveBaseUrl(): Promise<string> {
     // Nothing should ask in demo mode — the demo link terminates before
     // `serverFetch`, and `live.ts` opens no socket — so this is the assertion
     // rather than a fallback address.
-    if (onDevice()) {
-        return Promise.reject(
-            new ServerUnreachableError('the app answers from this phone; there is no server'),
-        );
+    if (isDemoMode()) {
+        return Promise.reject(new ServerUnreachableError('the app is in demo mode; there is no server'));
     }
     if (state.baseUrl && state.status === 'online') return Promise.resolve(state.baseUrl);
     if (inFlight) return inFlight;
@@ -194,7 +190,7 @@ export function resolveBaseUrl(): Promise<string> {
 }
 
 export async function reprobe(): Promise<boolean> {
-    if (onDevice()) return true;
+    if (isDemoMode()) return true;
 
     emit({ baseUrl: null, address: null });
     try {
@@ -218,7 +214,7 @@ export async function reprobe(): Promise<boolean> {
  * she never hit; the foreground watch below re-probes on the way in anyway.
  */
 export function noteLinkDropped(): void {
-    if (onDevice()) return;
+    if (isDemoMode()) return;
     if (AppState.currentState !== 'active') return;
     if (state.status === 'probing') return;
     void reprobe();
@@ -229,7 +225,7 @@ let appStateSub: NativeEventSubscription | null = null;
 function startForegroundWatch(): void {
     if (appStateSub) return;
     appStateSub = AppState.addEventListener('change', (next) => {
-        if (onDevice()) return;
+        if (isDemoMode()) return;
         if (next === 'active' && state.status !== 'online') void reprobe();
     });
 }

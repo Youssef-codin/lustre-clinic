@@ -19,7 +19,6 @@
  */
 import type { PaymentMethod, Tooth } from '@lustre/shared';
 import { errorCodeOf, isOffline, trpcClient } from '../../../api';
-import { withoutTeeth } from '../procedures';
 import { localOffsetMinutes, offsetForDate } from '../time';
 import { RequestError } from './client';
 import type {
@@ -116,13 +115,7 @@ export const api = {
     procedures: (): Promise<ProcedureType[]> => wrap(() => trpcClient.procedure.list.query()),
 
     procedureTree: (): Promise<ProcedureCategory[]> =>
-        wrap(async () => {
-            const [tree, settings] = await Promise.all([
-                trpcClient.procedure.tree.query({ includeInactive: false }),
-                trpcClient.settings.get.query(),
-            ]);
-            return settings.generalProcedures ? withoutTeeth(tree) : tree;
-        }),
+        wrap(() => trpcClient.procedure.tree.query({ includeInactive: false })),
 
     pendingReminders: (date: string): Promise<PendingReminder[]> =>
         wrap(() =>

@@ -98,7 +98,6 @@ function replaceProcedures(
             note: line.note,
         })),
         db.procedureTypes,
-        db.settings.generalProcedures,
     );
 
     db.appointmentProcedures = db.appointmentProcedures.filter(

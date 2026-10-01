@@ -1,12 +1,5 @@
 /**
- * Whether this launch answers from the phone itself, and as which clinic.
- *
- * Two backends live on the phone. The demo is an invented clinic, and the rest
- * of this note is about why it is hard to reach. Local mode is a real one: the
- * clinic that has no server, whose records live on this phone alone (`./local`).
- * It is allowed on every build, prod included, because it is a clinic's own
- * choice rather than a register standing in for one. Neither is ever entered
- * because a probe failed.
+ * Whether this launch is a demo, and nothing else.
  *
  * Demo mode replaces the clinic server with an in-memory copy of it
  * (`./backend`). That is a useful thing to hand someone across a table and a
@@ -33,7 +26,6 @@ import { noteDataReset } from '../dataReset';
 import { allowsDemo } from '../variant';
 
 const DEMO_KEY = 'lustre.demo';
-const LOCAL_KEY = 'lustre.local';
 
 interface DemoExtra {
     demo?: unknown;
@@ -44,15 +36,12 @@ const extra = (Constants.expoConfig?.extra ?? {}) as DemoExtra;
 /** The build's own answer, and the floor: a build that ships `true` is a demo build. */
 const shipped = extra.demo === true;
 
-/** What answers instead of a server: the invented clinic, or this phone's own. */
-export type DeviceBackend = 'demo' | 'local';
-
-interface BackendState {
+interface DemoState {
     hydrated: boolean;
-    backend: DeviceBackend | null;
+    enabled: boolean;
 }
 
-let state: BackendState = { hydrated: shipped, backend: shipped ? 'demo' : null };
+let state: DemoState = { hydrated: shipped, enabled: shipped };
 
 const listeners = new Set<() => void>();
 let hydrating = false;
@@ -65,54 +54,31 @@ let hydrating = false;
  */
 let transitions = 0;
 
-function emit(next: BackendState): void {
-    if (next.hydrated === state.hydrated && next.backend === state.backend) return;
+function emit(next: DemoState): void {
+    if (next.hydrated === state.hydrated && next.enabled === state.enabled) return;
     state = next;
     for (const listener of listeners) listener();
 }
 
-/** Switches the backend: everything cached came from the other one. */
-function become(backend: DeviceBackend | null): void {
-    transitions += 1;
-    const changed = state.backend !== backend;
-    emit({ hydrated: true, backend });
-    if (changed) noteDataReset();
-}
-
 export function isDemoMode(): boolean {
-    return state.backend === 'demo';
+    return state.enabled;
 }
 
-export function isLocalMode(): boolean {
-    return state.backend === 'local';
-}
-
-/** Null while requests go to a clinic server. */
-export function deviceBackend(): DeviceBackend | null {
-    return state.backend;
-}
-
-function getSnapshot(): BackendState {
+function getSnapshot(): DemoState {
     return state;
 }
 
 async function hydrate(): Promise<void> {
-    const before = transitions;
-    const [demo, local] = await Promise.all(
-        [DEMO_KEY, LOCAL_KEY].map((key) => AsyncStorage.getItem(key).catch(() => null)),
-    );
-    if (!allowsDemo(BUILD_VARIANT)) await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
-    if (transitions !== before) return;
+    if (!allowsDemo(BUILD_VARIANT)) {
+        await AsyncStorage.removeItem(DEMO_KEY).catch(() => undefined);
+        emit({ hydrated: true, enabled: false });
+        return;
+    }
 
-    const demoOn = allowsDemo(BUILD_VARIANT) && (shipped || demo === 'on');
-    const backend: DeviceBackend | null = shipped
-        ? 'demo'
-        : local === 'on'
-          ? 'local'
-          : demoOn
-            ? 'demo'
-            : null;
-    emit({ hydrated: true, backend });
+    const before = transitions;
+    const stored = await AsyncStorage.getItem(DEMO_KEY).catch(() => null);
+    if (transitions !== before) return;
+    emit({ hydrated: true, enabled: shipped || stored === 'on' });
 }
 
 function subscribe(listener: () => void): () => void {
@@ -126,37 +92,21 @@ function subscribe(listener: () => void): () => void {
     };
 }
 
-export function useDeviceBackend(): BackendState {
-    return useSyncExternalStore(subscribe, getSnapshot);
-}
-
-export interface DemoMode {
-    hydrated: boolean;
-    enabled: boolean;
+export interface DemoMode extends DemoState {
     enable: () => Promise<void>;
     disable: () => Promise<void>;
 }
 
 export function useDemoMode(): DemoMode {
-    const current = useDeviceBackend();
-    return {
-        hydrated: current.hydrated,
-        enabled: current.backend === 'demo',
-        enable: enableDemoMode,
-        disable: disableDemoMode,
-    };
-}
-
-/** A removal that fails would leave `on` behind, so the key is overwritten instead; hydration reads only `on`. */
-function clearKey(key: string): Promise<void> {
-    return AsyncStorage.removeItem(key)
-        .catch(() => AsyncStorage.setItem(key, 'off'))
-        .catch(() => undefined);
+    const current = useSyncExternalStore(subscribe, getSnapshot);
+    return { ...current, enable: enableDemoMode, disable: disableDemoMode };
 }
 
 export async function enableDemoMode(): Promise<void> {
-    if (!allowsDemo(BUILD_VARIANT) || state.backend === 'local') return;
-    become('demo');
+    if (!allowsDemo(BUILD_VARIANT)) return;
+    transitions += 1;
+    emit({ hydrated: true, enabled: true });
+    noteDataReset();
     await AsyncStorage.setItem(DEMO_KEY, 'on').catch(() => undefined);
 }
 
@@ -165,25 +115,13 @@ export async function enableDemoMode(): Promise<void> {
  * it pointed at a server it was never given an address for.
  */
 export async function disableDemoMode(): Promise<void> {
-    if (shipped || state.backend !== 'demo') return;
-    become(null);
-    await clearKey(DEMO_KEY);
-}
-
-/**
- * Written before the switch, not after: a phone that showed its clinic as
- * local and relaunched into the setup screen would look like it had lost it.
- */
-export async function enableLocalMode(): Promise<void> {
     if (shipped) return;
-    await AsyncStorage.setItem(LOCAL_KEY, 'on');
-    await clearKey(DEMO_KEY);
-    become('local');
-}
-
-/** The records stay on the phone (`./local`), so entering again opens the same clinic. */
-export async function disableLocalMode(): Promise<void> {
-    if (state.backend !== 'local') return;
-    become(null);
-    await clearKey(LOCAL_KEY);
+    transitions += 1;
+    emit({ hydrated: true, enabled: false });
+    noteDataReset();
+    // A removal that fails would leave `on` behind and the next launch back in
+    // the demo, so the key is overwritten instead; hydration reads only `on`.
+    await AsyncStorage.removeItem(DEMO_KEY)
+        .catch(() => AsyncStorage.setItem(DEMO_KEY, 'off'))
+        .catch(() => undefined);
 }

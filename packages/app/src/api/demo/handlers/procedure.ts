@@ -191,7 +191,6 @@ export const procedureHandlers = {
                 note: null,
             })),
             db.procedureTypes,
-            db.settings.generalProcedures,
         );
 
         const branchId = input.branchId ?? branchHandlers.list({ includeInactive: false })[0]?.id;

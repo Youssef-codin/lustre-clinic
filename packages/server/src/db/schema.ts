@@ -329,9 +329,6 @@ export const settings = pgTable(
         requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
         // Whether the doctor's Finish asks first if the procedures need editing.
         askToEditOnFinish: boolean('ask_to_edit_on_finish').notNull().default(true),
-        // A clinic that is not charting teeth. Procedures keep their
-        // `is_tooth_specific`, so turning it back off restores the dental flow.
-        generalProcedures: boolean('general_procedures').notNull().default(false),
         // Whether a phone with no role credential is refused. Off, so the
         // phones installed before roles existed keep working until each has
         // scanned a code; an admin turns it on once they all have.

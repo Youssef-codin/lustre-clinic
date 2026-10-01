@@ -90,10 +90,6 @@ commitments a neighboring product would not truthfully make:
   able to run a full day on paper if the system is down.
 - **WhatsApp is a destination.** One tap leaves the app into a specific patient's
   chat with a message pre-filled, and the user returns. Design for the round trip.
-- **A clinic with no server** can run on one phone (local mode): the in-app
-  copy of the server answers, its records live in a file on that phone, and the
-  phone is the admin. No backups, no second phone. Chosen on the setup screen,
-  never entered because a server did not answer.
 - **Offline is expected**, not exceptional: on power cut or reboot the app shows
   today's and tomorrow's schedule from cache, read-only, with a notice. It must
   never report a booking as saved when it was not.
@@ -107,8 +103,7 @@ gaps), booking with explicit secretary-chosen duration, walk-ins as a single
 book-and-check-in, check-in/checkout with payment, per-patient running balances
 across visits, a balances screen (total outstanding, who owes and for how long,
 charged vs collected for a period), a configurable procedure catalogue with
-categories, subtypes and per-unit quantities (with a clinic-wide "general
-procedures" switch that drops teeth for a non-dental or non-charting clinic), patients with doctor-defined custom
+categories, subtypes and per-unit quantities, patients with doctor-defined custom
 questions and full visit history, missed-appointment resolution, and settings.
 
 Hard constraints:

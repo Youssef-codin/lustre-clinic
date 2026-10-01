@@ -9,17 +9,7 @@ export { getConnectionState, lastProbeRefused, reprobe } from './connection';
 export type { Credential, Refusal } from './credential';
 export { grantCredential, markFreshInstall, retryProvisioning, useCredential } from './credential';
 export { dataGeneration, subscribeToDataReset } from './dataReset';
-export {
-    becomeInDemo,
-    disableLocalMode,
-    enableDemoMode,
-    isDemoMode,
-    isLocalMode,
-    resetDemoData,
-    startLocalMode,
-    useDemoMode,
-    useDeviceBackend,
-} from './demo';
+export { becomeInDemo, enableDemoMode, isDemoMode, resetDemoData, useDemoMode } from './demo';
 export { classifyError, errorCodeOf, isOffline, isSlotOverlap } from './errors';
 export { onServerChange, onServerEvent } from './live';
 export { clockSample, noteServerClock, serverNow, serverToday } from './serverClock';

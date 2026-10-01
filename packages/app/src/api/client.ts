@@ -8,7 +8,7 @@ import { timing } from './config';
 import { markOffline, markOnline, resolveBaseUrl } from './connection';
 import { credentialToken, hydrateCredential, noteRefusal, refusalIn } from './credential';
 import { subscribeToDataReset } from './dataReset';
-import { demoLink, deviceBackend } from './demo';
+import { demoLink, isDemoMode } from './demo';
 import { queryClient } from './queryClient';
 
 // The link needs a URL at construction time, but the real origin is only known
@@ -82,15 +82,15 @@ async function credentialHeaders(): Promise<Record<string, string>> {
     return token ? { [DEVICE_TOKEN_HEADER]: `Bearer ${token}` } : {};
 }
 
-// The split is per request rather than per client, because demo and local mode
-// can be entered from the setup screen after this module has been evaluated. It
-// is asked of `deviceBackend()` and never of the connection: a server that is
-// merely down must reach the offline screen, not a working-looking app over
-// invented patients or an empty clinic (`demo/flag.ts`).
+// The split is per request rather than per client, because demo mode can be
+// entered from the setup screen after this module has been evaluated. It is
+// asked of `isDemoMode()` and never of the connection: a server that is merely
+// down must reach the offline screen, not a working-looking app over invented
+// patients (`demo/flag.ts`).
 export const trpcClient = createTRPCClient<AppRouter>({
     links: [
         splitLink({
-            condition: () => deviceBackend() !== null,
+            condition: () => isDemoMode(),
             true: demoLink,
             false: httpBatchLink({
                 url: `${PLACEHOLDER_ORIGIN}${TRPC_ENDPOINT}`,

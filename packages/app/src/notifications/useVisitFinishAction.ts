@@ -29,7 +29,7 @@ import {
     stopListening,
     updateListening,
 } from '../../modules/lustre-listener';
-import { onServerChange, useDeviceBackend } from '../api';
+import { onServerChange, useDemoMode } from '../api';
 import { getLocale } from '../i18n/runtime';
 import { asRequestError } from '../screens/day/data/client';
 import { checkInTimes, api as dayApi } from '../screens/day/data/day';
@@ -72,11 +72,11 @@ async function readChair(): Promise<Appointment | null> {
 
 /** `role` is null until the stored role has been read, so a desk phone never shows it for a frame. */
 export function useVisitFinishAction(role: ClientRole | null): void {
-    // Demo and local mode have no clinic to finish a visit on in the background.
-    const onDevice = useDeviceBackend().backend !== null;
+    // Demo mode has no clinic to finish a visit on in the background.
+    const { enabled: demo } = useDemoMode();
 
     useEffect(() => {
-        if (role !== 'doctor' || onDevice) return;
+        if (role !== 'doctor' || demo) return;
         let active = true;
         let generation = 0;
         let shown: Appointment | null = null;
@@ -162,5 +162,5 @@ export function useVisitFinishAction(role: ClientRole | null): void {
             taps();
             stopListening();
         };
-    }, [role, onDevice]);
+    }, [role, demo]);
 }

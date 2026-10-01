@@ -24,7 +24,7 @@ const doctor = { token: 'tok-doctor', deviceId: 'dev-1', role: 'doctor' as const
 let demo = false;
 
 async function launch() {
-    const store = createCredentialStore(() => (demo ? 'demo' : null));
+    const store = createCredentialStore(() => demo);
     store.subscribe(() => {});
     await store.hydrate();
     return store;
@@ -104,7 +104,7 @@ describe('a new install', () => {
 
     it('never marks a phone that already has a credential', async () => {
         (await launch()).grant(doctor);
-        const store = createCredentialStore(() => (demo ? 'demo' : null));
+        const store = createCredentialStore(() => demo);
         await store.markFresh();
         expect(store.getSnapshot()).toMatchObject({ credential: doctor, refusal: 'none' });
     });

@@ -221,31 +221,6 @@ export function describeProcedure(procedure: PlannedProcedure): string {
  * gone. The tooth is asked for after the pick instead (`needsTooth` on the
  * chosen row), so the button means what it says and §5 still gets its tooth.
  */
-/**
- * The catalogue as a clinic on general procedures sees it: nothing is done to a
- * tooth. The rows keep their own flag on the server, so switching back brings
- * the dental flow back as it was.
- */
-export function withoutTeeth(categories: readonly ProcedureCategory[]): ProcedureCategory[] {
-    return categories.map((category) => ({
-        ...category,
-        isToothSpecific: false,
-        children: category.children.map((child) => ({ ...child, isToothSpecific: false })),
-    }));
-}
-
-/**
- * Whether adding starts with the tooth. Only when something on offer is done
- * to one: a catalogue with nothing tooth-specific, which is every catalogue on
- * general procedures, goes straight to the procedure.
- */
-export function asksTooth(categories: readonly ProcedureCategory[] | undefined): boolean {
-    if (!categories) return true;
-    return categories.some(
-        (category) => category.isToothSpecific || category.children.some((child) => child.isToothSpecific),
-    );
-}
-
 export function offeredFor(categories: readonly ProcedureCategory[], hasTooth: boolean): ProcedureCategory[] {
     if (!hasTooth) return [...categories];
 
