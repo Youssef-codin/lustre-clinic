@@ -1,49 +1,7 @@
-/**
- * One appointment in the patient's history — `patient-view.html`. Three columns:
- * the date stamp, what was done and how it went, and the money with a line under
- * it saying what the amount means.
- *
- * The row leads with the work: a record is read to answer "what did we do last
- * time", and `160826-7M69` answers nothing a person asks out loud.
- *
- * Two rows here are not visits and say so rather than borrowing a visit's
- * words. An **opening balance** is debt carried over and has a visit behind it
- * only because that is where a balance can live. An **imported** row is work the
- * old system recorded: no visit at all, so the money column is empty, and the
- * date stamp goes blank when the paper file did not say when — *Before
- * migration* is the honest answer and the cutoff date would be a made-up one.
- *
- * The appointment ref used to ride beside the status pill, on the reasoning that
- * this is the screen someone is on with the paper file open and the ref was what
- * matched one to the other. That was wrong about the paper: the book is one page
- * per patient, so there is nothing per visit to match and the ref pointed at a
- * page that does not exist. The patient's own ref is on the header instead,
- * once. The appointment ref is still in the payload, still on the day view's
- * detail sheet, and still what a reminder quotes down the phone — it just is not
- * an identifier the desk writes anywhere.
- *
- * Full-bleed on the page's own colour with a hairline under it, not a card. The
- * design draws a ledger: rows running edge to edge in one continuous tone,
- * ruled apart, so the eye runs down the money column. A white row on a grey page
- * stripes the list and turns each line into an object.
- *
- * The big number is what the desk has to act on. A visit with money still owed
- * leads with what is owed, in the due colour, and the total sits small under it
- * ("of 2,200"). It used to be the other way round, and a visit that had been
- * paid in part read as though the payment had not been taken at all. A settled
- * visit leads with its total and says "Paid in full" in green under it.
- *
- * The amount drops `EGP` — the column is money and says so once, at the top.
- * One deviation: the mock draws an amount on a no-show, because its fixture
- * carries one. Real data has no visit there and so no money; `EGP 0` under a
- * name reads as a free appointment, so that slot stays empty and only the line
- * under it is drawn.
- */
-import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { MoneyValue, statusCopy } from '../../../components/domain';
+import { MoneyValue, StatusBadge } from '../../../components/domain';
 import { useLocale, useT } from '../../../i18n';
-import { border, color, radius, size, space, Text } from '../../../theme';
+import { border, color, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
 
 export type HistoryRowProps = {
@@ -67,33 +25,11 @@ export type HistoryRowProps = {
 // Arabic has no case, so it takes the translation as it comes.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-type Tone = 'ink' | 'success' | 'due' | 'muted';
-
-// The words are every screen's (`statusCopy`); the colours are the ledger's
-// own, quieter than the day view's because nothing here needs acting on.
-const TONE: Record<AppointmentStatus, Tone> = {
-    booked: 'muted',
-    checked_in: 'due',
-    awaiting_payment: 'ink',
-    done: 'success',
-    cancelled: 'muted',
-    no_show: 'due',
-};
-
 /** Not a status the schema has — the row is `done`, and what happened is that nothing did. */
-const CARRIED_OVER: { label: string; tone: Tone } = { label: 'Carried over', tone: 'muted' };
+const CARRIED_OVER = { label: 'Carried over', tone: 'muted' } as const;
 
 /** Work the old system recorded. It happened — somewhere else, before this app. */
-const IMPORTED: { label: string; tone: Tone } = { label: 'Old record', tone: 'muted' };
-
-function rowStatus(entry: PatientHistoryEntry, inChair: boolean | undefined): { label: string; tone: Tone } {
-    if (entry.isOpeningBalance) return CARRIED_OVER;
-    if (entry.isImported) return IMPORTED;
-    // Only the queue's head is ink; everyone behind it, and a row with no queue
-    // to read, keeps the waiting room's colour or none.
-    const tone = entry.status === 'checked_in' && inChair !== false ? 'ink' : TONE[entry.status];
-    return { label: statusCopy(entry.status, inChair), tone };
-}
+const IMPORTED = { label: 'Old record', tone: 'muted' } as const;
 
 export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const t = useT();
@@ -105,7 +41,13 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     // so it says what it is instead of borrowing the words for a visit. `Done`
     // under a `done` status on a day the clinic never saw them is the record
     // telling the desk something that did not happen.
-    const status = rowStatus(entry, inChair);
+    const badge = carried ? (
+        <StatusBadge {...CARRIED_OVER} />
+    ) : entry.isImported ? (
+        <StatusBadge {...IMPORTED} />
+    ) : (
+        <StatusBadge status={entry.status} inChair={inChair} />
+    );
     const came = entry.visitId !== null;
     // Null on a phone not shown payments: the row then shows the charge alone.
     const owed = entry.balance ?? 0;
@@ -159,14 +101,7 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
                     <Work procedures={entry.procedures} />
                 )}
 
-                <View style={styles.meta}>
-                    <View style={[styles.pill, PILL[status.tone]]}>
-                        <View style={[styles.pillDot, { backgroundColor: TONE_COLOR[status.tone] }]} />
-                        <Text variant="tag" weight="bold" tone={status.tone === 'ink' ? 'ink' : status.tone}>
-                            {t(status.label)}
-                        </Text>
-                    </View>
-                </View>
+                <View style={styles.meta}>{badge}</View>
             </View>
 
             <View style={styles.amounts}>
@@ -299,20 +234,6 @@ function stamp(iso: string): { day: string; month: string } {
     };
 }
 
-const TONE_COLOR: Record<Tone, string> = {
-    ink: color.ink,
-    success: color.successText,
-    due: color.due,
-    muted: color.muted,
-};
-
-const PILL = StyleSheet.create({
-    ink: { backgroundColor: color.surface2 },
-    success: { backgroundColor: color.successSoft },
-    due: { backgroundColor: color.dueSoft },
-    muted: { backgroundColor: color.surface2 },
-});
-
 const styles = StyleSheet.create({
     pressed: { backgroundColor: color.surface2 },
     row: {
@@ -329,15 +250,6 @@ const styles = StyleSheet.create({
     // Wraps, so a long procedure name pushing the pill wide drops the ref to its
     // own line rather than squeezing it — a half-shown ref is worse than none.
     meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space[2] },
-    pill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space[1],
-        paddingHorizontal: space[1.5],
-        paddingVertical: 2,
-        borderRadius: radius.full,
-    },
-    pillDot: { width: 5, height: 5, borderRadius: radius.full },
     amounts: { alignItems: 'flex-end', gap: space[0.5] },
     // The column is empty above it, so the note wraps to two short lines on a
     // narrow phone rather than pushing the row's body out of shape.

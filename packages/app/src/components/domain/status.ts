@@ -58,3 +58,24 @@ export function statusLabel(status: AppointmentStatus, inChair?: boolean): strin
 export function statusTone(status: AppointmentStatus, inChair?: boolean): StatusTone {
     return waiting(status, inChair) ? 'due' : TONE[status];
 }
+
+/**
+ * The badge's colour — the patient record's, which every row badge now shares.
+ * Quieter than the pill's: a row is read down a list, and only what needs
+ * acting on (owed, waiting, missed) is coloured.
+ */
+export type BadgeTone = 'ink' | 'success' | 'due' | 'muted';
+
+const BADGE = {
+    booked: 'muted',
+    checked_in: 'due',
+    awaiting_payment: 'ink',
+    done: 'success',
+    cancelled: 'muted',
+    no_show: 'due',
+} as const satisfies Record<AppointmentStatus, BadgeTone>;
+
+/** The chair, and a `checked_in` row with no queue to read, are ink; only the queue behind it is due. */
+export function badgeTone(status: AppointmentStatus, inChair?: boolean): BadgeTone {
+    return status === 'checked_in' && inChair !== false ? 'ink' : BADGE[status];
+}

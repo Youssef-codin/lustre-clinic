@@ -11,7 +11,7 @@ import type { AppointmentStatus } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: the collapse drives an `Animated.timing` imperatively — the tween chases `open` and has to be stopped on cleanup or it outlives the section
 import { useEffect, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
-import { statusCopy, statusLabel, statusTone } from '../../../components/domain';
+import { StatusBadge, statusCopy, statusLabel } from '../../../components/domain';
 import {
     Button,
     Chevron,
@@ -324,13 +324,7 @@ export function UpNext({
                                 onCheckIn={onCheckIn}
                             />
                         ) : (
-                            <Text
-                                variant="footnote"
-                                weight="semibold"
-                                tone={statusTone(appointment.status, appointment.id === chairId)}
-                            >
-                                {statusLabel(appointment.status, appointment.id === chairId)}
-                            </Text>
+                            <StatusBadge status={appointment.status} inChair={appointment.id === chairId} />
                         )
                     }
                 />
@@ -435,15 +429,7 @@ export function BeforeThis({ appointments, onSelect }: BeforeThisProps) {
                             procedure={rowSummary(appointment)}
                             onPress={() => onSelect(appointment)}
                             dim
-                            trailing={
-                                <Text
-                                    variant="footnote"
-                                    weight="semibold"
-                                    tone={appointment.status === 'done' ? 'muted' : 'due'}
-                                >
-                                    {statusLabel(appointment.status)}
-                                </Text>
-                            }
+                            trailing={<StatusBadge status={appointment.status} />}
                         />
                     ))}
                 </Animated.View>
