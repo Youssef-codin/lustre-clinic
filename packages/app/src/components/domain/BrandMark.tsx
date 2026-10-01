@@ -44,8 +44,12 @@ const WORDMARK_RATIO = 168 / 52;
 /** The wordmark's height per point of L cap height. */
 const WORDMARK_PER_CAP = 52 / (118 * 0.36);
 
-/** The logo's own viewBox, 250 × 78 — the ratio the height scales by. */
-const CLINIC_RATIO = 250 / 78;
+/**
+ * The file keeps the 250 × 78 canvas of the wider lettering it replaced, and
+ * the cut USTRE ends at x ≈ 163, so drawn whole the logo sits left of centre.
+ * This crops to the ink plus the file's own 4-unit margin.
+ */
+const CLINIC_VIEWBOX = { width: 167, height: 78 };
 
 const TONE = {
     ink: color.ink,
@@ -60,8 +64,9 @@ export function BrandMark({ variant = 'mark', size = 16, tone = 'ink' }: BrandMa
         const height = size * 2.4;
         return (
             <ClinicLogo
-                width={height * CLINIC_RATIO}
+                width={(height * CLINIC_VIEWBOX.width) / CLINIC_VIEWBOX.height}
                 height={height}
+                viewBox={`0 0 ${CLINIC_VIEWBOX.width} ${CLINIC_VIEWBOX.height}`}
                 accessibilityRole="image"
                 accessibilityLabel="Lustre Clinics"
             />
