@@ -12,6 +12,10 @@ listed.
 
 - A power cut no longer takes the schedule with it. While the clinic computer is reachable, each phone keeps a copy of today's and tomorrow's appointments, updated every 10 minutes and a few seconds after any booking change. When the connection drops, the "No connection to the clinic" screen shows that copy under Try again: time, patient, phone number, what they're booked for and their status, marked with when it was saved. It is read only. Nothing can be booked or changed from it, and anything booked after it was saved isn't on it. It stays on the phone even if the app is closed or the phone restarts.
 
+### Changed
+
+- The Lustre logo in the app is the approved new one: the L has a small cut in its foot, the letters are redrawn, and the welcome screen's logo reads CLINICS. The app icon is unchanged.
+
 ### Fixed
 
 - The doctor's day on any date but today showed every appointment as Booked, even ones that were done, cancelled or no-show. Each row now shows what actually happened.

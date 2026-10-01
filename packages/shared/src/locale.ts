@@ -488,7 +488,7 @@ export const COPY_AR = {
     'Keep it': 'الإبقاء عليه',
     LEGACY: 'من النظام القديم',
     'Loading the day': 'جارٍ تحميل اليوم',
-    'Lustre Clinic': 'Lustre Clinic',
+    'Lustre Clinics': 'Lustre Clinics',
     'Lustre Dental': 'Lustre Dental',
     M: 'ذ',
     MIN: 'دقيقة',
