@@ -5,6 +5,7 @@ import { allowsLan, BUILD_VARIANT, useConnection } from '../api';
 import { GLYPH } from '../components/domain';
 import { Button } from '../components/ui';
 import { useT } from '../i18n';
+import { SavedScheduleList, useSavedSchedule } from '../screens/day';
 import { color, space, Text } from '../theme';
 import { DeadEnd } from './DeadEnd';
 import { requestReconfigure } from './serverStore';
@@ -15,10 +16,15 @@ import { requestReconfigure } from './serverStore';
 // over here: no tab bar, no headers, nothing tappable except Try again. It is
 // deliberately a dead end. The alternative, a banner over a live-looking app,
 // is how a secretary books onto a slot that was taken an hour ago.
+//
+// The one thing drawn under it is today's and tomorrow's schedule as last
+// saved (`screens/day/savedSchedule.ts`), stamped and read-only: a power cut
+// must not cost the desk the list of who is coming.
 export function OfflineScreen() {
     const t = useT();
     const { retry, lastOnlineAt } = useConnection();
     const [retrying, setRetrying] = useState(false);
+    const saved = useSavedSchedule();
 
     async function tryAgain() {
         setRetrying(true);
@@ -38,6 +44,7 @@ export function OfflineScreen() {
                     ? 'The app cannot reach the clinic computer. Check that you are on the clinic wifi or Tailscale, then try again.'
                     : 'The app cannot reach the clinic computer. Check that you are signed in to Tailscale, then try again.',
             )}
+            after={saved ? <SavedScheduleList schedule={saved} /> : null}
         >
             <Button
                 label="Try again"

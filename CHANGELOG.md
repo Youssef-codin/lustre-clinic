@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- A power cut no longer takes the schedule with it. While the clinic computer is reachable, each phone keeps a copy of today's and tomorrow's appointments, updated every 10 minutes and a few seconds after any booking change. When the connection drops, the "No connection to the clinic" screen shows that copy under Try again: time, patient, phone number, what they're booked for and their status, marked with when it was saved. It is read only. Nothing can be booked or changed from it, and anything booked after it was saved isn't on it. It stays on the phone even if the app is closed or the phone restarts.
+
 ## [1.7.1] - 2026-09-29
 
 ### Changed

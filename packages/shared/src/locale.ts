@@ -310,6 +310,10 @@ export const COPY_AR = {
     'The app cannot reach the clinic computer. Check that you are signed in to Tailscale, then try again.':
         'لا يستطيع التطبيق الوصول إلى كمبيوتر العيادة. تأكد من تسجيل الدخول إلى تايل سكيل ثم حاول مرة أخرى.',
     'Never connected': 'لم يتصل من قبل',
+    'Saved at {time} — read only': 'محفوظ الساعة {time} — للقراءة فقط',
+    'Saved {day} at {time} — read only': 'محفوظ {day} الساعة {time} — للقراءة فقط',
+    'Anything booked or changed since then is not here. Write today’s changes on paper.':
+        'أي حجز أو تعديل بعد ذلك غير موجود هنا. سجّل تغييرات اليوم على الورق.',
     'Connect to the clinic': 'الاتصال بالعيادة',
     "The branches haven't loaded yet. Try again in a moment.":
         'لم يتم تحميل الفروع بعد. حاول مرة أخرى بعد قليل.',

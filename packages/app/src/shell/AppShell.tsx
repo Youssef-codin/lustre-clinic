@@ -13,7 +13,7 @@ import {
     useVisitFinishAction,
 } from '../notifications';
 import { noteScreen, renderErrorReporter, useCrashReportRole } from '../reporting';
-import { DayScreen, DoctorDayScreen, type OpenBookingRequest } from '../screens/day';
+import { DayScreen, DoctorDayScreen, type OpenBookingRequest, useSavedScheduleWriter } from '../screens/day';
 import { MoneyCluster } from '../screens/money';
 import { type OpenRecordRequest, PatientsCluster, useInvalidatePatients } from '../screens/patients';
 import { SettingsScreen } from '../screens/settings';
@@ -153,6 +153,10 @@ export function AppShell() {
     const disconnected = route === 'offline';
     const refused = !disconnected && refusal !== 'none';
     const away = disconnected || refused;
+
+    // What the disconnected route draws when the server goes (`OfflineScreen`).
+    // Written from here because the day panes may be on another date entirely.
+    useSavedScheduleWriter(roleReady && refusal === 'none');
 
     // A pane nobody has opened has no components, so it has no queries either
     // and the round trip for Patients, Money or Settings started at the tap —

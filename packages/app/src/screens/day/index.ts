@@ -7,7 +7,12 @@
 // holds two ids and nothing else. `VisitPage` is the whole stack behind them, so
 // the caller needs none of this cluster's data layer.
 export { ReschedulePage } from './components/ReschedulePage';
+// The disconnected route's copy of the day (`savedSchedule.ts`), with its
+// writer below: the shell keeps it written and draws it, since the day cluster
+// is hidden behind that route.
+export { SavedScheduleList, useSavedSchedule } from './components/SavedScheduleList';
 export { VisitPage } from './components/VisitPage';
 export type { OpenBookingRequest } from './DayScreen';
 export { DayScreen } from './DayScreen';
 export { DoctorDayScreen } from './DoctorDayScreen';
+export { useSavedScheduleWriter } from './useSavedScheduleWriter';
