@@ -11,7 +11,7 @@ import {
     serverAddresses,
     setServerAddresses,
     trpcClient,
-    useDemoMode,
+    useDeviceBackend,
 } from '../api';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
@@ -164,14 +164,14 @@ function getSnapshot(): SetupState {
 
 export function useServerSetup(): ServerSetup {
     const current = useSyncExternalStore(subscribe, getSnapshot);
-    const demo = useDemoMode();
+    const device = useDeviceBackend();
 
-    // A demo has no address to collect and no clinic to reach, so it skips
-    // setup entirely. Its own flag has to have come back from storage first:
-    // deciding before it does would put the setup screen up for the moment it
-    // takes to read, on the launch after somebody chose the demo.
-    if (!demo.hydrated) return { ...current, ready: false, showSetup: false };
-    if (demo.enabled) return { ...current, ready: true, showSetup: false };
+    // A demo or a clinic on this phone has no address to collect and no server
+    // to reach, so it skips setup entirely. The flag has to have come back from
+    // storage first: deciding before it does would put the setup screen up for
+    // the moment it takes to read, on the launch after somebody chose either.
+    if (!device.hydrated) return { ...current, ready: false, showSetup: false };
+    if (device.backend) return { ...current, ready: true, showSetup: false };
 
     // Setup is for a phone that has never reached this clinic. One that has —
     // by its own stored address or by the shipped default answering — goes to

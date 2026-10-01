@@ -41,6 +41,7 @@ export const updateSettingsInput = z
         requireAge: z.boolean(),
         requireGender: z.boolean(),
         askToEditOnFinish: z.boolean(),
+        generalProcedures: z.boolean(),
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

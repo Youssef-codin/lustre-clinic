@@ -1322,6 +1322,23 @@ export const COPY_AR = {
         'اطلب من مدير العيادة رمزًا لهذا الهاتف، ثم امسحه. هو ما يحدد ما يمكن لهذا الهاتف فعله.',
     'This is the clinic’s only admin phone. Make another phone an admin first.':
         'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
+    'Add what the visit is for.': 'أضف سبب الزيارة.',
+    'General procedures': 'إجراءات عامة',
+    'Nothing asks for a tooth. Turn it off to bring the teeth back.':
+        'لا يُطلب تحديد سن في أي إجراء. أوقفه لإعادة الأسنان.',
+    'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
+    'Use on this phone only': 'الاستخدام على هذا الهاتف فقط',
+    'No clinic server? Keep the clinic on this phone instead. Nothing leaves it, so nothing else has a copy: uninstalling the app deletes it.':
+        'لا يوجد خادم للعيادة؟ احتفظ بالعيادة على هذا الهاتف بدلًا من ذلك. لا يخرج منه شيء، فلا توجد نسخة في أي مكان آخر: حذف التطبيق يحذفها.',
+    'This phone could not open its clinic. Nothing was changed.':
+        'تعذّر على هذا الهاتف فتح عيادته. لم يتغير شيء.',
+    'THIS PHONE ONLY': 'هذا الهاتف فقط',
+    'Connect to a server': 'الاتصال بخادم',
+    'The clinic on this phone stays here for when you come back':
+        'تبقى العيادة على هذا الهاتف حتى تعود إليها',
+    'On this phone only': 'على هذا الهاتف فقط',
+    'This phone': 'هذا الهاتف',
+    'No server': 'لا يوجد خادم',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

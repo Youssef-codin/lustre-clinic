@@ -20,7 +20,7 @@ import { type ClientRole, localizeCopy } from '@lustre/shared';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { startListening, stopListening } from '../../modules/lustre-listener';
-import { onServerEvent, serverNow, trpcClient, useDemoMode } from '../api';
+import { onServerEvent, serverNow, trpcClient, useDeviceBackend } from '../api';
 import { getLocale } from '../i18n/runtime';
 import { ensurePermission, notificationsAllowed, presentVisitNotice } from './notifications';
 import { completionToAnnounce } from './visitNotice';
@@ -44,11 +44,11 @@ function listen(): void {
 
 /** `role` is null until the stored role has been read, so a doctor's phone never subscribes for a frame. */
 export function useVisitCompletedNotices(role: ClientRole | null): void {
-    // Demo mode has no socket to keep alive, and no other phone to finish a visit.
-    const { enabled: demo } = useDemoMode();
+    // Demo and local mode have no socket to keep alive, and no other phone to finish a visit.
+    const onDevice = useDeviceBackend().backend !== null;
 
     useEffect(() => {
-        if (role !== 'secretary' || demo) return;
+        if (role !== 'secretary' || onDevice) return;
         let active = true;
 
         void ensurePermission().then((granted) => {
@@ -71,5 +71,5 @@ export function useVisitCompletedNotices(role: ClientRole | null): void {
             unsubscribe();
             stopListening();
         };
-    }, [role, demo]);
+    }, [role, onDevice]);
 }

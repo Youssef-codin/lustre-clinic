@@ -25,7 +25,14 @@ import { duration } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import type { ProcedureCategory, RequestError } from '../data';
-import { groupByTooth, type PlannedProcedure, repriced, toothPosition, totalOf } from '../procedures';
+import {
+    asksTooth,
+    groupByTooth,
+    type PlannedProcedure,
+    repriced,
+    toothPosition,
+    totalOf,
+} from '../procedures';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
 import { ToothSheet } from './ToothSheet';
@@ -51,6 +58,8 @@ export type PlanCopy = {
     emptyHint: string;
     emptyTitle: string;
     emptyBody: string;
+    /** In place of `emptyBody` when the catalogue never asks for a tooth. */
+    emptyBodyNoTooth?: string;
     total: string;
 };
 
@@ -59,6 +68,7 @@ const BOOKING_COPY: PlanCopy = {
     emptyHint: 'Optional',
     emptyTitle: 'Nothing planned yet',
     emptyBody: 'Add what the visit is for — a tooth, then the procedure.',
+    emptyBodyNoTooth: 'Add what the visit is for.',
     total: 'Estimated total',
 };
 
@@ -88,6 +98,11 @@ export function ProcedurePlan({
 
     const groups = groupByTooth(value);
     const total = totalOf(value);
+    const toothFirst = asksTooth(loading ? undefined : categories);
+
+    function startAdding() {
+        setAsking(toothFirst ? { step: 'tooth' } : { step: 'procedure', tooth: null });
+    }
 
     /**
      * Both questions are `Modal`s, and presenting one while another is still
@@ -167,7 +182,7 @@ export function ProcedurePlan({
             {value.length === 0 ? (
                 <Pressable
                     accessibilityRole="button"
-                    onPress={() => setAsking({ step: 'tooth' })}
+                    onPress={startAdding}
                     style={({ pressed }) => [styles.empty, pressed && styles.pressed]}
                     testID="plan-empty-add"
                 >
@@ -176,7 +191,7 @@ export function ProcedurePlan({
                     </View>
                     <Text variant="headline">{t(copy.emptyTitle)}</Text>
                     <Text variant="subhead" tone="muted" style={styles.emptyBody}>
-                        {t(copy.emptyBody)}
+                        {t(toothFirst ? copy.emptyBody : (copy.emptyBodyNoTooth ?? copy.emptyBody))}
                     </Text>
                 </Pressable>
             ) : (
@@ -261,7 +276,7 @@ export function ProcedurePlan({
 
                     <Pressable
                         accessibilityRole="button"
-                        onPress={() => setAsking({ step: 'tooth' })}
+                        onPress={startAdding}
                         style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                         testID="plan-add"
                     >

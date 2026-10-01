@@ -11,6 +11,10 @@
  * UR3 are two real lines; tooth-less lines share one empty-string key, keeping
  * the once-per-list rule for them.
  *
+ * A clinic on general procedures is never asked for a tooth. A tooth that still
+ * arrives on a tooth-specific line is kept: it is a line written before the
+ * switch, sent back unchanged by an edit of that visit.
+ *
  * Catalogue reads go out together, but the rules are applied in request order,
  * so the line a client is told about is the first offending one rather than
  * whichever query happened to land first. Callers map the result onto their own
@@ -18,6 +22,7 @@
  */
 import { ERROR_CODE, type Tooth } from '@lustre/shared';
 import { AppError } from '../../errors/AppError.ts';
+import { settingsService } from '../settings/settings.service.ts';
 import { type Procedure, procedureService } from './procedure.service.ts';
 
 export interface RequestedLine {
@@ -35,9 +40,10 @@ export interface ResolvedLine {
 }
 
 export async function resolveProcedureLines(lines: RequestedLine[]): Promise<ResolvedLine[]> {
-    const procedures = await Promise.all(
-        lines.map((line) => procedureService.requireSelectable(line.procedureId)),
-    );
+    const [general, ...procedures] = await Promise.all([
+        settingsService.generalProcedures(),
+        ...lines.map((line) => procedureService.requireSelectable(line.procedureId)),
+    ]);
 
     const seen = new Set<string>();
 
@@ -46,7 +52,7 @@ export async function resolveProcedureLines(lines: RequestedLine[]): Promise<Res
         if (!procedure) throw AppError.internal('procedure resolution returned nothing');
         const tooth = line.tooth ?? null;
 
-        if (procedure.isToothSpecific && !tooth) {
+        if (procedure.isToothSpecific && !tooth && !general) {
             throw new AppError(
                 ERROR_CODE.TOOTH_REQUIRED,
                 'that procedure must name the tooth it was done on',
