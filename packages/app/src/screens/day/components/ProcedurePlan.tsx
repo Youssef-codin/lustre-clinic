@@ -44,6 +44,8 @@ export type ProcedurePlanProps = {
     loading: boolean;
     error: RequestError | null;
     onRetry: () => void;
+    /** The clinic is on general procedures: a line without a tooth is not missing one. */
+    general?: boolean;
     /**
      * The words, for a caller that is not planning a booking. The record's Old
      * visit is this same list about a day that has gone — nothing is "planned",
@@ -90,6 +92,7 @@ export function ProcedurePlan({
     loading,
     error,
     onRetry,
+    general = false,
     copy = BOOKING_COPY,
 }: ProcedurePlanProps) {
     const t = useT();
@@ -204,7 +207,7 @@ export function ProcedurePlan({
                             <ToothGroupCard
                                 key={key}
                                 tooth={group.tooth}
-                                position={toothPosition(group.tooth)}
+                                position={toothPosition(group.tooth, general)}
                                 expanded={open}
                                 onToggle={() => toggle(key)}
                                 subtotal={

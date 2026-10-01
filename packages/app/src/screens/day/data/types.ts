@@ -190,4 +190,5 @@ export interface ClinicSettings {
     durationOptions: number[];
     defaultDuration: number;
     askToEditOnFinish: boolean;
+    generalProcedures: boolean;
 }

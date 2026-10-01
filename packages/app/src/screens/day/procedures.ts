@@ -81,10 +81,13 @@ const TOOTH_ORDER = new Map<string, number>(
     ),
 );
 
-/** "Upper left · 6" — what the badge cannot fit, said in words. */
-export function toothPosition(tooth: Tooth | null): string {
+/**
+ * "Upper left · 6" — what the badge cannot fit, said in words. On general
+ * procedures nothing is done to a tooth, so a line without one says nothing.
+ */
+export function toothPosition(tooth: Tooth | null, general = false): string {
     const say = (copy: string) => localizeCopy(getLocale(), copy);
-    if (!tooth) return say('No tooth assigned');
+    if (!tooth) return general ? '' : say('No tooth assigned');
     return `${say(QUADRANT_WORDS[tooth.slice(0, 2)] ?? '')} · ${tooth.slice(2)}`;
 }
 

@@ -1326,6 +1326,11 @@ describe('the procedure plan', () => {
         expect(toothPosition(null)).toBe('No tooth assigned');
     });
 
+    it('says nothing about a missing tooth on general procedures', () => {
+        expect(toothPosition(null, true)).toBe('');
+        expect(toothPosition('UL6', true)).toBe('Upper left · 6');
+    });
+
     it('offers the child teeth after the permanent ones in every quadrant', () => {
         const upperRight = QUADRANTS.find((quadrant) => quadrant.key === 'UR');
 
