@@ -31,7 +31,7 @@ import { Dot, Tag } from '../ui';
 import { statusLabel, statusTone } from './status';
 
 export type { StatusTone } from './status';
-export { statusLabel, statusTone } from './status';
+export { statusCopy, statusLabel, statusTone } from './status';
 
 export type StatusPillProps = {
     status: AppointmentStatus;
@@ -53,7 +53,7 @@ export function StatusPill({
     testID,
 }: StatusPillProps) {
     const tone = statusTone(status, inChair);
-    const seated = status === 'checked_in' && inChair !== false;
+    const seated = status === 'checked_in' && inChair === true;
 
     return (
         <View style={styles.row} testID={testID}>

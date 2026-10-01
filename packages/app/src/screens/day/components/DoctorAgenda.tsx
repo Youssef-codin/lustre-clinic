@@ -2,10 +2,12 @@
  * "After this" — the rest of the doctor's day. The same rows the secretary
  * sees, with the check-in button taken off them: checking a patient in is the
  * desk's job, and what the doctor needs from a row is where the patient is —
- * a word and a dot. Two states, because after the chair there are only two:
- * they are here, or they are not yet.
+ * a word and a dot. Today that is two states, because after the chair there
+ * are only two: they are here, or they are not yet. Any other day the list is
+ * the whole day, so each row says what became of it.
  */
 import { StyleSheet, View } from 'react-native';
+import { statusCopy, statusTone } from '../../../components/domain';
 import { Dot } from '../../../components/ui';
 import { useT } from '../../../i18n';
 import { size, space, Text } from '../../../theme';
@@ -39,22 +41,24 @@ export function AfterThis({ appointments, relativeToNow, onSelect }: AfterThisPr
                     appointment={appointment}
                     procedure={rowSummary(appointment)}
                     onPress={() => onSelect(appointment)}
-                    trailing={<Where appointment={appointment} />}
+                    trailing={<Where appointment={appointment} queued={relativeToNow} />}
                 />
             ))}
         </View>
     );
 }
 
-function Where({ appointment }: { appointment: Appointment }) {
+/** `queued` is today's list, where the chair is drawn above and every `checked_in` row is behind it. */
+function Where({ appointment, queued }: { appointment: Appointment; queued: boolean }) {
     const t = useT();
-    const here = appointment.status === 'checked_in';
+    const inChair = queued ? false : undefined;
+    const tone = statusTone(appointment.status, inChair);
 
     return (
         <View style={styles.where}>
-            <Dot tone={here ? 'due' : 'muted'} size={8} />
-            <Text variant="footnote" weight="semibold" tone={here ? 'due' : 'muted'}>
-                {t(here ? 'Waiting' : 'Booked')}
+            <Dot tone={tone} size={8} />
+            <Text variant="footnote" weight="semibold" tone={tone}>
+                {t(statusCopy(appointment.status, inChair))}
             </Text>
         </View>
     );

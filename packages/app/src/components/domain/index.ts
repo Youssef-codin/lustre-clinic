@@ -33,7 +33,7 @@ export type { PatientRowProps, PatientSummary } from './PatientRow';
 export { PatientRow } from './PatientRow';
 export { phoneText } from './phone';
 export type { StatusPillProps, StatusTone } from './StatusPill';
-export { StatusPill, statusLabel, statusTone } from './StatusPill';
+export { StatusPill, statusCopy, statusLabel, statusTone } from './StatusPill';
 export type { TimeValueProps } from './TimeValue';
 export { TimeValue } from './TimeValue';
 export type { ToothGroupCardProps, ToothGroupLine } from './ToothGroupCard';

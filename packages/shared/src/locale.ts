@@ -750,7 +750,6 @@ export const COPY_AR = {
     'AT THE DESK': 'عند المكتب',
     'AFTER THIS': 'بعد ذلك',
     'THE DAY': 'اليوم',
-    'At desk': 'عند المكتب',
     'Take payment': 'تحصيل الدفع',
     '{time} · {duration} late': '{time} · متأخر {duration}',
     'The clinic does not open on {day}s. Change that in Settings → Working hours.':
@@ -846,7 +845,6 @@ export const COPY_AR = {
     Oct: 'أكتوبر',
     Nov: 'نوفمبر',
     Dec: 'ديسمبر',
-    'In chair': 'على الكرسي',
     'Add to {tooth}': 'إضافة إلى {tooth}',
     '{count} free': '{count} متاح',
     'Running {late}': '{late}',
@@ -910,7 +908,6 @@ export const COPY_AR = {
     'Old record': 'سجل قديم',
     'Carried over': 'مرحّل',
     'Checked in': 'وصل',
-    Came: 'حضر',
     'OLD {ref}': 'قديم {ref}',
     'Old system number {ref}': 'رقم النظام القديم {ref}',
     'Next patient number': 'رقم المريض التالي',

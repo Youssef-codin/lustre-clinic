@@ -41,7 +41,7 @@
  */
 import type { AppointmentStatus } from '@lustre/shared';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { MoneyValue, statusLabel } from '../../../components/domain';
+import { MoneyValue, statusCopy } from '../../../components/domain';
 import { useLocale, useT } from '../../../i18n';
 import { border, color, radius, size, space, Text } from '../../../theme';
 import type { HistoryProcedure, PatientHistoryEntry } from '../data/types';
@@ -69,28 +69,31 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 type Tone = 'ink' | 'success' | 'due' | 'muted';
 
-// The patient's words, not the schema's: what a record answers is whether they
-// turned up. `booked` is a future appointment sitting in the same list.
-const STATUS: Record<AppointmentStatus, { label: string; tone: Tone }> = {
-    booked: { label: 'Booked', tone: 'muted' },
-    checked_in: { label: statusLabel('checked_in', false), tone: 'due' },
-    awaiting_payment: { label: 'At the desk', tone: 'ink' },
-    done: { label: 'Came', tone: 'success' },
-    cancelled: { label: 'Cancelled', tone: 'muted' },
-    no_show: { label: 'No-show', tone: 'due' },
+// The words are every screen's (`statusCopy`); the colours are the ledger's
+// own, quieter than the day view's because nothing here needs acting on.
+const TONE: Record<AppointmentStatus, Tone> = {
+    booked: 'muted',
+    checked_in: 'due',
+    awaiting_payment: 'ink',
+    done: 'success',
+    cancelled: 'muted',
+    no_show: 'due',
 };
-
-/** `checked_in` at the head of the queue. Everyone behind it is `STATUS.checked_in`. */
-const IN_CHAIR: { label: string; tone: Tone } = { label: statusLabel('checked_in', true), tone: 'ink' };
-
-/** `checked_in` with no queue to read: arrived, and nothing claimed about the chair. */
-const CHECKED_IN: { label: string; tone: Tone } = { label: 'Checked in', tone: 'ink' };
 
 /** Not a status the schema has — the row is `done`, and what happened is that nothing did. */
 const CARRIED_OVER: { label: string; tone: Tone } = { label: 'Carried over', tone: 'muted' };
 
 /** Work the old system recorded. It happened — somewhere else, before this app. */
 const IMPORTED: { label: string; tone: Tone } = { label: 'Old record', tone: 'muted' };
+
+function rowStatus(entry: PatientHistoryEntry, inChair: boolean | undefined): { label: string; tone: Tone } {
+    if (entry.isOpeningBalance) return CARRIED_OVER;
+    if (entry.isImported) return IMPORTED;
+    // Only the queue's head is ink; everyone behind it, and a row with no queue
+    // to read, keeps the waiting room's colour or none.
+    const tone = entry.status === 'checked_in' && inChair !== false ? 'ink' : TONE[entry.status];
+    return { label: statusCopy(entry.status, inChair), tone };
+}
 
 export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const t = useT();
@@ -99,18 +102,10 @@ export function HistoryRow({ entry, inChair, onOpen }: HistoryRowProps) {
     const carried = entry.isOpeningBalance;
     // Debt carried over from the old system has a visit behind it, because that
     // is the only place a balance can live (§10) — but nobody sat in the chair,
-    // so it says what it is instead of borrowing the words for a visit. `Came`
+    // so it says what it is instead of borrowing the words for a visit. `Done`
     // under a `done` status on a day the clinic never saw them is the record
     // telling the desk something that did not happen.
-    const status = carried
-        ? CARRIED_OVER
-        : entry.isImported
-          ? IMPORTED
-          : entry.status === 'checked_in' && inChair === undefined
-            ? CHECKED_IN
-            : entry.status === 'checked_in' && inChair
-              ? IN_CHAIR
-              : STATUS[entry.status];
+    const status = rowStatus(entry, inChair);
     const came = entry.visitId !== null;
     // Null on a phone not shown payments: the row then shows the charge alone.
     const owed = entry.balance ?? 0;

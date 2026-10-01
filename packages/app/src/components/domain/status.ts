@@ -8,8 +8,14 @@
  * the same way the day view reads it. Only the queue's head is In the chair, and
  * everyone behind them is Waiting.
  *
- * Leaving `inChair` out keeps the old wording for callers that have no queue
- * to hand.
+ * Leaving `inChair` out says Checked in: arrived, and nothing claimed about the
+ * chair. The offline schedule and a past day have no queue to read.
+ *
+ * Every screen takes its words from here. They used to live in four places and
+ * drifted: the sheet said Done where the patient's history said Came for the
+ * same visit, and the desk chip said At desk beside a pill saying At the desk.
+ * `statusCopy` is the English key, for a component that localizes through
+ * `useT` and so re-renders when the language changes.
  */
 import { type AppointmentStatus, localizeCopy } from '@lustre/shared';
 import { getLocale } from '../../i18n/runtime';
@@ -38,8 +44,14 @@ function waiting(status: AppointmentStatus, inChair: boolean | undefined): boole
     return status === 'checked_in' && inChair === false;
 }
 
+export function statusCopy(status: AppointmentStatus, inChair?: boolean): string {
+    if (status !== 'checked_in') return LABEL[status];
+    if (inChair === undefined) return 'Checked in';
+    return inChair ? LABEL.checked_in : 'Waiting';
+}
+
 export function statusLabel(status: AppointmentStatus, inChair?: boolean): string {
-    return localizeCopy(getLocale(), waiting(status, inChair) ? 'Waiting' : LABEL[status]);
+    return localizeCopy(getLocale(), statusCopy(status, inChair));
 }
 
 /** The pill's colour without the pill, for rows that only have room for a word. */

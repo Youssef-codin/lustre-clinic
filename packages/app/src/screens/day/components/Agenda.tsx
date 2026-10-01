@@ -11,7 +11,7 @@ import type { AppointmentStatus } from '@lustre/shared';
 // biome-ignore lint/style/noRestrictedImports: the collapse drives an `Animated.timing` imperatively — the tween chases `open` and has to be stopped on cleanup or it outlives the section
 import { useEffect, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
-import { statusLabel, statusTone } from '../../../components/domain';
+import { statusCopy, statusLabel, statusTone } from '../../../components/domain';
 import {
     Button,
     Chevron,
@@ -219,11 +219,6 @@ type CheckInControlProps = {
     onCheckIn: (appointment: Appointment) => void;
 };
 
-const SHORT: Partial<Record<AppointmentStatus, string>> = {
-    checked_in: 'Waiting',
-    awaiting_payment: 'At desk',
-};
-
 /**
  * Check in is the only thing to press out here — once the patient is inside,
  * the row itself opens the visit, so the trailing slot drops to a chip that
@@ -247,7 +242,7 @@ function CheckInControl({ appointment, loading, inChair, onCheckIn }: CheckInCon
         );
     }
 
-    const label = t(inChair ? 'In chair' : (SHORT[appointment.status] ?? statusLabel(appointment.status)));
+    const label = t(statusCopy(appointment.status, inChair));
     const seated = inChair || appointment.status === 'awaiting_payment';
     const tone = seated ? color.accent : color.due;
     const Icon = inChair ? ChairIcon : appointment.status === 'awaiting_payment' ? PaymentIcon : WaitingIcon;
