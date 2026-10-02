@@ -20,6 +20,8 @@ export type MenuAnchor = {
     top: number;
     end?: number;
     start?: number;
+    /** The trigger's own width, for a menu that drops from a field. */
+    width?: number;
 };
 
 export type MenuItem = {
@@ -127,6 +129,7 @@ export function MenuSurface({
     const top = anchor?.top ?? space[12];
     const inline =
         anchor?.start !== undefined ? { start: anchor.start } : { end: anchor?.end ?? size.gutter };
+    const width = anchor?.width !== undefined ? { width: anchor.width } : null;
 
     return (
         <Modal visible transparent animationType="none" onRequestClose={onClose} testID={testID}>
@@ -142,6 +145,7 @@ export function MenuSurface({
                 style={[
                     styles.surface,
                     { top, ...inline },
+                    width,
                     {
                         opacity: progress,
                         transform: [

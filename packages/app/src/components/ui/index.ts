@@ -28,6 +28,8 @@ export type { ConfirmSheetProps } from './ConfirmSheet';
 export { ConfirmSheet } from './ConfirmSheet';
 export type { DotProps, DotTone } from './Dot';
 export { Dot } from './Dot';
+export type { DropdownFieldProps } from './DropdownField';
+export { DropdownField } from './DropdownField';
 export type { DropdownMenuProps, DropdownOption } from './DropdownMenu';
 export { DropdownMenu } from './DropdownMenu';
 export type { EmptyStateProps } from './EmptyState';

@@ -36,10 +36,10 @@ import {
     ActionBar,
     Callout,
     Card,
+    DropdownField,
+    type DropdownOption,
     NumericField,
     SectionLabel,
-    type Segment,
-    SegmentedControl,
     TextField,
     Toast,
     usePendingAction,
@@ -51,7 +51,7 @@ import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { errorText } from './data/errors';
 
-const CLINIC_TYPES: readonly Segment<ClinicType>[] = [
+const CLINIC_TYPES: readonly DropdownOption<ClinicType>[] = [
     { value: 'dental', label: 'Dental' },
     { value: 'general', label: 'General' },
 ];
@@ -184,13 +184,15 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
 
                     <SectionLabel inset={false}>CLINIC TYPE</SectionLabel>
 
-                    <SegmentedControl
-                        segments={CLINIC_TYPES}
-                        value={clinicTypeValue}
-                        onChange={setClinicType}
-                        accessibilityLabel="Clinic type"
-                        testID="clinic-type"
-                    />
+                    <Card padded style={styles.form}>
+                        <DropdownField
+                            options={CLINIC_TYPES}
+                            value={clinicTypeValue}
+                            onChange={setClinicType}
+                            accessibilityLabel="Clinic type"
+                            testID="clinic-type"
+                        />
+                    </Card>
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
                         {t(
