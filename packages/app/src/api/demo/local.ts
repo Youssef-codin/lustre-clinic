@@ -16,6 +16,7 @@
 import { todayKey } from '@lustre/shared';
 import { File, Paths } from 'expo-file-system';
 import { type DemoDb, getDb, isOpen, setDb } from './db';
+import { noteLastExportAt } from './exported';
 import {
     freshLocalDb,
     hasRecords,
@@ -63,6 +64,7 @@ export function commitLocal(): void {
 /** The clinic on file, or a new one written down at once so its ids are the ones kept. */
 export function openLocalDb(): void {
     const stored = read();
+    noteLastExportAt(readExportStamp());
     if (stored) {
         setDb(stored, 'local');
         return;
@@ -81,7 +83,7 @@ export function rollbackLocal(): void {
 }
 
 /** When a copy of the clinic last went to the share sheet, or null for never. */
-export function lastExportAt(): Date | null {
+function readExportStamp(): Date | null {
     const stamp = file(EXPORTED);
     if (!stamp.exists) return null;
     const at = new Date(stamp.textSync());
@@ -92,6 +94,7 @@ function noteExport(at: Date | null): void {
     const stamp = file(EXPORTED);
     if (at) stamp.write(at.toISOString());
     else if (stamp.exists) stamp.delete();
+    noteLastExportAt(at);
 }
 
 /**

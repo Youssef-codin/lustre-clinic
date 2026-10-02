@@ -5,7 +5,7 @@
  * nobody is being shown a problem.
  *
  * Local mode's clinic is real, so it is told the truth instead: its last
- * backup is the last time a copy went to the share sheet (`../local`), and it
+ * backup is the last time a copy went to the share sheet (`../exported`), and it
  * is behind after a week, since nothing runs one but the person holding the
  * phone.
  *
@@ -16,7 +16,7 @@
 import { ERROR_CODE } from '@lustre/shared';
 import type { RouterOutput } from '../../types';
 import { openKind } from '../db';
-import { lastExportAt } from '../local';
+import { lastExportAt } from '../exported';
 import { DemoError } from '../rules';
 import type { Dated } from '../wire';
 
