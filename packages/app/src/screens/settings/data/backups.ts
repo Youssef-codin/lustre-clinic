@@ -98,6 +98,21 @@ function lastLine(lastSuccessAt: string | null, now: number, t: Translate): stri
     return t('Last backup {age}', { age: formatAge(days, t) });
 }
 
+/**
+ * Local mode's row: its only backup is the copy someone sent off the phone,
+ * so the row names the last one, and says plainly when there has been none.
+ */
+export function localExportLine(
+    status: BackupStatusData,
+    now: number = Date.now(),
+    t: Translate = english,
+): string {
+    const days = status.lastSuccessAt ? ageInDays(status.lastSuccessAt, now) : null;
+    if (days === null) return t('Not exported yet · only this phone has it');
+    const last = t('Last export {age}', { age: formatAge(days, t) });
+    return status.stale ? t('{last} · export again', { last }) : last;
+}
+
 export function backupView(
     status: BackupStatusData,
     now: number = serverNow(),

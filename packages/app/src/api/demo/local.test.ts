@@ -4,13 +4,18 @@
  * take it, or replace a clinic it could not read with an empty one.
  *
  * The file system is an in-memory stand-in with the two behaviours that matter
- * here — a write that can be made to fail, and a move that replaces the target.
+ * here — a write that can be made to fail, and a move that replaces the target —
+ * plus a file picker and a share sheet that hand over and take whatever the
+ * test says.
  */
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const stored = new Map<string, string>();
 const files = new Map<string, string>();
 let writesFail = false;
+/** What the next system file picker hands back; null is the picker closed. */
+let pickable: string | null = null;
+const shared: string[] = [];
 
 mock.module('@react-native-async-storage/async-storage', () => ({
     default: {
@@ -46,20 +51,53 @@ class MemoryFile {
         files.set(this.name, content);
     }
 
+    get uri(): string {
+        return `file:///${this.name}`;
+    }
+
+    text(): Promise<string> {
+        return Promise.resolve(this.textSync());
+    }
+
     moveSync(target: MemoryFile): void {
         files.set(target.name, this.textSync());
         files.delete(this.name);
     }
+
+    copySync(target: MemoryFile): void {
+        files.set(target.name, this.textSync());
+    }
+
+    delete(): void {
+        files.delete(this.name);
+    }
+
+    static pickFileAsync() {
+        if (pickable === null) return Promise.resolve({ canceled: true, result: null });
+        files.set('picked.json', pickable);
+        return Promise.resolve({ canceled: false, result: new MemoryFile('downloads', 'picked.json') });
+    }
 }
 
-mock.module('expo-file-system', () => ({ File: MemoryFile, Paths: { document: 'documents' } }));
+mock.module('expo-file-system', () => ({
+    File: MemoryFile,
+    Paths: { document: 'documents', cache: 'cache' },
+}));
+
+mock.module('expo-sharing', () => ({
+    shareAsync: (uri: string) => Promise.resolve(void shared.push(uri)),
+}));
 
 const { createTRPCClient } = await import('@trpc/client');
 const { demoLink } = await import('./link');
-const { startLocalMode } = await import('./index');
+const { exportLocal, pickClinicFile, startLocalMode, startLocalModeFrom } = await import('./index');
 const { disableLocalMode, isLocalMode } = await import('./flag');
 const { setDb } = await import('./db');
-const { freshLocalDb, LocalStoreError, parseLocal, serializeLocal } = await import('./localFormat');
+const { freshLocalDb, LocalStoreError, parseLocal, parseLocalFile, serializeLocal } = await import(
+    './localFormat'
+);
+const { seedDemoDb } = await import('./seed');
+const { localClinicFileSchema } = await import('@lustre/shared');
 const { credentialToken } = await import('../credential');
 
 import type { AppRouter } from '@lustre/server/src/trpc/router.ts';
@@ -78,8 +116,13 @@ beforeEach(async () => {
     stored.clear();
     files.clear();
     writesFail = false;
+    pickable = null;
+    shared.length = 0;
     relaunch();
 });
+
+// The flag is module state, and bun runs the other files in this process too.
+afterEach(disableLocalMode);
 
 describe('the clinic file', () => {
     it('starts with a branch and a working week, and no catalogue', () => {
@@ -161,5 +204,108 @@ describe('local mode', () => {
 
         expect(isLocalMode()).toBe(false);
         expect(files.get(MAIN)).toBe('{not json');
+    });
+});
+
+/** Another phone's clinic, as its export arrives: one branch of its own and a patient. */
+function anotherPhonesExport(exportedAt = new Date('2026-09-28T08:00:00.000Z')): string {
+    const db = freshLocalDb();
+    db.branches[0] = { ...db.branches[0], name: 'Dokki' } as (typeof db.branches)[number];
+    db.patients.push({
+        id: '0192f000-0000-7000-8000-000000000001',
+        ref: '1',
+        name: 'Salma Adel',
+        phone: '01011112222',
+        email: null,
+        birthDate: '1988-04-02',
+        gender: null,
+        custom: {},
+        notes: null,
+        legacyRef: null,
+        createdAt: new Date('2026-09-01T09:00:00.000Z'),
+    });
+    return serializeLocal(db, exportedAt);
+}
+
+describe('the clinic leaving the phone', () => {
+    it('says there is no copy until one has been made', async () => {
+        await startLocalMode();
+
+        const status = await client.backup.status.query();
+
+        expect(status.lastSuccessAt).toBeNull();
+        expect(status.stale).toBe(true);
+    });
+
+    it('hands the share sheet the whole clinic, stamped, and reports it as the last backup', async () => {
+        await startLocalMode();
+        await client.branch.create.mutate({ name: 'Second' });
+
+        const at = await exportLocal('Save the clinic file');
+
+        expect(shared).toHaveLength(1);
+        const copy = parseLocalFile(files.get(shared[0]?.replace('file:///', '') ?? '') ?? '');
+        expect(copy.exportedAt?.toISOString()).toBe(at.toISOString());
+        expect(copy.db.branches.map((branch) => branch.name).sort()).toEqual(['Main', 'Second']);
+        const status = await client.backup.status.query();
+        expect(status.lastSuccessAt).toBe(at.toISOString());
+        expect(status.stale).toBe(false);
+    });
+
+    it('writes what the server will read: every table, in the shared format', () => {
+        const file = JSON.parse(serializeLocal(seedDemoDb(), new Date()));
+
+        const parsed = localClinicFileSchema.safeParse(file);
+
+        expect(parsed.success ? null : parsed.error.issues.slice(0, 3)).toBeNull();
+    });
+});
+
+describe('a clinic file brought back', () => {
+    it('opens on a new phone, which becomes its admin', async () => {
+        pickable = anotherPhonesExport();
+
+        const picked = await pickClinicFile();
+        expect(picked?.replaces).toBe(false);
+        if (picked) await startLocalModeFrom(picked);
+
+        expect(isLocalMode()).toBe(true);
+        expect(await client.device.me.query()).toMatchObject({ role: 'admin' });
+        const branches = await client.branch.list.query({ includeInactive: true });
+        expect(branches.map((branch) => branch.name)).toEqual(['Dokki']);
+        expect(parseLocal(files.get(MAIN) ?? '').patients).toHaveLength(1);
+        // That copy is still wherever it was saved, so it is this phone's last one too.
+        expect((await client.backup.status.query()).lastSuccessAt).toBe('2026-09-28T08:00:00.000Z');
+    });
+
+    it('does nothing when the picker is closed', async () => {
+        expect(await pickClinicFile()).toBeNull();
+        expect(files.has(MAIN)).toBe(false);
+    });
+
+    it('refuses a file that is not a clinic, and changes nothing', async () => {
+        await startLocalMode();
+        const before = files.get(MAIN);
+        pickable = JSON.stringify({ hello: 'world' });
+
+        await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+
+        expect(files.get(MAIN)).toBe(before);
+    });
+
+    it('says when it would replace a clinic with patients, and keeps that one aside', async () => {
+        pickable = anotherPhonesExport();
+        const first = await pickClinicFile();
+        if (first) await startLocalModeFrom(first);
+        await disableLocalMode();
+        const replaced = files.get(MAIN);
+
+        pickable = serializeLocal(freshLocalDb(), new Date());
+        const second = await pickClinicFile();
+        expect(second?.replaces).toBe(true);
+        if (second) await startLocalModeFrom(second);
+
+        expect(parseLocal(files.get(MAIN) ?? '').patients).toEqual([]);
+        expect(files.get('lustre-local.replaced.json')).toBe(replaced);
     });
 });

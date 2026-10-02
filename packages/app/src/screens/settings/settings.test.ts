@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { ageInDays, backupDetails, backupView, driveSignInError, formatAge } from './data/backups';
+import {
+    ageInDays,
+    backupDetails,
+    backupView,
+    driveSignInError,
+    formatAge,
+    localExportLine,
+} from './data/backups';
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { minutesFromTime, TEMPLATE_MAX, templateDraft, timeFromMinutes } from './data/reminders';
 
@@ -345,5 +352,28 @@ describe('the Backups pane', () => {
                 now,
             ).linked,
         ).toBe(false);
+    });
+});
+
+describe('the last export on a phone-only clinic', () => {
+    const now = Date.parse('2026-09-20T09:00:00Z');
+    const never = {
+        lastSuccessAt: null,
+        stale: true,
+        staleAfterHours: 168,
+        offsite: { configured: false, reauthorizationRequiredSince: null, account: null, canSignIn: false },
+    };
+
+    test('says plainly when nothing has left the phone', () => {
+        expect(localExportLine(never, now)).toBe('Not exported yet · only this phone has it');
+    });
+
+    test('names the last export, and asks for another once it is a week old', () => {
+        expect(localExportLine({ ...never, lastSuccessAt: '2026-09-19T20:00:00Z', stale: false }, now)).toBe(
+            'Last export today',
+        );
+        expect(localExportLine({ ...never, lastSuccessAt: '2026-09-10T09:00:00Z' }, now)).toBe(
+            'Last export 10 days ago · export again',
+        );
     });
 });
