@@ -156,9 +156,10 @@ export function openClinicFile(picked: PickedClinic): void {
     try {
         commitLocal();
     } catch (error) {
-        // A move that failed part way can have taken the main file with it,
-        // leaving the picked clinic as the next copy a launch would open.
-        if (kept && !main.exists) file(REPLACED).copySync(main, { overwrite: true });
+        // A move that failed part way can have removed the main file, or
+        // already copied the picked clinic over it, so the kept copy goes back
+        // either way. If the failure came earlier it is the same file.
+        if (kept) file(REPLACED).copySync(main, { overwrite: true });
         rollbackLocal();
         throw error;
     }
