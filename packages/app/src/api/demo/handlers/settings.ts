@@ -30,7 +30,7 @@ function toSettings(row: SettingsRow): Settings {
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
-        generalProcedures: row.generalProcedures,
+        clinicType: row.clinicType,
         requireProvisioning: row.requireProvisioning,
         updatedAt: row.updatedAt,
     };

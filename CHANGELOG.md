@@ -10,9 +10,24 @@ listed.
 
 ### Added
 
+- The app works for clinics that aren't dental. Settings → Clinic → Clinic type is Dental or General. A General clinic is never asked for a tooth: adding a procedure goes straight to the list, no procedure requires one, the "Needs a tooth" switch and TOOTH tags are hidden, and visits and bookings no longer say "No tooth assigned" under lines without a tooth. Each procedure keeps its own tooth setting, so choosing Dental again brings the dental flow back as it was. Visits recorded with a tooth keep it. Every clinic starts as Dental.
+
+## [1.7.2] - 2026-10-01
+
+### Added
+
 - A power cut no longer takes the schedule with it. While the clinic computer is reachable, each phone keeps a copy of today's and tomorrow's appointments, updated every 10 minutes and a few seconds after any booking change. When the connection drops, the "No connection to the clinic" screen shows that copy under Try again: time, patient, phone number, what they're booked for and their status, marked with when it was saved. It is read only. Nothing can be booked or changed from it, and anything booked after it was saved isn't on it. It stays on the phone even if the app is closed or the phone restarts.
 - A clinic without a computer to run the server can use the app on one phone. On the "Connect to the clinic" screen, "Use on this phone only" keeps the whole clinic on that phone: no server, no Tailscale, no role code. The phone can book, check in, take payments and set the clinic up, and it starts with one branch called Main, open 10 am to 8 pm every day but Friday, which Settings can change. There is no Doctor/Secretary view switch: the phone always opens on the desk's day, and Settings drops everything about servers and roles (connection status, Re-probe, Scan a role code, Phones & role codes, Backups), so the fourth tab is just Settings. Each change is saved on the phone before the app shows it as done. Nothing leaves the phone and there are no backups, so uninstalling the app or losing the phone loses the records. Settings → "Connect to a server" goes back to the setup screen and keeps the phone's clinic for later. A phone already connected to a server gets there through Settings → App → "Disconnect from server", which forgets the server and the phone's role on it.
-- Settings → Procedures & prices → General procedures turns off teeth for the whole clinic. Adding a procedure goes straight to the list without asking for a tooth, no procedure requires one, the "Needs a tooth" switch and TOOTH tags are hidden, and visits and bookings no longer say "No tooth assigned" under lines without a tooth. Each procedure keeps its own setting, so turning General procedures off brings the dental flow back as it was. Visits recorded with a tooth keep it.
+
+### Changed
+
+- The Lustre logo in the app is the approved new one: the L has a small cut in its foot, the letters are redrawn, and the welcome screen's logo reads CLINICS. The app icon is unchanged.
+
+### Fixed
+
+- The doctor's day on any date but today showed every appointment as Booked, even ones that were done, cancelled or no-show. Each row now shows what actually happened.
+- On the day view, the doctor's rows and the desk's rows for a past day show their status as a small coloured badge, the same one the patient's record uses, instead of a plain word.
+- An appointment's status now uses the same words on every screen. A finished visit says Done in the patient's history too (it said Came), and the desk's chip says At the desk and In the chair in full. A checked-in patient on the saved offline schedule says Checked in, since that copy can't tell who is in the chair.
 
 ## [1.7.1] - 2026-09-29
 
@@ -232,7 +247,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.1...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.2...HEAD
+[1.7.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.3...v1.7.0
 [1.6.3]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.2...v1.6.3

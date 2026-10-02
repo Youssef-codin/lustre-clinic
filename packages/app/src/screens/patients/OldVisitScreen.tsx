@@ -46,7 +46,7 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { CalendarIcon, PatientIcon } from '../day/components/icons';
 import { type PlanCopy, ProcedurePlan } from '../day/components/ProcedurePlan';
 import { Steps, SummaryRow } from '../day/components/Steps';
-import { api as dayApi, useGeneralProcedures, useLocalQuery } from '../day/data';
+import { api as dayApi, useGeneralClinic, useLocalQuery } from '../day/data';
 import {
     chargeableTotal,
     checkupIsWaived,
@@ -108,7 +108,7 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
     // Booking's catalogue, read the way booking reads it — the plan editor
     // below is booking's too.
     const catalogue = useLocalQuery('procedure-tree', dayApi.procedureTree);
-    const general = useGeneralProcedures();
+    const general = useGeneralClinic();
 
     const patient = record.data?.patient;
     const name = patient?.name ?? '';

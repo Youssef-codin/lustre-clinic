@@ -96,13 +96,8 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
 
     const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
     const settings = useQuery(trpc.settings.get.queryOptions());
-    const general = settings.data?.generalProcedures ?? false;
-    const saveSettings = useMutation(
-        trpc.settings.update.mutationOptions({
-            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
-        }),
-    );
-    const setGeneral = usePendingAction((on: boolean) => saveSettings.mutateAsync({ generalProcedures: on }));
+    // Settings → Clinic sets it. A general clinic is not shown the tooth flags.
+    const general = settings.data?.clinicType === 'general';
     // A category being made: its name, held until the first subtype under it is
     // saved, because the two are written together. The naming itself is a sheet.
     const [namingCategory, setNamingCategory] = useState(false);
@@ -216,24 +211,6 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     <Callout tone="warning" title="Order not saved">
                         {errorText(reorder.error)}
                     </Callout>
-                ) : null}
-
-                {saveSettings.error ? (
-                    <Callout tone="warning" title="Not saved">
-                        {errorText(saveSettings.error)}
-                    </Callout>
-                ) : null}
-
-                {settings.data && !reordering ? (
-                    <Card>
-                        <FlagRow
-                            label="General procedures"
-                            sub="Nothing asks for a tooth. Turn it off to bring the teeth back."
-                            value={general}
-                            onChange={setGeneral.run}
-                            disabled={setGeneral.pending}
-                        />
-                    </Card>
                 ) : null}
 
                 {tree.data && empty ? (
@@ -449,7 +426,7 @@ type ProcedureRowProps = {
     procedure: Procedure;
     reordering: boolean;
     reorderDisabled: boolean;
-    /** The clinic is on general procedures, so the tooth flag is not shown. */
+    /** A general (not dental) clinic, so the tooth flag is not shown. */
     general: boolean;
     isFirst: boolean;
     isLast: boolean;
@@ -803,10 +780,9 @@ type FlagRowProps = {
     sub: string;
     value: boolean;
     onChange: (value: boolean) => void;
-    disabled?: boolean;
 };
 
-function FlagRow({ label, sub, value, onChange, disabled }: FlagRowProps) {
+function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
     const t = useT();
     return (
         <View style={styles.flagRow}>
@@ -818,7 +794,7 @@ function FlagRow({ label, sub, value, onChange, disabled }: FlagRowProps) {
                     {t(sub)}
                 </Text>
             </View>
-            <Switch value={value} onValueChange={onChange} disabled={disabled} accessibilityLabel={label} />
+            <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
         </View>
     );
 }

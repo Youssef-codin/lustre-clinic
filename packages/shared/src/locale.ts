@@ -488,8 +488,7 @@ export const COPY_AR = {
     'Keep it': 'الإبقاء عليه',
     LEGACY: 'من النظام القديم',
     'Loading the day': 'جارٍ تحميل اليوم',
-    'Lustre Clinic': 'Lustre Clinic',
-    'Lustre Dental': 'Lustre Dental',
+    'Lustre Clinics': 'Lustre Clinics',
     M: 'ذ',
     MIN: 'دقيقة',
     'NEXT UP': 'التالي',
@@ -520,7 +519,7 @@ export const COPY_AR = {
     'Nothing recorded yet': 'لم يُسجل شيء بعد',
     'This booking came with no procedures. Add one now, or leave it to be decided in the chair.':
         'هذا الحجز بلا إجراءات. أضف إجراءً الآن، أو اتركه ليُحدد على الكرسي.',
-    'Add the procedure the dentist performed — you can come back and edit this at any time.':
+    'Add the procedure the doctor performed — you can come back and edit this at any time.':
         'أضف الإجراء الذي قام به الطبيب — يمكنك العودة وتعديله في أي وقت.',
     '{position}, {count} procedures': '{position}، {count} إجراءات',
     'Cost for {name}': 'تكلفة {name}',
@@ -750,7 +749,6 @@ export const COPY_AR = {
     'AT THE DESK': 'عند المكتب',
     'AFTER THIS': 'بعد ذلك',
     'THE DAY': 'اليوم',
-    'At desk': 'عند المكتب',
     'Take payment': 'تحصيل الدفع',
     '{time} · {duration} late': '{time} · متأخر {duration}',
     'The clinic does not open on {day}s. Change that in Settings → Working hours.':
@@ -846,7 +844,6 @@ export const COPY_AR = {
     Oct: 'أكتوبر',
     Nov: 'نوفمبر',
     Dec: 'ديسمبر',
-    'In chair': 'على الكرسي',
     'Add to {tooth}': 'إضافة إلى {tooth}',
     '{count} free': '{count} متاح',
     'Running {late}': '{late}',
@@ -910,7 +907,6 @@ export const COPY_AR = {
     'Old record': 'سجل قديم',
     'Carried over': 'مرحّل',
     'Checked in': 'وصل',
-    Came: 'حضر',
     'OLD {ref}': 'قديم {ref}',
     'Old system number {ref}': 'رقم النظام القديم {ref}',
     'Next patient number': 'رقم المريض التالي',
@@ -1323,10 +1319,6 @@ export const COPY_AR = {
     'This is the clinic’s only admin phone. Make another phone an admin first.':
         'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
     'Add what the visit is for.': 'أضف سبب الزيارة.',
-    'General procedures': 'إجراءات عامة',
-    'Nothing asks for a tooth. Turn it off to bring the teeth back.':
-        'لا يُطلب تحديد سن في أي إجراء. أوقفه لإعادة الأسنان.',
-    'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
     'Use on this phone only': 'الاستخدام على هذا الهاتف فقط',
     or: 'أو',
     'This phone could not open its clinic. Nothing was changed.':
@@ -1343,6 +1335,16 @@ export const COPY_AR = {
         'تبقى العيادة على هذا الهاتف حتى تعود إليها',
     'This phone': 'هذا الهاتف',
     'No server': 'لا يوجد خادم',
+    'Nile Clinic': 'عيادة النيل',
+    'CLINIC TYPE': 'نوع العيادة',
+    'Clinic type': 'نوع العيادة',
+    Dental: 'أسنان',
+    General: 'عامة',
+    'Nothing asks for a tooth. Each procedure keeps its tooth setting, so choosing Dental again brings it back.':
+        'لا يُطلب تحديد سن في أي إجراء. يحتفظ كل إجراء بإعداد السن، فاختيار «أسنان» مرة أخرى يعيده.',
+    'Procedures marked as done to a tooth ask which one.': 'الإجراءات المحددة على سن تسأل عن السن.',
+    'Tap a category to choose a variant.': 'اضغط على فئة لاختيار نوع.',
+    'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

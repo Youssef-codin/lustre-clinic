@@ -121,7 +121,7 @@ export const api = {
                 trpcClient.procedure.tree.query({ includeInactive: false }),
                 trpcClient.settings.get.query(),
             ]);
-            return settings.generalProcedures ? withoutTeeth(tree) : tree;
+            return settings.clinicType === 'general' ? withoutTeeth(tree) : tree;
         }),
 
     pendingReminders: (date: string): Promise<PendingReminder[]> =>

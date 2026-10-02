@@ -246,7 +246,11 @@ export const visitHandlers = {
             tooth: line.tooth,
             note: line.note,
         }));
-        const resolved = resolveProcedureLines(requested, db.procedureTypes, db.settings.generalProcedures);
+        const resolved = resolveProcedureLines(
+            requested,
+            db.procedureTypes,
+            db.settings.clinicType === 'general',
+        );
 
         db.visitProcedures = db.visitProcedures.filter((line) => line.visitId !== visit.id);
 

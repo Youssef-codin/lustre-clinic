@@ -19,6 +19,7 @@
  * 910 got 911. An old patient keeps their own number and never moves it.
  */
 import {
+    type ClinicType,
     DEFAULT_CLINIC_NAME,
     DEFAULT_REMINDER_TEMPLATE,
     DEFAULT_REQUIRE_AGE,
@@ -56,8 +57,8 @@ interface Settings {
     requireGender: boolean;
     /** Whether the doctor's Finish asks first if the procedures need editing. */
     askToEditOnFinish: boolean;
-    /** No procedure asks for a tooth, whatever the catalogue says (`procedure.rules.ts`). */
-    generalProcedures: boolean;
+    /** `general`: no procedure asks for a tooth, whatever the catalogue says (`procedure.rules.ts`). */
+    clinicType: ClinicType;
     /** Whether a phone with no role credential is refused. Changed only by an admin (`device.setRequireProvisioning`). */
     requireProvisioning: boolean;
     updatedAt: Date;
@@ -78,7 +79,7 @@ const CLINIC_FIELDS = [
     'patientRefNext',
     'requireAge',
     'requireGender',
-    'generalProcedures',
+    'clinicType',
 ] as const satisfies readonly (keyof UpdateSettingsInput)[];
 
 function toSettings(row: SettingsRow): Settings {
@@ -96,7 +97,7 @@ function toSettings(row: SettingsRow): Settings {
         requireAge: row.requireAge,
         requireGender: row.requireGender,
         askToEditOnFinish: row.askToEditOnFinish,
-        generalProcedures: row.generalProcedures,
+        clinicType: row.clinicType,
         requireProvisioning: row.requireProvisioning,
         updatedAt: row.updatedAt,
     };
@@ -249,13 +250,13 @@ export const settingsService = {
     },
 
     /** Without seeding, like `patientRequirements`: no row yet is the column default. */
-    async generalProcedures(executor: Executor = db): Promise<boolean> {
+    async clinicType(executor: Executor = db): Promise<ClinicType> {
         const [row] = await executor
-            .select({ generalProcedures: settings.generalProcedures })
+            .select({ clinicType: settings.clinicType })
             .from(settings)
             .where(eq(settings.id, 1))
             .limit(1);
-        return row?.generalProcedures ?? false;
+        return row?.clinicType ?? 'dental';
     },
 
     /**

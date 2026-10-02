@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/lustre-clinic-logo-dark.svg">
-    <img src="packages/app/assets/brand/lustre-clinic-logo.svg" alt="Lustre Clinic" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="packages/app/assets/brand/lustre-clinics-reverse.svg">
+    <img src="packages/app/assets/brand/lustre-clinics-colour.svg" alt="Lustre Clinics" width="320">
   </picture>
 </p>
 

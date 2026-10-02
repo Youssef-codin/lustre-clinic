@@ -46,7 +46,7 @@ import {
     amend,
     api,
     arrive,
-    useGeneralProcedures,
+    useGeneralClinic,
     useLocalMutation,
     useLocalQuery,
     type Visit,
@@ -215,7 +215,7 @@ export function VisitScreen({
     const [edited, setEdited] = useState(false);
 
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
-    const general = useGeneralProcedures();
+    const general = useGeneralClinic();
     const price = useLocalMutation(amend);
     const checkIn = useLocalMutation(arrive);
     const sendToDesk = useLocalMutation(api.awaitPayment);
@@ -531,7 +531,7 @@ export function VisitScreen({
                             {t(
                                 planning
                                     ? 'This booking came with no procedures. Add one now, or leave it to be decided in the chair.'
-                                    : 'Add the procedure the dentist performed — you can come back and edit this at any time.',
+                                    : 'Add the procedure the doctor performed — you can come back and edit this at any time.',
                             )}
                         </Text>
                         <Button

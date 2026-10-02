@@ -15,6 +15,7 @@
 import type {
     AppointmentChannel,
     AppointmentStatus,
+    ClinicType,
     LabStatus,
     PaymentMethod,
     Tooth,
@@ -190,5 +191,5 @@ export interface ClinicSettings {
     durationOptions: number[];
     defaultDuration: number;
     askToEditOnFinish: boolean;
-    generalProcedures: boolean;
+    clinicType: ClinicType;
 }
