@@ -19,7 +19,6 @@ import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_DEV_SERVER, NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
 import { usePendingJoin } from './joinLink';
-import { setAdminView } from './roleStore';
 import { applyAddresses, learnTailnetAddress, saveServerAddresses } from './serverStore';
 
 // First run (SPEC §18 F1), and the front door: `app.json` ships no address, so
@@ -67,13 +66,12 @@ export function SetupScreen() {
     const [localFailed, setLocalFailed] = useState(false);
 
     // The shell replaces this screen once the flag flips, so success has
-    // nothing to draw. The phone is the desk too, so it opens on the desk's day.
+    // nothing to draw.
     async function runLocally() {
         setLocalFailed(false);
         setStartingLocal(true);
         try {
             await startLocalMode();
-            setAdminView('secretary');
         } catch {
             setLocalFailed(true);
             setStartingLocal(false);
@@ -187,15 +185,17 @@ export function SetupScreen() {
                     </View>
                 ) : null}
 
-                {/* A clinic with no PC to run the server on. Its records live
-                    on this phone and nowhere else, which the note says before
-                    the button does anything. */}
-                <View style={styles.local}>
-                    <Text variant="footnote" tone="muted" style={styles.localNote}>
-                        {t(
-                            'No clinic server? Keep the clinic on this phone instead. Nothing leaves it, so nothing else has a copy: uninstalling the app deletes it.',
-                        )}
-                    </Text>
+                <View style={styles.alternatives}>
+                    <View style={styles.or}>
+                        <View style={styles.orRule} />
+                        <Text variant="footnote" tone="muted">
+                            {t('or')}
+                        </Text>
+                        <View style={styles.orRule} />
+                    </View>
+
+                    {/* A clinic with no PC to run the server on. Its records
+                        live on this phone and nowhere else. */}
                     <Button
                         label="Use on this phone only"
                         onPress={() => void runLocally()}
@@ -211,16 +211,14 @@ export function SetupScreen() {
                             {t('This phone could not open its clinic. Nothing was changed.')}
                         </Text>
                     ) : null}
-                </View>
 
-                {/* The way in to demo mode (the role-code screen offers it too, to a
+                    {/* The way in to demo mode (the role-code screen offers it too, to a
                     dev or demo build). It is here rather
                     than anywhere inside the app because this is the screen a
                     phone with no clinic behind it lands on, and because a
                     control that swaps the register for a fake one should not
                     sit two taps from a real day's work. */}
-                {DEMO_ALLOWED ? (
-                    <View style={styles.demo}>
+                    {DEMO_ALLOWED ? (
                         <Button
                             label="Run in demo mode"
                             onPress={() => void enableDemoMode()}
@@ -229,8 +227,8 @@ export function SetupScreen() {
                             block
                             disabled={testing}
                         />
-                    </View>
-                ) : null}
+                    ) : null}
+                </View>
             </View>
         </ScrollView>
     );
@@ -254,7 +252,8 @@ const styles = StyleSheet.create({
     action: { marginTop: space[6] },
     result: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[2] },
     resultDot: { paddingTop: space[0.5] },
-    local: { alignSelf: 'stretch', alignItems: 'center', gap: space[3], marginTop: space[8] },
+    alternatives: { alignSelf: 'stretch', alignItems: 'center', gap: space[3], marginTop: space[6] },
+    or: { flexDirection: 'row', alignItems: 'center', gap: space[3], alignSelf: 'stretch' },
+    orRule: { flex: 1, height: 1, backgroundColor: color.hair },
     localNote: { textAlign: 'center' },
-    demo: { alignSelf: 'stretch', alignItems: 'center', gap: space[2], marginTop: space[8] },
 });

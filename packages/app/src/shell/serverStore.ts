@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import {
     allowsLan,
     BUILD_VARIANT,
+    forgetServerCredential,
     isTailnetAddress,
     markFreshInstall,
     reprobe,
@@ -190,6 +191,22 @@ export function useServerSetup(): ServerSetup {
 // setup opens on them and the user edits rather than retypes.
 export function requestReconfigure(): void {
     emit({ ...state, reconfiguring: true });
+}
+
+// Settings → App's way off a server, for the clinic that is leaving it — for
+// another server, or for local mode, which only the setup screen offers. Unlike
+// `requestReconfigure`, nothing is left to come back to on the next launch.
+export async function disconnectServer(): Promise<void> {
+    applyAddresses({ lan: null, tailscale: null });
+    forgetServerCredential();
+    emit({
+        ...state,
+        addresses: serverAddresses(),
+        stored: false,
+        defaultProbe: 'unreachable',
+        reconfiguring: false,
+    });
+    await AsyncStorage.multiRemove([LAN_KEY, TAILSCALE_KEY]).catch(() => undefined);
 }
 
 export async function saveServerAddresses(next: ServerAddresses): Promise<void> {

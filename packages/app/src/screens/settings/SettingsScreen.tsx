@@ -232,6 +232,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 clinicName={summary.data?.clinicName ?? ''}
                 connection={connection}
                 onScanCode={() => routes.push('scan')}
+                solo={local}
                 testID="settings-identity"
             />
 
@@ -268,7 +269,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     only — it is his Google account, and the CLINIC rows below
                     are gated the same way (§1: the role hides rows, it does
                     not guard anything). */}
-                {setsUp && backups?.tone === 'reauthorize' ? (
+                {setsUp && !local && backups?.tone === 'reauthorize' ? (
                     <Card padded style={styles.backupAlert} testID="settings-backup-alert">
                         <View style={styles.backupIcon}>
                             <DriveAlertIcon />
@@ -301,14 +302,19 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 {summary.data ? (
                     <>
                         <Group title={t('GENERAL')}>
-                            <SettingsRow
-                                icon={<SettingsIcon glyph="app" />}
-                                label="App"
-                                sub={t(local ? 'On this phone only' : 'Server connection')}
-                                onPress={() => routes.push('app')}
-                                testID="settings-app-row"
-                            />
-                            <CardDivider />
+                            {/* A clinic on this phone has no server to report on. */}
+                            {local ? null : (
+                                <>
+                                    <SettingsRow
+                                        icon={<SettingsIcon glyph="app" />}
+                                        label="App"
+                                        sub={t('Server connection')}
+                                        onPress={() => routes.push('app')}
+                                        testID="settings-app-row"
+                                    />
+                                    <CardDivider />
+                                </>
+                            )}
                             <SettingsRow
                                 icon={<SettingsIcon glyph="appointments" />}
                                 label="Appointments"
@@ -371,21 +377,24 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
-                                {local ? null : <CardDivider />}
                                 {local ? null : (
-                                    <SettingsRow
-                                        icon={<SettingsIcon glyph="backups" />}
-                                        label="Backups"
-                                        sub={backups?.sub ?? 'Checking…'}
-                                        onPress={() => {
-                                            if (!backups) return;
-                                            // Nothing to report on until Drive is linked, so
-                                            // the sign-in comes first when it can be run here.
-                                            if (backups.canSignIn && !backups.linked) setLinkingDrive(true);
-                                            else routes.push('backups');
-                                        }}
-                                        testID="settings-backups"
-                                    />
+                                    <>
+                                        <CardDivider />
+                                        <SettingsRow
+                                            icon={<SettingsIcon glyph="backups" />}
+                                            label="Backups"
+                                            sub={backups?.sub ?? 'Checking…'}
+                                            onPress={() => {
+                                                if (!backups) return;
+                                                // Nothing to report on until Drive is linked, so
+                                                // the sign-in comes first when it can be run here.
+                                                if (backups.canSignIn && !backups.linked)
+                                                    setLinkingDrive(true);
+                                                else routes.push('backups');
+                                            }}
+                                            testID="settings-backups"
+                                        />
+                                    </>
                                 )}
                                 <CardDivider />
                                 <SettingsRow
@@ -412,7 +421,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        {granted === 'admin' ? (
+                        {/* A clinic on this phone is always on the desk's day
+                            (`useRole`) and has no other phone to give a role. */}
+                        {granted === 'admin' && !local ? (
                             <Group title={t('ADMIN')}>
                                 {/* Which day this phone shows. Screens only: the
                                     server still treats it as the admin, so Money
@@ -433,18 +444,14 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                         testID="settings-admin-view"
                                     />
                                 </View>
-                                {local ? null : (
-                                    <>
-                                        <CardDivider />
-                                        <SettingsRow
-                                            icon={<SettingsIcon glyph="roles" />}
-                                            label="Phones & role codes"
-                                            sub={t('Give a phone its role, or withdraw it')}
-                                            onPress={() => routes.push('roles')}
-                                            testID="settings-roles"
-                                        />
-                                    </>
-                                )}
+                                <CardDivider />
+                                <SettingsRow
+                                    icon={<SettingsIcon glyph="roles" />}
+                                    label="Phones & role codes"
+                                    sub={t('Give a phone its role, or withdraw it')}
+                                    onPress={() => routes.push('roles')}
+                                    testID="settings-roles"
+                                />
                             </Group>
                         ) : null}
 

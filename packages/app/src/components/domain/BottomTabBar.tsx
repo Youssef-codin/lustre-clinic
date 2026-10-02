@@ -36,6 +36,11 @@ export type BottomTabBarProps = {
     role: Role;
     /** Null for a phone with no role code yet, which keeps every tab. */
     granted: Role | null;
+    /**
+     * A clinic on one phone: there is no other phone to tell this one apart
+     * from, so the fourth tab is plainly Settings.
+     */
+    solo?: boolean;
     onChange: (tab: TabKey) => void;
 };
 
@@ -66,11 +71,11 @@ const TAB_ICON: Record<Exclude<TabKey, 'settings'>, Glyph> = {
     money: GLYPH.money,
 };
 
-export function BottomTabBar({ active, role, granted, onChange }: BottomTabBarProps) {
+export function BottomTabBar({ active, role, granted, solo = false, onChange }: BottomTabBarProps) {
     const t = useT();
     const insets = useSafeAreaInsets();
     const keyboard = useKeyboardHeight();
-    const RoleGlyph = ROLE_ICON[role];
+    const RoleGlyph = solo ? GLYPH.clinic : ROLE_ICON[role];
 
     // Out of the layout while typing. The keyboard covers it anyway, and while it
     // stays in flow every bar above it — a pane's action bar, the visit dock —
@@ -82,7 +87,7 @@ export function BottomTabBar({ active, role, granted, onChange }: BottomTabBarPr
         { key: 'day', label: 'Day' },
         { key: 'patients', label: 'Patients' },
         { key: 'money', label: 'Money' },
-        { key: 'settings', label: ROLE_LABEL[role] },
+        { key: 'settings', label: solo ? 'Settings' : ROLE_LABEL[role] },
     ];
     const tabs = every.filter((tab) => tab.key !== 'money' || seesPayments(granted));
 

@@ -200,6 +200,10 @@ export function createCredentialStore(backend: () => DeviceBackend | null = devi
         forgetDemo(): void {
             write('demo', EMPTY);
         },
+        /** Fresh rather than empty: the next server it reaches asks for a code. */
+        forgetLive(): void {
+            write('live', { ...EMPTY, fresh: true });
+        },
         /** Waits for storage, so a credential already on the phone is never mistaken for none. */
         async markFresh(): Promise<void> {
             await hydrate();
@@ -250,6 +254,15 @@ export function retryProvisioning(): void {
  */
 export function markFreshInstall(): Promise<void> {
     return store.markFresh();
+}
+
+/**
+ * The phone left its clinic server. The role was that server's to give, so it
+ * goes too: a phone pointed at another clinic must not arrive holding one.
+ */
+export function forgetServerCredential(): void {
+    store.forgetLive();
+    noteDataReset();
 }
 
 /** A reseeded demo has no devices, so the demo's credential goes with it. */

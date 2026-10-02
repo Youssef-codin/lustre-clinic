@@ -412,6 +412,7 @@ export function AppShell() {
                     active={booking && tab === 'day' ? 'patients' : tab}
                     role={granted ?? role}
                     granted={granted}
+                    solo={local}
                     onChange={open}
                 />
             )}
