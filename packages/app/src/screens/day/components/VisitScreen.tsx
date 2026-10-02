@@ -286,7 +286,9 @@ export function VisitScreen({
     const planning = where === 'arriving' || where === 'waiting';
 
     function startAdding() {
-        setAsking(asksTooth(catalogue.data) ? { step: 'tooth' } : { step: 'procedure', tooth: null });
+        setAsking(
+            asksTooth(catalogue.data, general) ? { step: 'tooth' } : { step: 'procedure', tooth: null },
+        );
     }
 
     /**

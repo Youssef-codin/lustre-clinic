@@ -101,7 +101,7 @@ export function ProcedurePlan({
 
     const groups = groupByTooth(value);
     const total = totalOf(value);
-    const toothFirst = asksTooth(loading ? undefined : categories);
+    const toothFirst = asksTooth(loading ? undefined : categories, general);
 
     function startAdding() {
         setAsking(toothFirst ? { step: 'tooth' } : { step: 'procedure', tooth: null });

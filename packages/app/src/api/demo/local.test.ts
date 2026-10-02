@@ -103,6 +103,10 @@ describe('the clinic file', () => {
     it('refuses a file it cannot read rather than calling it empty', () => {
         expect(() => parseLocal('{not json')).toThrow(LocalStoreError);
         expect(() => parseLocal(JSON.stringify({ version: 1, db: {} }))).toThrow(LocalStoreError);
+        const { branches: _, ...missingBranches } = freshLocalDb();
+        expect(() =>
+            parseLocal(JSON.stringify({ format: 'lustre-local', version: 1, db: missingBranches })),
+        ).toThrow(LocalStoreError);
         expect(() =>
             parseLocal(JSON.stringify({ format: 'lustre-local', version: 99, db: freshLocalDb() })),
         ).toThrow(LocalStoreError);

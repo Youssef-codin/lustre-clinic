@@ -191,6 +191,23 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         );
     }
 
+    // The way back to the setup screen. The clinic is not touched: entering
+    // again opens it as it was. Not behind the summary, like `about`: a clinic
+    // file this phone cannot read must not also take away the way out of it.
+    const leaveLocal = (
+        <Group title={t('THIS PHONE ONLY')}>
+            <SettingsRow
+                icon={<LeaveDemoIcon />}
+                label="Connect to a server"
+                sub={t('The clinic on this phone stays here for when you come back')}
+                onPress={() => {
+                    void disableLocalMode();
+                }}
+                testID="settings-leave-local"
+            />
+        </Group>
+    );
+
     // Not behind the summary either: the build is local, and it is what gets
     // read out over the phone when the server is not answering.
     const about = (
@@ -462,19 +479,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             drops the clinic the query cache and the day view's
                             own hooks are still holding. */}
                         {local ? (
-                            /* The way back to the setup screen. The clinic is
-                               not touched: entering again opens it as it was. */
-                            <Group title={t('THIS PHONE ONLY')}>
-                                <SettingsRow
-                                    icon={<LeaveDemoIcon />}
-                                    label="Connect to a server"
-                                    sub={t('The clinic on this phone stays here for when you come back')}
-                                    onPress={() => {
-                                        void disableLocalMode();
-                                    }}
-                                    testID="settings-leave-local"
-                                />
-                            </Group>
+                            leaveLocal
                         ) : demo.enabled ? (
                             <Group title={t('DEMO')}>
                                 <SettingsRow
@@ -531,6 +536,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     </>
                 ) : (
                     <>
+                        {local ? leaveLocal : null}
                         {about}
                         {problem}
                     </>

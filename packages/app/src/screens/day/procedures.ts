@@ -241,8 +241,13 @@ export function withoutTeeth(categories: readonly ProcedureCategory[]): Procedur
  * Whether adding starts with the tooth. Only when something on offer is done
  * to one: a catalogue with nothing tooth-specific, which is every catalogue on
  * general procedures, goes straight to the procedure.
+ *
+ * Before the catalogue arrives a dental clinic starts on the tooth, which needs
+ * no catalogue; a general one never does, or the picker would stay up after the
+ * catalogue said there was no tooth to ask for.
  */
-export function asksTooth(categories: readonly ProcedureCategory[] | undefined): boolean {
+export function asksTooth(categories: readonly ProcedureCategory[] | undefined, general = false): boolean {
+    if (general) return false;
     if (!categories) return true;
     return categories.some(
         (category) => category.isToothSpecific || category.children.some((child) => child.isToothSpecific),

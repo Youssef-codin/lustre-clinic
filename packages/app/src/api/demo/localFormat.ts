@@ -62,5 +62,20 @@ export function parseLocal(raw: string): DemoDb {
     if (parsed.version !== VERSION) {
         throw new LocalStoreError(`the clinic file is version ${String(parsed.version)}`);
     }
+    // A file missing a table would open as a clinic without it, and the next
+    // write would put that over the whole clinic. The tables are read off an
+    // empty clinic, so one added to `DemoDb` is checked without a list here.
+    if (!hasEveryTable(parsed.db)) {
+        throw new LocalStoreError('the clinic file is missing part of the clinic');
+    }
     return revive(parsed.db);
+}
+
+function hasEveryTable(db: object): boolean {
+    const stored = db as Record<string, unknown>;
+    return Object.entries(emptyDb()).every(([table, empty]) => {
+        const value = stored[table];
+        if (Array.isArray(empty)) return Array.isArray(value);
+        return typeof value === 'object' && value !== null && !Array.isArray(value);
+    });
 }
