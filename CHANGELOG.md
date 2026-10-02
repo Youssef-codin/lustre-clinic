@@ -8,6 +8,8 @@ listed.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-02
+
 ### Added
 
 - The app works for clinics that aren't dental. Settings → Clinic → Clinic type is Dental or General. A General clinic is never asked for a tooth: adding a procedure goes straight to the list, no procedure requires one, the "Needs a tooth" switch and TOOTH tags are hidden, and visits and bookings no longer say "No tooth assigned" under lines without a tooth. Each procedure keeps its own tooth setting, so choosing Dental again brings the dental flow back as it was. Visits recorded with a tooth keep it. Every clinic starts as Dental.
@@ -242,7 +244,8 @@ The first release at the clinic.
 - Settings for working hours, branches, procedures and reminders.
 - Runs on the clinic's own server over Tailscale, with over-the-air updates.
 
-[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.2...HEAD
+[Unreleased]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.2...v1.8.0
 [1.7.2]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/Youssef-codin/lustre-clinic/compare/v1.6.3...v1.7.0
