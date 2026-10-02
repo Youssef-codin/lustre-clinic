@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import {
     allowsLan,
     BUILD_VARIANT,
+    forgetServerCredential,
     isTailnetAddress,
     markFreshInstall,
     reprobe,
@@ -11,7 +12,7 @@ import {
     serverAddresses,
     setServerAddresses,
     trpcClient,
-    useDemoMode,
+    useDeviceBackend,
 } from '../api';
 import { hydratingSubscribe } from './hydratingSubscribe';
 
@@ -164,14 +165,14 @@ function getSnapshot(): SetupState {
 
 export function useServerSetup(): ServerSetup {
     const current = useSyncExternalStore(subscribe, getSnapshot);
-    const demo = useDemoMode();
+    const device = useDeviceBackend();
 
-    // A demo has no address to collect and no clinic to reach, so it skips
-    // setup entirely. Its own flag has to have come back from storage first:
-    // deciding before it does would put the setup screen up for the moment it
-    // takes to read, on the launch after somebody chose the demo.
-    if (!demo.hydrated) return { ...current, ready: false, showSetup: false };
-    if (demo.enabled) return { ...current, ready: true, showSetup: false };
+    // A demo or a clinic on this phone has no address to collect and no server
+    // to reach, so it skips setup entirely. The flag has to have come back from
+    // storage first: deciding before it does would put the setup screen up for
+    // the moment it takes to read, on the launch after somebody chose either.
+    if (!device.hydrated) return { ...current, ready: false, showSetup: false };
+    if (device.backend) return { ...current, ready: true, showSetup: false };
 
     // Setup is for a phone that has never reached this clinic. One that has —
     // by its own stored address or by the shipped default answering — goes to
@@ -190,6 +191,22 @@ export function useServerSetup(): ServerSetup {
 // setup opens on them and the user edits rather than retypes.
 export function requestReconfigure(): void {
     emit({ ...state, reconfiguring: true });
+}
+
+// Settings → App's way off a server, for the clinic that is leaving it — for
+// another server, or for local mode, which only the setup screen offers. Unlike
+// `requestReconfigure`, nothing is left to come back to on the next launch.
+export async function disconnectServer(): Promise<void> {
+    applyAddresses({ lan: null, tailscale: null });
+    forgetServerCredential();
+    emit({
+        ...state,
+        addresses: serverAddresses(),
+        stored: false,
+        defaultProbe: 'unreachable',
+        reconfiguring: false,
+    });
+    await AsyncStorage.multiRemove([LAN_KEY, TAILSCALE_KEY]).catch(() => undefined);
 }
 
 export async function saveServerAddresses(next: ServerAddresses): Promise<void> {

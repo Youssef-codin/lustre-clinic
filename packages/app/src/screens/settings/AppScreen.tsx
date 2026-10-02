@@ -8,11 +8,16 @@
  * (`api/connection.ts` probes LAN first). So the card reports the route and
  * offers a re-probe — the one useful action when the phone has stayed on a
  * stale answer.
+ *
+ * Disconnecting is for the clinic leaving that server, for another one or for
+ * local mode. It goes back to the setup screen, which is where both start.
  */
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { allowsLan, BUILD_VARIANT } from '../../api';
-import { Button, Card, Dot, SectionLabel } from '../../components/ui';
+import { Button, Card, ConfirmSheet, Dot, SectionLabel } from '../../components/ui';
 import { useT } from '../../i18n';
+import { disconnectServer } from '../../shell/serverStore';
 import { color, space, Text } from '../../theme';
 import { ReprobeIcon } from './components/icons';
 import { Pane } from './components/Pane';
@@ -25,6 +30,7 @@ export type AppScreenProps = {
 export function AppScreen({ onBack }: AppScreenProps) {
     const t = useT();
     const connection = useConnectionView();
+    const [disconnecting, setDisconnecting] = useState(false);
 
     return (
         <Pane title="App" onBack={onBack} testID="settings-app">
@@ -70,6 +76,29 @@ export function AppScreen({ onBack }: AppScreenProps) {
                     )}
                 </Text>
             </View>
+
+            {connection.kind === 'device' ? null : (
+                <View style={styles.section}>
+                    <Button
+                        label="Disconnect from server"
+                        variant="dangerText"
+                        size="md"
+                        block
+                        onPress={() => setDisconnecting(true)}
+                        testID="settings-app-disconnect"
+                    />
+                    <ConfirmSheet
+                        visible={disconnecting}
+                        title="Disconnect from this server?"
+                        body="This phone forgets the server and its role there, and goes back to setup. Connect to it again and it will need a new role code."
+                        confirmLabel="Disconnect"
+                        destructive
+                        onConfirm={() => void disconnectServer()}
+                        onCancel={() => setDisconnecting(false)}
+                        testID="settings-app-disconnect-confirm"
+                    />
+                </View>
+            )}
         </Pane>
     );
 }

@@ -414,7 +414,7 @@ function writeOpeningBalance(db: DemoDb, patient: PatientRow, branch: BranchRow,
     });
 }
 
-function emptyDb(): DemoDb {
+export function emptyDb(): DemoDb {
     return {
         branches: [],
         clinicDays: [],

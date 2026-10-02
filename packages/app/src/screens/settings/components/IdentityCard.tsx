@@ -8,6 +8,9 @@
  * The role is the one an admin's code gave this phone, and the only way to
  * change it is another code — so the card states it and offers the scanner,
  * never a switch. It is still not a login: the phone is the account.
+ *
+ * A clinic on one phone (`solo`) has neither: no role to have been given and no
+ * server to see. The card is then just the clinic.
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Dot } from '../../../components/ui';
@@ -24,6 +27,7 @@ export type IdentityCardProps = {
     clinicName: string;
     connection: ConnectionView;
     onScanCode: () => void;
+    solo?: boolean;
     testID?: string;
 };
 
@@ -33,68 +37,80 @@ export function IdentityCard({
     clinicName,
     connection,
     onScanCode,
+    solo = false,
     testID,
 }: IdentityCardProps) {
     const t = useT();
+    const title = solo ? clinicName || t('Clinic') : t(roleName);
+    const initial = solo ? (clinicName.trim()[0] ?? 'C').toUpperCase() : roleInitial;
     return (
         <View style={styles.card} testID={testID}>
             <View style={styles.identity}>
                 <View style={styles.avatar}>
                     <Text variant="headline" tone="inverse">
-                        {roleInitial}
+                        {initial}
                     </Text>
                 </View>
 
                 <View style={styles.who}>
                     <Text variant="title3" tone="inverse" numberOfLines={1}>
-                        {t(roleName)}
+                        {title}
                     </Text>
                     <Text variant="subhead" tone="inverse" numberOfLines={1} style={styles.branch}>
-                        {clinicName}
+                        {solo ? t('This phone only') : clinicName}
                     </Text>
                 </View>
             </View>
 
-            <View style={styles.status}>
-                <Dot tone={connection.tone} size={8} pulse={connection.pulse} />
-                <Text
-                    variant="subhead"
-                    weight="medium"
-                    tone="inverse"
-                    numberOfLines={1}
-                    style={styles.statusLabel}
-                >
-                    {t(connection.label)}
-                </Text>
+            {solo ? null : (
+                <>
+                    <View style={styles.status}>
+                        <Dot tone={connection.tone} size={8} pulse={connection.pulse} />
+                        <Text
+                            variant="subhead"
+                            weight="medium"
+                            tone="inverse"
+                            numberOfLines={1}
+                            style={styles.statusLabel}
+                        >
+                            {t(connection.label)}
+                        </Text>
 
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t('Check the server connection again')}
-                    accessibilityState={{ busy: connection.probing }}
-                    onPress={connection.reprobe}
-                    disabled={connection.probing}
-                    testID="settings-reprobe"
-                    style={({ pressed }) => [styles.reprobe, pressed && styles.pressed]}
-                >
-                    <ReprobeIcon size={13} stroke={color.inverse} width={2} />
-                    <Text variant="footnote" weight="semibold" tone="inverse" style={styles.reprobeLabel}>
-                        {t(connection.probing ? 'Probing…' : 'Re-probe')}
-                    </Text>
-                </Pressable>
-            </View>
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={t('Check the server connection again')}
+                            accessibilityState={{ busy: connection.probing }}
+                            onPress={connection.reprobe}
+                            disabled={connection.probing}
+                            testID="settings-reprobe"
+                            style={({ pressed }) => [styles.reprobe, pressed && styles.pressed]}
+                        >
+                            <ReprobeIcon size={13} stroke={color.inverse} width={2} />
+                            <Text
+                                variant="footnote"
+                                weight="semibold"
+                                tone="inverse"
+                                style={styles.reprobeLabel}
+                            >
+                                {t(connection.probing ? 'Probing…' : 'Re-probe')}
+                            </Text>
+                        </Pressable>
+                    </View>
 
-            <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('Scan a role code')}
-                onPress={onScanCode}
-                testID="settings-scan-code"
-                style={({ pressed }) => [styles.switch, pressed && styles.pressed]}
-            >
-                <ScanCodeIcon size={16} />
-                <Text variant="callout" weight="semibold" tone="inverse">
-                    {t('Scan a role code')}
-                </Text>
-            </Pressable>
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Scan a role code')}
+                        onPress={onScanCode}
+                        testID="settings-scan-code"
+                        style={({ pressed }) => [styles.switch, pressed && styles.pressed]}
+                    >
+                        <ScanCodeIcon size={16} />
+                        <Text variant="callout" weight="semibold" tone="inverse">
+                            {t('Scan a role code')}
+                        </Text>
+                    </Pressable>
+                </>
+            )}
         </View>
     );
 }

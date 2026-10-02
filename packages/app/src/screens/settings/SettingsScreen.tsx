@@ -20,10 +20,12 @@ import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import {
     allowsDemo,
     BUILD_VARIANT,
+    disableLocalMode,
     type RouterOutput,
     resetDemoData,
     serverNow,
     useDemoMode,
+    useDeviceBackend,
     useTRPC,
 } from '../../api';
 import { BrandMark, formatClock12 } from '../../components/domain';
@@ -126,6 +128,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     }
 
     const demo = useDemoMode();
+    // A clinic on this phone alone: no server to connect, no other phone to
+    // give a role, no backup job, and this phone is the desk.
+    const local = useDeviceBackend().backend === 'local';
 
     // From the store rather than from a prop, like the locale below it: the
     // shell holds neither, and this screen is where both are changed.
@@ -186,6 +191,23 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
         );
     }
 
+    // The way back to the setup screen. The clinic is not touched: entering
+    // again opens it as it was. Not behind the summary, like `about`: a clinic
+    // file this phone cannot read must not also take away the way out of it.
+    const leaveLocal = (
+        <Group title={t('THIS PHONE ONLY')}>
+            <SettingsRow
+                icon={<LeaveDemoIcon />}
+                label="Connect to a server"
+                sub={t('The clinic on this phone stays here for when you come back')}
+                onPress={() => {
+                    void disableLocalMode();
+                }}
+                testID="settings-leave-local"
+            />
+        </Group>
+    );
+
     // Not behind the summary either: the build is local, and it is what gets
     // read out over the phone when the server is not answering.
     const about = (
@@ -227,6 +249,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 clinicName={summary.data?.clinicName ?? ''}
                 connection={connection}
                 onScanCode={() => routes.push('scan')}
+                solo={local}
                 testID="settings-identity"
             />
 
@@ -263,7 +286,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     only — it is his Google account, and the CLINIC rows below
                     are gated the same way (§1: the role hides rows, it does
                     not guard anything). */}
-                {setsUp && backups?.tone === 'reauthorize' ? (
+                {setsUp && !local && backups?.tone === 'reauthorize' ? (
                     <Card padded style={styles.backupAlert} testID="settings-backup-alert">
                         <View style={styles.backupIcon}>
                             <DriveAlertIcon />
@@ -296,14 +319,19 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                 {summary.data ? (
                     <>
                         <Group title={t('GENERAL')}>
-                            <SettingsRow
-                                icon={<SettingsIcon glyph="app" />}
-                                label="App"
-                                sub={t('Server connection')}
-                                onPress={() => routes.push('app')}
-                                testID="settings-app-row"
-                            />
-                            <CardDivider />
+                            {/* A clinic on this phone has no server to report on. */}
+                            {local ? null : (
+                                <>
+                                    <SettingsRow
+                                        icon={<SettingsIcon glyph="app" />}
+                                        label="App"
+                                        sub={t('Server connection')}
+                                        onPress={() => routes.push('app')}
+                                        testID="settings-app-row"
+                                    />
+                                    <CardDivider />
+                                </>
+                            )}
                             <SettingsRow
                                 icon={<SettingsIcon glyph="appointments" />}
                                 label="Appointments"
@@ -315,7 +343,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             />
                             {/* The desk's work: the doctor's and the admin's
                                 phones have no reminders. */}
-                            {isDoctor || granted === 'admin' ? null : (
+                            {(isDoctor || granted === 'admin') && !local ? null : (
                                 <>
                                     <CardDivider />
                                     <SettingsRow
@@ -366,20 +394,25 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
-                                <CardDivider />
-                                <SettingsRow
-                                    icon={<SettingsIcon glyph="backups" />}
-                                    label="Backups"
-                                    sub={backups?.sub ?? 'Checking…'}
-                                    onPress={() => {
-                                        if (!backups) return;
-                                        // Nothing to report on until Drive is linked, so
-                                        // the sign-in comes first when it can be run here.
-                                        if (backups.canSignIn && !backups.linked) setLinkingDrive(true);
-                                        else routes.push('backups');
-                                    }}
-                                    testID="settings-backups"
-                                />
+                                {local ? null : (
+                                    <>
+                                        <CardDivider />
+                                        <SettingsRow
+                                            icon={<SettingsIcon glyph="backups" />}
+                                            label="Backups"
+                                            sub={backups?.sub ?? 'Checking…'}
+                                            onPress={() => {
+                                                if (!backups) return;
+                                                // Nothing to report on until Drive is linked, so
+                                                // the sign-in comes first when it can be run here.
+                                                if (backups.canSignIn && !backups.linked)
+                                                    setLinkingDrive(true);
+                                                else routes.push('backups');
+                                            }}
+                                            testID="settings-backups"
+                                        />
+                                    </>
+                                )}
                                 <CardDivider />
                                 <SettingsRow
                                     icon={<SettingsIcon glyph="procedures" />}
@@ -405,7 +438,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             </Group>
                         ) : null}
 
-                        {granted === 'admin' ? (
+                        {/* A clinic on this phone is always on the desk's day
+                            (`useRole`) and has no other phone to give a role. */}
+                        {granted === 'admin' && !local ? (
                             <Group title={t('ADMIN')}>
                                 {/* Which day this phone shows. Screens only: the
                                     server still treats it as the admin, so Money
@@ -443,7 +478,9 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                             reports the reseed to `api/dataReset`, which is what
                             drops the clinic the query cache and the day view's
                             own hooks are still holding. */}
-                        {demo.enabled ? (
+                        {local ? (
+                            leaveLocal
+                        ) : demo.enabled ? (
                             <Group title={t('DEMO')}>
                                 <SettingsRow
                                     icon={<ResetDemoIcon />}
@@ -499,6 +536,7 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                     </>
                 ) : (
                     <>
+                        {local ? leaveLocal : null}
                         {about}
                         {problem}
                     </>

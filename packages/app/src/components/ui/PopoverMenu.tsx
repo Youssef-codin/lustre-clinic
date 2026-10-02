@@ -20,6 +20,8 @@ export type MenuAnchor = {
     top: number;
     end?: number;
     start?: number;
+    /** The trigger's own width, for a menu that drops from a field. */
+    width?: number;
 };
 
 export type MenuItem = {
@@ -86,10 +88,18 @@ export function PopoverMenu({
     );
 }
 
+/**
+ * `drop` is a field's menu: it unfolds from the field's edge rather than scaling
+ * from its middle, and leaves the page undimmed, since it is part of the form
+ * rather than over it.
+ */
+export type MenuMotion = 'popover' | 'drop';
+
 export type MenuSurfaceProps = {
     visible: boolean;
     onClose: () => void;
     anchor?: MenuAnchor;
+    motion?: MenuMotion;
     children: ReactNode;
     accessibilityLabel?: string;
     testID?: string;
@@ -99,6 +109,7 @@ export function MenuSurface({
     visible,
     onClose,
     anchor,
+    motion = 'popover',
     children,
     accessibilityLabel,
     testID,
@@ -110,27 +121,52 @@ export function MenuSurface({
 
     useEffect(() => {
         if (visible) setMounted(true);
+        const drop = motion === 'drop';
         const animation = Animated.timing(progress, {
             toValue: visible ? 1 : 0,
-            duration: reducedMotion ? 0 : duration.popover,
-            easing: easing.standard,
+            duration: reducedMotion ? 0 : drop && visible ? duration.drop : duration.popover,
+            easing: drop && visible ? easing.promote : easing.standard,
             useNativeDriver: true,
         });
         animation.start(({ finished }) => {
             if (finished && !visible) setMounted(false);
         });
         return () => animation.stop();
-    }, [visible, progress, reducedMotion]);
+    }, [visible, progress, reducedMotion, motion]);
 
     if (!mounted) return null;
 
     const top = anchor?.top ?? space[12];
     const inline =
         anchor?.start !== undefined ? { start: anchor.start } : { end: anchor?.end ?? size.gutter };
+    const width = anchor?.width !== undefined ? { width: anchor.width } : null;
+    const drop = motion === 'drop';
+    const shape = drop
+        ? {
+              opacity: progress.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] }),
+              transformOrigin: 'top' as const,
+              transform: [
+                  { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-space[2], 0] }) },
+                  { scaleY: progress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) },
+              ],
+          }
+        : {
+              opacity: progress,
+              transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
+          };
 
     return (
         <Modal visible transparent animationType="none" onRequestClose={onClose} testID={testID}>
-            <Scrim opacity={progress} onPress={onClose} />
+            {drop ? (
+                <Pressable
+                    style={StyleSheet.absoluteFill}
+                    onPress={onClose}
+                    accessibilityRole="button"
+                    accessibilityLabel={t('Close')}
+                />
+            ) : (
+                <Scrim opacity={progress} onPress={onClose} />
+            )}
             <Animated.View
                 accessibilityRole="menu"
                 accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
@@ -139,18 +175,24 @@ export function MenuSurface({
                 // tap lands on a row that has already run, and runs it again.
                 // The surface goes dead the moment it is leaving.
                 pointerEvents={visible ? 'auto' : 'none'}
-                style={[
-                    styles.surface,
-                    { top, ...inline },
-                    {
-                        opacity: progress,
-                        transform: [
-                            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
-                        ],
-                    },
-                ]}
+                style={[styles.surface, { top, ...inline }, width, shape]}
             >
-                {children}
+                {drop ? (
+                    // The rows come in behind the surface, so it reads as
+                    // unfolding rather than as a squashed list stretching.
+                    <Animated.View
+                        style={{
+                            opacity: progress.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: [0, 0, 1],
+                            }),
+                        }}
+                    >
+                        {children}
+                    </Animated.View>
+                ) : (
+                    children
+                )}
             </Animated.View>
         </Modal>
     );

@@ -88,6 +88,10 @@ commitments a neighboring product would not truthfully make:
   able to run a full day on paper if the system is down.
 - **WhatsApp is a destination.** One tap leaves the app into a specific patient's
   chat with a message pre-filled, and the user returns. Design for the round trip.
+- **A clinic with no server** can run on one phone (local mode): the in-app
+  copy of the server answers, its records live in a file on that phone, and the
+  phone is the admin. No backups, no second phone. Chosen on the setup screen,
+  never entered because a server did not answer.
 - **Offline is expected**, not exceptional: on power cut or reboot the app shows
   today's and tomorrow's schedule from cache, read-only, with a notice. It must
   never report a booking as saved when it was not.

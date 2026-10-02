@@ -21,6 +21,8 @@ export const duration = {
     swipe: 200,
     collapse: 240,
     popover: 160,
+    /** A field's menu unfolding; it folds away at `popover`. */
+    drop: 260,
     step: 240,
 } as const;
 

@@ -11,6 +11,7 @@ import {
     lastProbeRefused,
     reprobe,
     serverAddresses,
+    startLocalMode,
 } from '../api';
 import { BrandMark } from '../components/domain';
 import { Button, Dot, TextField } from '../components/ui';
@@ -61,6 +62,21 @@ export function SetupScreen() {
     const [tailscale, setTailscale] = useState(current.tailscale ?? (onTailnet ? suggested : ''));
     const [testing, setTesting] = useState(false);
     const [attempt, setAttempt] = useState<Attempt | null>(null);
+    const [startingLocal, setStartingLocal] = useState(false);
+    const [localFailed, setLocalFailed] = useState(false);
+
+    // The shell replaces this screen once the flag flips, so success has
+    // nothing to draw.
+    async function runLocally() {
+        setLocalFailed(false);
+        setStartingLocal(true);
+        try {
+            await startLocalMode();
+        } catch {
+            setLocalFailed(true);
+            setStartingLocal(false);
+        }
+    }
 
     async function connect() {
         const candidate = toCandidate({ lan, tailscale }, LAN_ALLOWED);
@@ -169,14 +185,40 @@ export function SetupScreen() {
                     </View>
                 ) : null}
 
-                {/* The way in to demo mode (the role-code screen offers it too, to a
+                <View style={styles.alternatives}>
+                    <View style={styles.or}>
+                        <View style={styles.orRule} />
+                        <Text variant="footnote" tone="muted">
+                            {t('or')}
+                        </Text>
+                        <View style={styles.orRule} />
+                    </View>
+
+                    {/* A clinic with no PC to run the server on. Its records
+                        live on this phone and nowhere else. */}
+                    <Button
+                        label="Use on this phone only"
+                        onPress={() => void runLocally()}
+                        variant="secondary"
+                        size="md"
+                        block
+                        loading={startingLocal}
+                        disabled={testing}
+                        testID="setup-local"
+                    />
+                    {localFailed ? (
+                        <Text variant="footnote" tone="danger" style={styles.localNote}>
+                            {t('This phone could not open its clinic. Nothing was changed.')}
+                        </Text>
+                    ) : null}
+
+                    {/* The way in to demo mode (the role-code screen offers it too, to a
                     dev or demo build). It is here rather
                     than anywhere inside the app because this is the screen a
                     phone with no clinic behind it lands on, and because a
                     control that swaps the register for a fake one should not
                     sit two taps from a real day's work. */}
-                {DEMO_ALLOWED ? (
-                    <View style={styles.demo}>
+                    {DEMO_ALLOWED ? (
                         <Button
                             label="Run in demo mode"
                             onPress={() => void enableDemoMode()}
@@ -185,8 +227,8 @@ export function SetupScreen() {
                             block
                             disabled={testing}
                         />
-                    </View>
-                ) : null}
+                    ) : null}
+                </View>
             </View>
         </ScrollView>
     );
@@ -210,5 +252,8 @@ const styles = StyleSheet.create({
     action: { marginTop: space[6] },
     result: { flexDirection: 'row', alignItems: 'center', gap: space[2], marginTop: space[2] },
     resultDot: { paddingTop: space[0.5] },
-    demo: { alignSelf: 'stretch', alignItems: 'center', gap: space[2], marginTop: space[8] },
+    alternatives: { alignSelf: 'stretch', alignItems: 'center', gap: space[3], marginTop: space[6] },
+    or: { flexDirection: 'row', alignItems: 'center', gap: space[3], alignSelf: 'stretch' },
+    orRule: { flex: 1, height: 1, backgroundColor: color.hair },
+    localNote: { textAlign: 'center' },
 });

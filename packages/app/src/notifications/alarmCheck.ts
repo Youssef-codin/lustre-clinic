@@ -11,7 +11,10 @@ import { TRPC_ENDPOINT } from '@lustre/shared';
 import type { AlarmCheck } from '../../modules/lustre-alarm';
 
 export type AlarmCheckInput = {
-    /** Demo mode has no server, and its invented list must not be checked against the real one. */
+    /**
+     * Demo and local mode have no server, and the demo's invented list must not
+     * be checked against the real one. The alarm rings as armed.
+     */
     demo: boolean;
     current: string | null;
     lan: string | null;
