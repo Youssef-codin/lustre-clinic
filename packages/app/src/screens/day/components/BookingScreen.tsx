@@ -60,7 +60,7 @@ import {
     api,
     type Branch,
     type ClinicDay,
-    useGeneralProcedures,
+    useGeneralClinic,
     useLocalMutation,
     useLocalQuery,
 } from '../data';
@@ -244,7 +244,7 @@ export function BookingScreen({
     const name = patientNameOf(patient);
 
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
-    const general = useGeneralProcedures();
+    const general = useGeneralClinic();
 
     // Set during render rather than in an effect, as `VisitScreen` seeds its
     // checkup: the plan is on screen in the commit the catalogue lands in.

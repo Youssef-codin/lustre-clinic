@@ -38,7 +38,7 @@ import { border, color, radius, size, space, Text } from '../../../theme';
 import {
     type Appointment,
     api,
-    useGeneralProcedures,
+    useGeneralClinic,
     useLocalMutation,
     type Visit,
     type VisitPayment,
@@ -141,7 +141,7 @@ export function VisitViewScreen({
     }
 
     const groups = toothGroupsOf(visit.procedures);
-    const general = useGeneralProcedures();
+    const general = useGeneralClinic();
     // "Total cost" below is `chargedTotal`, which the server struck the checkup
     // out of. The group subtotals have to be struck the same way or the lines
     // on this screen visibly do not add up to the total under them.

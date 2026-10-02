@@ -47,7 +47,7 @@ const CLINIC_FIELDS = [
     'patientRefNext',
     'requireAge',
     'requireGender',
-    'generalProcedures',
+    'clinicType',
 ];
 
 /** `adminProcedure`. */

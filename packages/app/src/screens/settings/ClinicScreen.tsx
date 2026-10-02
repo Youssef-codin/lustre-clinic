@@ -1,6 +1,6 @@
 /**
  * Settings → Clinic: the name and number that identify the practice itself,
- * and where patient numbering carries on from.
+ * what kind of clinic it is, and where patient numbering carries on from.
  *
  * The hint under the first two says where the number shows up, because this is
  * the practice's number — the one on a receipt and at the top of a reminder
@@ -19,7 +19,15 @@
  * An **old** patient never takes a number from this sequence — they keep the
  * one on their paper file (New patient → Old patient) — so this only ever moves
  * for a patient the clinic has genuinely not seen before.
+ *
+ * ## The clinic type
+ *
+ * Dental charts teeth: a procedure marked as done to a tooth asks which one.
+ * General never asks, and the procedure editor stops showing the tooth flag.
+ * Each procedure keeps its flag, so going back to Dental is as it was.
  */
+
+import type { ClinicType } from '@lustre/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -30,6 +38,8 @@ import {
     Card,
     NumericField,
     SectionLabel,
+    type Segment,
+    SegmentedControl,
     TextField,
     Toast,
     usePendingAction,
@@ -40,6 +50,11 @@ import { Pane } from './components/Pane';
 import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { patientNumberDigits, patientNumberError } from './data/clinic';
 import { errorText } from './data/errors';
+
+const CLINIC_TYPES: readonly Segment<ClinicType>[] = [
+    { value: 'dental', label: 'Dental' },
+    { value: 'general', label: 'General' },
+];
 
 export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const t = useT();
@@ -59,12 +74,14 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
     const [name, setName] = useState<string>();
     const [phone, setPhone] = useState<string>();
     const [patientNumber, setPatientNumber] = useState<string>();
+    const [clinicType, setClinicType] = useState<ClinicType>();
     const [submitted, setSubmitted] = useState(false);
     const [toast, setToast] = useState(false);
 
     const data = clinic.data;
     const nameValue = name ?? data?.clinicName ?? '';
     const phoneValue = phone ?? data?.clinicPhone ?? '';
+    const clinicTypeValue = clinicType ?? data?.clinicType ?? 'dental';
     const patientNumberValue = patientNumber ?? (data ? String(data.patientRefNext) : '');
 
     const nameError = submitted && nameValue.trim() === '' ? 'The clinic needs a name.' : undefined;
@@ -90,10 +107,12 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                 clinicName: nameValue.trim(),
                 clinicPhone: phoneValue.trim(),
                 ...(patientRefNext !== data?.patientRefNext ? { patientRefNext } : {}),
+                ...(clinicTypeValue !== data?.clinicType ? { clinicType: clinicTypeValue } : {}),
             });
             setName(undefined);
             setPhone(undefined);
             setPatientNumber(undefined);
+            setClinicType(undefined);
             setSubmitted(false);
             setToast(true);
         });
@@ -142,7 +161,7 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
                             required
                             value={nameValue}
                             onChangeText={setName}
-                            placeholder="Lustre Dental"
+                            placeholder="Nile Clinic"
                             error={nameError}
                             autoCapitalize="words"
                             testID="clinic-name"
@@ -161,6 +180,24 @@ export function ClinicScreen({ onBack }: { onBack: () => void }) {
 
                     <Text variant="footnote" tone="muted" style={styles.hint}>
                         {t('Appears on receipts and in reminder messages.')}
+                    </Text>
+
+                    <SectionLabel inset={false}>CLINIC TYPE</SectionLabel>
+
+                    <SegmentedControl
+                        segments={CLINIC_TYPES}
+                        value={clinicTypeValue}
+                        onChange={setClinicType}
+                        accessibilityLabel="Clinic type"
+                        testID="clinic-type"
+                    />
+
+                    <Text variant="footnote" tone="muted" style={styles.hint}>
+                        {t(
+                            clinicTypeValue === 'general'
+                                ? 'Nothing asks for a tooth. Each procedure keeps its tooth setting, so choosing Dental again brings it back.'
+                                : 'Procedures marked as done to a tooth ask which one.',
+                        )}
                     </Text>
 
                     <SectionLabel inset={false}>PATIENT NUMBERS</SectionLabel>

@@ -89,7 +89,7 @@ const SAMPLE: Record<ReminderPlaceholder, string> = {
     date: '2026-06-12',
     time: '11:35',
     branch: 'Heliopolis',
-    clinic: 'Lustre Dental',
+    clinic: 'Nile Clinic',
     ref: '120626-K7T4',
 };
 

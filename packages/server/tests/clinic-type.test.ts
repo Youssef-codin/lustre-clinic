@@ -6,8 +6,8 @@ import { setupDatabase, truncateAll } from './helpers/db.ts';
 import { clinic, expectAppError, todaySlot } from './helpers/factories.ts';
 
 /**
- * A clinic on general procedures is never asked for a tooth. The catalogue keeps
- * its own flags, so the dental rule is back the moment the setting is off.
+ * A general clinic is never asked for a tooth. The catalogue keeps
+ * its own flags, so the dental rule is back the moment the clinic is dental again.
  */
 
 beforeAll(async () => {
@@ -18,14 +18,14 @@ beforeEach(async () => {
     await truncateAll();
 });
 
-describe('generalProcedures', () => {
+describe('clinicType', () => {
     test('is off for a clinic that has never set it', async () => {
-        expect((await settingsService.get()).generalProcedures).toBe(false);
+        expect((await settingsService.get()).clinicType).toBe('dental');
     });
 
     test('books a tooth-specific procedure with no tooth', async () => {
         const { branch, patient, extraction } = await clinic();
-        await settingsService.update({ generalProcedures: true });
+        await settingsService.update({ clinicType: 'general' });
 
         const booked = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -42,7 +42,7 @@ describe('generalProcedures', () => {
 
     test('still keeps a tooth on a line that carries one', async () => {
         const { branch, patient, extraction } = await clinic();
-        await settingsService.update({ generalProcedures: true });
+        await settingsService.update({ clinicType: 'general' });
 
         const booked = await appointmentService.create({
             patient: { kind: 'existing', patientId: patient.id },
@@ -57,10 +57,10 @@ describe('generalProcedures', () => {
         ]);
     });
 
-    test('turned back off, asks for the tooth again', async () => {
+    test('back to dental, asks for the tooth again', async () => {
         const { branch, patient, extraction } = await clinic();
-        await settingsService.update({ generalProcedures: true });
-        await settingsService.update({ generalProcedures: false });
+        await settingsService.update({ clinicType: 'general' });
+        await settingsService.update({ clinicType: 'dental' });
 
         await expectAppError(ERROR_CODE.TOOTH_REQUIRED, () =>
             appointmentService.create({
@@ -75,7 +75,7 @@ describe('generalProcedures', () => {
 
     test('is the clinic setup, which a secretary may not change', async () => {
         await expectAppError(ERROR_CODE.ROLE_FORBIDDEN, () =>
-            settingsService.update({ generalProcedures: true }, 'secretary'),
+            settingsService.update({ clinicType: 'general' }, 'secretary'),
         );
     });
 });

@@ -11,7 +11,7 @@
  * UR3 are two real lines; tooth-less lines share one empty-string key, keeping
  * the once-per-list rule for them.
  *
- * A clinic on general procedures is never asked for a tooth. A tooth that still
+ * A general (not dental) clinic is never asked for a tooth. A tooth that still
  * arrives on a tooth-specific line is kept: it is a line written before the
  * switch, sent back unchanged by an edit of that visit.
  *
@@ -40,8 +40,8 @@ export interface ResolvedLine {
 }
 
 export async function resolveProcedureLines(lines: RequestedLine[]): Promise<ResolvedLine[]> {
-    const [general, ...procedures] = await Promise.all([
-        settingsService.generalProcedures(),
+    const [clinicType, ...procedures] = await Promise.all([
+        settingsService.clinicType(),
         ...lines.map((line) => procedureService.requireSelectable(line.procedureId)),
     ]);
 
@@ -52,7 +52,7 @@ export async function resolveProcedureLines(lines: RequestedLine[]): Promise<Res
         if (!procedure) throw AppError.internal('procedure resolution returned nothing');
         const tooth = line.tooth ?? null;
 
-        if (procedure.isToothSpecific && !tooth && !general) {
+        if (procedure.isToothSpecific && !tooth && clinicType === 'dental') {
             throw new AppError(
                 ERROR_CODE.TOOTH_REQUIRED,
                 'that procedure must name the tooth it was done on',

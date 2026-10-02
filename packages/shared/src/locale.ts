@@ -489,7 +489,6 @@ export const COPY_AR = {
     LEGACY: 'من النظام القديم',
     'Loading the day': 'جارٍ تحميل اليوم',
     'Lustre Clinics': 'Lustre Clinics',
-    'Lustre Dental': 'Lustre Dental',
     M: 'ذ',
     MIN: 'دقيقة',
     'NEXT UP': 'التالي',
@@ -520,7 +519,7 @@ export const COPY_AR = {
     'Nothing recorded yet': 'لم يُسجل شيء بعد',
     'This booking came with no procedures. Add one now, or leave it to be decided in the chair.':
         'هذا الحجز بلا إجراءات. أضف إجراءً الآن، أو اتركه ليُحدد على الكرسي.',
-    'Add the procedure the dentist performed — you can come back and edit this at any time.':
+    'Add the procedure the doctor performed — you can come back and edit this at any time.':
         'أضف الإجراء الذي قام به الطبيب — يمكنك العودة وتعديله في أي وقت.',
     '{position}, {count} procedures': '{position}، {count} إجراءات',
     'Cost for {name}': 'تكلفة {name}',
@@ -1320,9 +1319,15 @@ export const COPY_AR = {
     'This is the clinic’s only admin phone. Make another phone an admin first.':
         'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
     'Add what the visit is for.': 'أضف سبب الزيارة.',
-    'General procedures': 'إجراءات عامة',
-    'Nothing asks for a tooth. Turn it off to bring the teeth back.':
-        'لا يُطلب تحديد سن في أي إجراء. أوقفه لإعادة الأسنان.',
+    'Nile Clinic': 'عيادة النيل',
+    'CLINIC TYPE': 'نوع العيادة',
+    'Clinic type': 'نوع العيادة',
+    Dental: 'أسنان',
+    General: 'عامة',
+    'Nothing asks for a tooth. Each procedure keeps its tooth setting, so choosing Dental again brings it back.':
+        'لا يُطلب تحديد سن في أي إجراء. يحتفظ كل إجراء بإعداد السن، فاختيار «أسنان» مرة أخرى يعيده.',
+    'Procedures marked as done to a tooth ask which one.': 'الإجراءات المحددة على سن تسأل عن السن.',
+    'Tap a category to choose a variant.': 'اضغط على فئة لاختيار نوع.',
     'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
 } as const;
 

@@ -14,7 +14,7 @@ import { border, color, radius, size, space, Text } from '../../../theme';
 import type { ProcedureCategory, ProcedureRow, RequestError } from '../data';
 import { describeError } from '../errors';
 import { formatMoney } from '../money';
-import { offeredFor } from '../procedures';
+import { asksTooth, offeredFor } from '../procedures';
 
 export type PickedProcedure = {
     procedureId: string;
@@ -78,7 +78,9 @@ export function ProcedureSheet({
             subtitle={
                 tooth
                     ? 'Tap a category to choose a variant — most are picked directly.'
-                    : 'Tap a category to choose a variant. Anything done to a tooth will ask which one.'
+                    : asksTooth(categories)
+                      ? 'Tap a category to choose a variant. Anything done to a tooth will ask which one.'
+                      : 'Tap a category to choose a variant.'
             }
             testID="procedure-sheet"
         >
