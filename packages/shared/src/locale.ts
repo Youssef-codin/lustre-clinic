@@ -1319,6 +1319,22 @@ export const COPY_AR = {
     'This is the clinic’s only admin phone. Make another phone an admin first.':
         'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
     'Add what the visit is for.': 'أضف سبب الزيارة.',
+    'Use on this phone only': 'الاستخدام على هذا الهاتف فقط',
+    or: 'أو',
+    'This phone could not open its clinic. Nothing was changed.':
+        'تعذّر على هذا الهاتف فتح عيادته. لم يتغير شيء.',
+    'THIS PHONE ONLY': 'هذا الهاتف فقط',
+    'This phone only': 'هذا الهاتف فقط',
+    'Connect to a server': 'الاتصال بخادم',
+    'Disconnect from server': 'قطع الاتصال بالخادم',
+    'Disconnect from this server?': 'قطع الاتصال بهذا الخادم؟',
+    Disconnect: 'قطع الاتصال',
+    'This phone forgets the server and its role there, and goes back to setup. Connect to it again and it will need a new role code.':
+        'ينسى هذا الهاتف الخادم ودوره عليه، ويعود إلى الإعداد. إذا اتصلت به مرة أخرى فسيحتاج إلى رمز دور جديد.',
+    'The clinic on this phone stays here for when you come back':
+        'تبقى العيادة على هذا الهاتف حتى تعود إليها',
+    'This phone': 'هذا الهاتف',
+    'No server': 'لا يوجد خادم',
     'Nile Clinic': 'عيادة النيل',
     'CLINIC TYPE': 'نوع العيادة',
     'Clinic type': 'نوع العيادة',

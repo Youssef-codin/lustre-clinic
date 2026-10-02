@@ -1,21 +1,55 @@
 /**
- * Demo mode: the clinic server, in memory, on the phone.
+ * The clinic server, in memory, on the phone: the demo's invented clinic, or
+ * local mode's real one (`./local`).
  *
- * `../client` splits on `isDemoMode()` per request, so nothing else in the app
- * knows this exists — the screens call the same procedures over the same client
- * and get the same shapes back.
+ * `../client` splits on `deviceBackend()` per request, so nothing else in the
+ * app knows this exists — the screens call the same procedures over the same
+ * client and get the same shapes back.
  */
 export { subscribeToDemoEvents } from './events';
-export { disableDemoMode, enableDemoMode, isDemoMode, useDemoMode } from './flag';
+export {
+    deviceBackend,
+    disableDemoMode,
+    disableLocalMode,
+    enableDemoMode,
+    isDemoMode,
+    isLocalMode,
+    useDemoMode,
+    useDeviceBackend,
+} from './flag';
 export { demoLink } from './link';
 
 import type { Role } from '@lustre/shared';
-import { credentialToken, forgetDemoCredential, grantCredential } from '../credential';
+import { credentialToken, forgetDemoCredential, grantCredential, hydrateCredential } from '../credential';
 import { noteDataReset } from '../dataReset';
-import { clearStored, setDb } from './db';
+import { clearStored, getDb, setDb, takeDirty } from './db';
+import { disableLocalMode, enableLocalMode } from './flag';
 import { provisionDemo } from './handlers/device';
-import { openDemoDb } from './link';
+import { openDeviceDb } from './link';
+import { commitLocal } from './local';
 import { seedDemoDb } from './seed';
+
+/**
+ * Runs the clinic on this phone alone. The phone is its only device, so it is
+ * made the admin: it books, takes payments and sets the clinic up. Entering
+ * again finds the clinic and the phone's role where they were left.
+ */
+export async function startLocalMode(): Promise<void> {
+    await enableLocalMode();
+    try {
+        await hydrateCredential();
+        await openDeviceDb('local');
+        const token = credentialToken();
+        const known = getDb().devices.some((device) => device.token === token && !device.revokedAt);
+        if (known) return;
+        const credential = provisionDemo('admin', token, 'This phone');
+        if (takeDirty()) commitLocal();
+        grantCredential(credential);
+    } catch (error) {
+        await disableLocalMode();
+        throw error;
+    }
+}
 
 /**
  * Back to the clinic the demo opens on. Worth having on the settings screen:
@@ -35,6 +69,6 @@ export async function resetDemoData(): Promise<void> {
  * checked against it, as the server checks the real one.
  */
 export async function becomeInDemo(role: Role): Promise<void> {
-    await openDemoDb();
+    await openDeviceDb('demo');
     grantCredential(provisionDemo(role, credentialToken()));
 }

@@ -257,17 +257,42 @@ const STORE_VERSION = 13;
 
 let db: DemoDb | null = null;
 
+/**
+ * Which clinic `db` is. The handlers are shared, and only the writing differs:
+ * the demo's is saved behind the screens, best effort, and local mode's is
+ * written before the request answers (`./local`).
+ */
+export type DbKind = 'demo' | 'local';
+
+let kind: DbKind = 'demo';
+
+/** Local mode's: whether a handler wrote since the last commit. */
+let dirty = false;
+
 export function getDb(): DemoDb {
     if (!db) throw new Error('the demo database has not been opened');
     return db;
 }
 
-export function setDb(next: DemoDb): void {
+export function setDb(next: DemoDb, as: DbKind = 'demo'): void {
     db = next;
+    kind = as;
+    dirty = false;
 }
 
-export function isOpen(): boolean {
-    return db !== null;
+export function isOpen(as: DbKind = 'demo'): boolean {
+    return db !== null && kind === as;
+}
+
+export function openKind(): DbKind | null {
+    return db ? kind : null;
+}
+
+/** Whether anything was written since the last call, which then starts over. */
+export function takeDirty(): boolean {
+    const was = dirty;
+    dirty = false;
+    return was;
 }
 
 /**
@@ -278,11 +303,15 @@ export function isOpen(): boolean {
 let pending: ReturnType<typeof setTimeout> | null = null;
 
 export function save(): void {
+    if (kind === 'local') {
+        dirty = true;
+        return;
+    }
     if (pending) return;
     pending = setTimeout(() => {
         pending = null;
         const current = db;
-        if (!current) return;
+        if (!current || kind !== 'demo') return;
         void AsyncStorage.setItem(STORE_KEY, JSON.stringify({ version: STORE_VERSION, db: current })).catch(
             () => undefined,
         );
@@ -317,7 +346,7 @@ function reviveRows(rows: unknown, fields: readonly string[]): void {
     }
 }
 
-function revive(parsed: DemoDb): DemoDb {
+export function revive(parsed: DemoDb): DemoDb {
     for (const [table, fields] of Object.entries(DATE_FIELDS)) {
         reviveRows(parsed[table as keyof DemoDb], fields);
     }

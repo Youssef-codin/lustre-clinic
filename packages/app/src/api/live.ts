@@ -6,7 +6,7 @@ import { api, trpcClient } from './client';
 import { timing, wsUrl } from './config';
 import { noteLinkDropped, resolveBaseUrl } from './connection';
 import { useCredential } from './credential';
-import { subscribeToDemoEvents, useDemoMode } from './demo';
+import { subscribeToDemoEvents, useDeviceBackend } from './demo';
 import { queryClient } from './queryClient';
 import { type Area, createEventCursor, createRefreshBatch, type ServerEvent } from './serverEvents';
 
@@ -155,7 +155,7 @@ export function useServerEvents(): void {
     // is already running when somebody taps "Run in demo mode" — asking once
     // would leave that session subscribed to a socket that will never open and
     // deaf to the events it does get, until the app was next launched.
-    const { enabled } = useDemoMode();
+    const enabled = useDeviceBackend().backend !== null;
     // A socket is admitted as the credential it opened with, and closed by the
     // server when that credential is revoked. One opened before this phone
     // scanned a code would never be, so a new credential opens a new socket.

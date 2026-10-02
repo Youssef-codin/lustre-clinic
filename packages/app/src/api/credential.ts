@@ -2,16 +2,16 @@ import { ERROR_CODE, type Role } from '@lustre/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import { noteDataReset, subscribeToDataReset } from './dataReset';
-import { isDemoMode } from './demo/flag';
+import { type DeviceBackend, deviceBackend } from './demo/flag';
 
 // This phone's role credential: what an admin's QR code was redeemed for. The
 // token goes out on every request and on `/ws`, and the server reads the role
 // off it — the copy of the role kept here is only for drawing the right
 // screens, never for deciding what the phone may do.
 //
-// Two slots, because demo mode is a second server: a credential the demo handed
-// out means nothing to the clinic's, and the clinic's must survive a demo being
-// entered and left. Each is persisted under its own key.
+// A slot per backend, because demo mode and local mode are servers of their own:
+// a credential one handed out means nothing to the others, and the clinic's
+// must survive either being entered and left. Each is persisted under its own key.
 //
 // A refusal is the server saying this phone may not in: `revoked` when an admin
 // withdrew its role (persisted, so a relaunch does not quietly fall back to the
@@ -44,9 +44,15 @@ interface Slot {
     fresh: boolean;
 }
 
-type SlotName = 'live' | 'demo';
+type SlotName = 'live' | DeviceBackend;
 
-const KEYS: Record<SlotName, string> = { live: 'lustre.device', demo: 'lustre.demo.device' };
+const SLOTS: readonly SlotName[] = ['live', 'demo', 'local'];
+
+const KEYS: Record<SlotName, string> = {
+    live: 'lustre.device',
+    demo: 'lustre.demo.device',
+    local: 'lustre.local.device',
+};
 
 const EMPTY: Slot = { credential: null, revoked: false, unprovisioned: false, fresh: false };
 
@@ -91,12 +97,12 @@ export function refusalIn(body: unknown): 'revoked' | 'unprovisioned' | null {
 }
 
 /** Exported for the tests, which need a store that has never read storage. */
-export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
-    const slots: Record<SlotName, Slot> = { live: EMPTY, demo: EMPTY };
+export function createCredentialStore(backend: () => DeviceBackend | null = deviceBackend) {
+    const slots: Record<SlotName, Slot> = { live: EMPTY, demo: EMPTY, local: EMPTY };
     let hydrated = false;
     let snapshot: CredentialState = { hydrated: false, credential: null, refusal: 'none' };
     const listeners = new Set<() => void>();
-    const current = (): SlotName => (inDemo() ? 'demo' : 'live');
+    const current = (): SlotName => backend() ?? 'live';
 
     function emit(): void {
         const slot = slots[current()];
@@ -138,19 +144,20 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
 
     function hydrate(): Promise<void> {
         hydrating ??= (async () => {
-            const [live, demo] = await Promise.all(
-                (['live', 'demo'] as const).map((name) => AsyncStorage.getItem(KEYS[name]).catch(() => null)),
+            const stored = await Promise.all(
+                SLOTS.map((name) => AsyncStorage.getItem(KEYS[name]).catch(() => null)),
             );
-            if (!touched.has('live')) slots.live = parseSlot(live ?? null);
-            if (!touched.has('demo')) slots.demo = parseSlot(demo ?? null);
+            SLOTS.forEach((name, index) => {
+                if (!touched.has(name)) slots[name] = parseSlot(stored[index] ?? null);
+            });
             hydrated = true;
             emit();
         })();
         return hydrating;
     }
 
-    // Entering or leaving demo mode is reported as a data reset, and it is also
-    // what changes which slot is current.
+    // Entering or leaving demo or local mode is reported as a data reset, and it
+    // is also what changes which slot is current.
     subscribeToDataReset(emit);
 
     return {
@@ -192,6 +199,10 @@ export function createCredentialStore(inDemo: () => boolean = isDemoMode) {
         },
         forgetDemo(): void {
             write('demo', EMPTY);
+        },
+        /** Fresh rather than empty: the next server it reaches asks for a code. */
+        forgetLive(): void {
+            write('live', { ...EMPTY, fresh: true });
         },
         /** Waits for storage, so a credential already on the phone is never mistaken for none. */
         async markFresh(): Promise<void> {
@@ -243,6 +254,15 @@ export function retryProvisioning(): void {
  */
 export function markFreshInstall(): Promise<void> {
     return store.markFresh();
+}
+
+/**
+ * The phone left its clinic server. The role was that server's to give, so it
+ * goes too: a phone pointed at another clinic must not arrive holding one.
+ */
+export function forgetServerCredential(): void {
+    store.forgetLive();
+    noteDataReset();
 }
 
 /** A reseeded demo has no devices, so the demo's credential goes with it. */

@@ -1731,6 +1731,10 @@ describe('what the catalogue offers', () => {
         expect(asksTooth(undefined)).toBe(true);
     });
 
+    it('asks a general clinic for no tooth even before the catalogue arrives', () => {
+        expect(asksTooth(undefined, true)).toBe(false);
+    });
+
     it('keeps a heading only for the variants that fit', () => {
         const filling = category('filling', false, [
             { id: 'class-i', isToothSpecific: true },
