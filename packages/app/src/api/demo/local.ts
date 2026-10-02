@@ -147,12 +147,15 @@ export async function pickClinicFile(): Promise<PickedClinic | null> {
 export function openClinicFile(picked: PickedClinic): void {
     const main = file(MAIN);
     const next = file(NEXT);
-    if (main.exists) main.copySync(file(REPLACED), { overwrite: true });
-    else if (next.exists) next.copySync(file(REPLACED), { overwrite: true });
+    const kept = main.exists ? main : next.exists ? next : null;
+    kept?.copySync(file(REPLACED), { overwrite: true });
     setDb(picked.db, 'local');
     try {
         commitLocal();
     } catch (error) {
+        // A move that failed part way can have taken the main file with it,
+        // leaving the picked clinic as the next copy a launch would open.
+        if (kept && !main.exists) file(REPLACED).copySync(main, { overwrite: true });
         rollbackLocal();
         throw error;
     }

@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 const stored = new Map<string, string>();
 const files = new Map<string, string>();
 let writesFail = false;
+/** Android's overwrite move removes the target first; this fails straight after that. */
+let movesFail = false;
 /** What the next system file picker hands back; null is the picker closed. */
 let pickable: string | null = null;
 const shared: string[] = [];
@@ -60,6 +62,10 @@ class MemoryFile {
     }
 
     moveSync(target: MemoryFile): void {
+        if (movesFail) {
+            files.delete(target.name);
+            throw new Error('move failed');
+        }
         files.set(target.name, this.textSync());
         files.delete(this.name);
     }
@@ -116,6 +122,7 @@ beforeEach(async () => {
     stored.clear();
     files.clear();
     writesFail = false;
+    movesFail = false;
     pickable = null;
     shared.length = 0;
     relaunch();
@@ -299,6 +306,26 @@ describe('a clinic file brought back', () => {
         pickable = JSON.stringify(file);
 
         await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+    });
+
+    it('puts the old clinic back when the phone would not take the new one', async () => {
+        pickable = anotherPhonesExport();
+        const first = await pickClinicFile();
+        if (first) await startLocalModeFrom(first);
+        await disableLocalMode();
+        const before = files.get(MAIN);
+
+        pickable = serializeLocal(freshLocalDb(), new Date());
+        const second = await pickClinicFile();
+        movesFail = true;
+        await expect(second ? startLocalModeFrom(second) : Promise.resolve()).rejects.toThrow();
+        movesFail = false;
+
+        expect(files.get(MAIN)).toBe(before);
+        relaunch();
+        await startLocalMode();
+        const branches = await client.branch.list.query({ includeInactive: true });
+        expect(branches.map((branch) => branch.name)).toEqual(['Dokki']);
     });
 
     it('keeps aside a clinic that was only ever on file as its next copy', async () => {
