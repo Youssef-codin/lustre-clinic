@@ -49,6 +49,7 @@ import {
     patientRefOf,
 } from './patientDraft';
 import {
+    asksTooth,
     bookedProcedures,
     type ChargeableLine,
     chargeableTotal,
@@ -63,6 +64,7 @@ import {
     samePlan,
     toothPosition,
     totalOf,
+    withoutTeeth,
 } from './procedures';
 import {
     addDays,
@@ -1324,6 +1326,11 @@ describe('the procedure plan', () => {
         expect(toothPosition(null)).toBe('No tooth assigned');
     });
 
+    it('says nothing about a missing tooth on general procedures', () => {
+        expect(toothPosition(null, true)).toBe('');
+        expect(toothPosition('UL6', true)).toBe('Upper left · 6');
+    });
+
     it('offers the child teeth after the permanent ones in every quadrant', () => {
         const upperRight = QUADRANTS.find((quadrant) => quadrant.key === 'UR');
 
@@ -1706,6 +1713,22 @@ describe('what the catalogue offers', () => {
         const offered = offeredFor([category('extraction', true), category('scaling', false)], false);
 
         expect(offered.map((row) => row.id)).toEqual(['extraction', 'scaling']);
+    });
+
+    // General procedures: the catalogue keeps its flags on the server, and the
+    // phone reads every row as mouth-level work, so nothing asks for a tooth.
+    it('asks no tooth of a clinic on general procedures', () => {
+        const catalogue = [
+            category('extraction', true),
+            category('filling', false, [{ id: 'class-i', isToothSpecific: true }]),
+        ];
+
+        expect(asksTooth(catalogue)).toBe(true);
+        expect(asksTooth(withoutTeeth(catalogue))).toBe(false);
+    });
+
+    it('asks for the tooth first while the catalogue is still loading', () => {
+        expect(asksTooth(undefined)).toBe(true);
     });
 
     it('keeps a heading only for the variants that fit', () => {

@@ -1319,6 +1319,11 @@ export const COPY_AR = {
         'اطلب من مدير العيادة رمزًا لهذا الهاتف، ثم امسحه. هو ما يحدد ما يمكن لهذا الهاتف فعله.',
     'This is the clinic’s only admin phone. Make another phone an admin first.':
         'هذا هاتف المدير الوحيد في العيادة. اجعل هاتفًا آخر مديرًا أولًا.',
+    'Add what the visit is for.': 'أضف سبب الزيارة.',
+    'General procedures': 'إجراءات عامة',
+    'Nothing asks for a tooth. Turn it off to bring the teeth back.':
+        'لا يُطلب تحديد سن في أي إجراء. أوقفه لإعادة الأسنان.',
+    'Off: once per visit.': 'عند الإيقاف: مرة واحدة لكل زيارة.',
 } as const;
 
 export type CopyKey = keyof typeof COPY_AR;

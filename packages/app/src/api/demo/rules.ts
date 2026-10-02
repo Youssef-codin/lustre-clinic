@@ -254,10 +254,12 @@ export interface ResolvedLine {
  * Only a leaf may go on a list, `isToothSpecific` decides whether a tooth
  * belongs on the line at all, and uniqueness is per tooth — an extraction on
  * UL6 and one on UR3 are two real lines, while tooth-less lines share one key.
+ * A clinic on general procedures is never asked for a tooth.
  */
 export function resolveProcedureLines(
     lines: readonly RequestedLine[],
     catalogue: readonly ProcedureTypeRow[],
+    general = false,
 ): ResolvedLine[] {
     const parents = new Set(catalogue.map((row) => row.parentId).filter((id): id is string => id !== null));
     const seen = new Set<string>();
@@ -272,7 +274,7 @@ export function resolveProcedureLines(
 
         const tooth = line.tooth ?? null;
 
-        if (procedure.isToothSpecific && !tooth) {
+        if (procedure.isToothSpecific && !tooth && !general) {
             throw new DemoError(
                 ERROR_CODE.TOOTH_REQUIRED,
                 'that procedure must name the tooth it was done on',

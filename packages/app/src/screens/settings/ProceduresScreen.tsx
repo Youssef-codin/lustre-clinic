@@ -95,6 +95,14 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
     const queryClient = useQueryClient();
 
     const tree = useQuery(trpc.procedure.tree.queryOptions({ includeInactive: true }));
+    const settings = useQuery(trpc.settings.get.queryOptions());
+    const general = settings.data?.generalProcedures ?? false;
+    const saveSettings = useMutation(
+        trpc.settings.update.mutationOptions({
+            onSuccess: () => queryClient.invalidateQueries(trpc.settings.pathFilter()),
+        }),
+    );
+    const setGeneral = usePendingAction((on: boolean) => saveSettings.mutateAsync({ generalProcedures: on }));
     // A category being made: its name, held until the first subtype under it is
     // saved, because the two are written together. The naming itself is a sheet.
     const [namingCategory, setNamingCategory] = useState(false);
@@ -210,6 +218,24 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                     </Callout>
                 ) : null}
 
+                {saveSettings.error ? (
+                    <Callout tone="warning" title="Not saved">
+                        {errorText(saveSettings.error)}
+                    </Callout>
+                ) : null}
+
+                {settings.data && !reordering ? (
+                    <Card>
+                        <FlagRow
+                            label="General procedures"
+                            sub="Nothing asks for a tooth. Turn it off to bring the teeth back."
+                            value={general}
+                            onChange={setGeneral.run}
+                            disabled={setGeneral.pending}
+                        />
+                    </Card>
+                ) : null}
+
                 {tree.data && empty ? (
                     <EmptyState
                         weight="panel"
@@ -228,6 +254,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                 procedure={node}
                                 reordering={reordering}
                                 reorderDisabled={moveRow.pending}
+                                general={general}
                                 isFirst={index === 0}
                                 isLast={index === nodes.length - 1}
                                 onPress={() => editor.push({ kind: 'edit', procedure: node })}
@@ -271,6 +298,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                                             procedure={child}
                                             reordering={reordering}
                                             reorderDisabled={moveRow.pending}
+                                            general={general}
                                             isFirst={childIndex === 0}
                                             isLast={childIndex === node.children.length - 1}
                                             onPress={() => editor.push({ kind: 'edit', procedure: child })}
@@ -349,6 +377,7 @@ export function ProceduresScreen({ onBack }: { onBack: () => void }) {
                         newCategory={route.kind === 'category' ? route.name : null}
                         categories={all.filter((node) => !node.selectable)}
                         nextSortOrder={nextSortOrder}
+                        general={general}
                         onClose={editor.pop}
                         onSaved={(message) => {
                             editor.pop();
@@ -420,6 +449,8 @@ type ProcedureRowProps = {
     procedure: Procedure;
     reordering: boolean;
     reorderDisabled: boolean;
+    /** The clinic is on general procedures, so the tooth flag is not shown. */
+    general: boolean;
     isFirst: boolean;
     isLast: boolean;
     onPress: () => void;
@@ -431,6 +462,7 @@ function ProcedureRow({
     procedure,
     reordering,
     reorderDisabled,
+    general,
     isFirst,
     isLast,
     onPress,
@@ -452,7 +484,7 @@ function ProcedureRow({
                         WAIVED
                     </Tag>
                 ) : null}
-                {procedure.isToothSpecific ? <Tag tone="muted">TOOTH</Tag> : null}
+                {procedure.isToothSpecific && !general ? <Tag tone="muted">TOOTH</Tag> : null}
                 {procedure.hasQuantity ? <Tag tone="muted">QTY</Tag> : null}
             </View>
         </View>
@@ -495,6 +527,8 @@ type ProcedureEditorProps = {
     categories: ProcedureNode[];
     /** Where a new row lands in its group: after everything already in it. */
     nextSortOrder: (parentId: string | null) => number;
+    /** Kept as it was rather than shown: the flag is what switching back restores. */
+    general: boolean;
     onClose: () => void;
     onSaved: (message: string) => void;
 };
@@ -507,6 +541,7 @@ function ProcedureEditor({
     newCategory,
     categories,
     nextSortOrder,
+    general,
     onClose,
     onSaved,
 }: ProcedureEditorProps) {
@@ -692,16 +727,20 @@ function ProcedureEditor({
 
             {isCategory ? null : (
                 <Card>
-                    <FlagRow
-                        label="Needs a tooth"
-                        sub="Asked before it is added."
-                        value={toothSpecific}
-                        onChange={setToothSpecific}
-                    />
-                    <CardDivider />
+                    {general ? null : (
+                        <>
+                            <FlagRow
+                                label="Needs a tooth"
+                                sub="Asked before it is added."
+                                value={toothSpecific}
+                                onChange={setToothSpecific}
+                            />
+                            <CardDivider />
+                        </>
+                    )}
                     <FlagRow
                         label="Can have a quantity"
-                        sub="Off: once per visit, per tooth."
+                        sub={general ? 'Off: once per visit.' : 'Off: once per visit, per tooth.'}
                         value={hasQuantity}
                         onChange={setHasQuantity}
                     />
@@ -764,9 +803,10 @@ type FlagRowProps = {
     sub: string;
     value: boolean;
     onChange: (value: boolean) => void;
+    disabled?: boolean;
 };
 
-function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
+function FlagRow({ label, sub, value, onChange, disabled }: FlagRowProps) {
     const t = useT();
     return (
         <View style={styles.flagRow}>
@@ -778,7 +818,7 @@ function FlagRow({ label, sub, value, onChange }: FlagRowProps) {
                     {t(sub)}
                 </Text>
             </View>
-            <Switch value={value} onValueChange={onChange} accessibilityLabel={label} />
+            <Switch value={value} onValueChange={onChange} disabled={disabled} accessibilityLabel={label} />
         </View>
     );
 }

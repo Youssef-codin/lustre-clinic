@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- Settings → Procedures & prices → General procedures turns off teeth for the whole clinic. Adding a procedure goes straight to the list without asking for a tooth, no procedure requires one, the "Needs a tooth" switch and TOOTH tags are hidden, and visits and bookings no longer say "No tooth assigned" under lines without a tooth. Each procedure keeps its own setting, so turning General procedures off brings the dental flow back as it was. Visits recorded with a tooth keep it.
+
 ## [1.7.2] - 2026-10-01
 
 ### Added

@@ -41,11 +41,20 @@ import {
 import { useLocale, useT } from '../../../i18n';
 import { border, color, font, radius, size, space, Text, type } from '../../../theme';
 import { type Standing, standingFor } from '../chair';
-import { type Appointment, amend, api, arrive, useLocalMutation, useLocalQuery, type Visit } from '../data';
+import {
+    type Appointment,
+    amend,
+    api,
+    arrive,
+    useGeneralProcedures,
+    useLocalMutation,
+    useLocalQuery,
+    type Visit,
+} from '../data';
 import { describeError } from '../errors';
 import { discountPercent, formatAmount, poundsEntry } from '../money';
 import { noteChanged, noteDraft, noteValue } from '../notes';
-import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
+import { asksTooth, chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
 import { dateKey, formatLongDate, formatTime12, monthShort, todayKey } from '../time';
 import { PlusIcon, XIcon } from './icons';
 import { type PickedProcedure, ProcedureSheet } from './ProcedureSheet';
@@ -206,6 +215,7 @@ export function VisitScreen({
     const [edited, setEdited] = useState(false);
 
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
+    const general = useGeneralProcedures();
     const price = useLocalMutation(amend);
     const checkIn = useLocalMutation(arrive);
     const sendToDesk = useLocalMutation(api.awaitPayment);
@@ -274,6 +284,10 @@ export function VisitScreen({
     const where = mode === 'arrival' ? 'arriving' : (standing ?? standingFor(appointment, todayKey()));
     const inChair = where === 'chair';
     const planning = where === 'arriving' || where === 'waiting';
+
+    function startAdding() {
+        setAsking(asksTooth(catalogue.data) ? { step: 'tooth' } : { step: 'procedure', tooth: null });
+    }
 
     /**
      * Both questions are `Modal`s, and presenting one while another is still
@@ -522,7 +536,7 @@ export function VisitScreen({
                         </Text>
                         <Button
                             label="Add a procedure"
-                            onPress={() => setAsking({ step: 'tooth' })}
+                            onPress={startAdding}
                             style={styles.emptyCta}
                             testID="visit-add-first"
                         />
@@ -532,16 +546,21 @@ export function VisitScreen({
                         {groups.map((group) => {
                             const key = group.tooth ?? 'none';
                             const open = !collapsed.includes(key);
+                            const position = toothPosition(group.tooth, general);
 
                             return (
                                 <View key={key} style={styles.group}>
                                     <Pressable
                                         accessibilityRole="button"
                                         accessibilityState={{ expanded: open }}
-                                        accessibilityLabel={t('{position}, {count} procedures', {
-                                            position: toothPosition(group.tooth),
-                                            count: group.items.length,
-                                        })}
+                                        accessibilityLabel={
+                                            position
+                                                ? t('{position}, {count} procedures', {
+                                                      position,
+                                                      count: group.items.length,
+                                                  })
+                                                : t('{count} procedures', { count: group.items.length })
+                                        }
                                         onPress={() => toggle(key)}
                                         style={({ pressed }) => [styles.groupHead, pressed && styles.pressed]}
                                     >
@@ -562,7 +581,7 @@ export function VisitScreen({
                                             numberOfLines={1}
                                             style={styles.grow}
                                         >
-                                            {toothPosition(group.tooth)}
+                                            {position}
                                         </Text>
 
                                         <Text variant="callout" script="mono" weight="bold">
@@ -689,7 +708,7 @@ export function VisitScreen({
                 {empty ? null : (
                     <Pressable
                         accessibilityRole="button"
-                        onPress={() => setAsking({ step: 'tooth' })}
+                        onPress={startAdding}
                         style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                         testID="visit-add"
                     >
