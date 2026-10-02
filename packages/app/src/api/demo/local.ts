@@ -91,10 +91,10 @@ function readExportStamp(): Date | null {
 }
 
 function noteExport(at: Date | null): void {
+    noteLastExportAt(at);
     const stamp = file(EXPORTED);
     if (at) stamp.write(at.toISOString());
     else if (stamp.exists) stamp.delete();
-    noteLastExportAt(at);
 }
 
 /**
@@ -162,5 +162,10 @@ export function openClinicFile(picked: PickedClinic): void {
         rollbackLocal();
         throw error;
     }
-    noteExport(picked.exportedAt);
+    try {
+        noteExport(picked.exportedAt);
+    } catch {
+        // The clinic is already on file; saying the import failed over a
+        // timestamp would be the wrong answer.
+    }
 }
