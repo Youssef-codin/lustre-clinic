@@ -41,7 +41,14 @@ const SETUP = new Set([
 ]);
 
 /** The fields of `settings.update` that set the clinic up (`settingsService.update`). */
-const CLINIC_FIELDS = ['clinicName', 'clinicPhone', 'patientRefNext', 'requireAge', 'requireGender'];
+const CLINIC_FIELDS = [
+    'clinicName',
+    'clinicPhone',
+    'patientRefNext',
+    'requireAge',
+    'requireGender',
+    'clinicType',
+];
 
 /** `adminProcedure`. */
 const ADMIN = new Set(['device.grants', 'device.issue', 'device.revoke', 'device.setRequireProvisioning']);

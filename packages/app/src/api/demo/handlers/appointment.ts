@@ -98,6 +98,7 @@ function replaceProcedures(
             note: line.note,
         })),
         db.procedureTypes,
+        db.settings.clinicType === 'general',
     );
 
     db.appointmentProcedures = db.appointmentProcedures.filter(

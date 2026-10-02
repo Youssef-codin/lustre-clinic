@@ -46,7 +46,7 @@ import { border, color, radius, size, space, Text } from '../../theme';
 import { CalendarIcon, PatientIcon } from '../day/components/icons';
 import { type PlanCopy, ProcedurePlan } from '../day/components/ProcedurePlan';
 import { Steps, SummaryRow } from '../day/components/Steps';
-import { api as dayApi, useLocalQuery } from '../day/data';
+import { api as dayApi, useGeneralClinic, useLocalQuery } from '../day/data';
 import {
     chargeableTotal,
     checkupIsWaived,
@@ -108,6 +108,7 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
     // Booking's catalogue, read the way booking reads it — the plan editor
     // below is booking's too.
     const catalogue = useLocalQuery('procedure-tree', dayApi.procedureTree);
+    const general = useGeneralClinic();
 
     const patient = record.data?.patient;
     const name = patient?.name ?? '';
@@ -233,6 +234,7 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                             loading={catalogue.status === 'loading'}
                             error={catalogue.status === 'error' ? catalogue.error : null}
                             onRetry={catalogue.refetch}
+                            general={general}
                             copy={PLAN_COPY}
                         />
                     ) : step === 'day' ? (
@@ -282,7 +284,7 @@ export function OldVisitScreen({ patientId, onBack, onSavingChange, onRecorded }
                                         <ToothGroupCard
                                             key={group.tooth ?? 'none'}
                                             tooth={group.tooth}
-                                            position={toothPosition(group.tooth)}
+                                            position={toothPosition(group.tooth, general)}
                                             subtotal={
                                                 <MoneyValue
                                                     piastres={group.subtotal}

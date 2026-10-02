@@ -198,3 +198,12 @@ export const APPOINTMENT_TRANSITIONS = {
 export function canTransition(from: AppointmentStatus, to: AppointmentStatus): boolean {
     return (APPOINTMENT_TRANSITIONS[from] as readonly AppointmentStatus[]).includes(to);
 }
+
+/**
+ * What kind of clinic this is. `dental` charts teeth: a tooth-specific
+ * procedure asks which tooth. `general` never asks, whatever the catalogue
+ * says, and each procedure keeps its own flag so switching back restores it.
+ */
+export const CLINIC_TYPES = ['dental', 'general'] as const;
+export const clinicTypeSchema = z.enum(CLINIC_TYPES);
+export type ClinicType = z.infer<typeof clinicTypeSchema>;

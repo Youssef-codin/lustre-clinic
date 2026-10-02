@@ -20,7 +20,7 @@ import { StyleSheet, View } from 'react-native';
 import { ToothGroupCard, type ToothGroupLine } from '../../../components/domain';
 import { useT } from '../../../i18n';
 import { border, color, radius, space, Text } from '../../../theme';
-import type { AppointmentProcedure } from '../data';
+import { type AppointmentProcedure, useGeneralClinic } from '../data';
 import { toothGroupsOf, toothPosition } from '../procedures';
 
 export type PlanSummaryProps = {
@@ -32,6 +32,7 @@ export type PlanSummaryProps = {
 export function PlanSummary({ procedures, label }: PlanSummaryProps) {
     const t = useT();
     const groups = toothGroupsOf(procedures);
+    const general = useGeneralClinic();
 
     return (
         <>
@@ -62,7 +63,7 @@ export function PlanSummary({ procedures, label }: PlanSummaryProps) {
                             <ToothGroupCard
                                 variant="row"
                                 tooth={group.tooth}
-                                position={toothPosition(group.tooth)}
+                                position={toothPosition(group.tooth, general)}
                                 lines={group.items.map(planLine)}
                             />
                         </View>

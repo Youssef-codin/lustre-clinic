@@ -13,7 +13,7 @@ describe('previewMessage', () => {
         const preview = previewMessage(DEFAULT_REMINDER_TEMPLATE);
 
         expect(preview).toBe(
-            'Hello Nour El-Sayed, this is a reminder of your appointment at Lustre Dental on 2026-06-12 at 11:35.',
+            'Hello Nour El-Sayed, this is a reminder of your appointment at Nile Clinic on 2026-06-12 at 11:35.',
         );
     });
 

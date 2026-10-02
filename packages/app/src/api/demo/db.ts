@@ -17,6 +17,7 @@
 import type {
     AppointmentChannel,
     AppointmentStatus,
+    ClinicType,
     LabStatus,
     PaymentMethod,
     QuestionKind,
@@ -201,6 +202,7 @@ export interface SettingsRow {
     requireAge: boolean;
     requireGender: boolean;
     askToEditOnFinish: boolean;
+    clinicType: ClinicType;
     requireProvisioning: boolean;
     updatedAt: Date;
 }
@@ -249,8 +251,9 @@ const STORE_KEY = 'lustre.demo.db';
  * 10: settings carry `askToEditOnFinish`.
  * 11: planned procedures carry `quotedPrice`.
  * 12: `roleGrants` and `devices`, and settings carry `requireProvisioning`.
+ * 13: settings carry `clinicType`.
  */
-const STORE_VERSION = 12;
+const STORE_VERSION = 13;
 
 let db: DemoDb | null = null;
 

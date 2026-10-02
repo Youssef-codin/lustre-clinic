@@ -46,7 +46,10 @@ export type ToothGroupLine = {
 
 export type ToothGroupCardProps = {
     tooth: Tooth | null;
-    /** "Upper left · 6" — spelled out, because `UL6` and `UR6` are one letter apart and opposite sides of the mouth. */
+    /**
+     * "Upper left · 6" — spelled out, because `UL6` and `UR6` are one letter apart
+     * and opposite sides of the mouth. Empty draws nothing.
+     */
     position: string;
     lines: readonly ToothGroupLine[];
     variant?: 'card' | 'row';
@@ -80,9 +83,11 @@ export function ToothGroupCard({
                     {lines.map((line) => (
                         <Line key={line.id} line={line} stacked />
                     ))}
-                    <Text variant="footnote" tone="muted">
-                        {position}
-                    </Text>
+                    {position ? (
+                        <Text variant="footnote" tone="muted">
+                            {position}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
         );
@@ -105,10 +110,11 @@ export function ToothGroupCard({
                 <Pressable
                     accessibilityRole="button"
                     accessibilityState={{ expanded }}
-                    accessibilityLabel={t('{position}, {count} procedures', {
-                        position,
-                        count: lines.length,
-                    })}
+                    accessibilityLabel={
+                        position
+                            ? t('{position}, {count} procedures', { position, count: lines.length })
+                            : t('{count} procedures', { count: lines.length })
+                    }
                     onPress={onToggle}
                     style={({ pressed }) => [styles.head, pressed && styles.pressed]}
                 >

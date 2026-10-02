@@ -9,7 +9,12 @@
  * `setDay` would silently shift it; both are zero-padded, so comparing them as
  * strings orders them by time.
  */
-import { MAX_DURATION_MINUTES, MAX_PATIENT_REF, MIN_DURATION_MINUTES } from '@lustre/shared';
+import {
+    clinicTypeSchema,
+    MAX_DURATION_MINUTES,
+    MAX_PATIENT_REF,
+    MIN_DURATION_MINUTES,
+} from '@lustre/shared';
 import { z } from 'zod';
 
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, 'expected HH:MM');
@@ -41,6 +46,7 @@ export const updateSettingsInput = z
         requireAge: z.boolean(),
         requireGender: z.boolean(),
         askToEditOnFinish: z.boolean(),
+        clinicType: clinicTypeSchema,
     })
     .partial()
     .refine((v) => Object.keys(v).length > 0, 'nothing to update');

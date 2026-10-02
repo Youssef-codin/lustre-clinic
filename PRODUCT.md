@@ -101,7 +101,8 @@ gaps), booking with explicit secretary-chosen duration, walk-ins as a single
 book-and-check-in, check-in/checkout with payment, per-patient running balances
 across visits, a balances screen (total outstanding, who owes and for how long,
 charged vs collected for a period), a configurable procedure catalogue with
-categories, subtypes and per-unit quantities, patients with doctor-defined custom
+categories, subtypes and per-unit quantities (with a clinic type, Dental or
+General, where General drops teeth for a clinic that isn't dental), patients with doctor-defined custom
 questions and full visit history, missed-appointment resolution, and settings.
 
 Hard constraints:

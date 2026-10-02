@@ -431,7 +431,7 @@ function emptyDb(): DemoDb {
         roleGrants: [],
         devices: [],
         settings: {
-            clinicName: 'Lustre Dental',
+            clinicName: 'Nile Clinic',
             clinicPhone: '+20221234567',
             durationOptions: [...DEFAULT_DURATION_OPTIONS],
             defaultDuration: DEFAULT_DURATION_MINUTES,
@@ -449,6 +449,7 @@ function emptyDb(): DemoDb {
             requireAge: DEFAULT_REQUIRE_AGE,
             requireGender: DEFAULT_REQUIRE_GENDER,
             askToEditOnFinish: true,
+            clinicType: 'dental',
             requireProvisioning: false,
             updatedAt: new Date(),
         },

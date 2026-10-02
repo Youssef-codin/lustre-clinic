@@ -48,6 +48,7 @@
 import {
     APPOINTMENT_CHANNELS,
     APPOINTMENT_STATUSES,
+    CLINIC_TYPES,
     DEFAULT_DURATION_MINUTES,
     DEFAULT_DURATION_OPTIONS,
     DEFAULT_REMINDER_LEAD_HOURS,
@@ -329,13 +330,19 @@ export const settings = pgTable(
         requireGender: boolean('require_gender').notNull().default(DEFAULT_REQUIRE_GENDER),
         // Whether the doctor's Finish asks first if the procedures need editing.
         askToEditOnFinish: boolean('ask_to_edit_on_finish').notNull().default(true),
+        // `general` is a clinic that is not charting teeth. Procedures keep
+        // their `is_tooth_specific`, so going back to `dental` restores them.
+        clinicType: text('clinic_type', { enum: CLINIC_TYPES }).notNull().default('dental'),
         // Whether a phone with no role credential is refused. Off, so the
         // phones installed before roles existed keep working until each has
         // scanned a code; an admin turns it on once they all have.
         requireProvisioning: boolean('require_provisioning').notNull().default(false),
         updatedAt: timestamptz('updated_at').notNull().defaultNow(),
     },
-    (t) => [check('settings_single_row', sql`${t.id} = 1`)],
+    (t) => [
+        check('settings_single_row', sql`${t.id} = 1`),
+        check('settings_clinic_type_valid', sql`${t.clinicType} IN ('dental', 'general')`),
+    ],
 );
 
 /**

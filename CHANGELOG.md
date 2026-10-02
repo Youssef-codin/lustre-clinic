@@ -8,6 +8,10 @@ listed.
 
 ## [Unreleased]
 
+### Added
+
+- The app works for clinics that aren't dental. Settings → Clinic → Clinic type is Dental or General. A General clinic is never asked for a tooth: adding a procedure goes straight to the list, no procedure requires one, the "Needs a tooth" switch and TOOTH tags are hidden, and visits and bookings no longer say "No tooth assigned" under lines without a tooth. Each procedure keeps its own tooth setting, so choosing Dental again brings the dental flow back as it was. Visits recorded with a tooth keep it. Every clinic starts as Dental.
+
 ## [1.7.2] - 2026-10-01
 
 ### Added

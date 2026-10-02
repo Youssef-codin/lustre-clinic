@@ -55,7 +55,15 @@ import {
     withoutAppointment,
 } from '../booking';
 import { CALENDAR_CLOSED, type CalendarState, closeCalendar, openCalendar } from '../calendar';
-import { type Appointment, api, type Branch, type ClinicDay, useLocalMutation, useLocalQuery } from '../data';
+import {
+    type Appointment,
+    api,
+    type Branch,
+    type ClinicDay,
+    useGeneralClinic,
+    useLocalMutation,
+    useLocalQuery,
+} from '../data';
 import { describeError } from '../errors';
 import { isClosed } from '../hours';
 import { formatMoney } from '../money';
@@ -236,6 +244,7 @@ export function BookingScreen({
     const name = patientNameOf(patient);
 
     const catalogue = useLocalQuery('procedure-tree', api.procedureTree);
+    const general = useGeneralClinic();
 
     // Set during render rather than in an effect, as `VisitScreen` seeds its
     // checkup: the plan is on screen in the commit the catalogue lands in.
@@ -558,6 +567,7 @@ export function BookingScreen({
                                 loading={catalogue.status === 'loading'}
                                 error={catalogue.status === 'error' ? catalogue.error : null}
                                 onRetry={catalogue.refetch}
+                                general={general}
                             />
 
                             {rescheduling ? null : (
@@ -756,7 +766,7 @@ export function BookingScreen({
                                             <ToothGroupCard
                                                 key={group.tooth ?? 'none'}
                                                 tooth={group.tooth}
-                                                position={toothPosition(group.tooth)}
+                                                position={toothPosition(group.tooth, general)}
                                                 subtotal={
                                                     <MoneyValue
                                                         piastres={group.subtotal}

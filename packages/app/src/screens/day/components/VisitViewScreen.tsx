@@ -35,7 +35,14 @@ import {
 import { useT } from '../../../i18n';
 import { getLocale } from '../../../i18n/runtime';
 import { border, color, radius, size, space, Text } from '../../../theme';
-import { type Appointment, api, useLocalMutation, type Visit, type VisitPayment } from '../data';
+import {
+    type Appointment,
+    api,
+    useGeneralClinic,
+    useLocalMutation,
+    type Visit,
+    type VisitPayment,
+} from '../data';
 import { describeError } from '../errors';
 import { formatAmount, formatMoney } from '../money';
 import { chargeableTotal, checkupIsWaived, toothGroupsOf, toothPosition } from '../procedures';
@@ -134,6 +141,7 @@ export function VisitViewScreen({
     }
 
     const groups = toothGroupsOf(visit.procedures);
+    const general = useGeneralClinic();
     // "Total cost" below is `chargedTotal`, which the server struck the checkup
     // out of. The group subtotals have to be struck the same way or the lines
     // on this screen visibly do not add up to the total under them.
@@ -254,7 +262,7 @@ export function VisitViewScreen({
                                                 numberOfLines={1}
                                                 style={styles.grow}
                                             >
-                                                {toothPosition(group.tooth)}
+                                                {toothPosition(group.tooth, general)}
                                             </Text>
 
                                             {priced ? (
