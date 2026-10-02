@@ -135,7 +135,7 @@ function wouldReplace(): boolean {
 export async function pickClinicFile(): Promise<PickedClinic | null> {
     const picked = await File.pickFileAsync();
     if (picked.canceled) return null;
-    const { db, exportedAt } = parseLocalFile(await picked.result.text());
+    const { db, exportedAt } = parseLocalFile(await picked.result.text(), true);
     return { db, exportedAt, replaces: wouldReplace() };
 }
 
@@ -146,7 +146,9 @@ export async function pickClinicFile(): Promise<PickedClinic | null> {
  */
 export function openClinicFile(picked: PickedClinic): void {
     const main = file(MAIN);
+    const next = file(NEXT);
     if (main.exists) main.copySync(file(REPLACED), { overwrite: true });
+    else if (next.exists) next.copySync(file(REPLACED), { overwrite: true });
     setDb(picked.db, 'local');
     try {
         commitLocal();

@@ -293,6 +293,25 @@ describe('a clinic file brought back', () => {
         expect(files.get(MAIN)).toBe(before);
     });
 
+    it('refuses a file whose rows would not survive the trip, rather than storing them broken', async () => {
+        const file = JSON.parse(anotherPhonesExport());
+        file.db.patients[0].createdAt = 'not-a-date';
+        pickable = JSON.stringify(file);
+
+        await expect(pickClinicFile()).rejects.toThrow(LocalStoreError);
+    });
+
+    it('keeps aside a clinic that was only ever on file as its next copy', async () => {
+        const half = serializeLocal(freshLocalDb());
+        files.set('lustre-local.next.json', half);
+        pickable = anotherPhonesExport();
+
+        const picked = await pickClinicFile();
+        if (picked) await startLocalModeFrom(picked);
+
+        expect(files.get('lustre-local.replaced.json')).toBe(half);
+    });
+
     it('says when it would replace a clinic with patients, and keeps that one aside', async () => {
         pickable = anotherPhonesExport();
         const first = await pickClinicFile();

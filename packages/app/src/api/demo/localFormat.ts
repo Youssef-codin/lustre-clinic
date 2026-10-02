@@ -8,7 +8,12 @@
  * outright, so nothing is written over it, and a row shape that changes gets an
  * upgrade step here rather than a bumped version.
  */
-import { DEFAULT_CLINIC_NAME, LOCAL_CLINIC_FORMAT, LOCAL_CLINIC_VERSION } from '@lustre/shared';
+import {
+    DEFAULT_CLINIC_NAME,
+    LOCAL_CLINIC_FORMAT,
+    LOCAL_CLINIC_VERSION,
+    localClinicFileSchema,
+} from '@lustre/shared';
 import { type DemoDb, revive } from './db';
 import { uuidv7 } from './rules';
 import { emptyDb } from './seed';
@@ -50,8 +55,15 @@ export function parseLocal(raw: string): DemoDb {
     return parseLocalFile(raw).db;
 }
 
-/** Throws rather than returning nothing: the caller must not take a bad read for an empty clinic. */
-export function parseLocalFile(raw: string): { db: DemoDb; exportedAt: Date | null } {
+/**
+ * Throws rather than returning nothing: the caller must not take a bad read for an empty clinic.
+ *
+ * `checkRows` is for a file from outside the phone, which is held to the shared
+ * schema the server's import uses, row by row, so a file this phone opens is one
+ * a server would take too. The phone's own file is not: a row the schema
+ * disagrees with must not lock the clinic out of its own records.
+ */
+export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; exportedAt: Date | null } {
     let parsed: { format?: unknown; version?: unknown; exportedAt?: unknown; db?: DemoDb };
     try {
         parsed = JSON.parse(raw) as typeof parsed;
@@ -69,6 +81,10 @@ export function parseLocalFile(raw: string): { db: DemoDb; exportedAt: Date | nu
     // empty clinic, so one added to `DemoDb` is checked without a list here.
     if (!hasEveryTable(parsed.db)) {
         throw new LocalStoreError('the clinic file is missing part of the clinic');
+    }
+    // `exportedAt` is left out: one that does not read is dropped below, not refused.
+    if (checkRows && !localClinicFileSchema.safeParse({ ...parsed, exportedAt: undefined }).success) {
+        throw new LocalStoreError('the clinic file has rows this app cannot read');
     }
     const exportedAt = typeof parsed.exportedAt === 'string' ? new Date(parsed.exportedAt) : null;
     return {
