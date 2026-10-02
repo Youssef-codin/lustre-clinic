@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet } from 'react-native';
 import { useT } from '../../i18n';
 import { color, size, space, Text } from '../../theme';
-import type { MenuAnchor } from './PopoverMenu';
+import type { MenuAnchor, MenuMotion } from './PopoverMenu';
 import { MenuSurface } from './PopoverMenu';
 
 export type DropdownOption<T extends string> = { value: T; label: string };
@@ -13,6 +13,7 @@ export type DropdownMenuProps<T extends string> = {
     value: T;
     onChange: (value: T) => void;
     anchor?: MenuAnchor;
+    motion?: MenuMotion;
     accessibilityLabel?: string;
     testID?: string;
 };
@@ -24,6 +25,7 @@ export function DropdownMenu<T extends string>({
     value,
     onChange,
     anchor,
+    motion,
     accessibilityLabel,
     testID,
 }: DropdownMenuProps<T>) {
@@ -34,6 +36,7 @@ export function DropdownMenu<T extends string>({
             visible={visible}
             onClose={onClose}
             anchor={anchor}
+            motion={motion}
             accessibilityLabel={accessibilityLabel}
             testID={testID}
         >

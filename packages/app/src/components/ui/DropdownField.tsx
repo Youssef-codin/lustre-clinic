@@ -39,16 +39,20 @@ export function DropdownField<T extends string>({
     const t = useT();
     const trigger = useRef<View>(null);
     const window = useWindowDimensions();
+    // Kept after closing: the menu is still on screen for its exit, and with no
+    // anchor it would leave from the default corner instead of the field.
     const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+    const [open, setOpen] = useState(false);
     const selected = options.find((option) => option.value === value);
 
-    function open() {
+    function show() {
         trigger.current?.measureInWindow((x, y, width, height) => {
             setAnchor({
                 top: y + height + space[1],
                 start: I18nManager.isRTL ? window.width - x - width : x,
                 width,
             });
+            setOpen(true);
         });
     }
 
@@ -59,12 +63,13 @@ export function DropdownField<T extends string>({
                 accessibilityRole="button"
                 accessibilityLabel={accessibilityLabel ? t(accessibilityLabel) : undefined}
                 accessibilityValue={{ text: selected ? t(selected.label) : '' }}
-                accessibilityState={{ disabled, expanded: anchor !== null }}
+                accessibilityState={{ disabled, expanded: open }}
                 disabled={disabled}
-                onPress={open}
+                onPress={show}
                 testID={testID}
                 style={({ pressed }) => [
                     styles.control,
+                    open && styles.open,
                     pressed && styles.pressed,
                     disabled && styles.disabled,
                 ]}
@@ -72,16 +77,17 @@ export function DropdownField<T extends string>({
                 <Text variant="body" numberOfLines={1} style={styles.value}>
                     {selected ? t(selected.label) : ''}
                 </Text>
-                <Chevron direction={anchor ? 'up' : 'down'} />
+                <Chevron direction={open ? 'up' : 'down'} />
             </Pressable>
 
             <DropdownMenu
-                visible={anchor !== null}
-                onClose={() => setAnchor(null)}
+                visible={open}
+                onClose={() => setOpen(false)}
                 options={options}
                 value={value}
                 onChange={onChange}
                 anchor={anchor ?? undefined}
+                motion="drop"
                 accessibilityLabel={accessibilityLabel}
                 testID={testID ? `${testID}-menu` : undefined}
             />
@@ -101,6 +107,7 @@ const styles = StyleSheet.create({
         borderColor: color.line,
         backgroundColor: color.surface,
     },
+    open: { borderColor: color.ink },
     value: { flex: 1 },
     pressed: { opacity: 0.72 },
     disabled: { opacity: 0.32 },
