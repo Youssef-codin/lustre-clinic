@@ -8,13 +8,17 @@ import {
     enableDemoMode,
     getConnectionState,
     isTailnetAddress,
+    LocalStoreError,
     lastProbeRefused,
+    type PickedClinic,
+    pickClinicFile,
     reprobe,
     serverAddresses,
     startLocalMode,
+    startLocalModeFrom,
 } from '../api';
 import { BrandMark } from '../components/domain';
-import { Button, Dot, TextField } from '../components/ui';
+import { Button, ConfirmSheet, Dot, TextField } from '../components/ui';
 import { useT } from '../i18n';
 import { color, radius, space, Text } from '../theme';
 import { NOT_DEV_SERVER, NOT_ON_TAILNET, noAnswer, nothingEntered, toCandidate } from './address';
@@ -64,6 +68,9 @@ export function SetupScreen() {
     const [attempt, setAttempt] = useState<Attempt | null>(null);
     const [startingLocal, setStartingLocal] = useState(false);
     const [localFailed, setLocalFailed] = useState(false);
+    const [openingFile, setOpeningFile] = useState(false);
+    const [fileProblem, setFileProblem] = useState<string | null>(null);
+    const [replacing, setReplacing] = useState<PickedClinic | null>(null);
 
     // The shell replaces this screen once the flag flips, so success has
     // nothing to draw.
@@ -75,6 +82,36 @@ export function SetupScreen() {
         } catch {
             setLocalFailed(true);
             setStartingLocal(false);
+        }
+    }
+
+    // Another phone's export, or this one's from before a reinstall. A file
+    // that would put a clinic with records in it aside asks first.
+    async function pickFile() {
+        setFileProblem(null);
+        setLocalFailed(false);
+        try {
+            const picked = await pickClinicFile();
+            if (!picked) return;
+            if (picked.replaces) setReplacing(picked);
+            else await openFile(picked);
+        } catch (error) {
+            setFileProblem(
+                error instanceof LocalStoreError
+                    ? 'That file is not a Lustre clinic, or this version of the app cannot read it.'
+                    : 'The file could not be read.',
+            );
+        }
+    }
+
+    async function openFile(picked: PickedClinic) {
+        setOpeningFile(true);
+        try {
+            await startLocalModeFrom(picked);
+        } catch {
+            setReplacing(null);
+            setOpeningFile(false);
+            setFileProblem('This phone could not open the clinic in that file.');
         }
     }
 
@@ -195,7 +232,8 @@ export function SetupScreen() {
                     </View>
 
                     {/* A clinic with no PC to run the server on. Its records
-                        live on this phone and nowhere else. */}
+                        live on this phone, and leave it only as the file
+                        Settings → Export clinic sends somewhere else. */}
                     <Button
                         label="Use on this phone only"
                         onPress={() => void runLocally()}
@@ -203,12 +241,28 @@ export function SetupScreen() {
                         size="md"
                         block
                         loading={startingLocal}
-                        disabled={testing}
+                        disabled={testing || openingFile}
                         testID="setup-local"
                     />
                     {localFailed ? (
                         <Text variant="footnote" tone="danger" style={styles.localNote}>
                             {t('This phone could not open its clinic. Nothing was changed.')}
+                        </Text>
+                    ) : null}
+
+                    <Button
+                        label="Open a clinic file"
+                        onPress={() => void pickFile()}
+                        variant="ghost"
+                        size="md"
+                        block
+                        loading={openingFile && replacing === null}
+                        disabled={testing || startingLocal}
+                        testID="setup-open-file"
+                    />
+                    {fileProblem ? (
+                        <Text variant="footnote" tone="danger" style={styles.localNote}>
+                            {t(fileProblem)}
                         </Text>
                     ) : null}
 
@@ -230,6 +284,20 @@ export function SetupScreen() {
                     ) : null}
                 </View>
             </View>
+
+            <ConfirmSheet
+                visible={replacing !== null}
+                title="Replace the clinic on this phone?"
+                body="This phone already has a clinic with patients in it. The clinic in the file takes its place."
+                confirmLabel="Replace"
+                destructive
+                loading={openingFile}
+                onConfirm={() => {
+                    if (replacing) void openFile(replacing);
+                }}
+                onCancel={() => setReplacing(null)}
+                testID="setup-replace-clinic"
+            />
         </ScrollView>
     );
 }

@@ -18,6 +18,8 @@ export {
     useDeviceBackend,
 } from './flag';
 export { demoLink } from './link';
+export { exportLocal, type PickedClinic, pickClinicFile } from './local';
+export { LocalStoreError } from './localFormat';
 
 import type { Role } from '@lustre/shared';
 import { credentialToken, forgetDemoCredential, grantCredential, hydrateCredential } from '../credential';
@@ -26,7 +28,7 @@ import { clearStored, getDb, setDb, takeDirty } from './db';
 import { disableLocalMode, enableLocalMode } from './flag';
 import { provisionDemo } from './handlers/device';
 import { openDeviceDb } from './link';
-import { commitLocal } from './local';
+import { commitLocal, openClinicFile, type PickedClinic } from './local';
 import { seedDemoDb } from './seed';
 
 /**
@@ -49,6 +51,16 @@ export async function startLocalMode(): Promise<void> {
         await disableLocalMode();
         throw error;
     }
+}
+
+/**
+ * Local mode on a clinic brought in from a file: another phone's export, or
+ * this phone's own from before it was reset. The phone is made its admin the
+ * way `startLocalMode` makes it the admin of any clinic it has not seen.
+ */
+export async function startLocalModeFrom(picked: PickedClinic): Promise<void> {
+    openClinicFile(picked);
+    await startLocalMode();
 }
 
 /**

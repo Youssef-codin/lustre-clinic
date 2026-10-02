@@ -1334,6 +1334,22 @@ export const COPY_AR = {
     'The clinic on this phone stays here for when you come back':
         'تبقى العيادة على هذا الهاتف حتى تعود إليها',
     'This phone': 'هذا الهاتف',
+    'Export clinic': 'تصدير العيادة',
+    'Save the clinic file': 'حفظ ملف العيادة',
+    'Could not export the clinic': 'تعذّر تصدير العيادة',
+    'Not exported yet · only this phone has it': 'لم تُصدَّر بعد · هذا الهاتف وحده يحملها',
+    'Last export {age}': 'آخر تصدير {age}',
+    '{last} · export again': '{last} · صدّرها مرة أخرى',
+    'Open a clinic file': 'فتح ملف عيادة',
+    'That file is not a Lustre clinic, or this version of the app cannot read it.':
+        'هذا الملف ليس عيادة Lustre، أو أن هذا الإصدار من التطبيق لا يستطيع قراءته.',
+    'The file could not be read.': 'تعذّرت قراءة الملف.',
+    'This phone could not open the clinic in that file.':
+        'تعذّر على هذا الهاتف فتح العيادة الموجودة في هذا الملف.',
+    'Replace the clinic on this phone?': 'استبدال العيادة على هذا الهاتف؟',
+    'This phone already has a clinic with patients in it. The clinic in the file takes its place.':
+        'على هذا الهاتف عيادة بها مرضى بالفعل. ستحل العيادة الموجودة في الملف محلها.',
+    Replace: 'استبدال',
     'No server': 'لا يوجد خادم',
     'Nile Clinic': 'عيادة النيل',
     'CLINIC TYPE': 'نوع العيادة',

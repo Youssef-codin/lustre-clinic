@@ -14,13 +14,14 @@
  * drawing labels with empty subs under them.
  */
 import { type ClientRole, leadDaysOf, managesClinic, type Role } from '@lustre/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { memo, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import {
     allowsDemo,
     BUILD_VARIANT,
     disableLocalMode,
+    exportLocal,
     type RouterOutput,
     resetDemoData,
     serverNow,
@@ -69,7 +70,7 @@ import { ErrorState, SkeletonRows } from './components/QueryStates';
 import { SettingsRow } from './components/SettingsRow';
 import { installedVersion, useApkUpdate } from './data/appUpdate';
 import { versionLine } from './data/appVersion';
-import { type BackupView, backupView, driveSignInError } from './data/backups';
+import { type BackupView, backupView, driveSignInError, localExportLine } from './data/backups';
 import { useConnectionView } from './data/connection';
 import { useDriveSignIn } from './data/driveSignIn';
 import { errorText } from './data/errors';
@@ -145,6 +146,19 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
     const connection = useConnectionView();
     const apkUpdate = useApkUpdate();
     const backups = useBackups();
+    const lastExport = useLastExport(local);
+    const trpc = useTRPC();
+    const queryClient = useQueryClient();
+
+    /** The share sheet is the feedback; the row's sub moves on once it closes. */
+    const exportClinic = usePendingAction(async () => {
+        try {
+            await exportLocal(t('Save the clinic file'));
+        } catch {
+            setToast('Could not export the clinic');
+        }
+        await queryClient.invalidateQueries(trpc.backup.status.queryFilter());
+    });
     const driveSignIn = useDriveSignIn();
     const [linkingDrive, setLinkingDrive] = useState(false);
 
@@ -394,7 +408,20 @@ function SettingsScreenView({ goHome = 0 }: SettingsScreenProps) {
                                     onPress={() => routes.push('hours')}
                                     testID="settings-hours"
                                 />
-                                {local ? null : (
+                                {/* A clinic on this phone has no backup job: its backup
+                                    is the copy someone sends off it. */}
+                                {local ? (
+                                    <>
+                                        <CardDivider />
+                                        <SettingsRow
+                                            icon={<SettingsIcon glyph="backups" />}
+                                            label="Export clinic"
+                                            sub={lastExport ?? 'Checking…'}
+                                            onPress={exportClinic.run}
+                                            testID="settings-export-clinic"
+                                        />
+                                    </>
+                                ) : (
                                     <>
                                         <CardDivider />
                                         <SettingsRow
@@ -635,6 +662,14 @@ function useBackups(): BackupView | null {
     const t = useT();
     const status = useQuery(trpc.backup.status.queryOptions(undefined, { refetchInterval: 5 * 60_000 }));
     return status.data ? backupView(status.data, serverNow(), t) : null;
+}
+
+/** The status the Backups row reads: local mode answers it with the last export (`api/demo/handlers/backup`). */
+function useLastExport(local: boolean): string | null {
+    const trpc = useTRPC();
+    const t = useT();
+    const status = useQuery(trpc.backup.status.queryOptions(undefined, { enabled: local }));
+    return local && status.data ? localExportLine(status.data, Date.now(), t) : null;
 }
 
 function useSummary() {

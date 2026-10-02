@@ -8,13 +8,15 @@
  * outright, so nothing is written over it, and a row shape that changes gets an
  * upgrade step here rather than a bumped version.
  */
-import { DEFAULT_CLINIC_NAME } from '@lustre/shared';
+import {
+    DEFAULT_CLINIC_NAME,
+    LOCAL_CLINIC_FORMAT,
+    LOCAL_CLINIC_VERSION,
+    localClinicFileSchema,
+} from '@lustre/shared';
 import { type DemoDb, revive } from './db';
 import { uuidv7 } from './rules';
 import { emptyDb } from './seed';
-
-const FORMAT = 'lustre-local';
-const VERSION = 1;
 
 /** Sunday is 0, as in `Date#getDay`. Friday is the weekend most clinics here keep. */
 const OPEN_WEEKDAYS = [0, 1, 2, 3, 4, 6];
@@ -44,22 +46,34 @@ export function freshLocalDb(): DemoDb {
     return db;
 }
 
-export function serializeLocal(db: DemoDb): string {
-    return JSON.stringify({ format: FORMAT, version: VERSION, db });
+/** `exportedAt` is stamped on a copy that leaves the phone, never on the phone's own file. */
+export function serializeLocal(db: DemoDb, exportedAt?: Date): string {
+    return JSON.stringify({ format: LOCAL_CLINIC_FORMAT, version: LOCAL_CLINIC_VERSION, exportedAt, db });
 }
 
-/** Throws rather than returning nothing: the caller must not take a bad read for an empty clinic. */
 export function parseLocal(raw: string): DemoDb {
-    let parsed: { format?: unknown; version?: unknown; db?: DemoDb };
+    return parseLocalFile(raw).db;
+}
+
+/**
+ * Throws rather than returning nothing: the caller must not take a bad read for an empty clinic.
+ *
+ * `checkRows` is for a file from outside the phone, which is held to the shared
+ * schema the server's import uses, row by row, so a file this phone opens is one
+ * a server would take too. The phone's own file is not: a row the schema
+ * disagrees with must not lock the clinic out of its own records.
+ */
+export function parseLocalFile(raw: string, checkRows = false): { db: DemoDb; exportedAt: Date | null } {
+    let parsed: { format?: unknown; version?: unknown; exportedAt?: unknown; db?: DemoDb };
     try {
         parsed = JSON.parse(raw) as typeof parsed;
     } catch {
         throw new LocalStoreError('the clinic file is not readable');
     }
-    if (parsed.format !== FORMAT || !parsed.db || typeof parsed.db !== 'object') {
+    if (parsed.format !== LOCAL_CLINIC_FORMAT || !parsed.db || typeof parsed.db !== 'object') {
         throw new LocalStoreError('the clinic file is not a clinic');
     }
-    if (parsed.version !== VERSION) {
+    if (parsed.version !== LOCAL_CLINIC_VERSION) {
         throw new LocalStoreError(`the clinic file is version ${String(parsed.version)}`);
     }
     // A file missing a table would open as a clinic without it, and the next
@@ -68,7 +82,20 @@ export function parseLocal(raw: string): DemoDb {
     if (!hasEveryTable(parsed.db)) {
         throw new LocalStoreError('the clinic file is missing part of the clinic');
     }
-    return revive(parsed.db);
+    // `exportedAt` is left out: one that does not read is dropped below, not refused.
+    if (checkRows && !localClinicFileSchema.safeParse({ ...parsed, exportedAt: undefined }).success) {
+        throw new LocalStoreError('the clinic file has rows this app cannot read');
+    }
+    const exportedAt = typeof parsed.exportedAt === 'string' ? new Date(parsed.exportedAt) : null;
+    return {
+        db: revive(parsed.db),
+        exportedAt: exportedAt && !Number.isNaN(exportedAt.getTime()) ? exportedAt : null,
+    };
+}
+
+/** Whether opening another clinic over this one would lose anybody's records. */
+export function hasRecords(db: DemoDb): boolean {
+    return db.patients.length > 0 || db.appointments.length > 0;
 }
 
 function hasEveryTable(db: object): boolean {

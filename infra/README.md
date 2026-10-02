@@ -136,6 +136,25 @@ in Settings → Phones & role codes. Phones that have not scanned a code keep
 working until the admin turns on "Every phone needs a role code" there. From a
 checkout, `bun cli grant admin` does the same against `.env`'s database.
 
+### Moving a phone-only clinic onto the server
+
+A clinic that started with "Use on this phone only" exports itself from the
+phone (Settings → Export clinic) as one `.json` file. To move it onto a new
+stack, start the server once so the database is migrated, copy the file into
+the stack's `backups/` directory, and run:
+
+```sh
+docker compose run --rm server import-local /app/backups/lustre-clinic-2026-10-02.json
+```
+
+It refuses a server that already has patients or appointments, and writes
+everything or nothing. The clinic's branches, hours, procedures, patient fields
+and settings replace whatever the fresh server had; the server's phones and its
+"Every phone needs a role code" setting stay. The phone's own role does not
+carry over, so issue the first admin with `grant admin` as above, then on the
+phone go to Settings → Connect to a server. From a checkout,
+`bun cli import-local <file>` does the same against `.env`'s database.
+
 ## Google Drive backups
 
 The production stack can push each verified, encrypted dump into a folder in
